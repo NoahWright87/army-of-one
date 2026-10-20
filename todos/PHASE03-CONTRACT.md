@@ -19,8 +19,10 @@ additive and called out in the PR. Mention them in this doc's "Changes" section 
 - The **timeline truth** (`LaneTruth[]`) is folded from observations, latest wins ([D2]). Each lane
   is a series of spans over its recorded extent: `alive` (solid), `lost` (dashed/greyed: it was
   recorded but didn't happen this way in the latest truth), `frozen` (interrupted, alive but
-  stuck), or `unresolved` (latest truth contradicts what was known and nobody has simulated
-  this time since; see [Q1]).
+  stuck), or `unresolved` (latest truth contradicts what was known, and the background scrubber
+  hasn't reached this time yet; see [D23]).
+- A **resolve pass** ([D23]) is an observation with no live soldier. The background scrubber
+  produces it after each attempt, to bring the rest of the battle up to date.
 - **SpawnOptions** are derived from the truth plus map spawn points.
 
 ## Code (`src/contracts/mission.ts`)
@@ -66,7 +68,8 @@ export type LaneFate =
   | { kind: 'alive' }                                   // alive at obs.toTick; recording continues past it
   | { kind: 'died'; tick: Tick; cause: string }
   | { kind: 'static'; tick: Tick }                      // reached end of recording alive → O
-  | { kind: 'interrupted'; tick: Tick; reason: string } // could not follow its schedule; froze
+  | { kind: 'interrupted'; tick: Tick; reason: string } // could not follow its schedule; froze [D24]
+  | { kind: 'neverSpawned'; reason: string }            // spawn point not ours at spawnTick [D26]
 
 export type MarkerKind =
   | 'spawn' | 'kill' | 'hazardDestroyed' | 'interact' | 'damaged'
@@ -81,15 +84,16 @@ export interface TimelineMarker {
 }
 
 export interface AttemptObservation {
-  attempt: number;            // 1-based attempt index
+  kind: 'attempt' | 'resolve'; // 'resolve' = background scrubber pass, no live soldier [D23]
+  attempt: number;            // 1-based attempt index (a resolve pass uses the attempt it follows)
   fromTick: Tick;             // first simulated tick (0 or a snapshot tick)
-  toTick: Tick;               // last simulated tick
-  live: { soldierId: SoldierId; mode: 'new' | 'resume'; controlFromTick: Tick };
+  toTick: Tick;               // last simulated tick (a resolve pass may report progressively)
+  live?: { soldierId: SoldierId; mode: 'new' | 'resume'; controlFromTick: Tick }; // absent for 'resolve'
   /** Every lane that existed (spawned and not already dead) at some point in [fromTick, toTick]. */
   lanes: Record<SoldierId, LaneFate>;
   markers: TimelineMarker[];  // all markers inside the window
   missionComplete?: { tick: Tick; bySoldierId: SoldierId };
-  endReason: SegmentEndReason;
+  endReason: SegmentEndReason | 'resolved';
 }
 
 // ---------- Truth (owned by 03-b, stored by 03-c) ----------
@@ -106,8 +110,9 @@ export interface LaneSpan {
 export type LaneEnd =
   | { kind: 'death'; tick: Tick }        // X
   | { kind: 'open'; tick: Tick }         // O: alive at end of recording, resumable
-  | { kind: 'interrupted'; tick: Tick }  // !  (resumability: see [Q2])
-  | { kind: 'unresolved' }               // see [Q1]
+  | { kind: 'interrupted'; tick: Tick }  // !  not resumable [D24]
+  | { kind: 'neverSpawned' }             // whole lane greyed [D26]
+  | { kind: 'unresolved' }               // scrubber hasn't caught up [D23]
   | { kind: 'complete'; tick: Tick };    // mission completed during this soldier's life
 
 export interface LaneTruth {

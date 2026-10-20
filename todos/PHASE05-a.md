@@ -9,13 +9,12 @@ later attempt causally loses the spawn.
 `src/ui/respawn/**`, `src/content/maps/**`. Contract additions go in `PHASE03-CONTRACT.md`
 "Changes".
 
-Relevant rulings: [D7]–[D12], [D17].
+Relevant rulings: [D7]–[D12], [D17], [D23], [D25], [D26].
 
-## ⛔ Decision gates
-- **[Q3]** Presentation of mid-battle entries (lead-in for new soldiers at forward points / late
-  stagger slots). Build the spawn itself first. Gate only the lead-in presentation.
-- **[Q4]** What happens to lanes of soldiers who spawned at a point that's later lost. Until it's
-  answered, don't build the reconciliation; just hide the lost point from spawn options.
+Forward-point deployments reuse PHASE04's 5s lead-in ([D25]) and its "History shifted" path.
+Soldiers whose capture point is ours at their recorded `spawnTick` spawn. Otherwise they are
+`neverSpawned` and their lane greys out ([D26]). Implement 03-a's `isSpawnPointOpen` hook
+for capture points.
 
 ## Tasks
 - [ ] **Sim: capture point entity** ([D10]–[D12]): radius; stage `enemy → neutral → ours`;
@@ -32,9 +31,11 @@ Relevant rulings: [D7]–[D12], [D17].
   lanes: a capture inside an observed window that isn't re-observed is removed ([D9]).
 - [ ] **Spawn options:** each point in `ours` stage in the truth becomes a `new` option with
   `openTick = capture tick` ([D8]) and its own slot counter ([D7]).
-- [ ] **Starting at a forward point:** nearest valid snapshot ≤ entry → headless fast-forward →
-  enter. If fast-forward reveals the capture no longer happens, reuse PHASE04's "History shifted"
-  path.
+- [ ] **Starting at a forward point:** nearest valid snapshot ≤ entry − 5s → headless fast-forward →
+  lead-in → enter. If fast-forward reveals the capture no longer happens, reuse PHASE04's
+  "History shifted" path.
+- [ ] **Scrubber:** a resolve pass that finds a capture no longer happens removes the spawn option
+  live, and greys out lanes that spawned there ([D26]).
 - [ ] **Flag objective** ([D17]): the mission completes when a designated point reaches `ours`.
 - [ ] **Respawn UI:** capture markers on the captor lanes; forward points in the spawn panel with
   their open time; "Point lost" highlight in `changes`.
@@ -43,7 +44,8 @@ Relevant rulings: [D7]–[D12], [D17].
 
 ## Acceptance
 - Headless tests: capture rates by contributor count; accelerating decay; stage locking; echoes
-  re-capture deterministically in replay; a capture lost when its captor is killed earlier.
+  re-capture deterministically in replay; a capture lost when its captor is killed earlier, making soldiers who spawned there
+  `neverSpawned`; re-capturing in time brings them back.
 - Design doc scenario "Capture forward insertion": later respawns show the new geographic start
   point and its entry time.
 

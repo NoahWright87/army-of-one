@@ -27,8 +27,8 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [03-a](PHASE03-a.md) | Recording, echo playback, snapshots | 02-a | 03-b, 03-c | Full |
 | [03-b](PHASE03-b.md) | Timeline truth model & respawn screen | 03 contract | 03-a, 03-c | Full |
 | [03-c](PHASE03-c.md) | Persistence & autosave | 03 contract | 03-a, 03-b | Full |
-| [04](PHASE04.md) | **The loop**: die → echo → rescue → O → resume | 03-* | — | Full (⛔ Q1, Q2) |
-| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Medium (⛔ Q3, Q4) |
+| [04](PHASE04.md) | **The loop**: die → echo → rescue → O → resume | 03-* | — | Full |
+| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Medium |
 | [05-b](PHASE05-b.md) | Army-scale stress harness & performance | 04 | 05-a | Medium |
 | [06-a](PHASE06-a.md) | Lazy outcome-tested recording simplification | 05-b | 06-b | Sketch |
 | [06-b](PHASE06-b.md) | Auto-aim & touch controls | 04 | 06-a | Sketch |

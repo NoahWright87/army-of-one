@@ -10,8 +10,7 @@ PHASE04 only has to wire it to the screen.
 verbatim from `PHASE03-CONTRACT.md` if it doesn't exist yet), additive changes to `src/sim/**`
 needed to host echoes.
 
-Relevant rulings: [D2]–[D5], [D14], [E1]–[E4]. Open: [Q2] (interrupted echo behavior), which you
-build behind flags.
+Relevant rulings: [D2]–[D5], [D14], [D23]–[D26], [E1]–[E4], [E7], [E8].
 
 ## Design
 
@@ -37,10 +36,8 @@ An echo is a soldier driven by an `EchoController` instead of input:
    maxSpeed × catchUpFactor)`. Rejoin the schedule (snap) once within a small epsilon.
 4. **Interruption:** if the echo can't reach its schedule (no path, or lag beyond
    `lateTolerance` for longer than `lateGrace`), it freezes in place and its fate is
-   `interrupted` with a reason. Behavior after that is behind flags until [Q2] is answered:
-   - `tuning.echo.interruptedKillable` (default `true`)
-   - `tuning.echo.interruptedCanRecover` (default `false`). If true, it resumes when a path
-     reappears and catches up if within tolerance.
+   `interrupted` with a reason. Per [D24], it **stays killable** and the freeze is **permanent for
+   that attempt**: no recovery if the blocker clears.
 5. **Actions:** at each recorded action tick, if the echo is within `actionTolerance` of the
    recorded origin, perform it: shots fire **from the echo's current position at the recorded
    angle**; interacts trigger if the target is in reach. Otherwise skip it and emit a
@@ -71,8 +68,19 @@ attempt.snapshots: SnapshotStore                // taken every `tuning.snapshotI
   `controlFromTick`, with `minHp = 1` (unkillable, still damageable). At `controlFromTick` it
   switches to input. Input received earlier is *not* applied retroactively. The runner just
   starts honoring input at that tick (PHASE04's UI lets the player "pre-hold" keys).
-- **New soldier entry** at `entryTick`: not present before it. Any waiting/lead-in presentation
-  for late entries is [Q3] (PHASE05-a). Here, just support `from` earlier than `entryTick`.
+- **New soldier entry** at `entryTick`: not present before it. Every deployment gets a 5s lead-in
+  ([D25]), so support `from` earlier than `entryTick`. (The pre-tick-0 "frozen hold" for early
+  entries is pure presentation in PHASE04; the sim just starts at tick 0.)
+- **Spawn eligibility hook ([D26]):** an echo spawns at its recorded `spawnTick` only if
+  `isSpawnPointOpen(pointId, tick)` holds in the current world. Otherwise its fate is
+  `neverSpawned`. Initial points are always open. PHASE05-a implements the check for capture
+  points; here, make it a world query that returns `true`.
+- **Resolve passes ([D23]):** `startResolve({ map, soldiers, attempt, from })` is the same machinery
+  with no live soldier. It runs headless to the latest `recordedTo` of any soldier, and can report
+  partial observations every N ticks (`onProgress(observationSoFar)`) so the respawn screen's
+  scrubber can sweep. It must be **cancellable** (the player may deploy before it finishes) and
+  must run inside a Web Worker. It's pure TS, so it does: no DOM, no Phaser. Snapshots it takes
+  become valid snapshots for later deployments.
 - The observation lists every lane's `LaneFate` in `[fromTick, toTick]` and all
   `TimelineMarker`s (deaths, kills, hazard destroyed, interacts, interruptions, objective).
 - **Snapshots ([E4]):** plain-data, structured-clone-able world state including echo controller
@@ -91,8 +99,9 @@ attempt.snapshots: SnapshotStore                // taken every `tuning.snapshotI
   off-schedule pathfinding with "never early" throttling, interruption detection, action replay.
 - [ ] Soldier separation update: kinematic on-schedule echoes per the design above.
 - [ ] `attempt/attempt.ts`, `attempt/observation.ts`, `attempt/snapshots.ts`.
+- [ ] `attempt/resolve.ts`: resolve pass with progress callback + cancellation.
 - [ ] Tuning: `catchUpFactor`, `lateTolerance`, `lateGrace`, `actionTolerance`,
-  `snapshotIntervalTicks`, echo flags. All `// TUNE`, flags also `// Q2`.
+  `snapshotIntervalTicks`, `resolveProgressIntervalTicks`. All `// TUNE`.
 - [ ] Extend `WorldView` with soldier `role: 'live' | 'echo' | 'static' | 'interrupted'` and
   `leadIn: boolean` (02-b's renderer already has sprites for these).
 - [ ] Extend `tools/sim-cli.ts` with a scenario runner that chains attempts:
@@ -117,6 +126,11 @@ attempt.snapshots: SnapshotStore                // taken every `tuning.snapshotI
   later waypoints on time (not early).
 - [ ] **Crowd:** live soldier pushes through 10 on-schedule echoes without stopping them. Echoes
   pushed off schedule rejoin it.
+- [ ] **Resolve pass:** S2 dies at 0:30 after destroying the turret. A resolve from 0:30 shows S1
+  (recorded to 0:50) turning static at 0:50. Progress callbacks are monotonic. Cancelling stops
+  it promptly.
+- [ ] **Interrupted stays frozen:** after S1 freezes at a closed gate, reopening the gate doesn't
+  revive its schedule. S1 can still be killed.
 - [ ] **Snapshot equivalence:** running from a snapshot at tick s gives the same hash at tick
   s+k as running from tick 0.
 - [ ] **Chain of 20 attempts** with scripted bot lives completes headless in well under a second.

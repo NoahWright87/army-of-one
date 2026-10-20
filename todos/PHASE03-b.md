@@ -21,10 +21,14 @@ Only `W` (and consequences of a death/interruption inside it) may change ([D3]):
 | `died @ t` | `alive` up to t, `lost` (dashed) from t+1 to `recordedTo` | `death @ t` (X) |
 | `static @ t` | `alive` to t (= recordedTo) | `open @ t` (O) |
 | `interrupted @ t` | `alive` up to t, `frozen` from t+1 to `recordedTo` | `interrupted @ t` |
+| `neverSpawned` | `lost` over the whole lane ([D26]) | `neverSpawned` |
 | `alive` | `alive` over W. After W, keep prior spans **unless** prior truth had this soldier dead/interrupted at or before `obs.toTick`. That's now contradicted, so mark after W as `unresolved` | keep prior end, or `unresolved` in the contradicted case |
 
 - New lanes (a soldier's first life) are created from its `SoldierRecord` and then the observation
   is applied. Resumed soldiers' lanes extend to their new `recordedTo`.
+- `resolve` observations ([D23]) fold exactly like attempts (no live lane). They may arrive
+  progressively: applying a partial resolve covering `[from, k]` and then one covering
+  `[from, k']` must give the same result as applying `[from, k']` once.
 - Markers inside `W` are replaced by the observation's markers. Markers outside `W` are kept.
 - `changes` lists every lane whose `end` changed (O→X, X→O, …), for "history changed" highlights.
 - Property-style tests: spans always exactly cover `[recordedFrom, recordedTo]` with no overlap.
@@ -35,8 +39,9 @@ Only `W` (and consequences of a death/interruption inside it) may change ([D3]):
   tuning.spawnInterval` ([D7]). Every soldier ever spawned there uses up a slot, dead or alive.
 - `resume` for each lane with `end.kind === 'open'`: `resumeTick = end.tick`,
   `leadInFromTick = max(recordedFrom, end.tick − 5s)` ([D5]).
-- ⛔ Interrupted lanes and `unresolved` lanes are **not** offered. Make each a single
-  flag-guarded branch, pending [Q2] and [Q1].
+- Interrupted lanes are **not** offered ([D24]). Lanes still `unresolved` are not offered either.
+  Once the scrubber resolves them they become O or X. O options the scrubber hasn't reached yet
+  **are** offered ([D23]: the deploy's fast-forward validates them).
 - Capture-point spawns are added in PHASE05-a. Keep the function easy to extend.
 
 ## Part 2: Respawn screen (`src/ui/respawn/`, DOM/SVG overlay)
@@ -52,6 +57,13 @@ Design doc §04 and §11 are the spec. Make it **fast to read and fast to decide
   ✓ (mission complete).
 - [ ] Event markers along lanes (kills, hazard destroyed, levers, damage taken), with hover/tap
   tooltips from `strings.ts`. Keep them subtle so X/O dominate.
+- [ ] **Scrubber ([D23]):** a vertical line labeled "Resolving history…" that sweeps right from
+  the last attempt's `toTick` as resolve progress arrives. Time to its right is dimmed as
+  "unconfirmed". As it passes, lanes update with a quick animation: things that no longer happen
+  grey out, X↔O flips pulse, and spawn options appear or disappear (a lost capture point fades
+  out of the spawn panel). The screen is fully usable while it runs. The scrubber disappears when
+  done. The component just consumes a stream of truth updates. PHASE04 wires the real worker,
+  and here a fixture fakes the stream.
 - [ ] **History-changed highlight:** lanes in `changes` pulse once, with a short caption ("Soldier 1
   survived!" / "Soldier 1 now dies at 1:12").
 - [ ] **Spawn panel:** each `new` option shows spawn-point name, a small map thumbnail with the
@@ -66,7 +78,9 @@ Design doc §04 and §11 are the spec. Make it **fast to read and fast to decide
   scrolls horizontally inside its panel and the page never does.
 - [ ] Dev page: `?screen=respawn&fixture=<name>` renders fixtures. Write fixtures for: first
   death; rescue achieved (X→O); O ignored (static); history made worse (dashed); interruption;
-  12 soldiers across 2 spawn points; a 40-soldier dense case.
+  12 soldiers across 2 spawn points; a 40-soldier dense case; a **scrubber sweep** fixture that
+  streams progressive updates, including an O that flips to X and a lane that becomes
+  `neverSpawned`.
 
 ## Acceptance
 - Model unit tests pass (table above, spawn-slot counting, idempotence, invariants).

@@ -20,9 +20,9 @@ revise with justification in a PR).
   actions if rescued again. A lane can have any number of these "you made it worse" segments.
 - **[D3] You have to live long enough to see it through.** When the live soldier dies, the attempt
   ends. Truth updates **only for the battle time that was actually simulated** in that attempt.
-  Battle time after the live soldier's death keeps its previously known truth. No headless
-  "finish the battle" pass after death: it's too expensive with many lives, and watching it would
-  be boring. (See [Q1] for the forward-spawn wrinkle this creates.)
+  Battle time after the live soldier's death keeps its previously known truth for now. The
+  player never has to *wait* for or *watch* the rest of the battle being resolved. Instead it's
+  reconciled in the background while they're on the respawn screen ([D23]).
 - **[D4] O = alive at end of recording.** No precalculation. If an echo reaches the end of its
   recording alive, it becomes **static** (noninteractive, flickering) for the rest of that
   attempt, and is offered as an **O** at the next respawn.
@@ -31,8 +31,21 @@ revise with justification in a PR).
   pressing move/aim/fire, and those inputs take effect the instant the countdown hits zero.
   During the lead-in the soldier is **unkillable** (may take damage, but HP can't drop below
   1).
+- **[D5a] Every deployment gets the 5-second lead-in + countdown**, not just O resumes ([D25]).
 - **[D6] Reloading mid-life resumes that soldier** with the same 5-second lead-in, from the last
   autosave. Exploitable ("reload to dodge death"), and the product owner doesn't care.
+
+- **[D23] Background "scrubber" resolves stale history (was Q1).** While the player is on the respawn
+  screen, the rest of the battle (everything after the attempt's last simulated tick) is re-simulated
+  headlessly in the background. The timeline shows a **scrubber line sweeping across the remaining
+  time**, updating lanes as it goes: greying out things that no longer happen, flipping X/O, and
+  adding/removing spawn options. Deploying on something the scrubber hasn't reached yet still works:
+  the deploy's own fast-forward is "seeing it through". If that fast-forward invalidates the choice
+  (the soldier dies, or the capture never happens), bounce back to the respawn screen with a short
+  "History shifted" notice.
+- **[D24] Interrupted echoes (was Q2):** they stay killable, the freeze is permanent for that
+  attempt (no recovery if the blocker clears), and an interrupted soldier is **not** a resumable
+  respawn option.
 
 ## Spawning
 
@@ -48,6 +61,16 @@ revise with justification in a PR).
 - **[D9] Capture-point spawns are causal.** If the soldier who captured a point is killed earlier
   in a later attempt and never completes the capture, that spawn point is unavailable from then
   on. The captor's remaining timeline shows as interrupted until they're rescued again.
+
+- **[D25] Every new soldier gets the same 5s lead-in as an O resume (was Q3)**, including the very
+  first soldier at 0:00. For entries before battle time 5s, the part of the countdown before tick 0
+  is a frozen pre-battle hold: nothing plays back if you're the first soldier on the field. The
+  camera sits on the spawn point; the soldier appears when the countdown hits zero.
+- **[D26] Soldiers from a lost capture point never spawn (was Q4).** If a capture no longer
+  happens in the current truth (the scrubber or an attempt reveals it), soldiers who spawned
+  there never spawn: their whole lane greys out. If the point is captured again (by their
+  recorded spawn tick), they spawn and replay again. *(Interpretation: a soldier spawns at its
+  recorded spawn tick if and only if its spawn point is ours at that tick.)*
 
 ## Capture points (Battlefield 2-style)
 
@@ -119,30 +142,4 @@ revise with justification in a PR).
 
 ## Open questions
 
-- **[Q1] Unobserved history vs. forward spawns / O resumes.** Because of [D3], truth after the last
-  live death can be stale. Example: S1 is an O at 3:00 (proven in attempt 2). In attempt 3, S3
-  closes a gate at 0:20 and dies at 0:30. S1's O at 3:00 is still shown (nobody saw 0:30–3:00).
-  But to resume S1 we must simulate 0:30 → 2:55 to build the lead-in, and that simulation may
-  reveal S1 now dies at 1:10. The same applies to capture-point spawns. Options:
-  - (a) **Lazy:** simulate only up to the chosen spawn/lead-in moment when the player picks it.
-    That fast-forward counts as "seeing it through" and updates truth. If it invalidates the
-    choice, bounce back to the respawn screen with a short "history shifted" notice.
-  - (b) **Background resolve:** while the player is on the respawn screen, a worker re-simulates
-    unresolved battle time and the timeline visibly firms up ("resolving…" shimmer on stale
-    segments). Picking a still-unresolved option falls back to (a).
-  - (c) Something else.
-  *Agent recommendation: (b) with (a) as fallback. The headless sim runs much faster than real time,
-  and the respawn screen is idle time anyway.* **Blocks part of PHASE04.**
-- **[Q2] Interrupted echoes.** When an echo can't follow its path and freezes:
-  - Can it still be shot/killed, or is it untouchable like a static figure?
-  - If the blocker clears (gate reopens) shortly after, does it resume its schedule (catching up),
-    or is the freeze permanent for that attempt?
-  - Is an interrupted-but-alive soldier a resumable respawn option (like an O, at the point it
-    froze), or not?
-  **Blocks part of PHASE04; PHASE03-a builds it behind flags.**
-- **[Q3] Lead-in for new soldiers entering mid-battle** (capture-point spawns, late stagger
-  slots): use the same 5s lead-in + countdown + invulnerability as O resumes? (Agent suggestion:
-  yes, camera on the spawn point, no soldier visible until 0.) **Blocks part of PHASE05-a.**
-- **[Q4] Soldiers who spawned at a capture point that's later lost** (per [D9]): what happens to
-  their lanes? E.g. the whole lane becomes dashed "never arrived" until the capture is restored,
-  then they replay again. **Blocks part of PHASE05-a.**
+_None right now. Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._

@@ -8,16 +8,20 @@ with the next life, sees an **O** on the timeline, and resumes them under direct
 will want to playtest it.
 **Owns:** `src/app/**` (game flow), plus glue changes anywhere, kept small and called out in the PR.
 
-## ⛔ Decision gates
-- **[Q1] Unobserved history.** When starting at a resume lead-in, the attempt fast-forwards
-  headlessly from the nearest *valid* snapshot. That fast-forward is part of the attempt's
-  observation window, so its results become truth automatically. That much is true under every
-  option, so build it. **Until Q1 is answered**, if the fast-forward kills the chosen soldier
-  before control (or otherwise invalidates the choice), end the attempt at once, apply the
-  observation, and return to the respawn screen with a short "History shifted" notice (option
-  (a)). Do **not** build background resolution until Q1 is decided.
-- **[Q2] Interrupted echoes.** Leave the 03-a flags at their defaults and don't offer interrupted
-  lanes as spawn options until Q2 is decided.
+Relevant rulings: [D2]–[D6], [D7], [D23]–[D25].
+
+## Background resolve: the scrubber ([D23])
+- [ ] `src/app/resolve-worker.ts`: a Web Worker hosting 03-a's `startResolve`. Started as soon as
+  an attempt ends, from that attempt's last valid snapshot. It streams progressive `resolve`
+  observations to the main thread. Each update is folded with `applyObservation` and pushed to
+  the respawn screen's scrubber. Spawn options are re-derived on every update.
+- [ ] Deploying cancels the worker. Snapshots it produced so far are kept as valid.
+- [ ] Persist the resolved truth when the pass finishes (and on deploy, with whatever was
+  resolved so far).
+- [ ] **Choice invalidated during the deploy's own fast-forward** (it reached time the scrubber
+  hadn't): the soldier dies before control, or (05-a) the capture never happens. End the attempt
+  at once, apply its observation, and return to the respawn screen with a short "History
+  shifted" notice.
 
 ## Game flow (`src/app/flow.ts`, a small explicit state machine, unit-tested)
 ```
@@ -47,10 +51,12 @@ Boot ─▶ Title (New mission / Continue)
   `saveMission` → clear in-progress → respawn screen.
 
 ## Starting an attempt
-- **New soldier** at `entryTick`: start from the nearest valid snapshot ≤ `entryTick` (or tick 0),
-  fast-forward headlessly, and give control when the soldier enters. If there's a short wait (<
-  snapshot interval), show the battle with the camera on the spawn point. Anything fancier for
-  late entries is [Q3] (PHASE05-a).
+- **New soldier ([D25]):** same 5s lead-in as a resume. Start from the nearest valid snapshot ≤
+  `entryTick − 5s` (or tick 0), fast-forward headlessly, then play the countdown with the camera
+  on the spawn point. The soldier appears and takes control at zero. If `entryTick < 5s`, the
+  part of the countdown before tick 0 is a **frozen pre-battle hold**: the world is shown at
+  tick 0, not advancing. The first soldier of a mission sees a still battlefield and a 5s
+  countdown.
 - **Resume O ([D5]):** start from the nearest valid snapshot ≤ `leadInFromTick`, fast-forward
   headlessly (it should feel instant; show a spinner only if it takes >150 ms), then render the
   **lead-in**. The soldier plays its recording, the camera is on them, a big **5…4…3…2…1**
@@ -87,7 +93,9 @@ Boot ─▶ Title (New mission / Continue)
 | Make it worse | Get a previously saved soldier killed earlier → X at the new time, dashed remainder. |
 | Block echo route | Close the gate on an echo's route → it detours or freezes with `!` and a timeline marker. |
 | Reload mid-life | Refresh during a life → straight back into a lead-in as that soldier at ≈ the last autosave. |
-| Spawn stagger | Repeated Road spawns enter 2s apart; Beach's first soldier still enters at 0:00. |
+| Spawn stagger | Repeated Road spawns enter 2s apart; Beach's first soldier still enters at 0:00. Every deploy gets a 5s countdown, including the very first. |
+| Scrubber | After S2 kills the turret and then dies early, the respawn screen's scrubber sweeps right and S1's X flips to O as it passes. Deploying mid-sweep works. |
+| History shifted | Deploy onto an O the scrubber hasn't confirmed, which turns out to die during fast-forward → back to respawn with the notice. |
 | 10+ lives | Ten-plus echoes replay meaningfully without noticeable slowdown. |
 
 Also: flow state-machine unit tests. One headless end-to-end test drives the flow with scripted
