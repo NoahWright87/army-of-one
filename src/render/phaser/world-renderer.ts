@@ -554,7 +554,8 @@ export class WorldRenderer {
         .setTexture(wreck ? 'vehicle_wreck' : 'vehicle')
         .setPosition(p.x, p.y)
         .setRotation(heading)
-        .setDisplaySize(v.w, v.h);
+        // w/h are world-axis extents; the sprite's own x axis runs along the heading.
+        .setDisplaySize(...vehicleSpriteSize(v));
       if (!this.applyHitFlash(spr, v.id, this.now)) this.clearTint(spr);
       if (!wreck) this.hpBar(p.x, p.y - v.h / 2 - 10, 40, v.hp, v.maxHp);
     }
@@ -682,4 +683,10 @@ function dashedLine(
     const t1 = Math.min(1, (i + 1) / n);
     g.lineBetween(lerp(x0, x1, t0), lerp(y0, y1, t0), lerp(x0, x1, t1), lerp(y0, y1, t1));
   }
+}
+
+/** Sprite size (length along heading, width across) from a vehicle's world-axis extents. */
+export function vehicleSpriteSize(v: Pick<VehicleView, 'w' | 'h' | 'heading'>): [number, number] {
+  const vertical = Math.abs(Math.sin(v.heading)) > Math.SQRT1_2;
+  return vertical ? [v.h, v.w] : [v.w, v.h];
 }
