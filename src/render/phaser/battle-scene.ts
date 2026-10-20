@@ -1,76 +1,148 @@
 import Phaser from 'phaser';
-import { DEFAULT_TUNING } from '../../content/tuning';
-import { TEST_RANGE } from '../../content/maps/test-range';
-import { TICKS_PER_SECOND } from '../../sim/core/time';
-import { createWorld, getView, spawnSoldier, step, type World } from '../../sim/sim';
-import type { SoldierView, WorldView } from '../../sim/view';
 import { advance, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
-import { KeyboardMouseInput, type InputSource } from './keyboard-mouse-input';
+import { hashState } from '../../sim/core/hash';
+import { TICKS_PER_SECOND } from '../../sim/core/time';
+import { getView, step, type World } from '../../sim/sim';
+import type { WorldView } from '../../sim/view';
+import { entityCounts, ema } from '../../ui/hud/debug-model';
+import { buildHudModel } from '../../ui/hud/hud-model';
+import type { Cue } from '../event-cues';
+import type { InputSource } from '../input/input-source';
+import { smoothFollow } from '../interp';
+import type { BattleSession, SceneServices } from './services';
+import { SoundBank } from './sound-bank';
+import { WorldRenderer } from './world-renderer';
 
-/** PHASE01 battle scene: draws with primitive shapes. PHASE02-b switches to placeholder sprites. */
+/** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
+const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
+const HASH_EVERY_FRAMES = 30;
+
+/**
+ * Runs one battle: fixed-step sim (60 Hz, [E6]) + interpolated rendering + HUD.
+ * Start it with `scene.start('battle', { session })`; see BattleSession in services.ts.
+ */
 export class BattleScene extends Phaser.Scene {
+  private session!: BattleSession;
   private world!: World;
   private liveId!: string;
   private stepper!: FixedStepper;
-  private input2!: InputSource;
+  private source!: InputSource;
   private prevView!: WorldView;
   private view!: WorldView;
-  private gfx!: Phaser.GameObjects.Graphics;
+  private worldRenderer!: WorldRenderer;
+  private sounds!: SoundBank;
+  private cam = { x: 0, y: 0 };
+  private countdownTicks: number | null = null;
+  private stepMs: number | null = null;
+  private frame = 0;
+  private hash = '';
 
-  constructor() {
+  constructor(private readonly services: SceneServices) {
     super('battle');
   }
 
-  create(): void {
-    this.world = createWorld(TEST_RANGE, DEFAULT_TUNING);
-    this.liveId = spawnSoldier(this.world, 'west');
-    this.stepper = createFixedStepper(TICKS_PER_SECOND);
-    this.input2 = new KeyboardMouseInput(this);
-    this.view = getView(this.world);
-    this.prevView = this.view;
-
-    const map = this.world.map;
-    const statics = this.add.graphics();
-    statics.fillStyle(0x2a3a2a).fillRect(0, 0, map.width, map.height);
-    statics.fillStyle(0x2b5d8a);
-    for (const w of map.water) statics.fillRect(w.x, w.y, w.w, w.h);
-    statics.fillStyle(0x555b63);
-    for (const w of map.walls) statics.fillRect(w.x, w.y, w.w, w.h);
-    this.gfx = this.add.graphics();
-    this.cameras.main.setBounds(0, 0, map.width, map.height);
+  init(data: { session?: BattleSession }): void {
+    this.session = data.session ?? this.services.createSession();
   }
 
-  override update(_time: number, deltaMs: number): void {
-    const { steps, alpha } = advance(this.stepper, deltaMs);
+  create(): void {
+    const { display } = this.services;
+    this.world = this.session.world;
+    this.liveId = this.session.liveId;
+    this.stepper = createFixedStepper(TICKS_PER_SECOND);
+    this.source = this.session.makeInput(this);
+    this.view = getView(this.world);
+    this.prevView = this.view;
+    this.sounds = new SoundBank(this, display);
+    this.worldRenderer = new WorldRenderer(this, this.world.map, this.view, display, this.sounds, {
+      spriteRadius: this.world.tuning.soldier.spriteRadius,
+    });
+    this.worldRenderer.onCue = (c) => this.onCue(c);
+
+    const map = this.world.map;
+    this.cameras.main.setBounds(0, 0, map.width, map.height);
+    const live = this.view.soldiers.find((s) => s.id === this.liveId);
+    this.cam = live ? { x: live.x, y: live.y } : { x: map.width / 2, y: map.height / 2 };
+    this.input.setDefaultCursor('none');
+    this.services.hud.setVisible(true);
+
+    const startCountdown = () => {
+      this.countdownTicks = DEMO_COUNTDOWN_TICKS;
+    };
+    this.services.commands.playCountdown = startCountdown;
+    this.input.keyboard?.on('keydown-F4', startCountdown);
+    this.services.countdown.onCue = (cue) =>
+      this.sounds.play(
+        cue === 'go' ? 'sfx_resume_go' : 'sfx_countdown_tick',
+        1,
+        null,
+        this.time.now,
+      );
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.source.destroy();
+      this.sounds.destroy();
+      this.services.countdown.update(null);
+      if (this.services.commands.playCountdown === startCountdown) {
+        delete this.services.commands.playCountdown;
+      }
+    });
+  }
+
+  override update(time: number): void {
+    const { display, hud, countdown, debug } = this.services;
+    // Raw (unsmoothed) frame time: Phaser clamps its smoothed delta when the page lacks focus,
+    // which would slow battle time. The fixed stepper does its own capping.
+    const deltaMs = this.game.loop.rawDelta;
+    const { steps, alpha } = advance(this.stepper, deltaMs, Number(display.timeScale) || 1);
     for (let i = 0; i < steps; i++) {
       const live = this.view.soldiers.find((s) => s.id === this.liveId);
-      const input = this.input2.read(live ?? { x: 0, y: 0 });
+      const input = this.source.read(live ?? this.cam);
+      const t0 = performance.now();
       this.prevView = this.view;
       step(this.world, new Map([[this.liveId, input]]));
       this.view = getView(this.world);
+      this.stepMs = ema(this.stepMs, performance.now() - t0, 0.05);
+      this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
+      if (this.countdownTicks !== null) this.countdownTicks--;
     }
-    this.draw(alpha);
+
+    const cam = this.cameras.main;
+    if (cam.zoom !== display.cameraZoom) cam.setZoom(display.cameraZoom);
+    // Camera first (so the reticle's world position uses this frame's camera), then draw.
+    const target = this.worldRenderer.soldierRenderPos(this.liveId, alpha);
+    if (target) this.cam = smoothFollow(this.cam, target, display.cameraSmoothing, deltaMs);
+    cam.centerOn(this.cam.x, this.cam.y);
+    this.worldRenderer.render({
+      alpha,
+      nowMs: time,
+      liveId: this.liveId,
+      pointer: this.source.pointerWorld(),
+    });
+
+    hud.update(buildHudModel(this.view, this.liveId));
+    countdown.update(this.countdownTicks);
+    if (this.countdownTicks !== null && this.countdownTicks <= 0) this.countdownTicks = null;
+
+    if (debug.visible) {
+      if (this.frame % HASH_EVERY_FRAMES === 0) this.hash = hashState(this.world.state);
+      debug.update({
+        fps: this.game.loop.actualFps,
+        tick: this.view.tick,
+        counts: entityCounts(this.view),
+        hash: this.hash,
+        stepMs: this.stepMs ?? 0,
+      });
+    }
+    this.frame++;
   }
 
-  private draw(alpha: number): void {
-    const g = this.gfx;
-    g.clear();
-    const r = this.world.tuning.soldier.spriteRadius;
-    for (const s of this.view.soldiers) {
-      const p = lerpSoldier(this.prevView.soldiers.find((o) => o.id === s.id) ?? s, s, alpha);
-      g.fillStyle(s.role === 'live' ? 0xf2c94c : 0x9fb3c8).fillCircle(p.x, p.y, r);
-      g.lineStyle(3, 0x111111).strokeCircle(p.x, p.y, r);
-      g.lineStyle(4, 0x111111).lineBetween(
-        p.x,
-        p.y,
-        p.x + Math.cos(s.facing) * r * 1.4,
-        p.y + Math.sin(s.facing) * r * 1.4,
-      );
-      if (s.id === this.liveId) this.cameras.main.centerOn(p.x, p.y);
+  private onCue(c: Cue): void {
+    const { display, hud } = this.services;
+    if (c.type === 'shake' && display.screenShake) {
+      this.cameras.main.shake(c.durationMs, c.intensity);
+    } else if (c.type === 'liveDamaged' && display.incomingFire) {
+      hud.flashDamage(Math.min(1, 0.4 + c.amount / 40));
     }
   }
-}
-
-function lerpSoldier(a: SoldierView, b: SoldierView, t: number): { x: number; y: number } {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }

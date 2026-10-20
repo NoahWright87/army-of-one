@@ -90,9 +90,13 @@ npm run test              # Vitest (headless)
 npm run lint              # ESLint + Prettier check (Markdown is not Prettier-formatted)
 npm run lint:purity       # proves the pure-module lint rules still fire
 npm run format            # Prettier write
-npm run gen:placeholders  # regenerate placeholder assets
+npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md from the manifest
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 ```
+
+In the browser: `/?scene=gallery` renders every entity/soldier state from a fixture (visual test
+page). Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options + sim tuning,
+saved in localStorage), `F4` play the lead-in countdown.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 
