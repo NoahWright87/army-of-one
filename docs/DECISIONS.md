@@ -142,4 +142,17 @@ revise with justification in a PR).
 
 ## Open questions
 
-_None right now. Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
+_Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
+
+- **[Q5] Traffic behind a wreck (PHASE02-a).** When a vehicle is shot into a wreck, what do the
+  vehicles behind it do? Implemented as `tuning.vehicle.blockedBehavior`:
+  `'stop'` (default: they stop bumper-to-bumper behind it; stopped vehicles are solid, harmless
+  and shootable, traffic backs up to the lane start, and the road downstream of the wreck goes
+  quiet, so shooting a car makes a safe crossing) or `'passThrough'` (they drive through wrecks).
+- **[Q6] Can you dodge a turret's wind-up by sidestepping (PHASE02-a)?** `tuning.turret.trackDuringWindup`:
+  `true` (default: it keeps tracking during the telegraph and the shot always hits if it still has
+  line of sight, so the only escape is breaking LOS) or `false` (aim freezes at wind-up start, so a
+  sidestep dodges).
+- **[Q7] Is traffic already running at battle start (PHASE02-a)?** `tuning.vehicle.prewarm`:
+  `true` (default: lanes start full, as if traffic had always run) or `false` (empty road at 0:00,
+  first vehicle enters at each lane's offset).

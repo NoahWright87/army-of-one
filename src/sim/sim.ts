@@ -1,59 +1,101 @@
 import type { Tuning } from '../content/tuning';
-import { compareIds, type IdCounters, allocateId } from './core/ids';
-import type { Tick } from './core/time';
+import { compareIds, allocateId } from './core/ids';
+import { secondsToTicks } from './core/time';
+import type { Vec2 } from './core/vec';
+import { trySoldierFire } from './combat/shots';
+import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
+import { createGates } from './entities/gate';
+import { interact, isLeverOn } from './entities/lever';
+import { createMines, stepMines } from './entities/mine';
+import { createObjectives, objectiveMaxHp, objectiveRadius } from './entities/objective';
 import {
   createSoldier,
+  isEligible,
   movementSolids,
   stepSoldierMovement,
   IDLE_INPUT,
+  type SoldierFlags,
   type SoldierId,
   type SoldierInput,
   type SoldierState,
 } from './entities/soldier';
+import { initialVehicles, laneInfo, stepTraffic } from './entities/traffic';
+import { createTurrets, stepTurrets } from './entities/turret';
+import { appendEvents, createEventLog, eventLogContents } from './event-log';
 import type { SimEvent } from './events';
-import type { MapDef, Rect, SpawnPointId } from './world/map';
+import { emit, type World } from './state';
+import { currentSolids } from './world/blockers';
+import { moveCircle } from './world/collision';
+import { validateMap, type MapDef, type SpawnPointId } from './world/map';
+import { createNavGrid } from './world/nav';
+import { separateSoldiers } from './world/separation';
 import type { WorldView } from './view';
 
-/**
- * Everything that changes during a battle, as plain structured-clone-safe data. Snapshots are
- * just clones of this. Static context (map, tuning) lives on `World`, outside the state.
- */
-export interface WorldState {
-  tick: Tick;
-  ids: IdCounters;
-  /** Kept sorted by id (allocation order) for deterministic iteration. */
-  soldiers: SoldierState[];
-  /** Events emitted during the most recent tick. */
-  events: SimEvent[];
-}
-
-export interface World {
-  readonly map: MapDef;
-  readonly tuning: Tuning;
-  /** Derived static data, cached. */
-  readonly solids: readonly Rect[];
-  state: WorldState;
-}
+export type { World, WorldState } from './state';
 
 export function createWorld(map: MapDef, tuning: Tuning): World {
-  return {
+  validateMap(map);
+  const solids = movementSolids(map);
+  const world: World = {
     map,
     tuning,
-    solids: movementSolids(map),
-    state: { tick: 0, ids: {}, soldiers: [], events: [] },
+    solids,
+    nav: createNavGrid(map.width, map.height, solids, tuning),
+    eventLog: createEventLog(tuning.eventLogCapacity),
+    stepping: false,
+    state: {
+      tick: 0,
+      ids: {},
+      soldiers: [],
+      turrets: createTurrets(map.turrets ?? [], tuning),
+      mines: createMines(map.mines ?? []),
+      vehicles: [],
+      gates: createGates(map.gates ?? []),
+      bridges: createBridges(map.bridges ?? [], tuning),
+      objectives: createObjectives(map.objectives ?? [], tuning),
+      events: [],
+      queuedEvents: [],
+      missionComplete: null,
+    },
   };
+  initialVehicles(world);
+  return world;
 }
 
-export function spawnSoldier(world: World, spawnPointId: SpawnPointId): SoldierId {
+export interface SpawnOptions extends SoldierFlags {
+  /** Spawn here instead of at the spawn point (e.g. tests, snapshot restores). */
+  position?: Vec2;
+  facing?: number;
+}
+
+/**
+ * Adds a soldier at a spawn point. Defaults to a live soldier (controllable, interactive,
+ * killable). Echoes/static figures pass flags, e.g. `{ controllable: false }` or
+ * `{ controllable: false, interactive: false }`; lead-ins pass `{ minHp: 1 }`.
+ */
+export function spawnSoldier(
+  world: World,
+  spawnPointId: SpawnPointId,
+  opts: SpawnOptions = {},
+): SoldierId {
   const point = world.map.spawnPoints.find((p) => p.id === spawnPointId);
   if (!point) throw new Error(`Unknown spawn point ${spawnPointId}`);
-  const id = allocateId(world.state.ids, 'S');
-  const ordinal = world.state.ids['S'] ?? 1;
-  world.state.soldiers.push(
-    createSoldier(id, ordinal, spawnPointId, point.position, point.facing, world.tuning),
+  const st = world.state;
+  const id = allocateId(st.ids, 'S');
+  const ordinal = st.ids['S'] ?? 1;
+  st.soldiers.push(
+    createSoldier(
+      id,
+      ordinal,
+      spawnPointId,
+      opts.position ?? point.position,
+      opts.facing ?? point.facing,
+      world.tuning,
+      opts,
+    ),
   );
-  world.state.soldiers.sort((a, b) => compareIds(a.id, b.id));
-  world.state.events.push({ kind: 'soldierSpawned', tick: world.state.tick, id });
+  st.soldiers.sort((a, b) => compareIds(a.id, b.id));
+  emit(world, { kind: 'soldierSpawned', tick: st.tick, id });
   return id;
 }
 
@@ -61,19 +103,74 @@ export function getSoldier(world: World, id: SoldierId): SoldierState | undefine
   return world.state.soldiers.find((s) => s.id === id);
 }
 
-/** Advances the world exactly one tick. Inputs for soldiers not in the map are treated as idle. */
-export function step(world: World, inputs: ReadonlyMap<SoldierId, SoldierInput>): void {
+/** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */
+export function setSoldierFlags(world: World, id: SoldierId, flags: SoldierFlags): void {
+  const s = getSoldier(world, id);
+  if (!s) throw new Error(`Unknown soldier ${id}`);
+  if (flags.controllable !== undefined) s.controllable = flags.controllable;
+  if (flags.interactive !== undefined) s.interactive = flags.interactive;
+  if (flags.minHp !== undefined) s.minHp = flags.minHp;
+  if (flags.kinematic !== undefined) s.kinematic = flags.kinematic;
+}
+
+/**
+ * Advances the world exactly one tick and returns that tick's events (also in `state.events` and
+ * the event log). Inputs only drive alive, controllable soldiers; missing inputs are idle.
+ *
+ * Order within a tick: movement → soft separation → soldier actions (interact, fire; id order) →
+ * turrets → mines → traffic → bridges → push soldiers out of anything that became solid.
+ */
+export function step(world: World, inputs: ReadonlyMap<SoldierId, SoldierInput>): SimEvent[] {
   const st = world.state;
-  st.events = [];
+  const t = world.tuning;
+  world.stepping = true;
   st.tick += 1;
+  st.events = st.queuedEvents;
+  st.queuedEvents = [];
+
+  let solids = currentSolids(world);
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
-    stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, world.solids, world.tuning);
+    stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
   }
+  separateSoldiers(st.soldiers, solids, t);
+
+  for (const s of st.soldiers) {
+    if (!s.alive || !s.controllable) continue;
+    const input = inputs.get(s.id) ?? IDLE_INPUT;
+    if (input.interact && !s.interactHeld) interact(world, s);
+    s.interactHeld = input.interact;
+    if (input.fire) trySoldierFire(world, s, input.aim);
+  }
+
+  stepTurrets(world);
+  stepMines(world);
+  stepTraffic(world);
+  stepBridges(world);
+
+  // Anything that became solid this tick (gate closed, wreck, bridge rising) pushes soldiers out.
+  solids = currentSolids(world);
+  for (const s of st.soldiers) {
+    if (!isEligible(s)) continue;
+    const p = moveCircle(s, { x: 0, y: 0 }, t.soldier.wallRadius, solids);
+    s.x = p.x;
+    s.y = p.y;
+  }
+
+  world.stepping = false;
+  appendEvents(world.eventLog, st.events);
+  return st.events;
+}
+
+/** Recent events across ticks, oldest first (ring buffer of `tuning.eventLogCapacity`). */
+export function recentEvents(world: World): SimEvent[] {
+  return eventLogContents(world.eventLog);
 }
 
 export function getView(world: World): WorldView {
-  const st = world.state;
+  const { map, state: st, tuning } = world;
+  const lanes = (map.trafficLanes ?? []).map((d) => laneInfo(d, tuning));
+  const windupTotal = Math.max(1, secondsToTicks(tuning.turret.windupSeconds));
   return {
     tick: st.tick,
     soldiers: st.soldiers.map((s) => ({
@@ -84,21 +181,111 @@ export function getView(world: World): WorldView {
       y: s.y,
       facing: s.facing,
       hp: s.hp,
-      maxHp: world.tuning.soldier.maxHp,
+      maxHp: tuning.soldier.maxHp,
       alive: s.alive,
       role: s.controllable ? 'live' : s.interactive ? 'echo' : 'static',
       leadIn: s.minHp > 0,
+      ...(s.deathCause ? { deathCause: s.deathCause } : {}),
     })),
-    turrets: [],
-    mines: [],
-    vehicles: [],
-    gates: [],
-    levers: [],
-    bridges: [],
-    objectives: [],
+    turrets: (map.turrets ?? []).map((def, i) => {
+      const tu = st.turrets[i]!;
+      return {
+        kind: 'turret',
+        id: def.id,
+        x: def.position.x,
+        y: def.position.y,
+        aim: tu.aim,
+        state: tu.mode,
+        hp: tu.hp,
+        maxHp: tuning.turret.maxHp,
+        range: tuning.turret.range,
+        ...(tu.mode === 'windup' ? { windup: 1 - tu.windupTicks / windupTotal } : {}),
+        ...(tu.targetId ? { targetId: tu.targetId } : {}),
+      };
+    }),
+    mines: (map.mines ?? []).map((def, i) => ({
+      kind: 'mine',
+      id: def.id,
+      x: def.position.x,
+      y: def.position.y,
+      state: st.mines[i]!.state,
+      triggerRadius: tuning.mine.triggerRadius,
+      blastRadius: tuning.mine.blastRadius,
+      radius: tuning.mine.radius,
+    })),
+    vehicles: st.vehicles.map((v) => {
+      const info = lanes[v.lane]!;
+      return {
+        kind: 'vehicle',
+        id: v.id,
+        x: v.x,
+        y: v.y,
+        w: info.w,
+        h: info.h,
+        heading: info.heading,
+        state: v.state,
+        hp: v.hp,
+        maxHp: tuning.vehicle.maxHp,
+      };
+    }),
+    gates: (map.gates ?? []).map((def, i) => ({
+      kind: 'gate',
+      id: def.id,
+      ...def.rect,
+      open: st.gates[i]!.open,
+    })),
+    levers: (map.levers ?? []).map((def) => ({
+      kind: 'lever',
+      id: def.id,
+      x: def.position.x,
+      y: def.position.y,
+      on: isLeverOn(world, def),
+      targetId: def.targetId,
+    })),
+    bridges: (map.bridges ?? []).map((def, i) => {
+      const b = st.bridges[i]!;
+      const charge =
+        def.charge && b.state !== 'destroyed'
+          ? {
+              charge: {
+                x: def.charge.x,
+                y: def.charge.y,
+                radius: tuning.bridge.chargeRadius,
+                hp: b.chargeHp,
+                maxHp: tuning.bridge.chargeHp,
+              },
+            }
+          : {};
+      return {
+        kind: 'bridge',
+        id: def.id,
+        ...def.rect,
+        state: b.state,
+        raised: bridgeRaised(b, tuning),
+        bridgeKind: def.kind,
+        axis: def.axis,
+        ...charge,
+      };
+    }),
+    objectives: (map.objectives ?? []).map((def, i) => {
+      const o = st.objectives[i]!;
+      return {
+        kind: 'objective',
+        id: def.id,
+        x: def.position.x,
+        y: def.position.y,
+        radius: objectiveRadius(def, tuning),
+        hp: o.hp,
+        maxHp: objectiveMaxHp(def, tuning),
+        destroyed: o.destroyed,
+      };
+    }),
     events: st.events.slice(),
-    missionComplete: null,
+    missionComplete: st.missionComplete ? { ...st.missionComplete } : null,
   };
 }
 
-export type { SoldierId, SoldierInput, SoldierState } from './entities/soldier';
+export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';
+export { fireRifle, trySoldierFire, castRay, hasLineOfSight } from './combat/shots';
+export { interact } from './entities/lever';
+export { findPath, isWalkable, isSegmentWalkable, pathLength, syncNav } from './world/nav';

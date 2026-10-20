@@ -69,3 +69,46 @@ export function moveCircle(
   }
   return { x, y };
 }
+
+/**
+ * Distance along a ray (origin `o`, unit direction `d`) to where it enters `r`, or null if it
+ * misses. A ray starting inside the rect hits at 0.
+ */
+export function rayRect(o: Vec2, d: Vec2, r: Rect): number | null {
+  let tMin = 0;
+  let tMax = Infinity;
+  const axes: [number, number, number, number][] = [
+    [o.x, d.x, r.x, r.x + r.w],
+    [o.y, d.y, r.y, r.y + r.h],
+  ];
+  for (const [p, dir, lo, hi] of axes) {
+    if (dir === 0) {
+      if (p < lo || p > hi) return null;
+      continue;
+    }
+    let t1 = (lo - p) / dir;
+    let t2 = (hi - p) / dir;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return null;
+  }
+  return tMin;
+}
+
+/** Distance along a ray to where it enters a circle, or null. Starting inside hits at 0. */
+export function rayCircle(o: Vec2, d: Vec2, c: Vec2, radius: number): number | null {
+  const fx = o.x - c.x;
+  const fy = o.y - c.y;
+  const cc = fx * fx + fy * fy - radius * radius;
+  if (cc <= 0) return 0;
+  const b = fx * d.x + fy * d.y;
+  if (b > 0) return null; // pointing away
+  const disc = b * b - cc;
+  if (disc < 0) return null;
+  return -b - Math.sqrt(disc);
+}
+
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}

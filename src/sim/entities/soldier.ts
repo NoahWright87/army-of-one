@@ -1,5 +1,5 @@
 import type { Tuning } from '../../content/tuning';
-import { DT } from '../core/time';
+import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { MapDef, Rect, SpawnPointId } from '../world/map';
@@ -39,6 +39,26 @@ export interface SoldierState {
   interactive: boolean;
   /** HP floor while in a lead-in ([D5]): damage applies, but HP can't drop below this. */
   minHp: number;
+  /**
+   * Pushes other soldiers during separation but is never pushed itself ([E8]: on-schedule echoes).
+   * Walls and closing gates still push it.
+   */
+  kinematic: boolean;
+  /** Earliest tick the rifle may fire again. */
+  nextFireTick: Tick;
+  /** Interact was held last tick (interact is edge-triggered). */
+  interactHeld: boolean;
+  deathTick: Tick | null;
+  /** e.g. 'turret', 'mine', 'vehicle', 'bridgeCollapse'. */
+  deathCause: string | null;
+}
+
+/** Optional flags for a new soldier. Defaults: a live, interactive, killable soldier. */
+export interface SoldierFlags {
+  controllable?: boolean;
+  interactive?: boolean;
+  minHp?: number;
+  kinematic?: boolean;
 }
 
 export function createSoldier(
@@ -48,6 +68,7 @@ export function createSoldier(
   position: Vec2,
   facing: number,
   tuning: Tuning,
+  flags: SoldierFlags = {},
 ): SoldierState {
   return {
     id,
@@ -58,10 +79,20 @@ export function createSoldier(
     facing,
     hp: tuning.soldier.maxHp,
     alive: true,
-    controllable: true,
-    interactive: true,
-    minHp: 0,
+    controllable: flags.controllable ?? true,
+    interactive: flags.interactive ?? true,
+    minHp: flags.minHp ?? 0,
+    kinematic: flags.kinematic ?? false,
+    nextFireTick: 0,
+    interactHeld: false,
+    deathTick: null,
+    deathCause: null,
   };
+}
+
+/** Alive and interactive: can be hit, triggers mines, is targeted by turrets, collides. */
+export function isEligible(s: SoldierState): boolean {
+  return s.alive && s.interactive;
 }
 
 /** Static geometry that blocks soldier movement. */
