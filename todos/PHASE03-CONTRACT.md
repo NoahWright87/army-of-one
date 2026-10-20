@@ -168,3 +168,7 @@ export interface MissionState {
 
 ## Changes
 _(append additive changes here, with the PR that made them)_
+
+- **PHASE03-c:** added `src/contracts/quantize.ts` (`POSITION_QUANTUM`, `FACING_QUANTUM`,
+  `quantizePosition`, `quantizeFacing`). 03-a snaps soldier state with these, so recordings
+  encode losslessly. `mission.ts` was created verbatim from this doc, then Prettier-formatted.
