@@ -4,6 +4,7 @@
  */
 import type {
   AttemptObservation,
+  CaptureObservation,
   LaneFate,
   MarkerKind,
   SoldierId,
@@ -29,6 +30,12 @@ export const MARKER_STRING_KEYS: Record<MarkerKind, string> = {
   open: 'marker.open',
 };
 
+/** (05-a) Capture markers: our flag raised ('ours') vs. the enemy flag lowered ('neutral'). */
+export const CAPTURE_STRING_KEYS = {
+  ours: 'marker.capture',
+  neutral: 'marker.captureNeutral',
+} as const;
+
 export interface ObservationHeader {
   kind: AttemptObservation['kind'];
   attempt: number;
@@ -39,6 +46,7 @@ export interface ObservationHeader {
 export class ObservationBuilder {
   readonly header: ObservationHeader;
   private readonly markers: TimelineMarker[] = [];
+  private readonly captures: CaptureObservation[] = [];
   /** Soldiers that were alive (in the world, not dead) at fromTick or spawned later. */
   private readonly existed = new Set<SoldierId>();
 
@@ -47,12 +55,18 @@ export class ObservationBuilder {
     for (const s of world.state.soldiers) if (s.alive) this.existed.add(s.id);
   }
 
-  private mark(soldierId: SoldierId, tick: Tick, kind: MarkerKind, refId?: string): void {
+  private mark(
+    soldierId: SoldierId,
+    tick: Tick,
+    kind: MarkerKind,
+    refId?: string,
+    stringKey = MARKER_STRING_KEYS[kind],
+  ): void {
     this.markers.push({
       soldierId,
       tick,
       kind,
-      stringKey: MARKER_STRING_KEYS[kind],
+      stringKey,
       ...(refId !== undefined ? { refId } : {}),
     });
   }
@@ -95,6 +109,24 @@ export class ObservationBuilder {
         case 'objectiveDestroyed':
           if (isSoldier(e.by)) this.mark(e.by, e.tick, 'objective', e.id);
           break;
+        case 'captureStageChanged':
+          if (e.stage === 'enemy') break;
+          this.captures.push({
+            pointId: e.id,
+            stage: e.stage,
+            tick: e.tick,
+            by: [...e.contributors],
+          });
+          for (const id of e.contributors) {
+            this.mark(
+              id,
+              e.tick,
+              'capture',
+              e.id,
+              e.stage === 'ours' ? CAPTURE_STRING_KEYS.ours : CAPTURE_STRING_KEYS.neutral,
+            );
+          }
+          break;
         default:
           break;
       }
@@ -132,6 +164,7 @@ export class ObservationBuilder {
       ...(this.header.live ? { live: { ...this.header.live } } : {}),
       lanes,
       markers: this.markers.map((m) => ({ ...m })),
+      captures: this.captures.map((c) => ({ ...c, by: [...c.by] })),
       ...(mc && mc.tick >= this.header.fromTick && mc.by
         ? { missionComplete: { tick: mc.tick, bySoldierId: mc.by } }
         : {}),

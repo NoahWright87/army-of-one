@@ -128,6 +128,13 @@ export const SOUND_RECIPES: Record<SoundKey, SoundRecipe> = {
     durationMs: 60,
     voices: [{ wave: 'square', f0: 1600, dur: 0.05, gain: 0.25, decay: 20 }],
   },
+  sfx_capture: {
+    durationMs: 500,
+    voices: [
+      { wave: 'square', f0: 587, dur: 0.14, gain: 0.25, decay: 5 },
+      { wave: 'square', f0: 880, start: 0.15, dur: 0.3, gain: 0.25, decay: 4 },
+    ],
+  },
   sfx_mission_complete: {
     durationMs: 900,
     voices: [

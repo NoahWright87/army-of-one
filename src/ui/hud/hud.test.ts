@@ -29,6 +29,7 @@ const emptyView = (p: Partial<WorldView> = {}): WorldView => ({
   levers: [],
   bridges: [],
   objectives: [],
+  capturePoints: [],
   events: [],
   missionComplete: null,
   ...p,

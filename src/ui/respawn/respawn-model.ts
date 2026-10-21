@@ -5,6 +5,8 @@
  */
 import { str, strDynamic } from '../../content/strings';
 import type {
+  CaptureChange,
+  CaptureTruth,
   LaneChange,
   LaneEnd,
   LaneSpan,
@@ -40,6 +42,10 @@ export interface RespawnProps {
    * background resolve running (everything shown is current truth).
    */
   resolvedUntil?: Tick | null;
+  /** (05-a) Capture truth: forward points and when they became ours. */
+  captures?: readonly CaptureTruth[];
+  /** (05-a) Points whose capture changed in the latest fold ("Point lost" etc.). */
+  captureChanges?: readonly CaptureChange[];
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */
@@ -52,6 +58,8 @@ export interface RespawnUpdate {
   attemptsPlayed?: number;
   objectiveComplete?: boolean;
   soldiers?: readonly SoldierRecord[];
+  captures?: readonly CaptureTruth[];
+  captureChanges?: readonly CaptureChange[];
 }
 
 // ---------- Rows ----------
@@ -91,6 +99,54 @@ export function laneRows(
 export function ordinalFromId(id: SoldierId): number {
   const m = /(\d+)$/.exec(id);
   return m ? Number(m[1]) : 0;
+}
+
+/** (05-a) Display name of a capture point. */
+export function capturePointName(map: MapDef, pointId: string): string {
+  const c = (map.capturePoints ?? []).find((p) => p.id === pointId);
+  return strDynamic(c ? c.nameKey : pointId);
+}
+
+/** (05-a) The capture point a spawn point belongs to (forward spawns only). */
+export function captureOfSpawn(map: MapDef, spawnPointId: string): string | null {
+  const p = map.spawnPoints.find((sp) => sp.id === spawnPointId);
+  return p?.kind === 'capture' ? (p.capturePointId ?? null) : null;
+}
+
+/** (05-a) "Point lost" / "captured" captions, flagged `lost` for the highlight. */
+export function captureChangeCaption(
+  c: CaptureChange,
+  map: MapDef,
+): { text: string; lost: boolean } {
+  const point = capturePointName(map, c.pointId);
+  if (c.after === null) return { text: str('respawn.change.pointLost', { point }), lost: true };
+  if (c.before === null) {
+    return {
+      text: str('respawn.change.pointCaptured', { point, time: formatBattleTime(c.after) }),
+      lost: false,
+    };
+  }
+  return {
+    text: str('respawn.change.pointMoved', { point, time: formatBattleTime(c.after) }),
+    lost: false,
+  };
+}
+
+/** (05-a) Capture flags drawn on the time axis: every point held as ours, with its tick. */
+export function captureFlags(
+  p: Pick<RespawnProps, 'map' | 'captures' | 'resolvedUntil'>,
+): { pointId: string; tick: Tick; label: string; unconfirmed: boolean }[] {
+  return (p.captures ?? [])
+    .filter((c) => c.stage === 'ours')
+    .map((c) => ({
+      pointId: c.pointId,
+      tick: c.tick,
+      label: str('respawn.capture.tip', {
+        point: capturePointName(p.map, c.pointId),
+        time: formatBattleTime(c.tick),
+      }),
+      unconfirmed: isUnconfirmed(c.tick, p.resolvedUntil),
+    }));
 }
 
 export function spawnPointName(map: MapDef, spawnPointId: string): string {
@@ -264,6 +320,10 @@ export interface HeaderItem {
 }
 
 export function headerItems(p: RespawnProps): { title: string; items: HeaderItem[] } {
+  const flagOnly =
+    (p.map.objectives ?? []).length === 0 && (p.map.capturePoints ?? []).some((c) => c.objective);
+  const done = flagOnly ? 'respawn.header.objectiveCaptured' : 'respawn.header.objectiveDone';
+  const open = flagOnly ? 'respawn.header.objectiveNotCaptured' : 'respawn.header.objectiveIntact';
   return {
     title: str('respawn.header.attempt', { n: p.attemptsPlayed + 1 }),
     items: [
@@ -277,9 +337,7 @@ export function headerItems(p: RespawnProps): { title: string; items: HeaderItem
       },
       {
         label: str('respawn.header.objective'),
-        value: p.objectiveComplete
-          ? str('respawn.header.objectiveDone')
-          : str('respawn.header.objectiveIntact'),
+        value: p.objectiveComplete ? str(done) : str(open),
         cls: p.objectiveComplete ? 'done' : 'pending',
       },
     ],
@@ -294,10 +352,12 @@ export function timelineDomain(p: {
   options: readonly SpawnOption[];
   reachedTick: Tick | null;
   resolvedUntil?: Tick | null;
+  captures?: readonly CaptureTruth[];
 }): TimeDomain {
   let to = 0;
   for (const l of p.lanes) to = Math.max(to, l.recordedTo);
   for (const o of p.options) to = Math.max(to, o.kind === 'new' ? o.entryTick : o.resumeTick);
+  for (const c of p.captures ?? []) to = Math.max(to, c.tick);
   if (p.reachedTick !== null) to = Math.max(to, p.reachedTick);
   if (p.resolvedUntil !== null && p.resolvedUntil !== undefined) to = Math.max(to, p.resolvedUntil);
   // A little room after the last event so end glyphs never sit on the edge.
@@ -411,22 +471,42 @@ export interface OptionLabel {
   /** Tick the player takes control (entry or resume). */
   tick: Tick;
   unconfirmed: boolean;
+  /** (05-a) A forward (capture) spawn point. */
+  forward?: boolean;
+  /** (05-a) "Captured at 0:45 by Soldier 1". */
+  capturedBy?: string;
+}
+
+function ordinalOf(soldiers: readonly SoldierRecord[], id: SoldierId): number {
+  return soldiers.find((s) => s.id === id)?.ordinal ?? ordinalFromId(id);
 }
 
 export function optionLabel(
   o: SpawnOption,
-  p: Pick<RespawnProps, 'map' | 'soldiers' | 'resolvedUntil'>,
+  p: Pick<RespawnProps, 'map' | 'soldiers' | 'resolvedUntil' | 'captures'>,
 ): OptionLabel {
   if (o.kind === 'new') {
     const point = spawnPointName(p.map, o.spawnPointId);
     const time = formatBattleTime(o.entryTick);
+    const cpId = captureOfSpawn(p.map, o.spawnPointId);
+    const cap = cpId
+      ? (p.captures ?? []).find((c) => c.pointId === cpId && c.stage === 'ours')
+      : undefined;
+    const n = nextOrdinal(p.soldiers);
+    const by = cap?.by[0] ? ordinalOf(p.soldiers, cap.by[0]) : null;
     return {
       key: optionKey(o),
       title: str('respawn.spawn.newTitle', { point, time }),
-      detail: str('respawn.spawn.newDetail', { n: nextOrdinal(p.soldiers) }),
+      detail: cap
+        ? str('respawn.spawn.forwardDetail', { open: formatBattleTime(cap.tick), n })
+        : str('respawn.spawn.newDetail', { n }),
+      ...(cap && by !== null
+        ? { capturedBy: str('respawn.spawn.forwardOpen', { time: formatBattleTime(cap.tick), by }) }
+        : {}),
       deployLabel: str('respawn.deploy.new', { point, time }),
       tick: o.entryTick,
-      unconfirmed: false,
+      unconfirmed: cap ? isUnconfirmed(cap.tick, p.resolvedUntil) : false,
+      forward: !!cpId,
     };
   }
   const s = p.soldiers.find((x) => x.id === o.soldierId);

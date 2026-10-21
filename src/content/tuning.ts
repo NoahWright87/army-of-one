@@ -121,6 +121,26 @@ export interface Tuning {
     /** Default radius when the map doesn't give one. */
     radius: number;
   };
+  /** (05-a) Battlefield 2-style capture points ([D10]–[D12]). */
+  capture: {
+    /** Default capture radius when the map doesn't give one. */
+    radius: number;
+    /** Seconds for ONE soldier to complete one stage (lower the enemy flag, or raise ours). */
+    stageSeconds: number;
+    /**
+     * More soldiers capture faster ([D10]): rate = (1 / stageSeconds) × min(n, maxContributors)^
+     * contributorExponent. With 0.6: 2 soldiers ≈ 1.5×, 3 ≈ 1.9×, 6 ≈ 2.9×.
+     */
+    contributorExponent: number;
+    /** Soldiers beyond this many don't speed the capture up further. */
+    maxContributors: number;
+    /**
+     * Empty-circle decay ([D12]), progress per second: decayBasePerSecond × (1 + decayAccel ×
+     * emptySeconds²). Defaults: a 0.5 s step-out loses ≈ 3 %, 1 s ≈ 8 %, 2 s ≈ 32 %, 3 s ≈ 90 %.
+     */
+    decayBasePerSecond: number;
+    decayAccel: number;
+  };
   nav: {
     /** Walkability grid cell size. */
     cellSize: number;
@@ -246,6 +266,14 @@ export const DEFAULT_TUNING: Tuning = {
   objective: {
     maxHp: 600, // TUNE
     radius: 40, // TUNE
+  },
+  capture: {
+    radius: 110, // TUNE
+    stageSeconds: 5, // TUNE: one soldier takes 10 s for both stages
+    contributorExponent: 0.6, // TUNE
+    maxContributors: 6, // TUNE
+    decayBasePerSecond: 0.05, // TUNE
+    decayAccel: 1.667, // TUNE: ~3 s empty drains a 90 % bar ([D12])
   },
   nav: {
     cellSize: 16, // TUNE

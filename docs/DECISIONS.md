@@ -180,3 +180,16 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   with setting `game.resumeOnReload` on (default) a reload with a life in progress goes straight
   into its resume lead-in, without the title screen. Off: the title shows first and Continue
   starts the lead-in. (Browsers block sound until the first click either way.)
+- **[Q13] Maps with both kinds of objective (PHASE05-a).** [D17] says blow up an objective *or*
+  capture a flag point. Implemented: the mission completes when **every** objective is done
+  (all destroy targets destroyed and every flag point ours). mission-02 has only the HQ flag, so
+  capturing it wins. Alternative: any one objective wins. No setting yet (no map mixes them).
+- **[Q14] Forward-spawn slots when the capture time moves (PHASE05-a).** [D7] gives each spawn
+  point its own clock from its open tick. If a re-capture happens at a different tick, the next
+  new soldier there enters at `max(captureTick + N × interval, latest soldier there + interval)`,
+  where N counts only soldiers who entered at or after the current capture tick (earlier ones now
+  never spawn, [D26]). Alternative: keep counting every soldier ever spawned there.
+- **[Q15] Do captured points ever revert (PHASE05-a)?** There are no enemy soldiers, so a point
+  that is ours stays ours for the rest of the battle, and stage boundaries lock in ([D11]). Any
+  soldier counts toward a capture, echoes included ([D10]), so echoes alone can (re)capture in
+  replay; static figures don't count. Revisit when enemies that recapture arrive.

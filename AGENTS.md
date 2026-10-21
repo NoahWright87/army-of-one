@@ -112,6 +112,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   `&continue=1` continues the save instead of starting over; `&autodelay=ms`. In the console:
   `__aoo.autoplay('road-naive*3')`, `__aoo.lives` (list), `__aoo.kill()`, `__aoo.controller`.
 - `&resolveWorker=0` runs the background resolve on the main thread instead of a Web Worker.
+- Missions: `?mission=mission-02` (or the title-screen picker; the choice is remembered). Each
+  mission has its own save. mission-02 autoplay: `?mission=mission-02&dev=1&autoplay=
+  outpost-capture&fast=1` captures the Outpost, then deploy at it yourself; append `,outpost-hq`
+  to watch the forward life finish at the HQ flag.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 

@@ -5,6 +5,7 @@
 import { MISSION_01 } from '../content/maps/mission-01';
 import { DEFAULT_TUNING, type Tuning } from '../content/tuning';
 import type { SpawnOption } from '../contracts/mission';
+import type { MapDef } from '../sim/world/map';
 import { MemoryStore } from '../persistence/storage';
 import type { InputSource } from '../render/input/input-source';
 import { findAutoLife, pickOption, type AutoLife } from './autoplay-lives';
@@ -38,6 +39,8 @@ export interface HarnessOptions {
   resolveSlice?: number;
   /** Inline resolve: clock delay between slices (0 = a whole pass runs in one `advance`). */
   resolveDelayMs?: number;
+  /** Map to play (default mission-01). */
+  map?: MapDef;
 }
 
 export function createHarness(o: HarnessOptions = {}): Harness {
@@ -53,7 +56,7 @@ export function createHarness(o: HarnessOptions = {}): Harness {
   };
   const battle = o.battle ? o.battle(clock, input) : new HeadlessBattleHost(clock, input);
   const game = new GameController({
-    map: MISSION_01,
+    map: o.map ?? MISSION_01,
     tuning: () => o.tuning ?? DEFAULT_TUNING,
     store,
     ui,

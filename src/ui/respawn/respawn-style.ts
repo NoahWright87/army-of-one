@@ -36,6 +36,19 @@ export const RESPAWN_CSS = `
 .rs-cap { background: #262110; border: 1px solid #5c4e1c; color: #e8d9a6; padding: 3px 9px;
   border-radius: 12px; font-size: 13px; font-weight: 600; }
 .rs-cap.newest { background: #3b3112; border-color: #ffd34d; color: #fff1c2; }
+.rs-cap.lost { background: #3a1414; border-color: #ff5a5a; color: #ffd6d6; font-weight: 700; }
+.rs-cap.lost.newest { animation: rs-lost 1.2s ease-in-out 3; }
+@keyframes rs-lost { 50% { background: #6a1c1c; } }
+.flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
+.capflag line { stroke: #4ade80; stroke-width: 2; }
+.capflag path { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
+.capflag.unconf path { fill: #35e0ff; }
+.capflag .hit { fill: transparent; }
+.capline { stroke: #4ade80; stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; }
+.mk-capture .flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
+.mk-capture .pole { stroke: #d6f5e0; stroke-width: 1.5; }
+.rs-opt.forward .t::before { content: '⚑ '; color: #4ade80; }
+.rs-opt .c { font-size: 11px; color: #8fe3ae; }
 
 .rs-tl-frame { position: relative; flex: 1; min-height: 0; border-top: 1px solid #2b333b; }
 .rs-tl-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y;
