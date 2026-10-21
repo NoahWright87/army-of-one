@@ -61,6 +61,88 @@ function moveInput(me: SoldierState, target: Vec2): SoldierInput {
   };
 }
 
+/**
+ * Turns a script into one `SoldierInput` per tick for a soldier stepped by someone else's loop
+ * (e.g. the PHASE03-a attempt runner). Call `input` exactly once per stepped tick; it returns null
+ * once the script has finished every step.
+ */
+export interface ScriptDriver {
+  input(world: World, me: SoldierState): SoldierInput | null;
+  /** Index of the current step (=== steps.length when finished). */
+  readonly stepIndex: number;
+  readonly finished: boolean;
+}
+
+export function createScriptDriver(steps: readonly ScriptStep[], name = 'script'): ScriptDriver {
+  let index = 0;
+  let path: Vec2[] | null = null;
+  let waypoint = 0;
+  let stepTicks = 0;
+
+  const input = (world: World, me: SoldierState): SoldierInput | null => {
+    for (;;) {
+      const st = steps[index];
+      if (!st) return null;
+      let out: SoldierInput = {
+        move: { x: 0, y: 0 },
+        aim: me.facing,
+        fire: false,
+        interact: false,
+      };
+      let done = false;
+
+      switch (st.kind) {
+        case 'moveTo':
+        case 'walkStraight': {
+          if (!path) {
+            path =
+              st.kind === 'moveTo' ? findPath(world, me, st.to) : [{ x: me.x, y: me.y }, st.to];
+            if (!path) throw new Error(`${name}: no path for step ${index} (${st.label ?? ''})`);
+            waypoint = 1;
+          }
+          while (waypoint < path.length && distance(me, path[waypoint]!) <= ARRIVE_EPS) waypoint++;
+          if (waypoint >= path.length) done = true;
+          else out = moveInput(me, path[waypoint]!);
+          break;
+        }
+        case 'waitUntil':
+          done = st.until(world, me);
+          break;
+        case 'wait':
+          done = stepTicks >= st.ticks;
+          break;
+        case 'interact':
+          out = { ...out, interact: stepTicks === 0 };
+          done = stepTicks >= 1;
+          break;
+        case 'shoot':
+          done = st.until(world);
+          if (!done) out = { ...out, aim: angleBetween(me, st.at), fire: true };
+          break;
+      }
+
+      if (done) {
+        index += 1;
+        path = null;
+        stepTicks = 0;
+        continue; // next step starts this same tick
+      }
+      stepTicks += 1;
+      return out;
+    }
+  };
+
+  return {
+    input,
+    get stepIndex() {
+      return index;
+    },
+    get finished() {
+      return index >= steps.length;
+    },
+  };
+}
+
 /** Steps a scripted soldier until the script ends, it dies, or `maxTicks` pass. */
 export function runScenario(
   sc: Scenario,
@@ -69,64 +151,17 @@ export function runScenario(
 ): ScenarioResult {
   const world = createWorld(sc.map, sc.tuning ?? tuning);
   const id = spawnSoldier(world, sc.spawn);
-  let index = 0;
-  let path: Vec2[] | null = null;
-  let waypoint = 0;
-  let stepTicks = 0;
+  const driver = createScriptDriver(sc.steps, sc.name);
 
   while (world.state.tick < sc.maxTicks) {
     const me = getSoldier(world, id)!;
     if (!me.alive) break;
-    const st = sc.steps[index];
-    if (!st) break;
-    let input: SoldierInput = {
-      move: { x: 0, y: 0 },
-      aim: me.facing,
-      fire: false,
-      interact: false,
-    };
-    let done = false;
-
-    switch (st.kind) {
-      case 'moveTo':
-      case 'walkStraight': {
-        if (!path) {
-          path = st.kind === 'moveTo' ? findPath(world, me, st.to) : [{ x: me.x, y: me.y }, st.to];
-          if (!path) throw new Error(`${sc.name}: no path for step ${index} (${st.label ?? ''})`);
-          waypoint = 1;
-        }
-        while (waypoint < path.length && distance(me, path[waypoint]!) <= ARRIVE_EPS) waypoint++;
-        if (waypoint >= path.length) done = true;
-        else input = moveInput(me, path[waypoint]!);
-        break;
-      }
-      case 'waitUntil':
-        done = st.until(world, me);
-        break;
-      case 'wait':
-        done = stepTicks >= st.ticks;
-        break;
-      case 'interact':
-        input = { ...input, interact: stepTicks === 0 };
-        done = stepTicks >= 1;
-        break;
-      case 'shoot':
-        done = st.until(world);
-        if (!done) input = { ...input, aim: angleBetween(me, st.at), fire: true };
-        break;
-    }
-
-    if (done) {
-      index += 1;
-      path = null;
-      stepTicks = 0;
-      continue; // next step starts this same tick
-    }
+    const input = driver.input(world, me);
+    if (!input) break;
     const events = step(world, new Map([[id, input]]));
-    stepTicks += 1;
     onTick?.(world, events);
   }
-  return { world, soldierId: id, completed: index >= sc.steps.length, stepIndex: index };
+  return { world, soldierId: id, completed: driver.finished, stepIndex: driver.stepIndex };
 }
 
 /**

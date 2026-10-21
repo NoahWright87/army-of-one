@@ -1,3 +1,4 @@
+import { POSITION_QUANTUM } from '../../contracts/quantize';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { distance } from '../core/vec';
@@ -46,7 +47,7 @@ describe('soft separation', () => {
     const first = getSoldier(w, ids[1]!)!;
     // Capped per tick: nobody flies off.
     expect(distance(first, { x: 500, y: 500 })).toBeLessThanOrEqual(
-      DEFAULT_TUNING.separation.maxPushPerTick + 1e-9,
+      DEFAULT_TUNING.separation.maxPushPerTick + POSITION_QUANTUM, // poses are quantized (03-a)
     );
     run(w, 300);
     const ss = ids.map((id) => getSoldier(w, id)!);

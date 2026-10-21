@@ -17,7 +17,15 @@ export interface Waypoint {
 /** Discrete recorded actions. Outcomes (hits, damage, deaths) are NOT recorded: they're re-simulated [E3]. */
 export type RecordedAction =
   | { kind: 'shot'; t: Tick; x: number; y: number; angle: number }
-  | { kind: 'interact'; t: Tick; x: number; y: number; targetId: string };
+  | {
+      kind: 'interact';
+      t: Tick;
+      x: number;
+      y: number;
+      targetId: string;
+      /** (03-a, additive) The lever's state right after the original press (true = open/lowered). */
+      on?: boolean;
+    };
 
 export type SegmentEndReason = 'death' | 'missionComplete' | 'suspended';
 

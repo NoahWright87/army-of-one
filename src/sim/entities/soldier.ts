@@ -51,6 +51,12 @@ export interface SoldierState {
   deathTick: Tick | null;
   /** e.g. 'turret', 'mine', 'vehicle', 'bridgeCollapse'. */
   deathCause: string | null;
+  /**
+   * (03-a) Presentation override for `WorldView.role`. Absent: derived from the flags
+   * (controllable → live, interactive → echo, else static). 'live' marks the player's soldier
+   * while an echo controller drives it through a lead-in; 'interrupted' marks a frozen echo.
+   */
+  viewRole?: 'live' | 'interrupted';
 }
 
 /** Optional flags for a new soldier. Defaults: a live, interactive, killable soldier. */

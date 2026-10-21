@@ -4,18 +4,18 @@ import { secondsToTicks } from '../core/time';
 import type { World } from '../state';
 import { isCrossingSafe, type Scenario, type ScriptStep } from './driver';
 
-const TURRET = MISSION_01.turrets![0]!.position;
-const DEPOT = MISSION_01.objectives![0]!.position;
-const HIGHWAY_Y = 1500;
+export const TURRET = MISSION_01.turrets![0]!.position;
+export const DEPOT = MISSION_01.objectives![0]!.position;
+export const HIGHWAY_Y = 1500;
 const LANES = ['lane-north', 'lane-south'];
 
-const turretDestroyed = (w: World) => w.state.turrets[0]!.mode === 'destroyed';
-const missionComplete = (w: World) => w.state.missionComplete !== null;
-const bridgeState = (w: World, id: string) =>
+export const turretDestroyed = (w: World) => w.state.turrets[0]!.mode === 'destroyed';
+export const missionComplete = (w: World) => w.state.missionComplete !== null;
+export const bridgeState = (w: World, id: string) =>
   w.state.bridges[(w.map.bridges ?? []).findIndex((b) => b.id === id)]!.state;
 
 /** Spawn → around the ridge → time the highway crossing → east side of the highway. */
-const ROAD_TO_HIGHWAY: ScriptStep[] = [
+export const ROAD_TO_HIGHWAY: ScriptStep[] = [
   { kind: 'moveTo', to: { x: 1990, y: HIGHWAY_Y }, label: 'to the highway' },
   {
     kind: 'waitUntil',
@@ -26,7 +26,7 @@ const ROAD_TO_HIGHWAY: ScriptStep[] = [
 ];
 
 /** From inside the compound's west side, shoot the depot until the mission completes. */
-const DESTROY_DEPOT: ScriptStep[] = [
+export const DESTROY_DEPOT: ScriptStep[] = [
   { kind: 'moveTo', to: { x: 5500, y: 700 }, label: 'into the compound' },
   { kind: 'shoot', at: DEPOT, until: missionComplete, label: 'destroy the depot' },
 ];

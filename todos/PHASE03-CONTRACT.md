@@ -172,3 +172,8 @@ _(append additive changes here, with the PR that made them)_
 - **PHASE03-c:** added `src/contracts/quantize.ts` (`POSITION_QUANTUM`, `FACING_QUANTUM`,
   `quantizePosition`, `quantizeFacing`). 03-a snaps soldier state with these, so recordings
   encode losslessly. `mission.ts` was created verbatim from this doc, then Prettier-formatted.
+- **PHASE03-a:** `RecordedAction` `interact` gained optional `on?: boolean`: the lever's state
+  right after the original press (true = open/lowered). Used by `tuning.echo.replayInteract:
+  'restoreState'` ([Q8]); 03-c's JSON action encoding carries it unchanged. `quantize.ts` is
+  unchanged. Tick convention: a new soldier's first waypoint (t = spawnTick = entryTick) is its
+  spawn pose, and input acts from entryTick+1. A resume continues at recordedTo+1.
