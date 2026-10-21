@@ -7,6 +7,7 @@ import { GalleryScene } from '../render/phaser/gallery-scene';
 import { PreloadScene } from '../render/phaser/preload-scene';
 import type { SceneServices } from '../render/phaser/services';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
+import { respawnSettingDefs } from '../ui/respawn/respawn-settings';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
 import {
   bindDisplaySettings,
@@ -28,6 +29,7 @@ const startScene = params.get('scene') === 'gallery' ? 'gallery' : 'battle';
 // Settings: display/debug + every sim tuning value (applied when a battle (re)starts).
 const settings = new SettingsStore(browserStorage(), SETTINGS_STORAGE_KEY);
 settings.register(displaySettingDefs());
+settings.register(respawnSettingDefs());
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
 const display = bindDisplaySettings(settings);
 
