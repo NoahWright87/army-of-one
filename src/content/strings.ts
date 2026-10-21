@@ -198,6 +198,16 @@ export const STRINGS = {
   'debug.entities': 'Entities',
   'debug.hash': 'Hash',
   'debug.stepMs': 'ms/step',
+  'debug.renderMs': 'render ms',
+  'debug.sprites': 'Sprites',
+  'debug.echoes': 'Echoes',
+
+  // PHASE05-b: army readability + stress mode
+  'settings.dimEchoes': 'Dim echoes (find yourself in a big army)',
+  'settings.dimEchoesLevel': 'Dimmed echo opacity',
+  'settings.echoLabelRadius': 'Echo labels only within (0 = everywhere)',
+  'settings.cullOffscreen': 'Skip drawing off-screen soldiers',
+  'busy.stress': 'Generating bot lives {done}/{total}…',
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

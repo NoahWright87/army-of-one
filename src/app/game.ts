@@ -28,6 +28,7 @@ import {
   nextSoldierId,
   recordedTo,
   SnapshotStore,
+  snapshotThinning,
   startAttempt,
   type Attempt,
   type AttemptFrom,
@@ -163,6 +164,7 @@ export class GameController {
     this.tuning = a.tuning();
     this.saver = new MissionSaver(a.store, a.map.id);
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
+    this.snapshots.setThinning(snapshotThinning(this.tuning));
   }
 
   // ---------- Boot / title ----------
@@ -196,13 +198,28 @@ export class GameController {
     this.mission = emptyMission(this.a.map.id);
     this.tuning = this.a.tuning();
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
-    this.snapshots = new SnapshotStore();
+    this.snapshots = new SnapshotStore(snapshotThinning(this.tuning));
     this.rescues = 0;
     this.reachedTick = null;
     this.lastObservation = null;
     this.pendingChanges = [];
     this.a.ui.hideScreens();
     this.go(this.flow.kind === 'title' ? { type: 'newMission' } : { type: 'reset' });
+    this.showRespawn();
+  }
+
+  /**
+   * (05-b stress mode) Replaces the mission with a prepared one (e.g. generated bot lives, whose
+   * truth and snapshots are already known) and opens the respawn screen.
+   */
+  async adoptMission(state: MissionState, snapshots?: SnapshotStore): Promise<void> {
+    await this.newMission();
+    this.respawn?.destroy();
+    this.respawn = null;
+    this.mission = state;
+    if (snapshots) this.snapshots = snapshots;
+    this.reachedTick = state.lanes.reduce((m, l) => Math.max(m, l.recordedTo), 0);
+    this.saveMission();
     this.showRespawn();
   }
 

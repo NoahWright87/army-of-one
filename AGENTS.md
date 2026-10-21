@@ -94,6 +94,8 @@ npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md fr
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --map mission-01 --script road-naive  # scripted scenario, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
+npm run bench -- --map mission-01 --echoes 25,50,100,200,400  # PHASE05-b army benchmark
+                          # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
 In the browser: `/` is the game (title → respawn screen → lead-in → battle → …, PHASE04).
@@ -112,6 +114,11 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   `&continue=1` continues the save instead of starting over; `&autodelay=ms`. In the console:
   `__aoo.autoplay('road-naive*3')`, `__aoo.lives` (list), `__aoo.kill()`, `__aoo.controller`.
 - `&resolveWorker=0` runs the background resolve on the main thread instead of a Web Worker.
+- Stress mode (PHASE05-b): `?stress=100` plays 100 seeded bot lives (`src/sim/bots/`) through
+  chained attempts, then opens the respawn screen so you can play among them (`&stressSeed=n`
+  for another army). It replaces the saved mission. The debug overlay shows sim/render ms,
+  sprite count and soldiers by role; `__aoo.services.perf` has the same numbers. See
+  `docs/perf.md`.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 

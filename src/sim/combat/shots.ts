@@ -4,7 +4,7 @@ import { objectiveRadius } from '../entities/objective';
 import { isEligible, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
-import { dynamicBlockers } from '../world/blockers';
+import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
 import {
   damageCharge,
@@ -43,6 +43,11 @@ export interface RayOptions {
   ignoreId?: string;
   /** Line-of-sight checks look past soldiers. */
   ignoreSoldiers?: boolean;
+  /**
+   * (05-b) The current `dynamicBlockers(world)`, when the caller knows they can't have changed
+   * since it computed them (e.g. within one turret step). Default: computed here.
+   */
+  blockers?: readonly Blocker[];
 }
 
 /**
@@ -69,7 +74,7 @@ export function castRay(
   };
 
   for (const w of map.walls) consider(rayRect(from, dir, w), { kind: 'wall' });
-  for (const b of dynamicBlockers(world)) {
+  for (const b of opts.blockers ?? dynamicBlockers(world)) {
     if (b.blocksShots && b.id !== opts.ignoreId) {
       consider(rayRect(from, dir, b.rect), { kind: 'cover', id: b.id });
     }
@@ -123,11 +128,16 @@ export function hasLineOfSight(
   to: Vec2,
   team: Team,
   ignoreId?: string,
+  blockers?: readonly Blocker[],
 ): boolean {
   const d = distance(from, to);
   if (d === 0) return true;
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  const hit = castRay(world, from, angle, d, team, { ignoreId, ignoreSoldiers: true });
+  const hit = castRay(world, from, angle, d, team, {
+    ignoreId,
+    ignoreSoldiers: true,
+    ...(blockers ? { blockers } : {}),
+  });
   return hit.target === null;
 }
 

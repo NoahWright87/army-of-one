@@ -47,6 +47,7 @@ import {
   type ResolveRunner,
 } from './resolve-runner';
 import { openBestStore } from './storage/indexeddb-store';
+import { generateStressMission } from './stress';
 import { browserStorage } from './storage';
 
 export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
@@ -133,7 +134,7 @@ installHotkeys(window, {
   toggleSettings: () => panel.toggle(),
 });
 
-const aoo: Record<string, unknown> = { game, settings, mode };
+const aoo: Record<string, unknown> = { game, settings, mode, services };
 /** Debug/e2e hook (screenshots, browser tests). Not part of any gameplay contract. */
 (window as unknown as { __aoo?: unknown }).__aoo = aoo;
 
@@ -308,6 +309,23 @@ async function startGame(): Promise<void> {
     const { lives, unknown } = parseAutoplay(spec);
     if (unknown.length) console.warn(`autoplay: unknown lives ${unknown.join(', ')}`);
     autopilot.play(lives);
+  }
+  // Stress mode (PHASE05-b): `?stress=100` generates bot lives, then opens the respawn screen.
+  const stress = Math.floor(Number(params.get('stress') ?? 0));
+  if (stress > 0) {
+    busy.set(true, str('busy.stress', { done: 0, total: stress }));
+    const gen = await generateStressMission(
+      MISSION_01,
+      effectiveTuning(settings, DEFAULT_TUNING),
+      stress,
+      Number(params.get('stressSeed') ?? 1),
+      (done, total) => busy.set(true, str('busy.stress', { done, total })),
+    );
+    busy.set(false);
+    console.warn(`[stress] ${stress} bot lives in ${(gen.ms / 1000).toFixed(1)} s`);
+    Object.assign(aoo, { stressMs: gen.ms });
+    await controller.adoptMission(gen.state, gen.snapshots);
+    return;
   }
   await controller.boot();
 }
