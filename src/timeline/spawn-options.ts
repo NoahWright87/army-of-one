@@ -1,5 +1,6 @@
 import type { Tuning } from '../content/tuning';
-import type { LaneTruth, SoldierRecord, SpawnOption } from '../contracts/mission';
+import type { CaptureTruth, LaneTruth, SoldierRecord, SpawnOption } from '../contracts/mission';
+import { oursTicks } from './captures';
 import { compareIds } from '../sim/core/ids';
 import { secondsToTicks, type Tick } from '../sim/core/time';
 import type { MapDef } from '../sim/world/map';
@@ -20,8 +21,48 @@ export function spawnRules(tuning: Pick<Tuning, 'spawn'>): SpawnRules {
 }
 
 /**
+ * Tick a spawn point opens in the current truth: 0 for initial points ([D8]), the capture tick
+ * for capture points held as ours in `captures` (05-a), null if it isn't open.
+ */
+export function spawnPointOpenTick(
+  map: MapDef,
+  spawnPointId: string,
+  captures: readonly CaptureTruth[] = [],
+): Tick | null {
+  const p = map.spawnPoints.find((sp) => sp.id === spawnPointId);
+  if (!p) return null;
+  if (p.kind === 'initial') return 0;
+  return p.capturePointId !== undefined
+    ? (oursTicks(captures).get(p.capturePointId) ?? null)
+    : null;
+}
+
+/**
+ * Next entry slot at a spawn point ([D7]): the Nth soldier there enters at openTick + (N-1) ×
+ * interval. Only soldiers who entered at or after the current open tick count (a capture that
+ * moved later leaves earlier soldiers there never spawning), and a slot is never closer than one
+ * interval after the latest of them, so entries never collide.
+ */
+export function nextEntryTick(
+  openTick: Tick,
+  spawnPointId: string,
+  soldiers: readonly SoldierRecord[],
+  rules: SpawnRules,
+): Tick {
+  let n = 0;
+  let last = -Infinity;
+  for (const s of soldiers) {
+    if (s.spawnPointId !== spawnPointId || s.spawnTick < openTick) continue;
+    n++;
+    last = Math.max(last, s.spawnTick);
+  }
+  return Math.max(openTick + n * rules.spawnIntervalTicks, last + rules.spawnIntervalTicks);
+}
+
+/**
  * Every respawn choice currently available. New soldiers: one option per open spawn point, at
- * that point's next free entry slot ([D7]). Resumes: every lane ending in O ([D4]). Interrupted
+ * that point's next free entry slot ([D7]); capture points that are ours in the capture truth
+ * open at their capture tick ([D8], 05-a). Resumes: every lane ending in O ([D4]). Interrupted
  * ([D24]) and unresolved lanes are not offered.
  */
 export function deriveSpawnOptions(
@@ -29,18 +70,16 @@ export function deriveSpawnOptions(
   soldiers: readonly SoldierRecord[],
   lanes: readonly LaneTruth[],
   rules: SpawnRules,
+  captures: readonly CaptureTruth[] = [],
 ): SpawnOption[] {
-  const used = new Map<string, number>();
-  for (const s of soldiers) used.set(s.spawnPointId, (used.get(s.spawnPointId) ?? 0) + 1);
-
   const options: SpawnOption[] = [];
   for (const p of map.spawnPoints) {
-    if (p.kind !== 'initial') continue; // capture points join in PHASE05-a
-    const openTick = 0;
+    const openTick = spawnPointOpenTick(map, p.id, captures);
+    if (openTick === null) continue;
     options.push({
       kind: 'new',
       spawnPointId: p.id,
-      entryTick: openTick + (used.get(p.id) ?? 0) * rules.spawnIntervalTicks,
+      entryTick: nextEntryTick(openTick, p.id, soldiers, rules),
     });
   }
 

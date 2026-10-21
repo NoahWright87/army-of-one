@@ -9,6 +9,7 @@
 import type { Tuning } from '../content/tuning';
 import type {
   AttemptObservation,
+  CaptureChange,
   InProgressLife,
   LaneChange,
   MissionState,
@@ -41,6 +42,7 @@ import { getSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
+import { applyCaptureObservation } from '../timeline/captures';
 import type { RespawnProps, RespawnUpdate } from '../ui/respawn/respawn-model';
 import {
   FlowError,
@@ -122,7 +124,12 @@ export type GameEvent =
   | { type: 'flow'; state: FlowState }
   | { type: 'respawnShown'; options: SpawnOption[] }
   | { type: 'runStarted'; run: LiveRun }
-  | { type: 'attemptEnded'; observation: AttemptObservation; changes: LaneChange[] }
+  | {
+      type: 'attemptEnded';
+      observation: AttemptObservation;
+      changes: LaneChange[];
+      captureChanges: CaptureChange[];
+    }
   | { type: 'resolveProgress'; observation: AttemptObservation; done: boolean }
   | { type: 'saved' };
 
@@ -153,6 +160,9 @@ export class GameController {
   private saver: MissionSaver;
   private respawn: RespawnHandle | null = null;
   private pendingChanges: LaneChange[] = [];
+  private pendingCaptureChanges: CaptureChange[] = [];
+  /** (05-a) Capture changes from the latest fold. */
+  private lastCaptureChanges: CaptureChange[] = [];
   private resolveJob: ResolveJob | null = null;
   private resolve: { attempt: number; fromTick: Tick; snaps: WorldSnapshot[] } | null = null;
   private policy: AutosavePolicy;
@@ -203,6 +213,7 @@ export class GameController {
     this.reachedTick = null;
     this.lastObservation = null;
     this.pendingChanges = [];
+    this.pendingCaptureChanges = [];
     this.a.ui.hideScreens();
     this.go(this.flow.kind === 'title' ? { type: 'newMission' } : { type: 'reset' });
     this.showRespawn();
@@ -246,6 +257,7 @@ export class GameController {
       this.mission.soldiers,
       this.mission.lanes,
       spawnRules(this.tuning),
+      this.mission.captureTruth ?? [],
     );
   }
 
@@ -292,6 +304,12 @@ export class GameController {
       snapshots: this.snapshots,
     });
     attempt.runHeadless(ffTarget);
+    // (05-a) A forward spawn's capture may no longer happen. Probe the rest of the way to the
+    // entry tick on a copy first: if the point won't be ours, run the real attempt there so the
+    // shift is seen (and folded into the truth) before the countdown, not at its end ([D23]).
+    if (!attempt.isOver() && live.mode === 'new' && this.isCaptureSpawn(live.spawnPointId)) {
+      if (this.probeShifts(attempt, live)) attempt.runHeadless(live.entryTick);
+    }
     this.a.ui.showBusy(false);
 
     const run = new LiveRun(attempt, option, hold, this.cameraHome(attempt, option), {
@@ -315,6 +333,27 @@ export class GameController {
     this.saveMission();
     this.a.battle.start(run);
     this.emit({ type: 'runStarted', run });
+  }
+
+  private isCaptureSpawn(spawnPointId: string): boolean {
+    return this.a.map.spawnPoints.some((p) => p.id === spawnPointId && p.kind === 'capture');
+  }
+
+  /** Runs a throwaway copy of `attempt` to the live entry tick: does the deployment shift? */
+  private probeShifts(attempt: Attempt, live: LiveSpec & { mode: 'new' }): boolean {
+    const probe = startAttempt({
+      map: this.a.map,
+      tuning: this.tuning,
+      soldiers: this.mission.soldiers,
+      attempt: attempt.attemptNumber,
+      from: { kind: 'snapshot', snapshot: attempt.takeSnapshot() },
+      live,
+      snapshots: new SnapshotStore(),
+    });
+    probe.runHeadless(live.entryTick);
+    const shifted = probe.historyShifted !== null;
+    probe.abandon();
+    return shifted;
   }
 
   private cameraHome(attempt: Attempt, option: SpawnOption): Vec2 {
@@ -395,6 +434,7 @@ export class GameController {
     }
     const changes = this.fold(res.observation);
     this.pendingChanges = changes;
+    this.pendingCaptureChanges = this.lastCaptureChanges;
     this.reachedTick = res.observation.toTick;
     if (reason === 'missionComplete' && res.observation.missionComplete) {
       const mc = res.observation.missionComplete;
@@ -406,7 +446,12 @@ export class GameController {
     }
     delete this.mission.inProgress;
     this.saveMission();
-    this.emit({ type: 'attemptEnded', observation: res.observation, changes });
+    this.emit({
+      type: 'attemptEnded',
+      observation: res.observation,
+      changes,
+      captureChanges: this.lastCaptureChanges,
+    });
 
     const ran = this.run;
     this.run = null;
@@ -436,6 +481,11 @@ export class GameController {
   private fold(obs: AttemptObservation): LaneChange[] {
     const { lanes, changes } = applyObservation(this.mission.lanes, this.mission.soldiers, obs);
     this.mission.lanes = lanes;
+    const caps = applyCaptureObservation(this.mission.captureTruth ?? [], obs);
+    if (caps.captures.length > 0 || this.mission.captureTruth !== undefined) {
+      this.mission.captureTruth = caps.captures;
+    }
+    this.lastCaptureChanges = caps.changes;
     this.rescues += changes.filter(isRescue).length;
     this.lastObservation = obs;
     return changes;
@@ -499,9 +549,12 @@ export class GameController {
         options: this.options(),
         resolvedUntil: this.resolvedUntil,
         objectiveComplete: this.objectiveComplete(),
+        captures: this.mission.captureTruth ?? [],
+        captureChanges: this.lastCaptureChanges,
       });
     } else {
       this.pendingChanges = [...this.pendingChanges, ...changes];
+      this.pendingCaptureChanges = [...this.pendingCaptureChanges, ...this.lastCaptureChanges];
     }
     this.emit({ type: 'resolveProgress', observation: obs, done });
   }
@@ -568,6 +621,7 @@ export class GameController {
       this.mission.soldiers = soldiers;
       this.mission.attemptCount = Math.max(this.mission.attemptCount, life.attempt);
       this.pendingChanges = this.fold(res.observation);
+      this.pendingCaptureChanges = this.lastCaptureChanges;
       this.reachedTick = res.observation.toTick;
       this.saveMission();
       const option = this.options().find(
@@ -621,6 +675,8 @@ export class GameController {
         lanes: this.mission.lanes,
         options,
         changes: this.pendingChanges,
+        captures: this.mission.captureTruth ?? [],
+        captureChanges: this.pendingCaptureChanges,
         attemptsPlayed: this.mission.attemptCount,
         reachedTick: this.reachedTick,
         objectiveComplete: this.objectiveComplete(),
@@ -630,6 +686,7 @@ export class GameController {
       notice,
     );
     this.pendingChanges = [];
+    this.pendingCaptureChanges = [];
     this.emit({ type: 'respawnShown', options });
   }
 

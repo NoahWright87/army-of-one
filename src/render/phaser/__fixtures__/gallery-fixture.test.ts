@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BridgeState, SimEvent } from '../../../sim/events';
+import type { CaptureStage } from '../../../sim/world/map';
 import type { MineState, SoldierRole, TurretState, WorldView } from '../../../sim/view';
 import { GALLERY_LIVE_ID, galleryEvents, galleryView } from './gallery-fixture';
 
@@ -20,6 +21,7 @@ const BRIDGE = Object.keys({
   lowering: 1,
   destroyed: 1,
 } satisfies Record<BridgeState, 1>);
+const CAPTURE = Object.keys({ enemy: 1, neutral: 1, ours: 1 } satisfies Record<CaptureStage, 1>);
 const ENTITY_LISTS = Object.keys({
   soldiers: 1,
   turrets: 1,
@@ -29,6 +31,7 @@ const ENTITY_LISTS = Object.keys({
   levers: 1,
   bridges: 1,
   objectives: 1,
+  capturePoints: 1,
 } satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete'>, 1>);
 
 describe('gallery fixture', () => {
@@ -72,6 +75,20 @@ describe('gallery fixture', () => {
     expect(new Set(v.levers.map((l) => l.on))).toEqual(new Set([true, false]));
     expect(new Set(v.vehicles.map((x) => x.state))).toEqual(new Set(['moving', 'wreck']));
     expect(new Set(v.objectives.map((o) => o.destroyed))).toEqual(new Set([true, false]));
+    for (const s of CAPTURE)
+      expect(
+        v.capturePoints.some((c) => c.stage === s),
+        s,
+      ).toBe(true);
+    expect(v.capturePoints.some((c) => c.objective)).toBe(true);
+    expect(v.capturePoints.some((c) => c.contributors.length === 0 && c.progress > 0)).toBe(true);
+    // Contributors exist and stand inside their circle.
+    for (const c of v.capturePoints) {
+      for (const id of c.contributors) {
+        const s = v.soldiers.find((x) => x.id === id)!;
+        expect(Math.hypot(s.x - c.x, s.y - c.y)).toBeLessThanOrEqual(c.radius);
+      }
+    }
   });
 
   it('ids are unique and the live id exists', () => {
@@ -91,6 +108,7 @@ describe('gallery fixture', () => {
       'mineDetonated',
       'hazardDestroyed',
       'turretWindup',
+      'captureStageChanged',
     ] as const) {
       expect(kinds.has(k), k).toBe(true);
     }

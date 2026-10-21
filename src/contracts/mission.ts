@@ -85,9 +85,38 @@ export interface AttemptObservation {
   markers: TimelineMarker[]; // all markers inside the window
   missionComplete?: { tick: Tick; bySoldierId: SoldierId };
   endReason: SegmentEndReason | 'resolved';
+  /**
+   * (05-a) Capture points reaching a stage inside [fromTick, toTick] ([D11]), in tick order.
+   * Absent = none observed (same as []).
+   */
+  captures?: CaptureObservation[];
+}
+
+/** (05-a) A capture point reached `stage` at `tick`; `by` = the soldiers in the circle then. */
+export interface CaptureObservation {
+  pointId: string;
+  stage: 'neutral' | 'ours';
+  tick: Tick;
+  by: SoldierId[];
 }
 
 // ---------- Truth (owned by 03-b, stored by 03-c) ----------
+
+/**
+ * (05-a) World-level capture truth: when each capture point reached each stage in the latest
+ * truth, folded with the same window rules as lanes ([D2], [D3], [D9]). At most one entry per
+ * (pointId, stage); sorted by tick, then pointId.
+ */
+export interface CaptureTruth extends CaptureObservation {
+  observedInAttempt: number;
+}
+
+/** (05-a) A capture point's 'ours' tick changed in a fold (null = not captured). */
+export interface CaptureChange {
+  pointId: string;
+  before: Tick | null;
+  after: Tick | null;
+}
 
 export type LaneSpanKind = 'alive' | 'lost' | 'frozen' | 'unresolved';
 
@@ -147,4 +176,6 @@ export interface MissionState {
   lanes: LaneTruth[];
   completed?: { attempt: number; tick: Tick; bySoldierId: SoldierId };
   inProgress?: InProgressLife;
+  /** (05-a) Capture truth; absent in older saves and on maps without capture points (= []). */
+  captureTruth?: CaptureTruth[];
 }

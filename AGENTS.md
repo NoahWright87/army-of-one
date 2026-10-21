@@ -119,6 +119,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   for another army). It replaces the saved mission. The debug overlay shows sim/render ms,
   sprite count and soldiers by role; `__aoo.services.perf` has the same numbers. See
   `docs/perf.md`.
+- Missions: `?mission=mission-02` (or the title-screen picker; the choice is remembered). Each
+  mission has its own save. mission-02 autoplay: `?mission=mission-02&dev=1&autoplay=
+  outpost-capture&fast=1` captures the Outpost, then deploy at it yourself; append `,outpost-hq`
+  to watch the forward life finish at the HQ flag.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 

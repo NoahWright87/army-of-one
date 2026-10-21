@@ -1,0 +1,179 @@
+# PR previews on GitHub Pages, using only GitHub's own tooling (no third-party actions).
+#
+# - Opened / updated PR: build the app and publish dist/ to the `gh-pages` branch under
+#   pr-preview/pr-<N>/, then post (or update) one comment on the PR with the link.
+# - Closed / merged PR: delete pr-preview/pr-<N>/ from `gh-pages` and update the comment.
+#
+# One-time repo setup: Settings → Pages → Build and deployment → "Deploy from a branch",
+# branch `gh-pages`, folder `/ (root)`.
+#
+# Only PRs from branches in this repo get previews (fork PRs have a read-only token).
+# The build runs with no credentials on disk (persist-credentials: false); the token is
+# only handed to the publish step, which never executes code from the PR.
+
+name: PR preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      ACTION: ${{ github.event.action }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check out PR head
+        if: env.ACTION != 'closed'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        if: env.ACTION != 'closed' && hashFiles('package.json') != ''
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build
+        if: env.ACTION != 'closed'
+        run: |
+          set -euo pipefail
+          if [ -f package.json ]; then
+            npm ci
+            npm run build
+          else
+            # Nothing to build on this branch yet: publish a stub so the pipeline is still exercised.
+            mkdir -p dist
+            printf '<!doctype html><meta charset="utf-8"><title>Army of One preview</title><p>This branch has no app to build yet (commit %s).</p>\n' "$SHA" > dist/index.html
+          fi
+          # Marker used below to confirm GitHub Pages is serving this exact commit.
+          echo "$SHA" > dist/preview-version.txt
+
+      - name: Publish to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          dir="pr-preview/pr-${PR}"
+
+          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null; then
+            git clone --quiet --depth 1 --branch gh-pages "$url" site
+          else
+            git init --quiet -b gh-pages site
+            git -C site remote add origin "$url"
+          fi
+          git -C site config user.name "github-actions[bot]"
+          git -C site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          apply_changes() {
+            rm -rf "site/$dir"
+            if [ "$ACTION" != closed ]; then
+              mkdir -p "site/$dir"
+              cp -R dist/. "site/$dir/"
+            fi
+            touch site/.nojekyll
+            # Regenerate the landing page listing every live preview.
+            {
+              echo '<!doctype html><html lang="en"><meta charset="utf-8">'
+              echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+              echo '<title>Army of One previews</title>'
+              echo '<style>body{font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;background:#111418;color:#e8eaed}a{color:#ffd54a}</style>'
+              echo '<h1>Army of One: PR previews</h1><ul>'
+              found=0
+              for d in $(ls -d site/pr-preview/pr-* 2>/dev/null | sort -t- -k3 -n); do
+                n="${d##*/pr-}"
+                found=1
+                echo "<li><a href=\"pr-preview/pr-${n}/\">PR #${n} preview</a> (<a href=\"https://github.com/${REPO}/pull/${n}\">pull request</a>)</li>"
+              done
+              [ "$found" = 1 ] || echo '<li>No open previews.</li>'
+              echo "</ul><p><a href=\"https://github.com/${REPO}\">${REPO}</a></p></html>"
+            } > site/index.html
+            git -C site add -A
+          }
+
+          for attempt in 1 2 3 4 5; do
+            apply_changes
+            if git -C site diff --cached --quiet; then
+              echo "Nothing to publish."
+              break
+            fi
+            git -C site commit --quiet -m "Preview PR #${PR} (${ACTION}) at ${SHA}"
+            if git -C site push --quiet origin gh-pages; then
+              echo "Published."
+              break
+            fi
+            echo "Push raced with another preview; retrying ($attempt)…"
+            sleep $((attempt * 3))
+            git -C site fetch --quiet --depth 1 origin gh-pages
+            git -C site reset --quiet --hard origin/gh-pages
+            if [ "$attempt" = 5 ]; then echo "::error::Could not push to gh-pages"; exit 1; fi
+          done
+
+      - name: Wait for GitHub Pages to serve it
+        id: live
+        if: env.ACTION != 'closed'
+        run: |
+          owner="${REPO%%/*}"
+          name="${REPO#*/}"
+          page="https://$(echo "$owner" | tr '[:upper:]' '[:lower:]').github.io/${name}/pr-preview/pr-${PR}/"
+          echo "url=$page" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 40); do
+            got="$(curl -fsSL --max-time 10 "${page}preview-version.txt?t=$(date +%s)" 2>/dev/null | tr -d '[:space:]' || true)"
+            if [ "$got" = "$SHA" ]; then
+              echo "live=yes" >> "$GITHUB_OUTPUT"
+              echo "Live: $page"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "live=no" >> "$GITHUB_OUTPUT"
+          echo "::warning::Not served after 10 minutes. Is Pages enabled for the gh-pages branch?"
+
+      - name: Comment on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGE: ${{ steps.live.outputs.url }}
+          LIVE: ${{ steps.live.outputs.live }}
+        run: |
+          set -euo pipefail
+          marker='<!-- pr-preview -->'
+          short="${SHA:0:7}"
+          if [ "$ACTION" = closed ]; then
+            body="${marker}
+          🧹 Preview removed (PR closed)."
+          elif [ "$LIVE" = yes ]; then
+            body="${marker}
+          🚀 **Preview:** ${PAGE}
+
+          Built from ${short}. Handy links: [play](${PAGE}) · [autoplay the rescue story](${PAGE}?dev=1&autoplay=road-slow,road-snipe-die,resume&fast=1) · [entity gallery](${PAGE}?scene=gallery) · [respawn screen](${PAGE}?screen=respawn&fixture=scrubber)"
+          else
+            body="${marker}
+          ⏳ Preview for ${short} was published to the \`gh-pages\` branch but isn't being served yet: ${PAGE}
+
+          If this persists, enable **Settings → Pages → Deploy from a branch → \`gh-pages\` / root**."
+          fi
+          body="$(printf '%s\n' "$body" | sed 's/^          //')"
+          id="$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -n 1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${id}" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR}/comments" -f body="$body" >/dev/null
+          fi

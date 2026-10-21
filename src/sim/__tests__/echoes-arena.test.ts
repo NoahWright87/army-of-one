@@ -350,9 +350,10 @@ describe('static figures, actions', () => {
 });
 
 describe('chain of 20 attempts (mission-01)', () => {
-  // Speed is checked by the timeout (no wall clock in sim code); `npm run sim -- --scenario
-  // chain` prints ticks/sec.
-  it('runs headless fast, reusing snapshots', { timeout: 1500 }, () => {
+  // The timeout is only a coarse guard against pathological slowdowns: it runs alongside the
+  // whole suite in parallel, so a tight wall-clock limit flakes. Measure real speed with
+  // `npm run sim -- --scenario chain`, which prints ticks/sec.
+  it('runs headless fast, reusing snapshots', { timeout: 15_000 }, () => {
     const { records, lives } = runBotChain(T, 20);
     for (const l of lives) expect(l.historyShifted).toBeNull();
     // Attempts start from snapshots, not tick 0, once entries are past the lead-in.

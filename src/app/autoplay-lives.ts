@@ -15,6 +15,11 @@ import {
   TURRET,
   turretDestroyed,
 } from '../sim/scenarios/mission-01';
+import {
+  OUTPOST_TO_HQ,
+  ROAD_CAPTURE_OUTPOST,
+  ROAD_CAPTURE_OUTPOST_SLOW,
+} from '../sim/scenarios/mission-02';
 import { S1_ROAD_SLOW, S2_SNIPE_AND_HOLD } from '../sim/scenarios/rescue';
 import { getSoldier } from '../sim/sim';
 import type { World } from '../sim/state';
@@ -205,6 +210,36 @@ export const AUTO_LIVES: AutoLife[] = [
     about: 'Beach: weaves the mines, lowers the drawbridge, destroys the depot.',
     pick: { kind: 'new', spawnPointId: 'beach' },
     steps: fromScenario('beach-drawbridge'),
+    end: 'idle',
+  },
+  // ---- mission-02 (05-a): capture the Outpost, deploy forward, raise the flag at HQ ----
+  {
+    name: 'outpost-capture',
+    about: 'mission-02 Road: rushes the Outpost and captures it (~0:40), holds 2 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'road' },
+    steps: [...ROAD_CAPTURE_OUTPOST, { kind: 'wait', ticks: secondsToTicks(2) }],
+    end: 'kill',
+  },
+  {
+    name: 'outpost-capture-slow',
+    about: 'mission-02 Road: dawdles 12 s, then captures the Outpost, holds 1 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'road' },
+    steps: [...ROAD_CAPTURE_OUTPOST_SLOW, { kind: 'wait', ticks: secondsToTicks(1) }],
+    end: 'kill',
+  },
+  {
+    name: 'outpost-hold',
+    about: 'mission-02: deploys at the captured Outpost, stands 3 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'outpost' },
+    steps: [{ kind: 'wait', ticks: secondsToTicks(3) }],
+    end: 'kill',
+  },
+  {
+    name: 'outpost-hq',
+    about:
+      'mission-02: deploys at the Outpost, snipes the turret, captures the HQ flag (complete).',
+    pick: { kind: 'new', spawnPointId: 'outpost' },
+    steps: OUTPOST_TO_HQ,
     end: 'idle',
   },
 ];
