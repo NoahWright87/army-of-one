@@ -17,7 +17,8 @@
     "lint:purity": "node tools/check-purity-lint.mjs",
     "format": "prettier --write .",
     "gen:placeholders": "tsx tools/gen-placeholders.ts",
-    "sim": "tsx tools/sim-cli.ts"
+    "sim": "tsx tools/sim-cli.ts",
+    "bench": "tsx tools/bench.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

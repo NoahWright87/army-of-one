@@ -96,6 +96,18 @@ describe('soldier style', () => {
     }
   });
 
+  it('dim echoes (05-b): everyone but the live soldier fades back, labels go', () => {
+    const dim = { ...settings, dimEchoes: true, dimEchoesLevel: 0.2 };
+    expect(soldierVisual(soldier(), dim, 0).alpha).toBe(1);
+    const echo = soldierVisual(soldier({ role: 'echo', ordinal: 3 }), dim, 0);
+    expect(echo.alpha).toBeCloseTo(0.2);
+    expect(echo.label).toBeNull();
+    const stat = soldierVisual(soldier({ role: 'static' }), dim, 0);
+    expect(stat.alpha).toBeLessThan(soldierVisual(soldier({ role: 'static' }), settings, 0).alpha);
+    const corpse = soldierVisual(soldier({ role: 'echo', alive: false }), dim, 0);
+    expect(corpse.alpha).toBeLessThanOrEqual(0.2);
+  });
+
   it('echoes are translucent and labelled (toggleable)', () => {
     const v = soldierVisual(soldier({ role: 'echo', ordinal: 7 }), settings, 0);
     expect(v).toMatchObject({ texture: 'soldier_echo', alpha: 0.5, label: '7' });

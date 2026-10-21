@@ -208,16 +208,19 @@ export class Caption {
 
 export class Busy {
   private readonly root = el('div', 'aoo-busy');
+  private readonly label = el('span', '', str('busy.preparing'));
 
   constructor(parent: HTMLElement) {
     injectStyle('aoo-flow-css', CSS);
     this.root.hidden = true;
-    this.root.append(el('i'), el('span', '', str('busy.preparing')));
+    this.root.append(el('i'), this.label);
     parent.append(this.root);
   }
 
-  set(on: boolean): void {
+  /** `text` replaces "Preparing…" while shown (e.g. stress-mode progress). */
+  set(on: boolean, text?: string): void {
     this.root.hidden = !on;
+    this.label.textContent = text ?? str('busy.preparing');
   }
 }
 

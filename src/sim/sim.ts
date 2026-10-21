@@ -36,6 +36,7 @@ import { moveCircle } from './world/collision';
 import { validateMap, type MapDef, type Rect, type SpawnPointId } from './world/map';
 import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
+import { simPerf } from './perf';
 import type { WorldView } from './view';
 
 export type { World, WorldState } from './state';
@@ -133,7 +134,27 @@ export function spawnSoldier(
 }
 
 export function getSoldier(world: World, id: SoldierId): SoldierState | undefined {
+  if (simPerf.soldierIndex) return soldierIndex(world.state.soldiers).get(id);
   return world.state.soldiers.find((s) => s.id === id);
+}
+
+/**
+ * (05-b) Cached id → soldier map per soldiers array. Soldiers are only ever appended (spawns)
+ * and mutated in place, and a restored snapshot brings a new array, so (array, length) is a
+ * safe cache key.
+ */
+const soldierIndexCache = new WeakMap<
+  readonly SoldierState[],
+  { len: number; byId: Map<SoldierId, SoldierState> }
+>();
+
+export function soldierIndex(soldiers: readonly SoldierState[]): Map<SoldierId, SoldierState> {
+  const hit = soldierIndexCache.get(soldiers);
+  if (hit && hit.len === soldiers.length) return hit.byId;
+  const byId = new Map<SoldierId, SoldierState>();
+  for (const s of soldiers) byId.set(s.id, s);
+  soldierIndexCache.set(soldiers, { len: soldiers.length, byId });
+  return byId;
 }
 
 /** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */

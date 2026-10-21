@@ -186,6 +186,13 @@ export interface Tuning {
     snapshotIntervalTicks: number;
     /** A resolve pass ([D23]) reports partial observations every this many ticks. */
     resolveProgressIntervalTicks: number;
+    /**
+     * (05-b) Snapshot thinning: snapshots more than this far behind the newest one are kept
+     * only every `snapshotSparseEveryTicks`. Saves memory with big armies; costs a longer
+     * fast-forward (≤ the sparse interval) when deploying into old battle time. 0 = keep all.
+     */
+    snapshotDenseWindowTicks: number;
+    snapshotSparseEveryTicks: number;
   };
   /** (04) New-soldier spawning and the deploy lead-in ([D7], [D5], [D25]). */
   spawn: {
@@ -293,6 +300,8 @@ export const DEFAULT_TUNING: Tuning = {
   attempt: {
     snapshotIntervalTicks: 60, // TUNE: 1 s of battle time [E4]
     resolveProgressIntervalTicks: 60, // TUNE
+    snapshotDenseWindowTicks: 3600, // TUNE: last 60 s of battle time stay at 1 s density
+    snapshotSparseEveryTicks: 300, // TUNE: older battle time every 5 s (0 = no thinning)
   },
   spawn: {
     intervalSeconds: 2, // TUNE [D7]

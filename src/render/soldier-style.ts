@@ -10,6 +10,10 @@ export interface SoldierStyleSettings {
   echoOpacity: number;
   echoLabels: boolean;
   staticFlicker: boolean;
+  /** (05-b) Fade every non-live soldier back (army readability, design doc §14). */
+  dimEchoes?: boolean;
+  /** Opacity dimmed echoes are drawn at (static figures and corpses scale with it). */
+  dimEchoesLevel?: number;
 }
 
 export interface SoldierVisual {
@@ -42,6 +46,20 @@ export function soldierVisual(
   settings: SoldierStyleSettings,
   timeMs: number,
 ): SoldierVisual {
+  const v = baseVisual(s, settings, timeMs);
+  if (!settings.dimEchoes || (s.alive && s.role === 'live')) return v;
+  // Dimmed: the live soldier (and incoming fire, drawn separately) stays the brightest thing.
+  const level = settings.dimEchoesLevel ?? 0.25;
+  const k = Math.min(1, level / Math.max(0.01, settings.echoOpacity));
+  return {
+    ...v,
+    alpha: s.alive ? v.alpha * k : Math.min(v.alpha, level),
+    staticOverlay: v.staticOverlay * k,
+    label: null,
+  };
+}
+
+function baseVisual(s: SoldierView, settings: SoldierStyleSettings, timeMs: number): SoldierVisual {
   const label = settings.echoLabels ? String(s.ordinal) : null;
   const base: SoldierVisual = {
     texture: 'soldier_echo',

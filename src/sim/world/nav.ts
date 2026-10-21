@@ -4,6 +4,7 @@ import type { World } from '../state';
 import { dynamicBlockers } from './blockers';
 import { circleOverlapsRect } from './collision';
 import type { Rect } from './map';
+import { simPerf } from '../perf';
 
 /**
  * Walkability grid for pathfinding (echoes in PHASE03-a). A cell is open when a soldier
@@ -233,6 +234,7 @@ export function findCellPath(
   maxCost = Infinity,
 ): number[] | null {
   if (!isCellOpen(nav, start) || !isCellOpen(nav, goal)) return null;
+  if (simPerf.navBuffers) return findCellPathBuffered(nav, start, goal, maxCost);
   const n = nav.cols * nav.rows;
   const g = new Float64Array(n).fill(Infinity);
   const parent = new Int32Array(n).fill(-1);
@@ -276,6 +278,182 @@ export function findCellPath(
         parent[ni] = cur;
         const h = heur(ni);
         heapPush(heap, { f: ng + h, h, i: ni });
+      }
+    }
+  }
+  return null;
+}
+
+// ---------- (05-b) the same A*, without per-call allocation ----------
+
+/**
+ * Reusable search buffers per grid: g/parent/closed are "reset" by bumping a generation stamp
+ * instead of refilling ~110k cells per call, and the open set is a binary heap in typed arrays.
+ * The heap pops entries in the same strict (f, h, cell) order as `heapPush`/`heapPop` above, and
+ * that order is total on distinct entries, so the search expands the same cells in the same
+ * order and returns exactly the same path.
+ */
+interface SearchBuffers {
+  g: Float64Array;
+  parent: Int32Array;
+  /** `gen` when g/parent of the cell are valid for the current search. */
+  seen: Uint32Array;
+  /** `gen` when the cell is closed. */
+  closed: Uint32Array;
+  gen: number;
+  hf: Float64Array;
+  hh: Float64Array;
+  hi: Int32Array;
+  size: number;
+}
+
+const searchBuffers = new WeakMap<NavGrid, SearchBuffers>();
+
+function buffersFor(nav: NavGrid): SearchBuffers {
+  let b = searchBuffers.get(nav);
+  const n = nav.cols * nav.rows;
+  if (!b) {
+    b = {
+      g: new Float64Array(n),
+      parent: new Int32Array(n),
+      seen: new Uint32Array(n),
+      closed: new Uint32Array(n),
+      gen: 0,
+      hf: new Float64Array(1024),
+      hh: new Float64Array(1024),
+      hi: new Int32Array(1024),
+      size: 0,
+    };
+    searchBuffers.set(nav, b);
+  }
+  b.gen++;
+  if (b.gen >= 0xffffffff) {
+    b.seen.fill(0);
+    b.closed.fill(0);
+    b.gen = 1;
+  }
+  b.size = 0;
+  return b;
+}
+
+function tBefore(b: SearchBuffers, x: number, y: number): boolean {
+  const fx = b.hf[x]!;
+  const fy = b.hf[y]!;
+  if (fx !== fy) return fx < fy;
+  const hx = b.hh[x]!;
+  const hy = b.hh[y]!;
+  if (hx !== hy) return hx < hy;
+  return b.hi[x]! < b.hi[y]!;
+}
+
+function tSwap(b: SearchBuffers, x: number, y: number): void {
+  const f = b.hf[x]!;
+  b.hf[x] = b.hf[y]!;
+  b.hf[y] = f;
+  const h = b.hh[x]!;
+  b.hh[x] = b.hh[y]!;
+  b.hh[y] = h;
+  const i = b.hi[x]!;
+  b.hi[x] = b.hi[y]!;
+  b.hi[y] = i;
+}
+
+function tPush(b: SearchBuffers, f: number, h: number, i: number): void {
+  if (b.size === b.hf.length) {
+    const grow = <T extends Float64Array | Int32Array>(a: T, make: (n: number) => T): T => {
+      const out = make(a.length * 2);
+      out.set(a);
+      return out;
+    };
+    b.hf = grow(b.hf, (n) => new Float64Array(n));
+    b.hh = grow(b.hh, (n) => new Float64Array(n));
+    b.hi = grow(b.hi, (n) => new Int32Array(n));
+  }
+  let k = b.size++;
+  b.hf[k] = f;
+  b.hh[k] = h;
+  b.hi[k] = i;
+  while (k > 0) {
+    const p = (k - 1) >> 1;
+    if (!tBefore(b, k, p)) break;
+    tSwap(b, k, p);
+    k = p;
+  }
+}
+
+/** Pops the top entry into slot `size` (read hf/hh/hi there); false when empty. */
+function tPop(b: SearchBuffers): boolean {
+  if (b.size === 0) return false;
+  const last = --b.size;
+  // Move the top to the end (as the reference pops it) and sift the old last entry down.
+  tSwap(b, 0, last);
+  let k = 0;
+  const n = last;
+  for (;;) {
+    const l = 2 * k + 1;
+    const r = l + 1;
+    let m = k;
+    if (l < n && tBefore(b, l, m)) m = l;
+    if (r < n && tBefore(b, r, m)) m = r;
+    if (m === k) break;
+    tSwap(b, k, m);
+    k = m;
+  }
+  return true;
+}
+
+function findCellPathBuffered(
+  nav: NavGrid,
+  start: number,
+  goal: number,
+  maxCost: number,
+): number[] | null {
+  const b = buffersFor(nav);
+  const gen = b.gen;
+  const { g, parent, seen, closed } = b;
+  const cols = nav.cols;
+  const gc = goal % cols;
+  const gr = Math.floor(goal / cols);
+  const heur = (i: number) => {
+    const dx = Math.abs((i % cols) - gc);
+    const dy = Math.abs(Math.floor(i / cols) - gr);
+    return dx + dy + (SQRT2 - 2) * Math.min(dx, dy);
+  };
+  const gOf = (i: number) => (seen[i] === gen ? g[i]! : Infinity);
+  g[start] = 0;
+  parent[start] = -1;
+  seen[start] = gen;
+  tPush(b, heur(start), heur(start), start);
+  while (tPop(b)) {
+    const slot = b.size;
+    const f = b.hf[slot]!;
+    const cur = b.hi[slot]!;
+    if (closed[cur] === gen) continue;
+    if (f > maxCost) return null;
+    if (cur === goal) {
+      const path: number[] = [];
+      for (let c = goal; c !== -1; c = parent[c]!) path.push(c);
+      return path.reverse();
+    }
+    closed[cur] = gen;
+    const col = cur % cols;
+    const row = Math.floor(cur / cols);
+    for (const [dc, dr, cost] of NEIGHBOURS) {
+      const nc = col + dc;
+      const nr = row + dr;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= nav.rows) continue;
+      const ni = nr * cols + nc;
+      if (closed[ni] === gen || !isCellOpen(nav, ni)) continue;
+      if (dc !== 0 && dr !== 0) {
+        if (!isCellOpen(nav, row * cols + nc) || !isCellOpen(nav, nr * cols + col)) continue;
+      }
+      const ng = g[cur]! + cost;
+      if (ng < gOf(ni)) {
+        g[ni] = ng;
+        parent[ni] = cur;
+        seen[ni] = gen;
+        const h = heur(ni);
+        tPush(b, ng + h, h, ni);
       }
     }
   }
