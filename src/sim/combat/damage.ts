@@ -118,6 +118,7 @@ export function detonateMine(world: World, index: number, by: string): void {
     x: c.x,
     y: c.y,
     radius: mt.blastRadius,
+    by,
   });
 
   const r2 = mt.blastRadius * mt.blastRadius;
