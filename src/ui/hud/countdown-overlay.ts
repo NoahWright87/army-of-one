@@ -16,6 +16,8 @@ const CSS = `
 .aoo-countdown[hidden] { display: none; }
 .aoo-countdown .n { font: 800 160px/1 system-ui, sans-serif; color: #fff; opacity: .92;
   text-shadow: 0 0 24px rgba(53,224,255,.8), 0 4px 0 #000, 0 0 8px #000; }
+.aoo-countdown.upper { align-items: flex-start; padding-top: 11vh; }
+.aoo-countdown.upper .n { font-size: 120px; }
 .aoo-countdown .n.go { color: #ffd34d; text-shadow: 0 0 30px rgba(255,211,77,.9), 0 4px 0 #000; }
 `;
 
@@ -65,6 +67,11 @@ export class CountdownOverlay {
     setText(this.num, label);
     this.num.className = go ? 'n go' : 'n';
     this.num.style.transform = `scale(${(1.25 - 0.25 * Math.min(1, phase * 3)).toFixed(3)})`;
+  }
+
+  /** 'upper': above the middle, so the soldier in the screen centre stays visible (PHASE04). */
+  setPlacement(p: 'center' | 'upper'): void {
+    this.root.classList.toggle('upper', p === 'upper');
   }
 
   get active(): boolean {

@@ -293,6 +293,11 @@ export class Attempt {
     };
   }
 
+  /** The live soldier's segment recorded so far (in-progress autosaves, [D6]); null before control. */
+  liveSegmentSoFar(): RecordingSegment | null {
+    return this.recorder?.segment('suspended') ?? null;
+  }
+
   /** The observation so far (resolve passes report these progressively). */
   observationSoFar(endReason: AttemptObservation['endReason']): AttemptObservation {
     this.obs.ingestTransitions(this.echoes.drainTransitions());

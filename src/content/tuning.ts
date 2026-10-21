@@ -167,6 +167,17 @@ export interface Tuning {
     /** A resolve pass ([D23]) reports partial observations every this many ticks. */
     resolveProgressIntervalTicks: number;
   };
+  /** (04) New-soldier spawning and the deploy lead-in ([D7], [D5], [D25]). */
+  spawn: {
+    /** Gap between successive new soldiers at the same spawn point ([D7]). */
+    intervalSeconds: number;
+    /** Countdown before control on every deploy ([D5], [D25]). */
+    leadInSeconds: number;
+  };
+  /** (04) Real-time pause on the frozen battlefield with a "KIA" caption after the live soldier dies. */
+  deathBeatSeconds: number;
+  /** (04) Battle time between in-progress autosaves while a life is played ([D6], [D20]). */
+  autosaveIntervalSeconds: number;
   /** Size of the world's recent-events ring buffer. */
   eventLogCapacity: number;
 }
@@ -255,6 +266,12 @@ export const DEFAULT_TUNING: Tuning = {
     snapshotIntervalTicks: 60, // TUNE: 1 s of battle time [E4]
     resolveProgressIntervalTicks: 60, // TUNE
   },
+  spawn: {
+    intervalSeconds: 2, // TUNE [D7]
+    leadInSeconds: 5, // TUNE [D5]
+  },
+  deathBeatSeconds: 1, // TUNE
+  autosaveIntervalSeconds: 5, // TUNE
   eventLogCapacity: 512, // TUNE
 };
 

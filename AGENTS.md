@@ -96,9 +96,22 @@ npm run sim -- --map mission-01 --script road-naive  # scripted scenario, prints
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 ```
 
-In the browser: `/?scene=gallery` renders every entity/soldier state from a fixture (visual test
-page). Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options + sim tuning,
-saved in localStorage), `F4` play the lead-in countdown.
+In the browser: `/` is the game (title → respawn screen → lead-in → battle → …, PHASE04).
+`/?scene=gallery` renders every entity/soldier state from a fixture (visual test page),
+`/?scene=sandbox` is the old free-play battle, `/?screen=respawn&fixture=<name>` the respawn
+screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,
+game flow, sim tuning; saved in localStorage), `F4` play the countdown overlay.
+
+Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
+
+- `K` kills the live soldier; `[` / `]` sim speed ×0.25…×4; a DEV bar (top right) with Kill,
+  Reset mission and Timeline JSON; `?debugTimeline=1` opens the raw lanes/observation panel.
+- Autoplay plays scripted lives (`src/app/autoplay-lives.ts`) through the real flow:
+  `?dev=1&autoplay=road-slow,road-snipe-die,resume`. `name*N` repeats; `&fast=1` plays them
+  headless (not drawn); `&autowait=1` waits for the scrubber before each deploy;
+  `&continue=1` continues the save instead of starting over; `&autodelay=ms`. In the console:
+  `__aoo.autoplay('road-naive*3')`, `__aoo.lives` (list), `__aoo.kill()`, `__aoo.controller`.
+- `&resolveWorker=0` runs the background resolve on the main thread instead of a Web Worker.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 
