@@ -63,6 +63,7 @@ export interface VehicleView {
   /** Center position. */
   x: number;
   y: number;
+  /** World-axis extents (not rotated): a horizontal lane's car has w = its length. */
   w: number;
   h: number;
   heading: number;
@@ -72,6 +73,7 @@ export interface VehicleView {
   maxHp: number;
 }
 
+/** Gate and bridge x/y are the TOP-LEFT corner of their rect (like `Rect`). */
 export interface GateView {
   kind: 'gate';
   id: string;
