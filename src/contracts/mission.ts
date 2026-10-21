@@ -135,6 +135,8 @@ export interface InProgressLife {
   attempt: number;
   attemptFromTick: Tick;
   segmentSoFar: RecordingSegment; // endReason 'suspended'
+  /** (PHASE04, additive) Spawn point of a 'new' life: its record doesn't exist yet. */
+  spawnPointId?: SpawnPointId;
 }
 
 export interface MissionState {

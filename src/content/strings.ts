@@ -26,6 +26,32 @@ export const STRINGS = {
   'countdown.go': 'GO',
   'countdown.hint': 'Get ready',
 
+  // Game flow (PHASE04)
+  'title.name': 'Army of One',
+  'title.tagline': 'One soldier at a time. Every life you lose fights beside you.',
+  'title.new': 'New mission',
+  'title.newConfirm': 'Start over? Your saved mission will be lost',
+  'title.continue': 'Continue',
+  'title.mission': 'Mission: {name}',
+  'caption.kia': 'KIA',
+  'caption.complete': 'Mission complete',
+  'notice.historyShifted': 'History shifted: that choice no longer happens. Pick again.',
+  'busy.preparing': 'Preparing…',
+  'complete.title': 'Mission complete',
+  'complete.battleTime': 'Battle time',
+  'complete.soldiers': 'Soldiers used',
+  'complete.rescues': 'Rescues',
+  'complete.attempts': 'Attempts',
+  'complete.playAgain': 'Play again',
+  'leadIn.hint': 'Get ready: hold your moves now, they apply at GO',
+
+  // Dev tools (dev builds or ?dev=1)
+  'dev.reset': 'Reset mission',
+  'dev.kill': 'Kill (K)',
+  'dev.speed': 'Speed {x}× ([ / ])',
+  'dev.autoplay': 'Autoplay: {left} lives left',
+  'dev.timeline': 'Timeline JSON',
+
   // World prompts
   'prompt.interact': '[E] Use',
 
@@ -126,6 +152,12 @@ export const STRINGS = {
   'settings.group.debug': 'Debug',
   'settings.group.tuning': 'Sim tuning (applies on restart)',
   'settings.group.respawn': 'Respawn screen',
+  'settings.group.game': 'Game flow',
+  'settings.game.resolveSpeed': 'Scrubber sweep speed',
+  'settings.game.resolveSpeed.max': 'Instant',
+  'settings.game.resolveSpeed.x': '{x}× battle time',
+  'settings.game.resumeOnReload': 'Reload mid-life resumes at once',
+  'settings.game.ghostArrow': 'Lead-in: preview held movement',
   'settings.respawn.eventMarkers': 'Timeline event markers',
   'settings.respawn.rowHeight': 'Timeline row height',
   'settings.respawn.autoFit': 'Fit whole timeline on open',

@@ -2,9 +2,15 @@ import Phaser from 'phaser';
 import { ASSET_MANIFEST } from '../../content/assets';
 import { assetUrl } from '../assets/asset-urls';
 
-/** Loads every manifest asset by key, then starts the requested scene. */
+/**
+ * Loads every manifest asset by key, then starts the requested scene (or, with `next` null,
+ * just calls `onReady`: the PHASE04 game flow starts battles itself).
+ */
 export class PreloadScene extends Phaser.Scene {
-  constructor(private readonly next: string) {
+  constructor(
+    private readonly next: string | null,
+    private readonly onReady?: () => void,
+  ) {
     super('preload');
   }
 
@@ -16,6 +22,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.scene.start(this.next);
+    if (this.next) this.scene.start(this.next);
+    this.onReady?.();
   }
 }
