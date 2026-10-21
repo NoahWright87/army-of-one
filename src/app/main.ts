@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MISSION_01 } from '../content/maps/mission-01';
+import { MISSIONS, missionOrDefault } from '../content/maps';
 import { str } from '../content/strings';
 import { DEFAULT_TUNING } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
@@ -59,6 +59,28 @@ const mode: 'game' | 'gallery' | 'sandbox' =
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
+/** (05-a) Which mission to play: `?mission=mission-02`, else the last one picked, else mission-01. */
+const MISSION_STORAGE_KEY = 'army-of-one.mission';
+const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+
+function readStoredMission(): string | null {
+  try {
+    return window.localStorage.getItem(MISSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function pickMission(id: string): void {
+  try {
+    window.localStorage.setItem(MISSION_STORAGE_KEY, id);
+  } catch {
+    // remembered for this URL only
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set('mission', id);
+  window.location.assign(url.toString());
+}
 
 // Settings: display/debug, respawn screen, game flow, and every sim tuning value.
 const settings = new SettingsStore(browserStorage(), SETTINGS_STORAGE_KEY);
@@ -150,7 +172,14 @@ async function startGame(): Promise<void> {
     if (isRespawnSetting(id)) respawn?.setSettings(readRespawnSettings(settings));
   });
   const ui: GameUi = {
-    showTitle: (p) => title.show({ ...p, missionNameKey: MISSION_01.nameKey }),
+    showTitle: (p) =>
+      title.show({
+        ...p,
+        missionNameKey: MISSION.nameKey,
+        missions: MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
+        currentMissionId: MISSION.id,
+        onPickMission: pickMission,
+      }),
     showRespawn: (props, onDeploy, n): RespawnHandle => {
       respawn?.destroy();
       const screen = RespawnScreen.mount(uiRoot, props, {
@@ -220,7 +249,7 @@ async function startGame(): Promise<void> {
   };
 
   const controller = new GameController({
-    map: MISSION_01,
+    map: MISSION,
     tuning: () => effectiveTuning(settings, DEFAULT_TUNING),
     store,
     ui,

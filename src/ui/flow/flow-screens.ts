@@ -22,6 +22,8 @@ const CSS = `
   background: #ffd34d; border: 0; border-radius: 6px; cursor: pointer; padding: 0 18px; }
 .aoo-screen button.secondary { background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; }
 .aoo-screen button:disabled { opacity: .35; cursor: default; }
+.aoo-screen .mission-pick select { font: 600 15px system-ui, sans-serif; margin-left: 6px; padding: 4px 6px;
+  background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; }
 .aoo-screen button.confirm { background: #ff6b5a; color: #fff; }
 .aoo-screen dl { display: grid; grid-template-columns: auto auto; gap: 6px 28px; margin: 4px 0 10px; text-align: left; }
 .aoo-screen dt { color: #8a96a3; text-transform: uppercase; font-size: 12px; letter-spacing: .06em; align-self: center; }
@@ -75,6 +77,10 @@ export interface TitleProps {
   missionNameKey: string;
   onNew(): void;
   onContinue(): void;
+  /** (05-a) Mission picker: every playable mission (id + name key) and the switch action. */
+  missions?: readonly { id: string; nameKey: string }[];
+  currentMissionId?: string;
+  onPickMission?(id: string): void;
 }
 
 export class TitleScreen {
@@ -105,7 +111,9 @@ export class TitleScreen {
     card.append(
       el('h1', '', str('title.name')),
       el('p', 'sub', str('title.tagline')),
-      el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) })),
+      ...(p.missions && p.missions.length > 1 && p.onPickMission
+        ? [missionPicker(p.missions, p.currentMissionId ?? '', p.onPickMission)]
+        : [el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) }))]),
       ...(p.canContinue ? [cont, fresh] : [fresh]),
     );
     root.hidden = false;
@@ -115,6 +123,24 @@ export class TitleScreen {
   hide(): void {
     this.s.root.hidden = true;
   }
+}
+
+function missionPicker(
+  missions: readonly { id: string; nameKey: string }[],
+  current: string,
+  pick: (id: string) => void,
+): HTMLElement {
+  const wrap = el('label', 'sub mission-pick', `${str('title.pickMission')} `);
+  const sel = el('select');
+  for (const m of missions) {
+    const o = el('option', '', strDynamic(m.nameKey));
+    o.value = m.id;
+    o.selected = m.id === current;
+    sel.append(o);
+  }
+  sel.onchange = () => pick(sel.value);
+  wrap.append(sel);
+  return wrap;
 }
 
 export interface CompleteStats {

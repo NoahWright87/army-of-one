@@ -2,7 +2,7 @@
  * Hand-rolled shape guards for persisted data. They check structure (not every semantic
  * invariant) so garbage in storage turns into a clean load error instead of a crash later.
  */
-import type { LaneTruth, SoldierRecord } from '../contracts/mission';
+import type { CaptureTruth, LaneTruth, SoldierRecord } from '../contracts/mission';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -81,4 +81,21 @@ export function isLanes(v: unknown): v is LaneTruth[] {
 
 export function soldierMatchesRecord(s: SoldierRecord): boolean {
   return s.segments.length > 0 && s.segments[0]!.startTick === s.spawnTick;
+}
+
+/** (05-a) Capture truth entries. */
+export function isCaptureTruth(v: unknown): v is CaptureTruth[] {
+  return (
+    Array.isArray(v) &&
+    v.every(
+      (c) =>
+        isObj(c) &&
+        isStr(c.pointId) &&
+        (c.stage === 'neutral' || c.stage === 'ours') &&
+        isNum(c.tick) &&
+        isNum(c.observedInAttempt) &&
+        Array.isArray(c.by) &&
+        c.by.every(isStr),
+    )
+  );
 }

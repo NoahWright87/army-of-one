@@ -5,6 +5,12 @@ import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
 import { trySoldierFire } from './combat/shots';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
+import {
+  CAPTURE_FULL,
+  captureRadius,
+  createCapturePoints,
+  stepCapturePoints,
+} from './entities/capture-point';
 import { createGates } from './entities/gate';
 import { interact, isLeverOn } from './entities/lever';
 import { createMines, stepMines } from './entities/mine';
@@ -54,6 +60,7 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       gates: createGates(map.gates ?? []),
       bridges: createBridges(map.bridges ?? [], tuning),
       objectives: createObjectives(map.objectives ?? [], tuning),
+      capturePoints: createCapturePoints(map.capturePoints ?? []),
       events: [],
       queuedEvents: [],
       missionComplete: null,
@@ -160,7 +167,7 @@ export interface StepHooks {
  * Order within a tick: movement (live, then `hooks.moveUncontrolled`) → soft separation →
  * quantize poses → `hooks.afterMovement` → soldier actions (interact, fire; echoes via
  * `hooks.actUncontrolled`; id order) → turrets → mines → traffic → bridges → push soldiers out of
- * anything that became solid → quantize poses.
+ * anything that became solid → quantize poses → capture points (05-a).
  */
 export function step(
   world: World,
@@ -210,6 +217,9 @@ export function step(
     s.y = p.y;
     quantizeSoldier(s);
   }
+
+  // (05-a) Capture points read the final positions of the tick.
+  stepCapturePoints(world);
 
   world.stepping = false;
   appendEvents(world.eventLog, st.events);
@@ -332,6 +342,24 @@ export function getView(world: World): WorldView {
         hp: o.hp,
         maxHp: objectiveMaxHp(def, tuning),
         destroyed: o.destroyed,
+      };
+    }),
+    capturePoints: (map.capturePoints ?? []).map((def, i) => {
+      const cp = st.capturePoints[i]!;
+      return {
+        kind: 'capturePoint',
+        id: def.id,
+        nameKey: def.nameKey,
+        x: def.position.x,
+        y: def.position.y,
+        radius: captureRadius(def, tuning),
+        stage: cp.stage,
+        progress: cp.progress / CAPTURE_FULL,
+        contributors: cp.contributors.slice(),
+        objective: !!def.objective,
+        spawnPointIds: map.spawnPoints
+          .filter((sp) => sp.kind === 'capture' && sp.capturePointId === def.id)
+          .map((sp) => sp.id),
       };
     }),
     events: st.events.slice(),

@@ -17,6 +17,7 @@ import { cueContextFromView, eventCues, type Cue, type TracerStyle } from '../ev
 import { rectViewCenter } from '../geometry';
 import { indexById, interpPos, lerp, lerpAngle } from '../interp';
 import { soldierVisual } from '../soldier-style';
+import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
 
@@ -98,6 +99,11 @@ export class WorldRenderer {
   private readonly bridgeBases: KeyedPool<Tile>;
   private readonly bridgeTops: KeyedPool<Tile>;
   private readonly objectives: KeyedPool<Img>;
+  private readonly captureBases: KeyedPool<Img>;
+  private readonly flagPoles: KeyedPool<Img>;
+  private readonly flags: KeyedPool<Img>;
+  private readonly captureMarkers: KeyedPool<Img>;
+  private readonly captureLabels: KeyedPool<Txt>;
   private readonly prompts: KeyedPool<Txt>;
   private readonly allPools: { begin(): void; end(): void }[];
   private readonly effectImages: FreeList<Img>;
@@ -149,6 +155,11 @@ export class WorldRenderer {
     this.bridgeBases = new KeyedPool(tile(DEPTH.bridges));
     this.bridgeTops = new KeyedPool(tile(DEPTH.bridges + 0.5));
     this.objectives = new KeyedPool(img(DEPTH.objectives));
+    this.captureBases = new KeyedPool(img(DEPTH.decals));
+    this.flagPoles = new KeyedPool(img(DEPTH.objectives + 1));
+    this.flags = new KeyedPool(img(DEPTH.objectives + 0.5));
+    this.captureMarkers = new KeyedPool(img(DEPTH.spawnMarkers));
+    this.captureLabels = new KeyedPool(text(DEPTH.labels, 12));
     this.prompts = new KeyedPool(text(DEPTH.prompts, 13));
     this.allPools = [
       this.soldiers,
@@ -166,6 +177,11 @@ export class WorldRenderer {
       this.bridgeBases,
       this.bridgeTops,
       this.objectives,
+      this.captureBases,
+      this.flagPoles,
+      this.flags,
+      this.captureMarkers,
+      this.captureLabels,
       this.prompts,
     ];
     this.effectImages = new FreeList(img(DEPTH.effects));
@@ -198,6 +214,8 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
     for (const sp of map.spawnPoints) {
+      // Forward (capture) spawn markers are drawn with their capture point, only while ours.
+      if (sp.kind === 'capture') continue;
       scene.add
         .image(sp.position.x, sp.position.y, 'spawn_marker')
         .setRotation(sp.facing)
@@ -231,6 +249,11 @@ export class WorldRenderer {
       if (m.state === 'armed' && prevMines.get(m.id)?.state === 'idle') {
         this.pendingCues.push({ type: 'sound', key: 'sfx_mine_armed', x: m.x, y: m.y, gain: 1 });
       }
+    }
+    for (const e of cur.events) {
+      if (e.kind !== 'captureStageChanged') continue;
+      const c = cur.capturePoints.find((x) => x.id === e.id);
+      if (c) this.pendingCues.push({ type: 'sound', key: 'sfx_capture', x: c.x, y: c.y, gain: 1 });
     }
     if (cur.events.length) {
       this.pendingCues.push(...eventCues(cur.events, cueContextFromView(cur, liveId)));
@@ -272,6 +295,7 @@ export class WorldRenderer {
     this.drawLevers(f);
     this.drawMines(f.nowMs);
     this.drawObjectives();
+    this.drawCapturePoints(f.nowMs);
     this.drawVehicles(a);
     this.drawTurrets(a, f);
     this.drawSoldiers(a, f);
@@ -627,6 +651,84 @@ export class WorldRenderer {
         .setScale((o.radius * 2) / fitPx(key));
       if (!this.applyHitFlash(spr, o.id, this.now)) this.clearTint(spr);
       if (!o.destroyed) this.hpBar(o.x, o.y - o.radius - 12, 56, o.hp, o.maxHp);
+    }
+  }
+
+  /**
+   * (05-a) Capture points: pad, radius circle (team colour by stage), flag pole with the enemy
+   * flag lowering / our flag raising, a progress ring, and a highlight on each contributor.
+   */
+  private drawCapturePoints(nowMs: number): void {
+    const g = this.overlayGfx;
+    const STAGE_COLOR = { enemy: 0xe0533f, neutral: 0xd8d8d8, ours: 0x4ade80 } as const;
+    for (const c of this.cur.capturePoints) {
+      const color = STAGE_COLOR[c.stage];
+      const base = this.captureBases.get(c.id);
+      base
+        .setTexture('capture_base')
+        .setPosition(c.x, c.y)
+        .setScale((Math.min(c.radius, 80) * 2) / fitPx('capture_base'))
+        .setAlpha(0.9);
+      g.fillStyle(color, c.contributors.length ? 0.12 : 0.06);
+      g.fillCircle(c.x, c.y, c.radius);
+      g.lineStyle(2, color, 0.8);
+      g.strokeCircle(c.x, c.y, c.radius);
+      // Progress ring around the radius (clockwise from 12 o'clock).
+      if (c.stage !== 'ours' && c.progress > 0) {
+        const ringColor = c.stage === 'enemy' ? 0xffd34d : 0x4ade80;
+        g.lineStyle(6, ringColor, 0.95);
+        g.beginPath();
+        g.arc(c.x, c.y, c.radius + 6, -Math.PI / 2, -Math.PI / 2 + c.progress * Math.PI * 2);
+        g.strokePath();
+      }
+      // Pole + flags. The pole's foot sits at the point's centre.
+      const poleH = 72;
+      const foot = c.y;
+      this.flagPoles
+        .get(c.id)
+        .setTexture('flag_pole')
+        .setOrigin(0.5, 1)
+        .setPosition(c.x, foot)
+        .setScale(poleH / 96);
+      const h = flagHeights(c.stage, c.progress);
+      const flagKey = h.enemy > 0 ? 'flag_enemy' : h.ours > 0 ? 'flag_ours' : null;
+      if (flagKey) {
+        const lift = h.enemy > 0 ? h.enemy : h.ours;
+        const wave = 1 + Math.sin(nowMs / 180) * 0.06;
+        this.flags
+          .get(c.id)
+          .setTexture(flagKey)
+          .setOrigin(0, 0)
+          .setPosition(c.x + 1, foot - 14 - lift * (poleH - 22))
+          .setScale(0.7 * wave, 0.7);
+      }
+      // Contributor highlight.
+      for (const id of c.contributors) {
+        const s = this.cur.soldiers.find((x) => x.id === id);
+        if (!s) continue;
+        const r = this.opts.spriteRadius + 5 + Math.sin(nowMs / 160) * 1.5;
+        g.lineStyle(2, c.stage === 'enemy' ? 0xffd34d : 0x4ade80, 0.9);
+        g.strokeCircle(s.x, s.y, r);
+      }
+      // Label: name (+ "flag" objectives get the HQ name in caps by their string).
+      this.captureLabels
+        .get(c.id)
+        .setText(strDynamic(c.nameKey))
+        .setPosition(c.x, c.y + c.radius + 16)
+        .setColor(c.stage === 'ours' ? '#bff5cf' : c.stage === 'enemy' ? '#ffc2b8' : '#e6e6e6');
+      // A forward spawn point opens while ours: show its insertion marker.
+      if (c.stage === 'ours') {
+        for (const spId of c.spawnPointIds) {
+          const sp = this.map.spawnPoints.find((p) => p.id === spId);
+          if (!sp) continue;
+          this.captureMarkers
+            .get(spId)
+            .setTexture('spawn_marker')
+            .setPosition(sp.position.x, sp.position.y)
+            .setRotation(sp.facing)
+            .setAlpha(0.8);
+        }
+      }
     }
   }
 

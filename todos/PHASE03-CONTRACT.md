@@ -181,3 +181,17 @@ _(append additive changes here, with the PR that made them)_
   a life in mode `'new'` (its `SoldierRecord` doesn't exist yet, so reload recovery needs it to
   rebuild the record). 03-c's `loadInProgress` carries it; older saves without it fall back to
   the spawn point nearest the segment's first waypoint.
+- **PHASE05-a:** capture points. `AttemptObservation.captures?: CaptureObservation[]`
+  (`{ pointId, stage: 'neutral' | 'ours', tick, by: SoldierId[] }`, the stages reached inside
+  the window; absent = none). `CaptureTruth` (= `CaptureObservation` + `observedInAttempt`) and
+  `MissionState.captureTruth?: CaptureTruth[]` (absent in older saves = `[]`). `CaptureChange
+  { pointId, before, after }` (the 'ours' tick, null = not captured) for "Point lost" captions.
+  The fold (`src/timeline/captures.ts`, `applyCaptureObservation`) uses the lane window rules:
+  entries inside `[fromTick, toTick]` are replaced by what the observation saw; one entry per
+  (point, stage), the earliest wins. Capture markers use `MarkerKind 'capture'` (string keys
+  `marker.capture` / `marker.captureNeutral`, `refId` = point id), one per contributor.
+  `deriveSpawnOptions(map, soldiers, lanes, rules, captures?)` gained the optional captures
+  argument. 03-c stores the truth under `aoo:v1:<mission>:captures` (+ `:backup`); old saves
+  load unchanged. Sim side (not persisted): `SpawnPointDef.kind` gained `'capture'` with
+  `capturePointId`, `MapDef.capturePoints`, `WorldState.capturePoints`, `WorldView.capturePoints`
+  (`CapturePointView`), events `captureProgress` / `captureStageChanged`.

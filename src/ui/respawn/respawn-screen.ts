@@ -11,11 +11,19 @@
  *   screen.destroy();
  */
 import { str } from '../../content/strings';
-import type { LaneChange, LaneSpanKind, SoldierId, SpawnOption } from '../../contracts/mission';
+import type {
+  CaptureChange,
+  LaneChange,
+  LaneSpanKind,
+  SoldierId,
+  SpawnOption,
+} from '../../contracts/mission';
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import { el, injectStyle } from '../dom';
 import { mapThumbSvg } from './map-thumb';
 import {
+  captureChangeCaption,
+  captureFlags,
   captionList,
   changeCaption,
   changedRanges,
@@ -93,6 +101,8 @@ export class RespawnScreen {
   private domain: TimeDomain;
   private readonly deployListeners = new Set<(o: SpawnOption) => void>();
   private captions: string[] = [];
+  /** (05-a) Captions that report a lost capture point (highlighted). */
+  private lostCaptions = new Set<string>();
   private pulses = new Map<SoldierId, Anim>();
   private flashes = new Map<
     SoldierId,
@@ -141,6 +151,7 @@ export class RespawnScreen {
     this.build();
     parent.appendChild(this.root);
     this.pushChanges(props.changes ?? []);
+    this.pushCaptureChanges(props.captureChanges ?? []);
     this.installInput();
     this.renderAll();
     // Focus the selected option so keyboard users can act at once.
@@ -168,6 +179,7 @@ export class RespawnScreen {
     }
     if (u.options) this.diffOptions(prevOptions, u.options);
     if (u.changes) this.pushChanges(u.changes);
+    if (u.captureChanges) this.pushCaptureChanges(u.captureChanges);
     this.selected = reconcileSelection(this.selected, this.props.options);
     this.updateDomain();
     this.renderAll();
@@ -470,6 +482,14 @@ export class RespawnScreen {
     }
   }
 
+  private pushCaptureChanges(changes: readonly CaptureChange[]): void {
+    for (const c of changes) {
+      const { text, lost } = captureChangeCaption(c, this.props.map);
+      if (lost) this.lostCaptions.add(text);
+      if (this.captions[this.captions.length - 1] !== text) this.captions.push(text);
+    }
+  }
+
   private diffOptions(prev: readonly SpawnOption[], next: readonly SpawnOption[]): void {
     if (!this.settings.animations) return;
     const t = now();
@@ -572,7 +592,10 @@ export class RespawnScreen {
     this.captionsEl.innerHTML =
       `<span class="rs-cap-title">${esc(str('respawn.change.title'))}</span>` +
       list
-        .map((c, i) => `<span class="rs-cap${i === 0 ? ' newest' : ''}">${esc(c)}</span>`)
+        .map(
+          (c, i) =>
+            `<span class="rs-cap${i === 0 ? ' newest' : ''}${this.lostCaptions.has(c) ? ' lost' : ''}">${esc(c)}</span>`,
+        )
         .join('');
   }
 
@@ -589,6 +612,9 @@ export class RespawnScreen {
       item(glyphSvg('X', 13, 8, 6), str('respawn.legend.death')),
       item(glyphSvg('O', 13, 8, 6), str('respawn.legend.open')),
       item(glyphSvg('!', 13, 8, 6), str('respawn.legend.interrupted')),
+      ...((this.props.map.capturePoints ?? []).length
+        ? [item(flagSvg(13, 14, 12), str('respawn.legend.capture'))]
+        : []),
       item('<line class="sp-lost" x1="1" y1="8" x2="25" y2="8"/>', str('respawn.legend.lost')),
       item(
         '<rect class="sp-unresolved" x="1" y="3" width="24" height="10" fill="url(#rs-hatch)"/>',
@@ -611,11 +637,12 @@ export class RespawnScreen {
           : `<svg class="rs-o-icon" viewBox="0 0 40 40" width="44" height="44" aria-hidden="true">${glyphSvg('O', 20, 20, 13)}</svg>`;
       const style = delay !== null ? ` style="animation-delay:${-Math.round(delay)}ms"` : '';
       return (
-        `<button type="button" class="rs-opt ${o.kind}${sel ? ' sel' : ''}${cls}" data-opt="${esc(lab.key)}"` +
+        `<button type="button" class="rs-opt ${o.kind}${lab.forward ? ' forward' : ''}${sel ? ' sel' : ''}${cls}" data-opt="${esc(lab.key)}"` +
         ` role="option" aria-selected="${sel}"${style}>` +
         `<span class="rs-opt-icon">${icon}</span>` +
         `<span class="rs-opt-text"><span class="t">${esc(lab.title)}</span>` +
         `<span class="d">${esc(lab.detail)}</span>` +
+        (lab.capturedBy ? `<span class="c">${esc(lab.capturedBy)}</span>` : '') +
         (lab.unconfirmed ? `<span class="u">${esc(str('respawn.spawn.unconfirmed'))}</span>` : '') +
         `</span></button>`
       );
@@ -685,6 +712,17 @@ export class RespawnScreen {
       ax.push(`<line class="ax-tick" x1="${ax1}" y1="${AXIS_H - 8}" x2="${ax1}" y2="${AXIS_H}"/>`);
       ax.push(`<text class="ax-lbl" x="${ax1}" y="${AXIS_H - 12}">${a.label}</text>`);
     }
+    // (05-a) Capture flags: when each forward point became ours.
+    const flags = captureFlags(p);
+    for (const f of flags) {
+      const fx = x(f.tick);
+      if (fx < labelW || fx > plotRight) continue;
+      ax.push(
+        `<g class="capflag${f.unconfirmed ? ' unconf' : ''}" data-tip="${esc(f.label)}">` +
+          flagSvg(fx, AXIS_H - 2, 16) +
+          `<circle class="hit" cx="${fx + 4}" cy="${AXIS_H - 10}" r="10"/></g>`,
+      );
+    }
     if (sel) {
       const gx = x(sel.kind === 'new' ? sel.entryTick : sel.resumeTick);
       const label =
@@ -737,6 +775,9 @@ export class RespawnScreen {
         `<rect class="dim" x="${x(dim.from)}" y="0" width="${Math.max(0, plotRight - x(dim.from))}" height="${H}"/>`,
       );
       out.push(`<line class="scrub" x1="${x(dim.from)}" y1="0" x2="${x(dim.from)}" y2="${H}"/>`);
+    }
+    for (const f of flags) {
+      out.push(`<line class="capline" x1="${x(f.tick)}" y1="0" x2="${x(f.tick)}" y2="${H}"/>`);
     }
     if (sel) {
       const gx = x(sel.kind === 'new' ? sel.entryTick : sel.resumeTick);
@@ -819,6 +860,14 @@ export class RespawnScreen {
         if (!isEventMarker(m)) continue;
         const mx = x(m.tick);
         const tip = esc(markerTooltip(m, r.ordinal));
+        if (m.kind === 'capture') {
+          s.push(
+            `<g class="mk mk-capture" data-tip="${tip}"><circle class="hit" cx="${mx}" cy="${cy}" r="10"/>` +
+              flagSvg(mx, r1(cy - bar / 2 - 1), 13) +
+              `</g>`,
+          );
+          continue;
+        }
         s.push(
           `<g class="mk mk-${m.kind}" data-tip="${tip}"><circle class="hit" cx="${mx}" cy="${cy}" r="10"/>` +
             `<rect class="dot" x="${r1(mx - 3)}" y="${r1(cy - bar / 2 - 7)}" width="6" height="6" transform="rotate(45 ${mx} ${r1(cy - bar / 2 - 4)})"/></g>`,
@@ -899,4 +948,14 @@ export function glyphSvg(glyph: '✓' | 'X' | 'O' | '!', cx: number, cy: number,
         `<path class="g-check-t" d="M${c(cx - g * 0.45)} ${c(cy)}L${c(cx - g * 0.1)} ${c(cy + g * 0.38)}L${c(cx + g * 0.5)} ${c(cy - g * 0.38)}"/>`
       );
   }
+}
+
+/** (05-a) A little flag on a pole whose foot is at (x, y), `h` px tall. */
+export function flagSvg(x: number, y: number, h: number): string {
+  const c = (v: number) => r1(v);
+  const top = y - h;
+  return (
+    `<line class="pole" x1="${c(x)}" y1="${c(y)}" x2="${c(x)}" y2="${c(top)}" stroke="#d6f5e0" stroke-width="1.5"/>` +
+    `<path class="flag" d="M${c(x)} ${c(top)}L${c(x + h * 0.6)} ${c(top + h * 0.22)}L${c(x)} ${c(top + h * 0.45)}Z"/>`
+  );
 }
