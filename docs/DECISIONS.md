@@ -208,3 +208,9 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   that is ours stays ours for the rest of the battle, and stage boundaries lock in ([D11]). Any
   soldier counts toward a capture, echoes included ([D10]), so echoes alone can (re)capture in
   replay; static figures don't count. Revisit when enemies that recapture arrive.
+- **[Q16] Revealed map on a phone (PHASE06-b).** [D29] puts the map on the respawn screen. On a
+  phone with a wide map (mission-01/02) there's no room for timeline, map and spawn list at once,
+  so the map shares the timeline's area behind a **Map / Timeline** toggle (default: timeline,
+  remembered while the page is open). Tall maps (a vertical strip) fit beside the spawn list, so
+  they're always shown. Alternatives: default to the map on phones, or a smaller always-visible
+  map that shrinks the timeline. Desktop shows all three. (`respawn.showMap` hides the map.)
