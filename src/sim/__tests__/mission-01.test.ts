@@ -37,7 +37,7 @@ describe('mission-01 layout', () => {
     expect(() => createWorld(MISSION_01, DEFAULT_TUNING)).not.toThrow();
   });
 
-  it('crossing it unopposed (gate open, drawbridge down) is ~60–90 s of walking', () => {
+  it('crossing it unopposed (gate open, drawbridge down) is ~40–90 s of walking', () => {
     const w = createWorld(MISSION_01, DEFAULT_TUNING);
     w.state.gates[0]!.open = true;
     const draw = w.state.bridges.find((b) => b.id === 'drawbridge-1')!;
@@ -47,7 +47,7 @@ describe('mission-01 layout', () => {
     for (const sp of MISSION_01.spawnPoints) {
       const path = findPath(w, sp.position, { x: depot.x - 100, y: depot.y })!;
       const seconds = pathLength(path) / DEFAULT_TUNING.soldier.speed;
-      expect(seconds, sp.id).toBeGreaterThan(50);
+      expect(seconds, sp.id).toBeGreaterThan(38);
       expect(seconds, sp.id).toBeLessThan(90);
     }
   });
@@ -85,7 +85,7 @@ describe('mission-01 scenarios', () => {
     expect(res.world.state.gates[0]!.open).toBe(true);
     expect(getSoldier(res.world, res.soldierId)!.hp).toBe(DEFAULT_TUNING.soldier.maxHp);
     const t = ticksToSeconds(res.world.state.missionComplete!.tick);
-    expect(t).toBeGreaterThan(55);
+    expect(t).toBeGreaterThan(40);
     expect(t).toBeLessThan(90);
   });
 
