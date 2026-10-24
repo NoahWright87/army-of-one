@@ -61,6 +61,8 @@ export interface SceneServices {
   commands: SceneCommands;
   /** (05-b) Latest perf readout from the battle scene (stress checks read it via `__aoo`). */
   perf?: BattlePerf;
+  /** (06-c) Canvas render scale in use (display.renderScale); the camera zoom is multiplied by it. */
+  renderScale?: () => number;
 }
 
 export interface BattlePerf {
@@ -71,4 +73,7 @@ export interface BattlePerf {
   sprites: number;
   culled: number;
   counts: Record<string, number>;
+  /** (06-c) Mean frame interval / JS update ms per frame. */
+  frameMs?: number;
+  updateMs?: number;
 }

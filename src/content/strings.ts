@@ -226,6 +226,24 @@ export const STRINGS = {
   'settings.echoLabelRadius': 'Echo labels only within (0 = everywhere)',
   'settings.cullOffscreen': 'Skip drawing off-screen soldiers',
   'busy.stress': 'Generating bot lives {done}/{total}…',
+
+  // PHASE06-c: snappy flow + frame-rate pass
+  'title.deploy': 'Deploy',
+  'quick.hint': 'R / Space: redeploy at {spawn} ({time})',
+  'quick.hintAny': 'R / Space: redeploy',
+  'settings.game.resolveSpeed.fit': 'About {s} s',
+  'settings.game.skipEmptyRespawn': 'New mission: skip the empty respawn screen',
+  'settings.game.quickRedeploy': 'R / Space: quick redeploy',
+  'settings.game.quickRedeployGuardMs': 'Quick redeploy: ignore the key for (ms after death)',
+  'settings.game.spinnerThresholdMs': 'Spinner only for work longer than (ms)',
+  'settings.game.transitionMs': 'Transition length (ms)',
+  'settings.renderScale': 'Render resolution',
+  'settings.renderScale.auto': 'Auto',
+  'settings.renderScale.x': '{x}×',
+  'settings.maxCatchUpSteps': 'Max sim catch-up steps per frame',
+  'settings.antialias': 'Antialiasing (applies on reload)',
+  'debug.frame': 'frame ms',
+  'debug.renderScale': 'render scale',
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

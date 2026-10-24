@@ -20,6 +20,12 @@
  *           deathBeat(complete) ─▶ complete ─ playAgain ─▶ respawn
  *
  * Reload mid-life ([D6]): boot ─ recover ─▶ preparing (the resume lead-in), no respawn screen.
+ *
+ * (06-c, [D28] "jump straight into what the game is")
+ *  - A brand-new mission skips the empty respawn screen: title ─ newMission ─▶ respawn ─ deploy
+ *    happen back to back and the screen is never drawn (`freshMissionOption`).
+ *  - Quick redeploy (R / Space): from the death beat straight to preparing, skipping the rest of
+ *    the beat and the respawn screen (`quickRedeployOption` picks the option).
  */
 import type { SpawnOption } from '../contracts/mission';
 
@@ -90,6 +96,10 @@ export function transition(s: FlowState, e: FlowEvent): FlowState {
       if (e.type === 'attemptEnded') return endOf(e.reason);
       break;
     case 'deathBeat':
+      // (06-c) Quick redeploy cuts the beat short and skips the respawn screen.
+      if (e.type === 'deploy' && s.next === 'respawn') {
+        return { kind: 'preparing', option: e.option, recovery: false };
+      }
       if (e.type === 'beatDone') {
         return s.next === 'complete' ? { kind: 'complete' } : { kind: 'respawn', notice: null };
       }
@@ -109,4 +119,41 @@ function endOf(reason: 'death' | 'missionComplete' | 'historyShifted'): FlowStat
 /** True while a battle is on screen (the Phaser scene runs). */
 export function inBattle(s: FlowState): boolean {
   return s.kind === 'leadIn' || s.kind === 'live' || s.kind === 'deathBeat';
+}
+
+/** (06-c) States where the quick-redeploy key (R / Space) works. */
+export function canQuickRedeploy(s: FlowState): boolean {
+  return s.kind === 'respawn' || (s.kind === 'deathBeat' && s.next === 'respawn');
+}
+
+/**
+ * (06-c) The option a quick redeploy uses: a new soldier at the last-used spawn point's next
+ * slot ([D7]). If that point isn't offered any more (a lost capture point, [D26]), the first new
+ * soldier option; if there is none, the first option of any kind.
+ */
+export function quickRedeployOption(
+  options: readonly SpawnOption[],
+  lastSpawnPointId: string | null,
+): SpawnOption | null {
+  const news = options.filter((o) => o.kind === 'new');
+  return (
+    news.find((o) => o.kind === 'new' && o.spawnPointId === lastSpawnPointId) ??
+    news[0] ??
+    options[0] ??
+    null
+  );
+}
+
+/**
+ * (06-c) A brand-new mission (no soldiers yet) has nothing to choose on the respawn screen but the
+ * spawn point: with `skip` on, deploy the default option (the first offered) straight away.
+ * Returns the option to deploy, or null to show the respawn screen as usual.
+ */
+export function freshMissionOption(
+  soldierCount: number,
+  options: readonly SpawnOption[],
+  skip: boolean,
+): SpawnOption | null {
+  if (!skip || soldierCount > 0) return null;
+  return options[0] ?? null;
 }

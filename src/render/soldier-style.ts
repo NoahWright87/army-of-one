@@ -41,71 +41,91 @@ export function flickerNoise(seed: number, timeMs: number, periodMs = 60): numbe
   return (h >>> 0) / 4294967296;
 }
 
+/**
+ * How soldier `s` looks this frame. Pass `out` to fill (and get back) a reused object instead of
+ * allocating one: the renderer calls this for every soldier every frame (06-c).
+ */
 export function soldierVisual(
   s: SoldierView,
   settings: SoldierStyleSettings,
   timeMs: number,
+  out: SoldierVisual = emptyVisual(),
 ): SoldierVisual {
-  const v = baseVisual(s, settings, timeMs);
+  const v = baseVisual(s, settings, timeMs, out);
   if (!settings.dimEchoes || (s.alive && s.role === 'live')) return v;
   // Dimmed: the live soldier (and incoming fire, drawn separately) stays the brightest thing.
   const level = settings.dimEchoesLevel ?? 0.25;
   const k = Math.min(1, level / Math.max(0.01, settings.echoOpacity));
+  v.alpha = s.alive ? v.alpha * k : Math.min(v.alpha, level);
+  v.staticOverlay = v.staticOverlay * k;
+  v.label = null;
+  return v;
+}
+
+export function emptyVisual(): SoldierVisual {
   return {
-    ...v,
-    alpha: s.alive ? v.alpha * k : Math.min(v.alpha, level),
-    staticOverlay: v.staticOverlay * k,
+    texture: 'soldier_echo',
+    alpha: 1,
+    depth: DEPTH.echoes,
+    liveMarker: false,
+    shield: false,
+    interruptedIcon: false,
+    staticOverlay: 0,
     label: null,
   };
 }
 
-function baseVisual(s: SoldierView, settings: SoldierStyleSettings, timeMs: number): SoldierVisual {
-  const label = settings.echoLabels ? String(s.ordinal) : null;
-  const base: SoldierVisual = {
-    texture: 'soldier_echo',
-    alpha: settings.echoOpacity,
-    depth: DEPTH.echoes,
-    liveMarker: false,
-    shield: s.alive && s.leadIn,
-    interruptedIcon: false,
-    staticOverlay: 0,
-    label,
-  };
+/** Echo ordinal labels as strings, cached (no per-frame number → string conversion). */
+const ORDINAL_LABELS: string[] = [];
+function ordinalLabel(n: number): string {
+  return (ORDINAL_LABELS[n] ??= String(n));
+}
+
+function baseVisual(
+  s: SoldierView,
+  settings: SoldierStyleSettings,
+  timeMs: number,
+  v: SoldierVisual,
+): SoldierVisual {
+  v.texture = 'soldier_echo';
+  v.alpha = settings.echoOpacity;
+  v.depth = DEPTH.echoes;
+  v.liveMarker = false;
+  v.shield = s.alive && s.leadIn;
+  v.interruptedIcon = false;
+  v.staticOverlay = 0;
+  v.label = settings.echoLabels ? ordinalLabel(s.ordinal) : null;
   if (!s.alive) {
-    return {
-      ...base,
-      texture: 'soldier_corpse',
-      alpha: 0.85,
-      depth: DEPTH.corpses,
-      shield: false,
-      label: null,
-    };
+    v.texture = 'soldier_corpse';
+    v.alpha = 0.85;
+    v.depth = DEPTH.corpses;
+    v.shield = false;
+    v.label = null;
+    return v;
   }
   switch (s.role) {
     case 'live':
-      return {
-        ...base,
-        texture: 'soldier_live',
-        alpha: 1,
-        depth: DEPTH.live,
-        liveMarker: true,
-        label: null,
-      };
+      v.texture = 'soldier_live';
+      v.alpha = 1;
+      v.depth = DEPTH.live;
+      v.liveMarker = true;
+      v.label = null;
+      return v;
     case 'echo':
-      return base;
+      return v;
     case 'interrupted':
-      return { ...base, depth: DEPTH.interrupted, interruptedIcon: true };
+      v.depth = DEPTH.interrupted;
+      v.interruptedIcon = true;
+      return v;
     case 'static': {
       const n = settings.staticFlicker ? flickerNoise(s.ordinal, timeMs) : 0.5;
-      return {
-        ...base,
-        texture: 'soldier_static',
-        depth: DEPTH.static,
-        alpha: settings.staticFlicker ? 0.25 + n * 0.45 : 0.45,
-        staticOverlay: settings.staticFlicker
-          ? 0.35 + 0.5 * flickerNoise(s.ordinal + 101, timeMs, 45)
-          : 0.4,
-      };
+      v.texture = 'soldier_static';
+      v.depth = DEPTH.static;
+      v.alpha = settings.staticFlicker ? 0.25 + n * 0.45 : 0.45;
+      v.staticOverlay = settings.staticFlicker
+        ? 0.35 + 0.5 * flickerNoise(s.ordinal + 101, timeMs, 45)
+        : 0.4;
+      return v;
     }
   }
 }

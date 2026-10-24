@@ -14,7 +14,7 @@ const CSS = `
 .aoo-countdown { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   pointer-events: none; z-index: 20; }
 .aoo-countdown[hidden] { display: none; }
-.aoo-countdown .n { font: 800 160px/1 system-ui, sans-serif; color: #fff; opacity: .92;
+.aoo-countdown .n { font: 800 160px/1 system-ui, sans-serif; color: #fff; opacity: .92; will-change: transform;
   text-shadow: 0 0 24px rgba(53,224,255,.8), 0 4px 0 #000, 0 0 8px #000; }
 .aoo-countdown.upper { align-items: flex-start; padding-top: 11vh; }
 .aoo-countdown.upper .n { font-size: 120px; }
@@ -26,6 +26,9 @@ export class CountdownOverlay {
   private readonly num = el('div', 'n');
   private readonly tracker = new CountdownTracker();
   private goTimer: ReturnType<typeof setTimeout> | null = null;
+  /** (06-c) Last written class / transform: DOM writes only on change. */
+  private lastClass = '';
+  private lastTransform = '';
   onCue: (cue: Exclude<CountdownCue, null>) => void = () => {};
 
   constructor(parent: HTMLElement) {
@@ -63,10 +66,14 @@ export class CountdownOverlay {
   }
 
   private show(label: string, go: boolean, phase: number): void {
-    this.root.hidden = false;
+    if (this.root.hidden) this.root.hidden = false;
     setText(this.num, label);
-    this.num.className = go ? 'n go' : 'n';
-    this.num.style.transform = `scale(${(1.25 - 0.25 * Math.min(1, phase * 3)).toFixed(3)})`;
+    const cls = go ? 'n go' : 'n';
+    if (cls !== this.lastClass) this.num.className = this.lastClass = cls;
+    // Quantized so most frames write nothing (the pop settles within a third of a second).
+    const k = Math.round((1.25 - 0.25 * Math.min(1, phase * 3)) * 100) / 100;
+    const transform = k === 1 ? 'none' : `scale(${k})`;
+    if (transform !== this.lastTransform) this.num.style.transform = this.lastTransform = transform;
   }
 
   /** 'upper': above the middle, so the soldier in the screen centre stays visible (PHASE04). */

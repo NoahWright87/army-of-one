@@ -9,7 +9,7 @@ import type { MapDef } from '../sim/world/map';
 import { MemoryStore } from '../persistence/storage';
 import type { InputSource } from '../render/input/input-source';
 import { findAutoLife, pickOption, type AutoLife } from './autoplay-lives';
-import { GameController, type BattleHost, type GameEvent } from './game';
+import { GameController, type BattleHost, type GameEvent, type GameOptions } from './game';
 import { HeadlessBattleHost, ManualClock, RecordingUi } from './headless';
 import type { LiveRun } from './live-run';
 import { createInlineResolveRunner } from './resolve-runner';
@@ -41,6 +41,10 @@ export interface HarnessOptions {
   resolveDelayMs?: number;
   /** Map to play (default mission-01). */
   map?: MapDef;
+  /** (06-c) Extra game options (skip the empty respawn screen, spinner threshold, …). */
+  options?: Partial<GameOptions>;
+  /** (06-c) Give the clock a `nowMs()` (the manual clock's time) for the spinner estimate. */
+  clockNow?: boolean;
 }
 
 export function createHarness(o: HarnessOptions = {}): Harness {
@@ -61,12 +65,12 @@ export function createHarness(o: HarnessOptions = {}): Harness {
     store,
     ui,
     battle,
-    clock,
+    clock: o.clockNow ? { after: (ms, fn) => clock.after(ms, fn), nowMs: () => clock.now } : clock,
     resolver: createInlineResolveRunner(
       (delay) => (run) => clock.after(o.resolveDelayMs ?? delay, run),
       o.resolveSlice ?? 600,
     ),
-    options: { resolvePace: () => null, resumeOnReload: true },
+    options: { resolvePace: () => null, resumeOnReload: true, ...o.options },
     onEvent: (e) => {
       events.push(e);
       if (e.type === 'runStarted') runs.push({ run: e.run, countdownAtStart: e.run.countdown() });

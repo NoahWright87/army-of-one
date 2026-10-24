@@ -16,6 +16,13 @@ export interface DebugStats {
   /** (05-b) Game objects drawn last frame, and soldiers culled off screen. */
   sprites?: number;
   culled?: number;
+  /** (06-c) Mean frame interval (ms), and the worst one over about the last second. */
+  frameMs?: number;
+  frameMaxMs?: number;
+  /** (06-c) JS ms of the battle scene's update per frame (sim + renderer CPU + HUD). */
+  updateMs?: number;
+  /** (06-c) Canvas render scale in use (display.renderScale). */
+  renderScale?: number;
 }
 
 /** Entity counts by kind, with soldiers split by role (and dead ones counted as corpses). */
@@ -43,7 +50,14 @@ export function formatDebugLines(s: DebugStats): string[] {
     .map(([k, v]) => `${k} ${v}`)
     .join(' · ');
   return [
-    `${str('debug.fps')} ${Math.round(s.fps)}`,
+    `${str('debug.fps')} ${Math.round(s.fps)}` +
+      (s.frameMs !== undefined
+        ? ` · ${str('debug.frame')} ${s.frameMs.toFixed(1)} (max ${(s.frameMaxMs ?? s.frameMs).toFixed(0)})`
+        : '') +
+      (s.updateMs !== undefined ? ` · update ${s.updateMs.toFixed(2)} ms` : '') +
+      (s.renderScale !== undefined && s.renderScale !== 1
+        ? ` · ${str('debug.renderScale')} ${s.renderScale}`
+        : ''),
     `${str('debug.tick')} ${s.tick}`,
     `${str('debug.stepMs')} ${s.stepMs.toFixed(3)}` +
       (s.simFrameMs !== undefined ? ` · sim/frame ${s.simFrameMs.toFixed(2)}` : ''),

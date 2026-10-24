@@ -307,7 +307,7 @@ export const DEFAULT_TUNING: Tuning = {
     intervalSeconds: 2, // TUNE [D7]
     leadInSeconds: 5, // TUNE [D5]
   },
-  deathBeatSeconds: 1, // TUNE
+  deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
   autosaveIntervalSeconds: 5, // TUNE
   eventLogCapacity: 512, // TUNE
 };

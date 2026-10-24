@@ -33,6 +33,15 @@ export interface DisplaySettings {
   echoLabelRadius: number;
   /** (05-b) Perf: don't draw soldiers outside the camera view (no visible change). */
   cullOffscreen: boolean;
+  /**
+   * (06-c) Canvas resolution relative to the window: 'auto' (1, lower only on very large
+   * windows), '1', '0.75', '0.5'. Lower = less GPU fill work, softer image.
+   */
+  renderScale: string;
+  /** (06-c) Max sim steps run in one frame to catch up after a slow frame (scaled by sim speed). */
+  maxCatchUpSteps: number;
+  /** (06-c) WebGL antialiasing (MSAA). Off saves GPU work on weak laptops. Applies on reload. */
+  antialias: boolean;
 }
 
 export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
@@ -57,6 +66,9 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   dimEchoesLevel: 'display.dimEchoesLevel',
   echoLabelRadius: 'display.echoLabelRadius',
   cullOffscreen: 'debug.cullOffscreen',
+  renderScale: 'display.renderScale',
+  maxCatchUpSteps: 'debug.maxCatchUpSteps',
+  antialias: 'display.antialias',
 };
 
 const showOptions = [
@@ -224,6 +236,35 @@ export function displaySettingDefs(): SettingDef[] {
       label: str('settings.cullOffscreen'),
       type: 'boolean',
       default: true,
+    },
+    {
+      id: id.renderScale,
+      group: D,
+      label: str('settings.renderScale'),
+      type: 'choice',
+      default: 'auto',
+      options: ['auto', '1', '0.75', '0.5'].map((v) => ({
+        value: v,
+        label:
+          v === 'auto' ? str('settings.renderScale.auto') : str('settings.renderScale.x', { x: v }),
+      })),
+    },
+    {
+      id: id.antialias,
+      group: D,
+      label: str('settings.antialias'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: id.maxCatchUpSteps,
+      group: G,
+      label: str('settings.maxCatchUpSteps'),
+      type: 'number',
+      default: 4,
+      min: 1,
+      max: 16,
+      step: 1,
     },
     {
       id: id.timeScale,

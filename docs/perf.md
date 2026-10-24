@@ -178,3 +178,137 @@ army, dimmed view) and are attached to the PHASE05-b report rather than committe
 - Turn on the gzip `CompressionStream` in the codec if saves need to shrink (about 7×).
 - `npm run bench` builds 400 lives in about 3.5 min. If it's used in CI, cache the army or cap
   it at 100.
+
+# PHASE06-c: snappy flow and frame rate
+
+The owner's "it's slow" ([D28], [D30]) covers both the pace of the flow and the frame rate.
+Both were measured before changing anything, in the same container as above (4 vCPU, headless
+Chromium with SwiftShader software GL, 1280×720, `vite preview` of the production build).
+Other agents shared the box, so frame numbers are the **median of three interleaved runs**
+(before, after, before, after, …). The scripts drive the real game with Playwright: flow timings
+come from polling `__aoo.controller.flow` every animation frame, and frame costs come from timing
+Phaser's loop callback plus a Chrome DevTools Protocol CPU profile (`Profiler.start/stop`, 200 µs
+sampling) split by source module. The split uses an unminified build, whose `//#region` markers
+map each sample to its module.
+
+## Flow: wall clock to a controllable soldier (mission-01)
+
+Inputs are automated with no think time, so a human adds reaction time to every step that needs
+an input. That makes the input count as important as the milliseconds.
+
+| | Before | After |
+|---|---|---|
+| Page load → title interactive | 760 / 530 ms | 590 / 430 ms |
+| Title → controllable (fresh mission) | 5.80 / 5.46 s, **2 inputs** (title, then Enter on an empty respawn screen) | 5.22 / 5.25 s, **1 input** (Deploy) |
+| Death → controllable | 6.12 / 6.18 s: 1 s beat, respawn screen, Enter, lead-in | 5.62 / 5.56 s: R pressed 330 ms after the death (just past the guard), lead-in |
+| Death → respawn screen (no key pressed) | 1.0 s | 0.6 s |
+| Deploy → countdown starts | ≈150 ms | ≈100–150 ms |
+
+Acceptance: a fresh mission → controllable is lead-in + 0.25 s (target: + 0.5 s). Death →
+controllable with quick redeploy is lead-in + 0.6 s (target: + 1.5 s). The 5 s lead-in stays
+([D5], [D25]).
+
+The lead-in itself measures 5.1–5.4 s of wall clock, because the battle scene's first frames are
+slow in software GL (shader compile, texture upload). The first frame's delta (scene creation)
+no longer turns into a burst of catch-up steps.
+
+## Frames: JS ms per frame (median of 3 runs, live play: walking and strafing)
+
+"Loop" is Phaser's whole loop callback (sim steps, our renderer, Phaser's update and render
+submission, HUD). The split is CPU-profile self time per frame.
+
+| Scenario | Loop mean / p95 | Phaser | Sim | Our renderer | WebGL calls | DOM HUD | GC | fps |
+|---|---|---|---|---|---|---|---|---|
+| mission-01, before | 1.94 / 3.3 ms | 0.79 | 0.29 | 0.246 | 0.27 | 0.071 | 0.03 | 19.1 |
+| mission-01, after | **1.65 / 2.8 ms** | 0.74 | 0.24 | **0.201** | 0.23 | **0.052** | 0.04 | 20.8 |
+| `?stress=50`, before | 2.54 / 5.5 ms | 0.79 | 0.61 | 0.290 | 0.49 | 0.064 | 0.03 | 17.9 |
+| `?stress=50`, after | **2.28 / 4.9 ms** | 0.80 | 0.57 | **0.216** | 0.48 | 0.060 | 0.02 | 18.5 |
+
+The sim didn't change (it's within run-to-run noise). The renderer's share fell by 20–25 %, and
+the frame's JS by 10–15 %.
+
+Allocation (CDP sampling heap profiler, KB per frame, mission-01): 265 → 212 in total, and our
+renderer's share went from 11.5 to 8.2. With `?stress=50` the renderer stays at about 16 KB per frame:
+moving sprites get new position, rotation and alpha numbers, and V8 boxes each double stored on
+a Phaser object. The per-frame hot spots that are gone: id maps rebuilt every step, the
+`Map`-iterator walk in every pool, an interpolated-position object and a visual object per
+soldier, and a re-tessellated dashed Graphics path for every lever link.
+
+**What the frame actually costs here:** about 42–47 ms of every frame is `(program)`, which is
+`GLES2::ReadPixels` in the compositor commit. Headless Chromium reads the software-rendered canvas
+back every frame. That cost scales with the canvas' pixel count, and it's why this box runs at
+about 20 fps whatever the JS does. A real GPU doesn't do this readback, but the same lever (fewer
+pixels) helps a weak laptop GPU's fill rate:
+
+| `display.renderScale` | mission-01 fps (loop JS) | `?stress=50` fps (loop JS) |
+|---|---|---|
+| 1 (default on ≤ 1080p windows) | 20.8 (1.65 ms) | 18.5 (2.28 ms) |
+| 0.75 | 29.7 (1.62 ms) | 28.1 (2.08 ms) |
+| 0.5 | 51.5 (1.37 ms) | 47.5 (1.80 ms) |
+
+## What changed
+
+Flow ([D28]):
+- **Fresh mission skips the empty respawn screen** (`flow.skipEmptyRespawn`, on). The title's
+  button reads **Deploy** and goes straight into the lead-in at the default spawn. Autoplay and
+  stress mode still get the respawn screen.
+- **Quick redeploy: R or Space** (`flow.quickRedeploy`, on) on the death beat (cutting it short,
+  with no respawn screen) or the respawn screen. It deploys a new soldier at the last-used spawn
+  point's next slot. A hint shows the option ("R / Space: redeploy at Road (0:04)"): at the bottom
+  on the death beat, and under the Deploy button on the respawn screen. Held keys repeat and are
+  ignored (Space is also fire). So is a press within `flow.quickRedeployGuardMs` (300 ms) of the
+  death.
+- **Death beat 1 s → 0.6 s** (`tuning.deathBeatSeconds`).
+- **Scrubber default "About 1 s"** (`game.resolveSpeed` = `fit`): it paces the pass to sweep
+  the remaining battle in about a second, never slower than 20× battle time. The old multiples
+  and "Instant" are still there.
+- **Spinner only for work over 150 ms** (`flow.spinnerThresholdMs`). The controller measures
+  fast-forward cost per tick and shows "Preparing…" only when the estimate is over the
+  threshold. The spinner also fades in after the same delay as a compositor animation, so short
+  work never flashes it.
+- **Transitions ≤ 150 ms** (`flow.transitionMs`, the KIA caption pop-in; it was 250 ms).
+- **Title starts at once:** the game flow (save loading, title) no longer waits for Phaser to
+  boot and load assets. A battle that starts before the assets are in waits for them.
+- Unchanged: the 5 s lead-in (`spawn.leadInSeconds`), the one-click Continue, and the one
+  confirmation before New mission when a save would be lost.
+
+Frame rate ([D30]):
+- Renderer: no-op `setTexture` and `setDepth` calls are skipped on pooled objects. Phaser
+  re-resolved the texture frame on every call, and every `setDepth` queued a sort of the whole
+  display list, every frame. Soldiers only set position, rotation, scale and alpha when they
+  change. Previous-view lookups go by index (`nearById`) instead of id maps rebuilt every step.
+  Pools recycle without iterating a `Map`. `soldierVisual` fills a reused object. Lever links
+  are one tiling dash sprite each, not dashed Graphics re-tessellated every frame. Capture-point
+  labels only `setText`/`setColor` on change: each call re-rendered the label's texture. Tints
+  are only cleared when tinted. The lead-in ghost arrow is only cleared once.
+- HUD and DOM: the HUD updates when the sim steps (not on extra frames at 120/144 Hz). The
+  countdown writes its class and transform only on change (quantized). The debug overlay
+  refreshes every 6th frame. The perf readout is built every 15th frame. The countdown digits,
+  damage vignette, KIA caption and spinner get `will-change`, so they composite instead of
+  repainting blurred shadows.
+- **`display.renderScale`** (auto / 1 / 0.75 / 0.5): the canvas host is sized `scale` × the
+  window, and the canvas is stretched back with a CSS transform. The camera zoom is multiplied by
+  `scale` so the framing doesn't change. Phaser maps the pointer through the canvas' on-screen
+  rectangle, so aiming stays exact. 'auto' is 1 up to about 1080p and scales larger windows down
+  to that pixel count (2560×1440 → 0.75).
+- **`display.antialias`** (on; applies on reload) and `powerPreference: 'high-performance'`
+  (dual-GPU laptops).
+- **Phaser's loop sleeps** while no battle is on screen (title, respawn screen), so no frames are
+  drawn behind the DOM screens. It wakes when a battle starts.
+- **Fixed-step catch-up:** at most `debug.maxCatchUpSteps` (4, × sim speed) steps per frame. The
+  backlog of up to 200 ms carries over and is caught up a few steps per frame. Beyond that it is
+  dropped. Before, the cap was 8 and the backlog was dropped at once. Jitter on a slow machine no
+  longer loses battle time, and a hitch no longer runs 8 steps in one frame. The first frame after
+  a scene starts never steps.
+- **Debug overlay:** FPS, mean frame ms with the worst frame of the last second, the battle
+  scene's update ms, and the render scale.
+- Worker traffic: no resolve runs during play (a deploy cancels it), so the main thread receives
+  nothing from the worker while a soldier is controlled.
+
+## Open items (06-c)
+
+- Real-hardware numbers are still owed (a mid-range laptop, `?stress=50`, renderScale 1 vs 0.75),
+  as for 05-b.
+- What's left per frame is mostly Phaser itself (its update, sort and batch: about 0.75 ms) and
+  WebGL call overhead. Echo labels are still one `Text` texture each (BitmapText is still open
+  from 05-b).

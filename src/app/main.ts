@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { MISSIONS, missionOrDefault } from '../content/maps';
-import { str } from '../content/strings';
+import { str, strDynamic } from '../content/strings';
+import type { SpawnOption } from '../contracts/mission';
+import { formatBattleTime } from '../sim/core/time';
+import { resolveRenderScale } from '../render/render-scale';
 import { DEFAULT_TUNING } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
@@ -14,6 +17,8 @@ import {
   DevBar,
   LeadInHint,
   Notice,
+  QuickRedeployHint,
+  setTransitionMs,
   TimelineJsonPanel,
   TitleScreen,
 } from '../ui/flow/flow-screens';
@@ -102,10 +107,21 @@ const busy = new Busy(uiRoot);
 const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
+const quickHint = new QuickRedeployHint(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
 debug.setVisible(display.debugOverlay);
+// (06-c) Spinner delay and transition length follow their settings.
+const applyFlowTimings = () => {
+  busy.setDelay(settings.getNumber(GAME_SETTING_IDS.spinnerThresholdMs));
+  setTransitionMs(settings.getNumber(GAME_SETTING_IDS.transitionMs));
+};
+applyFlowTimings();
 settings.subscribe((id, v) => {
   if (id === SETTING_IDS.debugOverlay) debug.setVisible(v === true);
+  if (id === GAME_SETTING_IDS.spinnerThresholdMs || id === GAME_SETTING_IDS.transitionMs) {
+    applyFlowTimings();
+  }
+  if (id === SETTING_IDS.renderScale) applyRenderScale();
 });
 
 const services: SceneServices = {
@@ -116,6 +132,7 @@ const services: SceneServices = {
   commands: {},
   leadInHint,
   leadInPreview: () => settings.getBool(GAME_SETTING_IDS.ghostArrow),
+  renderScale: () => renderScale,
   createSession: () =>
     createDefaultSession(
       effectiveTuning(settings, DEFAULT_TUNING),
@@ -123,18 +140,54 @@ const services: SceneServices = {
     ),
 };
 
+// (06-c) The game flow starts at once (title, save loading) while Phaser boots and loads assets
+// in parallel; a battle that starts before the assets are in waits for them.
+let markAssetsReady: () => void = () => {};
+const assetsReady = new Promise<void>((resolve) => (markAssetsReady = resolve));
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#111418',
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
+  // (06-c) Dual-GPU laptops: ask for the discrete GPU.
+  render: { powerPreference: 'high-performance', antialias: display.antialias },
   scene: [
-    new PreloadScene(mode === 'game' ? null : mode === 'gallery' ? 'gallery' : 'battle', () => {
-      if (mode === 'game') void startGame();
-    }),
+    new PreloadScene(mode === 'game' ? null : mode === 'gallery' ? 'gallery' : 'battle', () =>
+      markAssetsReady(),
+    ),
     new BattleScene(services),
     new GalleryScene(services),
   ],
+});
+
+// (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
+// and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
+// so the framing doesn't change. Phaser maps the pointer through the canvas' on-screen rect, so
+// input stays exact.
+let renderScale = 1;
+function applyRenderScale(): void {
+  const s = resolveRenderScale(display.renderScale, window.innerWidth, window.innerHeight);
+  const host = document.getElementById('game');
+  if (!host) return;
+  if (s === renderScale && host.dataset.renderScale === String(s)) return;
+  renderScale = s;
+  host.dataset.renderScale = String(s);
+  host.style.width = `${s * 100}%`;
+  host.style.height = `${s * 100}%`;
+  const canvas = game.canvas as HTMLCanvasElement | undefined;
+  if (canvas) {
+    canvas.style.transformOrigin = '0 0';
+    canvas.style.transform = s === 1 ? '' : `scale(${1 / s})`;
+  }
+  if (game.scale) {
+    game.scale.getParentBounds();
+    game.scale.refresh();
+  }
+}
+game.events.once(Phaser.Core.Events.READY, applyRenderScale);
+window.addEventListener('resize', () => {
+  if (display.renderScale === 'auto') applyRenderScale();
 });
 
 if (mode !== 'game') {
@@ -162,6 +215,8 @@ const aoo: Record<string, unknown> = { game, settings, mode, services };
 
 // ---------- The game flow (PHASE04) ----------
 
+if (mode === 'game') void startGame();
+
 async function startGame(): Promise<void> {
   hud.setVisible(false);
   countdown.setPlacement('upper');
@@ -180,6 +235,9 @@ async function startGame(): Promise<void> {
         missions: MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
+        freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
+          ? 'title.deploy'
+          : 'title.new',
       }),
     showRespawn: (props, onDeploy, n): RespawnHandle => {
       respawn?.destroy();
@@ -188,10 +246,13 @@ async function startGame(): Promise<void> {
         settings: readRespawnSettings(settings),
       });
       respawn = screen;
+      // (06-c) The quick-redeploy hint sits under the Deploy button (falls back to floating).
+      quickHint.dock(uiRoot.querySelector<HTMLElement>('.rs-deploy-bar'));
       notice.show(n === 'historyShifted' ? str('notice.historyShifted') : null);
       return {
         update: (u) => screen.update(u),
         destroy: () => {
+          quickHint.dock(null);
           screen.destroy();
           if (respawn === screen) respawn = null;
           notice.show(null);
@@ -206,6 +267,10 @@ async function startGame(): Promise<void> {
     // The HUD already shows "Mission complete" over the field; the caption is for KIA.
     showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
     showBusy: (on) => busy.set(on),
+    showQuickRedeploy: (option) => {
+      const on = option && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
+      quickHint.set(on ? quickHintText(option) : null);
+    },
   };
 
   const autopilot = new Autopilot(
@@ -218,26 +283,60 @@ async function startGame(): Promise<void> {
     (m) => console.warn(m),
   );
 
-  const clock = { after: (ms: number, fn: () => void) => clearer(setTimeout(fn, ms)) };
+  const clock = {
+    after: (ms: number, fn: () => void) => clearer(setTimeout(fn, ms)),
+    nowMs: () => performance.now(),
+  };
   const headless = new HeadlessBattleHost(clock, (run) => autopilot.inputFor(run));
+  // (06-c) While no battle is on screen (title, respawn screen) Phaser's loop sleeps: no empty
+  // frames drawn behind the DOM screens.
+  let sleepTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingRun: LiveRun | null = null;
+  const wakeLoop = () => {
+    if (sleepTimer) clearTimeout(sleepTimer);
+    sleepTimer = null;
+    if (!game.loop.running) game.loop.wake();
+  };
+  const sleepLoopSoon = () => {
+    if (sleepTimer) clearTimeout(sleepTimer);
+    sleepTimer = setTimeout(() => {
+      sleepTimer = null;
+      if (!pendingRun && !game.scene.isActive('battle')) game.loop.sleep();
+    }, 200);
+  };
+  // Asleep on the title screen too, once the assets are in.
+  void assetsReady.then(() => {
+    if (!pendingRun && !game.scene.isActive('battle')) sleepLoopSoon();
+  });
+  const startScene = (run: LiveRun) => {
+    wakeLoop();
+    hud.setVisible(true);
+    game.scene.start('battle', {
+      session: {
+        world: run.attempt.world,
+        liveId: run.liveId,
+        driver: run,
+        makeInput: (scene: Phaser.Scene) =>
+          autopilot.inputFor(run) ?? new KeyboardMouseInput(scene),
+      },
+    });
+  };
   const phaserHost: BattleHost = {
     start: (run: LiveRun) => {
-      hud.setVisible(true);
-      game.scene.start('battle', {
-        session: {
-          world: run.attempt.world,
-          liveId: run.liveId,
-          driver: run,
-          makeInput: (scene: Phaser.Scene) =>
-            autopilot.inputFor(run) ?? new KeyboardMouseInput(scene),
-        },
+      pendingRun = run;
+      void assetsReady.then(() => {
+        if (pendingRun !== run) return;
+        pendingRun = null;
+        startScene(run);
       });
     },
     stop: () => {
+      pendingRun = null;
       if (game.scene.isActive('battle') || game.scene.isPaused('battle')) game.scene.stop('battle');
       hud.setVisible(false);
       countdown.update(null);
       leadInHint.set(false);
+      sleepLoopSoon();
     },
   };
   // Fast autoplay plays its lives headless; everything else is drawn.
@@ -249,6 +348,7 @@ async function startGame(): Promise<void> {
     },
   };
 
+  let diedAt = -Infinity;
   const controller = new GameController({
     map: MISSION,
     tuning: () => effectiveTuning(settings, DEFAULT_TUNING),
@@ -258,16 +358,40 @@ async function startGame(): Promise<void> {
     clock,
     resolver: makeResolver(),
     options: {
-      resolvePace: () => resolvePace(settings),
+      resolvePace: (span) => resolvePace(settings, span),
       resumeOnReload: settings.getBool(GAME_SETTING_IDS.resumeOnReload),
+      // Autoplay deploys its own first life from the respawn screen.
+      skipEmptyRespawn: () =>
+        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active,
+      spinnerThresholdMs: () => settings.getNumber(GAME_SETTING_IDS.spinnerThresholdMs),
     },
     onEvent: (e) => {
+      if (e.type === 'flow' && e.state.kind === 'deathBeat') diedAt = performance.now();
       autopilot.onEvent(e);
       refreshDev();
     },
     log: (m) => console.warn(`[game] ${m}`),
   });
   autopilot.attach(controller);
+
+  // (06-c) Quick redeploy: R / Space on the death beat or the respawn screen. Capture phase, so a
+  // focused button doesn't take the Space first. Held keys (auto-fire on Space) repeat and are
+  // ignored, and so is a press right after the death (`flow.quickRedeployGuardMs`).
+
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.code !== 'KeyR' && e.code !== 'Space') return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+      if (!quickHint.visible) return;
+      e.preventDefault();
+      const guard = settings.getNumber(GAME_SETTING_IDS.quickRedeployGuardMs);
+      if (performance.now() - diedAt < guard) return;
+      e.stopPropagation();
+      void controller.quickRedeploy();
+    },
+    true,
+  );
 
   // Autosave ([D6], [D20]): the battle-time interval is handled by the controller; these cover
   // the page going away (tab switch, mobile pull-to-refresh, close).
@@ -357,6 +481,16 @@ async function startGame(): Promise<void> {
     return;
   }
   await controller.boot();
+}
+
+/** (06-c) "R / Space: redeploy at Road (0:04)". */
+function quickHintText(option: SpawnOption): string {
+  if (option.kind !== 'new') return str('quick.hintAny');
+  const sp = MISSION.spawnPoints.find((p) => p.id === option.spawnPointId);
+  return str('quick.hint', {
+    spawn: sp ? strDynamic(sp.nameKey) : option.spawnPointId,
+    time: formatBattleTime(option.entryTick),
+  });
 }
 
 function makeResolver(): ResolveRunner {

@@ -149,5 +149,15 @@ export class RecordingUi implements GameUi {
 
   showBusy(on: boolean): void {
     this.busy = on;
+    if (on) this.busyShown++;
+  }
+
+  /** (06-c) Times the spinner was asked for. */
+  busyShown = 0;
+  /** (06-c) The quick-redeploy hint's option (null = hidden). */
+  quickHint: SpawnOption | null = null;
+
+  showQuickRedeploy(option: SpawnOption | null): void {
+    this.quickHint = option;
   }
 }
