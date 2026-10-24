@@ -1,20 +1,24 @@
-# PHASE08: Mission variety, scoring & content (sketch)
+# PHASE08: Multiplayer snapshot experiment (sketch)
 
-**Goal:** turn the proven loop into a game worth replaying (design doc §10, phase 5 of its
-roadmap). Mostly content and design work, so it needs heavy owner input.
+**Goal:** prove the design doc's §08 model. Players in the same synchronized instance affect each
+other live. A player who respawns starts a new independent instance built from the history
+**snapshot** available at that moment, and does not stream other players' later actions.
 
-**Depends on:** PHASE05.
+**Depends on:** PHASE07 (or at least 06). **Parallel with:** — (split once designed).
 
 ## Direction
-- **Scoring** ([D18]): per-mission results such as battle time, soldiers used, rescues,
-  disruption caused, insertion-point use. Possibly a **radar chart of play style** rather than a
-  single score. Bragging works both ways ("captured it in one life" / "300 sacrifices, 3 hours").
-- **Mission select** and more missions from the design doc's table: beachhead assault, crossroads
-  seizure, fortified infiltration, multi-front objective, versus objective race.
-- **Enemy soldiers** that move and fight back (and can retake capture points?). This needs owner
-  rulings on how enemy AI interacts with replayed history.
-- **Roles/loadouts** (sniper, grenadier, medic, engineer…), each a distinct "temporal
-  contribution". Vehicles only if justified.
-- **Art/audio/copy replacement pass** using `assets/ASSETS.md` and `src/content/strings.ts`.
-- **3D feasibility spike** (design doc "Future option"): an isolated scene rendering the same
-  `WorldView`, judged on readability first.
+- The architecture so far helps: pure deterministic sim, recordings as data, truth folded from
+  observations. Multiplayer is mostly about **publishing** observations/recordings between
+  players and **merging** truth.
+- Start with the smallest experiment: two browser tabs, local relay (BroadcastChannel), asymmetric
+  lives (the design doc's "careful player and meat grinder").
+- Then a minimal relay server, only if needed. "Large server infrastructure" is out of scope.
+
+## ⛔ Open product rules (design doc §08 table; all must be decided first)
+- What's included from an in-progress life in a snapshot? Can a partial life yield an O?
+- How is a cross-instance rescue published, without modifying a player's active session?
+- How do conflicting parallel histories resolve? (Note how [D2] "latest attempt is truth"
+  generalizes, or doesn't, with two players' latest attempts.)
+- When can live players rejoin a synchronized instance (optional O-based sync delay)?
+- Versus win conditions, tie-breaking, and when a match ends for everyone.
+- Whether captures ([D9]) become contested between teams.

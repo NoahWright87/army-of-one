@@ -100,6 +100,21 @@ revise with justification in a PR).
 - **[D18] No time cap.** Play however you want: one perfect life or 300 sacrifices. Later, missions
   get scored (speed, soldiers used, etc.), possibly with a radar chart of play style.
 
+## Pacing & map design (playtest feedback on PHASE04/05)
+
+- **[D27] The action travels in one direction.** Missions are linear: you enter at one end and push
+  toward the objective at the other. On screen, **forward is up**. Side routes can exist, but
+  nothing loops back or sprawls sideways. This keeps multi-soldier (and later multiplayer)
+  orchestration readable.
+- **[D28] Jump straight into what the game is.** Contact within a few seconds of spawning: a
+  straight shot into turrets. People will die, and that's fine; respawning *is* the game.
+  Minimise dead time everywhere: walking, menus, waits, transitions.
+- **[D29] A basic map of what's been revealed so far.** Show the parts of the battlefield your
+  soldiers have seen (in the current truth), plus spawn points and known threats. It lives on the
+  respawn screen, so you know where you're spawning, and as a small in-game minimap.
+- **[D30] "It's slow" means pace *and* performance.** Fix both: fast pacing per [D28], and the
+  browser build should feel smooth (target 60 fps on an ordinary laptop).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -131,7 +146,7 @@ revise with justification in a PR).
 - **[E5] The respawn timeline is a DOM/SVG overlay**, independent of Phaser.
 - **[E6] Fixed 60 Hz sim tick**, render interpolated separately.
 - **[E7] Recordings start lossless (every tick, quantized positions)** so unchanged history replays
-  exactly. Thinning to sparse waypoints is a later, outcome-tested optimization (PHASE06-a).
+  exactly. Thinning to sparse waypoints is a later, outcome-tested optimization (PHASE07-a).
 - **[E8] On-schedule echoes are kinematic.** They push the live soldier (and off-schedule echoes)
   but aren't pushed themselves, which keeps replays exact. The live soldier squirms around them
   via soft separation.

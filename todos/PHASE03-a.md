@@ -17,7 +17,7 @@ Relevant rulings: [D2]–[D5], [D14], [D23]–[D26], [E1]–[E4], [E7], [E8].
 ### Recording ([E1])
 - **Record every tick at first** (lossless position + facing for each controlled tick), plus
   `RecordedAction`s (shots with origin + angle, interacts). The design doc says don't optimize
-  early. Lossless per-tick waypoints make an unchanged replay *exact*. Thinning comes in PHASE06-a
+  early. Lossless per-tick waypoints make an unchanged replay *exact*. Thinning comes in PHASE07-a
   as an outcome-tested optimization. Compact *encoding* is 03-c's job.
 - The recorder is fed by the attempt runner after each tick's movement + actions are resolved, so
   recorded positions are exactly what the world saw.
