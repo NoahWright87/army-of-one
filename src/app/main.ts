@@ -60,7 +60,7 @@ const mode: 'game' | 'gallery' | 'sandbox' =
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
-/** (05-a) Which mission to play: `?mission=mission-02`, else the last one picked, else mission-01. */
+/** (05-a) Which mission to play: `?mission=mission-02`, else the last one picked, else (06-a) mission-03. */
 const MISSION_STORAGE_KEY = 'army-of-one.mission';
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 

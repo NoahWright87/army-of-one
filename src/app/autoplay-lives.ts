@@ -1,7 +1,8 @@
 /**
  * Named scripted lives for dev autoplay (`?autoplay=road-slow,road-snipe-die,resume`) and the
- * headless flow tests. Each picks a respawn option and a mission-01 script from
- * src/sim/scenarios/. `end: 'kill'` dev-kills the soldier when its script runs out, so every
+ * headless flow tests. Each picks a respawn option and a script from src/sim/scenarios/
+ * (`breach-*` lives are for mission-03, the default; `outpost-*` for mission-02; the rest
+ * mission-01). `end: 'kill'` dev-kills the soldier when its script runs out, so every
  * life ends without waiting.
  */
 import { MISSION_01 } from '../content/maps/mission-01';
@@ -20,6 +21,17 @@ import {
   ROAD_CAPTURE_OUTPOST,
   ROAD_CAPTURE_OUTPOST_SLOW,
 } from '../sim/scenarios/mission-02';
+import {
+  BREACH_AFTER_O,
+  BREACH_CAPTURE,
+  BREACH_MINES,
+  BREACH_NAIVE,
+  BREACH_NEST_TO_WIN,
+  BREACH_OPEN_GATE,
+  BREACH_ROAD,
+  BREACH_SLOW,
+  BREACH_SNIPE_T1,
+} from '../sim/scenarios/mission-03';
 import { S1_ROAD_SLOW, S2_SNIPE_AND_HOLD } from '../sim/scenarios/rescue';
 import { getSoldier } from '../sim/sim';
 import type { World } from '../sim/state';
@@ -210,6 +222,77 @@ export const AUTO_LIVES: AutoLife[] = [
     about: 'Beach: weaves the mines, lowers the drawbridge, destroys the depot.',
     pick: { kind: 'new', spawnPointId: 'beach' },
     steps: fromScenario('beach-drawbridge'),
+    end: 'idle',
+  },
+  // ---- mission-03 "Breach" (06-a, the default mission): straight up the map ----
+  {
+    name: 'breach-naive',
+    about: 'Breach Centre: straight up the middle into the first turret line (X at ~0:03).',
+    pick: { kind: 'new', spawnPointId: 'centre' },
+    steps: BREACH_NAIVE,
+    end: 'kill',
+  },
+  {
+    name: 'breach-snipe',
+    about: 'Breach West: snipes T1 from out of range, opens the gate, holds 2 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_SNIPE_T1, ...BREACH_OPEN_GATE, { kind: 'wait', ticks: secondsToTicks(2) }],
+    end: 'kill',
+  },
+  {
+    name: 'breach-slow',
+    about: 'Breach West: dawdles 6 s, then walks past T1 toward the gate (X at ~0:08).',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: BREACH_SLOW,
+    end: 'kill',
+  },
+  {
+    name: 'breach-rescue',
+    about: 'Breach West: snipes T1 before breach-slow gets there (S1 → O), holds 3 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_SNIPE_T1, { kind: 'wait', ticks: secondsToTicks(3) }],
+    end: 'kill',
+  },
+  {
+    name: 'breach-resume',
+    about: 'Breach: resume the first O, open the gate, mines, road, capture the Forward Post.',
+    pick: { kind: 'resume' },
+    steps: [...BREACH_AFTER_O, ...BREACH_ROAD, ...BREACH_CAPTURE, { kind: 'wait', ticks: 120 }],
+    end: 'kill',
+  },
+  {
+    name: 'breach-capture',
+    about: 'Breach West: T1, gate, mines, road; captures the Forward Post (~0:32), killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [
+      ...BREACH_SNIPE_T1,
+      ...BREACH_OPEN_GATE,
+      ...BREACH_MINES,
+      ...BREACH_ROAD,
+      ...BREACH_CAPTURE,
+      { kind: 'wait', ticks: secondsToTicks(2) },
+    ],
+    end: 'kill',
+  },
+  {
+    name: 'breach-win',
+    about: 'Breach: deploys at the Forward Post, snipes T3 and T5, destroys the Command Post.',
+    pick: { kind: 'new', spawnPointId: 'forward' },
+    steps: BREACH_NEST_TO_WIN,
+    end: 'idle',
+  },
+  {
+    name: 'breach-solo',
+    about: 'Breach West: the whole map in one life (capture included), ends the mission.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [
+      ...BREACH_SNIPE_T1,
+      ...BREACH_OPEN_GATE,
+      ...BREACH_MINES,
+      ...BREACH_ROAD,
+      ...BREACH_CAPTURE,
+      ...BREACH_NEST_TO_WIN,
+    ],
     end: 'idle',
   },
   // ---- mission-02 (05-a): capture the Outpost, deploy forward, raise the flag at HQ ----
