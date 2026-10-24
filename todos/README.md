@@ -28,12 +28,16 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [03-b](PHASE03-b.md) | Timeline truth model & respawn screen | 03 contract | 03-a, 03-c | Full |
 | [03-c](PHASE03-c.md) | Persistence & autosave | 03 contract | 03-a, 03-b | Full |
 | [04](PHASE04.md) | **The loop**: die → echo → rescue → O → resume | 03-* | — | Full |
-| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Medium |
-| [05-b](PHASE05-b.md) | Army-scale stress harness & performance | 04 | 05-a | Medium |
-| [06-a](PHASE06-a.md) | Lazy outcome-tested recording simplification | 05-b | 06-b | Sketch |
-| [06-b](PHASE06-b.md) | Auto-aim & touch controls | 04 | 06-a | Sketch |
-| [07](PHASE07.md) | Multiplayer snapshot experiment | 06 | — | Sketch |
-| [08](PHASE08.md) | Mission variety, scoring, content | 05 | — | Sketch |
+| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Full |
+| [05-b](PHASE05-b.md) | Army-scale stress harness & performance | 04 | 05-a | Full |
+| [06 plan](PHASE06.md) | **Streamline** (playtest feedback): overview + shared rules | 05 | — | Full |
+| [06-a](PHASE06-a.md) | Linear "straight shot" mission + fast pacing | 05 | 06-b, 06-c | Full |
+| [06-b](PHASE06-b.md) | Revealed map: respawn-screen map + in-game minimap | 05 | 06-a, 06-c | Full |
+| [06-c](PHASE06-c.md) | Snappy flow + frame-rate pass | 05 | 06-a, 06-b | Full |
+| [07-a](PHASE07-a.md) | Lazy outcome-tested recording simplification | 06 | 07-b | Sketch |
+| [07-b](PHASE07-b.md) | Auto-aim & touch controls | 06 | 07-a | Sketch |
+| [08](PHASE08.md) | Multiplayer snapshot experiment | 07 | — | Sketch |
+| [09](PHASE09.md) | Mission variety, scoring, content | 06 | — | Sketch |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".
