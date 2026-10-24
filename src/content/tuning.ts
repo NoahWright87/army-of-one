@@ -229,7 +229,7 @@ export interface Tuning {
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
     maxHp: 100, // TUNE
-    speed: 150, // TUNE
+    speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
@@ -254,7 +254,7 @@ export const DEFAULT_TUNING: Tuning = {
     turnRate: Math.PI, // TUNE: 180°/s
     aimTolerance: 0.15, // TUNE
     windupSeconds: 0.5, // TUNE
-    cooldownSeconds: 0.6, // TUNE
+    cooldownSeconds: 0.45, // TUNE
     damage: 40, // TUNE: 3 hits kill a full-HP soldier
     trackDuringWindup: true, // TUNE
   },
@@ -293,7 +293,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 5, // TUNE: one soldier takes 10 s for both stages
+    stageSeconds: 4, // TUNE: one soldier takes 8 s for both stages
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE
