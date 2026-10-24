@@ -207,6 +207,23 @@ export interface Tuning {
   autosaveIntervalSeconds: number;
   /** Size of the world's recent-events ring buffer. */
   eventLogCapacity: number;
+  /**
+   * (06-b) Revealed map ([D29]): what the soldiers have seen in the current truth. UI only (the
+   * sim never reads it); used by the respawn-screen map and the in-game minimap.
+   */
+  reveal: {
+    /** A soldier reveals everything within this distance of where it was alive. */
+    radius: number;
+    /** Fog grid cell size (world units). Smaller = finer edges, more work. */
+    cellSize: number;
+    /**
+     * false: a plain radius (basic map). true: static walls block the reveal (line of sight on
+     * the fog grid, so thin walls are approximate).
+     */
+    occludeByWalls: boolean;
+    /** Recordings are sampled every this many ticks (gaps are interpolated). */
+    sampleTicks: number;
+  };
 }
 
 export const DEFAULT_TUNING: Tuning = {
@@ -310,6 +327,12 @@ export const DEFAULT_TUNING: Tuning = {
   deathBeatSeconds: 1, // TUNE
   autosaveIntervalSeconds: 5, // TUNE
   eventLogCapacity: 512, // TUNE
+  reveal: {
+    radius: 480, // TUNE: about half a screen at zoom 1
+    cellSize: 64, // TUNE
+    occludeByWalls: false, // TUNE
+    sampleTicks: 30, // TUNE: 0.5 s; the gaps between samples are interpolated
+  },
 };
 
 /** Deep-merges partial overrides onto a tuning object (used by tests and the settings panel). */

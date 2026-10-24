@@ -22,6 +22,7 @@ import { applyObservation } from '../../../timeline/truth';
 import { DEFAULT_TUNING } from '../../../content/tuning';
 import { deriveSpawnOptions, spawnRules, type SpawnRules } from '../../../timeline/spawn-options';
 import type { RespawnProps, RespawnUpdate } from '../respawn-model';
+import { mapMission01, mapOutpost, mapStrip } from './map-fixtures';
 
 /** The default spawn rules from tuning ([D7] 2 s interval, [D5] 5 s lead-in). */
 export const FIXTURE_RULES: SpawnRules = spawnRules(DEFAULT_TUNING);
@@ -525,6 +526,22 @@ const BUILDERS: Record<string, () => RespawnFixture> = {
   'dense-40': dense,
   scrubber,
   complete,
+  // (06-b) Revealed map, from real recordings (map-fixtures.ts).
+  map: () => ({
+    name: 'map',
+    about: 'Mission 1 from real recordings: X at the turret and in the mines, S1 rescued → O',
+    props: mapMission01(),
+  }),
+  'map-outpost': () => ({
+    name: 'map-outpost',
+    about: 'Mission 2 from real recordings: the Outpost captured (forward spawn on the map)',
+    props: mapOutpost(),
+  }),
+  'map-tall': () => ({
+    name: 'map-tall',
+    about: 'A tall strip (forward = up) with three bottom spawns, from real recordings',
+    props: mapStrip(),
+  }),
 };
 
 export const FIXTURE_NAMES = Object.keys(BUILDERS);

@@ -19,7 +19,14 @@ import {
 } from '../ui/flow/flow-screens';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
+import { Minimap } from '../ui/minimap/minimap';
+import {
+  isMinimapSetting,
+  minimapSettingDefs,
+  readMinimapSettings,
+} from '../ui/minimap/minimap-settings';
 import { RespawnScreen } from '../ui/respawn/respawn-screen';
+import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
   readRespawnSettings,
@@ -86,6 +93,7 @@ function pickMission(id: string): void {
 // Settings: display/debug, respawn screen, game flow, and every sim tuning value.
 const settings = new SettingsStore(browserStorage(), SETTINGS_STORAGE_KEY);
 settings.register(displaySettingDefs());
+settings.register(minimapSettingDefs()); // (06-b)
 settings.register(respawnSettingDefs());
 settings.register(gameSettingDefs());
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
@@ -103,6 +111,12 @@ const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
+// (06-b) In-game minimap ([D29]).
+const minimap = new Minimap(uiRoot);
+minimap.setSettings(readMinimapSettings(settings));
+settings.subscribe((id) => {
+  if (isMinimapSetting(id)) minimap.setSettings(readMinimapSettings(settings));
+});
 debug.setVisible(display.debugOverlay);
 settings.subscribe((id, v) => {
   if (id === SETTING_IDS.debugOverlay) debug.setVisible(v === true);
@@ -223,6 +237,7 @@ async function startGame(): Promise<void> {
   const phaserHost: BattleHost = {
     start: (run: LiveRun) => {
       hud.setVisible(true);
+      startMinimap(run);
       game.scene.start('battle', {
         session: {
           world: run.attempt.world,
@@ -238,8 +253,31 @@ async function startGame(): Promise<void> {
       hud.setVisible(false);
       countdown.update(null);
       leadInHint.set(false);
+      minimap.stop();
     },
   };
+
+  /** (06-b) The minimap starts from the current truth's reveal; the live soldier adds to it. */
+  function startMinimap(run: LiveRun): void {
+    const m = controller.mission;
+    const grid = new RevealGrid(MISSION, revealOptions(controller.tuning));
+    grid.update(m.soldiers, m.lanes);
+    const soldiers = m.soldiers;
+    const lanes = m.lanes;
+    const captures = m.captureTruth ?? [];
+    minimap.start({
+      map: MISSION,
+      grid,
+      known: () => knownThings(MISSION, grid, soldiers, lanes, captures),
+      view: () => run.view(),
+      liveId: run.liveId,
+      camera: () => {
+        const scene = game.scene.getScene('battle');
+        const cam = scene?.cameras?.main;
+        return cam ? cam.worldView : null;
+      },
+    });
+  }
   // Fast autoplay plays its lives headless; everything else is drawn.
   const battle: BattleHost = {
     start: (run) => (autopilot.playHeadless ? headless : phaserHost).start(run),

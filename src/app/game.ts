@@ -43,6 +43,7 @@ import type { MapDef } from '../sim/world/map';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
 import { applyCaptureObservation } from '../timeline/captures';
+import { revealOptions } from '../timeline/reveal';
 import type { RespawnProps, RespawnUpdate } from '../ui/respawn/respawn-model';
 import {
   FlowError,
@@ -681,6 +682,7 @@ export class GameController {
         reachedTick: this.reachedTick,
         objectiveComplete: this.objectiveComplete(),
         resolvedUntil: this.resolvedUntil,
+        reveal: revealOptions(this.tuning), // (06-b) revealed map
       },
       (o) => void this.deploy(o),
       notice,
