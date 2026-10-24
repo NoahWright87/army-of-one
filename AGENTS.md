@@ -104,7 +104,10 @@ In the browser: `/` is the game (title → respawn screen → lead-in → battle
 `/?scene=gallery` renders every entity/soldier state from a fixture (visual test page),
 `/?scene=sandbox` is the old free-play battle, `/?screen=respawn&fixture=<name>` the respawn
 screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,
-game flow, sim tuning; saved in localStorage), `F4` play the countdown overlay.
+game flow, sim tuning; saved in localStorage), `F4` play the countdown overlay, `R` / `Space`
+quick redeploy on the death beat or respawn screen (PHASE06-c; a fresh mission skips the empty
+respawn screen). Perf knobs: `display.renderScale`, `display.antialias`, `debug.maxCatchUpSteps`
+(see `docs/perf.md`, PHASE06-c).
 
 Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 

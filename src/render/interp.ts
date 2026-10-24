@@ -20,6 +20,26 @@ export function indexById<T extends { id: string }>(list: readonly T[]): Map<str
   return m;
 }
 
+/**
+ * (06-c) The entity with `id` in `list`, looked for at index `i` (and its neighbours) first.
+ * Views list entities in a stable order (soldiers are only appended), so the previous view's
+ * entity is almost always at the same index: no per-step id map needed. Falls back to a scan.
+ */
+export function nearById<T extends { id: string }>(
+  list: readonly T[],
+  i: number,
+  id: string,
+): T | undefined {
+  const a = list[i];
+  if (a !== undefined && a.id === id) return a;
+  const b = list[i - 1];
+  if (b !== undefined && b.id === id) return b;
+  const c = list[i + 1];
+  if (c !== undefined && c.id === id) return c;
+  for (let j = 0; j < list.length; j++) if (list[j]!.id === id) return list[j];
+  return undefined;
+}
+
 /** Positions further apart than this between two ticks are teleports: snap instead of blend. */
 export const SNAP_DISTANCE = 96;
 

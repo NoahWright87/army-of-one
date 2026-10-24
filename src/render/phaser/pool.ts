@@ -10,33 +10,40 @@ interface Hideable {
 }
 
 export class KeyedPool<T extends Hideable> {
-  private readonly active = new Map<string, T>();
+  /** id → entry. (06-c) `end()` walks `list`, not the map: no iterator garbage per frame. */
+  private readonly active = new Map<string, PoolEntry<T>>();
+  private readonly list: PoolEntry<T>[] = [];
   private readonly free: T[] = [];
-  private readonly used = new Set<string>();
+  private frame = 0;
 
   constructor(private readonly create: () => T) {}
 
   begin(): void {
-    this.used.clear();
+    this.frame++;
   }
 
   get(id: string): T {
-    let o = this.active.get(id);
-    if (!o) {
-      o = this.free.pop() ?? this.create();
-      this.active.set(id, o);
+    let e = this.active.get(id);
+    if (!e) {
+      e = { id, obj: this.free.pop() ?? this.create(), frame: this.frame };
+      this.active.set(id, e);
+      this.list.push(e);
     }
-    if (!o.visible) o.setVisible(true);
-    this.used.add(id);
-    return o;
+    if (!e.obj.visible) e.obj.setVisible(true);
+    e.frame = this.frame;
+    return e.obj;
   }
 
   end(): void {
-    for (const [id, o] of this.active) {
-      if (this.used.has(id)) continue;
-      o.setVisible(false);
-      this.active.delete(id);
-      this.free.push(o);
+    const list = this.list;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const e = list[i]!;
+      if (e.frame === this.frame) continue;
+      e.obj.setVisible(false);
+      this.active.delete(e.id);
+      this.free.push(e.obj);
+      list[i] = list[list.length - 1]!;
+      list.pop();
     }
   }
 
@@ -47,6 +54,13 @@ export class KeyedPool<T extends Hideable> {
   get totalCount(): number {
     return this.active.size + this.free.length;
   }
+}
+
+interface PoolEntry<T> {
+  readonly id: string;
+  readonly obj: T;
+  /** Frame it was last drawn in. */
+  frame: number;
 }
 
 /** Unkeyed pool for short-lived effects. */

@@ -147,4 +147,4 @@ at once, and the minimap's frame cost doesn't show in the debug overlay.
 - On a narrow strip, spawn labels that would overlap are dropped (`labelsThatFit`); the list
   and tooltips still name them.
 - The respawn dev bar (DEV, top right) overlaps the header on small screens; that's pre-existing.
-- Open question added: [Q16] (phone layout for wide maps).
+- Open question added: [Q17] (phone layout for wide maps).
