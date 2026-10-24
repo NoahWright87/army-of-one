@@ -24,7 +24,14 @@ import {
 } from '../ui/flow/flow-screens';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
+import { Minimap } from '../ui/minimap/minimap';
+import {
+  isMinimapSetting,
+  minimapSettingDefs,
+  readMinimapSettings,
+} from '../ui/minimap/minimap-settings';
 import { RespawnScreen } from '../ui/respawn/respawn-screen';
+import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
   readRespawnSettings,
@@ -65,7 +72,7 @@ const mode: 'game' | 'gallery' | 'sandbox' =
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
-/** (05-a) Which mission to play: `?mission=mission-02`, else the last one picked, else mission-01. */
+/** (05-a) Which mission to play: `?mission=mission-02`, else the last one picked, else (06-a) mission-03. */
 const MISSION_STORAGE_KEY = 'army-of-one.mission';
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 
@@ -91,6 +98,7 @@ function pickMission(id: string): void {
 // Settings: display/debug, respawn screen, game flow, and every sim tuning value.
 const settings = new SettingsStore(browserStorage(), SETTINGS_STORAGE_KEY);
 settings.register(displaySettingDefs());
+settings.register(minimapSettingDefs()); // (06-b)
 settings.register(respawnSettingDefs());
 settings.register(gameSettingDefs());
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
@@ -109,6 +117,12 @@ const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
 const quickHint = new QuickRedeployHint(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
+// (06-b) In-game minimap ([D29]).
+const minimap = new Minimap(uiRoot);
+minimap.setSettings(readMinimapSettings(settings));
+settings.subscribe((id) => {
+  if (isMinimapSetting(id)) minimap.setSettings(readMinimapSettings(settings));
+});
 debug.setVisible(display.debugOverlay);
 // (06-c) Spinner delay and transition length follow their settings.
 const applyFlowTimings = () => {
@@ -328,6 +342,7 @@ async function startGame(): Promise<void> {
         if (pendingRun !== run) return;
         pendingRun = null;
         startScene(run);
+        startMinimap(run);
       });
     },
     stop: () => {
@@ -337,8 +352,31 @@ async function startGame(): Promise<void> {
       countdown.update(null);
       leadInHint.set(false);
       sleepLoopSoon();
+      minimap.stop();
     },
   };
+
+  /** (06-b) The minimap starts from the current truth's reveal; the live soldier adds to it. */
+  function startMinimap(run: LiveRun): void {
+    const m = controller.mission;
+    const grid = new RevealGrid(MISSION, revealOptions(controller.tuning));
+    grid.update(m.soldiers, m.lanes);
+    const soldiers = m.soldiers;
+    const lanes = m.lanes;
+    const captures = m.captureTruth ?? [];
+    minimap.start({
+      map: MISSION,
+      grid,
+      known: () => knownThings(MISSION, grid, soldiers, lanes, captures),
+      view: () => run.view(),
+      liveId: run.liveId,
+      camera: () => {
+        const scene = game.scene.getScene('battle');
+        const cam = scene?.cameras?.main;
+        return cam ? cam.worldView : null;
+      },
+    });
+  }
   // Fast autoplay plays its lives headless; everything else is drawn.
   const battle: BattleHost = {
     start: (run) => (autopilot.playHeadless ? headless : phaserHost).start(run),

@@ -207,12 +207,29 @@ export interface Tuning {
   autosaveIntervalSeconds: number;
   /** Size of the world's recent-events ring buffer. */
   eventLogCapacity: number;
+  /**
+   * (06-b) Revealed map ([D29]): what the soldiers have seen in the current truth. UI only (the
+   * sim never reads it); used by the respawn-screen map and the in-game minimap.
+   */
+  reveal: {
+    /** A soldier reveals everything within this distance of where it was alive. */
+    radius: number;
+    /** Fog grid cell size (world units). Smaller = finer edges, more work. */
+    cellSize: number;
+    /**
+     * false: a plain radius (basic map). true: static walls block the reveal (line of sight on
+     * the fog grid, so thin walls are approximate).
+     */
+    occludeByWalls: boolean;
+    /** Recordings are sampled every this many ticks (gaps are interpolated). */
+    sampleTicks: number;
+  };
 }
 
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
     maxHp: 100, // TUNE
-    speed: 150, // TUNE
+    speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
@@ -237,7 +254,7 @@ export const DEFAULT_TUNING: Tuning = {
     turnRate: Math.PI, // TUNE: 180°/s
     aimTolerance: 0.15, // TUNE
     windupSeconds: 0.5, // TUNE
-    cooldownSeconds: 0.6, // TUNE
+    cooldownSeconds: 0.45, // TUNE
     damage: 40, // TUNE: 3 hits kill a full-HP soldier
     trackDuringWindup: true, // TUNE
   },
@@ -276,7 +293,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 5, // TUNE: one soldier takes 10 s for both stages
+    stageSeconds: 4, // TUNE: one soldier takes 8 s for both stages
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE
@@ -310,6 +327,12 @@ export const DEFAULT_TUNING: Tuning = {
   deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
   autosaveIntervalSeconds: 5, // TUNE
   eventLogCapacity: 512, // TUNE
+  reveal: {
+    radius: 480, // TUNE: about half a screen at zoom 1
+    cellSize: 64, // TUNE
+    occludeByWalls: false, // TUNE
+    sampleTicks: 30, // TUNE: 0.5 s; the gaps between samples are interpolated
+  },
 };
 
 /** Deep-merges partial overrides onto a tuning object (used by tests and the settings panel). */

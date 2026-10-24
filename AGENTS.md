@@ -94,6 +94,8 @@ npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md fr
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --map mission-01 --script road-naive  # scripted scenario, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
+npm run sim -- --map mission-03 --script breach-naive  # PHASE06-a Breach scripts (--list)
+npm run sim -- --scenario breach-rescue  # the rescue chain on mission-03
 npm run bench -- --map mission-01 --echoes 25,50,100,200,400  # PHASE05-b army benchmark
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
@@ -122,8 +124,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   for another army). It replaces the saved mission. The debug overlay shows sim/render ms,
   sprite count and soldiers by role; `__aoo.services.perf` has the same numbers. See
   `docs/perf.md`.
-- Missions: `?mission=mission-02` (or the title-screen picker; the choice is remembered). Each
-  mission has its own save. mission-02 autoplay: `?mission=mission-02&dev=1&autoplay=
+- Missions: mission-03 "Breach" (PHASE06-a) is the default; `?mission=mission-01|02` (or the
+  title-screen picker; the choice is remembered). Each mission has its own save. Breach
+  autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win` (rescue → O →
+  resume → forward capture → win from the Forward Post), or `breach-solo` (one life). mission-02 autoplay: `?mission=mission-02&dev=1&autoplay=
   outpost-capture&fast=1` captures the Outpost, then deploy at it yourself; append `,outpost-hq`
   to watch the forward life finish at the HQ flag.
 

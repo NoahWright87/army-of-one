@@ -7,6 +7,7 @@ import { getView, step, type World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import { entityCounts, ema } from '../../ui/hud/debug-model';
 import { buildHudModel } from '../../ui/hud/hud-model';
+import { capLookAhead, lookAheadOffset } from '../camera-look-ahead';
 import type { Cue } from '../event-cues';
 import type { InputSource } from '../input/input-source';
 import { smoothFollow } from '../interp';
@@ -33,6 +34,8 @@ export class BattleScene extends Phaser.Scene {
   private worldRenderer!: WorldRenderer;
   private sounds!: SoundBank;
   private cam = { x: 0, y: 0 };
+  /** (06-a) Facing used for the look-ahead before the live soldier appears. */
+  private homeFacing = -Math.PI / 2;
   private countdownTicks: number | null = null;
   private stepMs: number | null = null;
   private simFrameMs: number | null = null;
@@ -69,7 +72,9 @@ export class BattleScene extends Phaser.Scene {
     const driver = this.session.driver;
     this.view = driver ? driver.view() : getView(this.world);
     this.prevView = this.view;
-    this.lastInput = IDLE_INPUT;
+    // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
+    const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
+    this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
     this.sounds = new SoundBank(this, display);
     this.worldRenderer = new WorldRenderer(this, this.world.map, this.view, display, this.sounds, {
       spriteRadius: this.world.tuning.soldier.spriteRadius,
@@ -79,11 +84,16 @@ export class BattleScene extends Phaser.Scene {
     const map = this.world.map;
     this.cameras.main.setBounds(0, 0, map.width, map.height);
     const live = this.view.soldiers.find((s) => s.id === this.liveId);
-    this.cam = live
+    const home = live
       ? { x: live.x, y: live.y }
       : driver
         ? { ...driver.cameraHome }
         : { x: map.width / 2, y: map.height / 2 };
+    // (06-a) Start already looking ahead (the spawn's facing; up on Breach, [D27]).
+    this.homeFacing =
+      map.spawnPoints.find((sp) => sp.position.x === home.x && sp.position.y === home.y)?.facing ??
+      -Math.PI / 2;
+    this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
     this.ghost = this.add.graphics().setDepth(1000);
     this.firstFrame = true;
     this.hudView = null;
@@ -163,8 +173,18 @@ export class BattleScene extends Phaser.Scene {
     const zoom = display.cameraZoom * (this.services.renderScale?.() ?? 1);
     if (cam.zoom !== zoom) cam.setZoom(zoom);
     // Camera first (so the reticle's world position uses this frame's camera), then draw.
-    const target = this.worldRenderer.soldierRenderPos(this.liveId, alpha);
-    if (target) this.cam = smoothFollow(this.cam, target, display.cameraSmoothing, deltaMs);
+    // (06-a) During the frozen pre-battle hold there's no soldier yet: look ahead from home.
+    const target =
+      this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? driver?.cameraHome ?? null;
+    if (target) {
+      // During the countdown the pointer is still wherever Deploy was clicked, so look the way
+      // the soldier faces (forward) instead of toward the reticle.
+      const counting = (driver?.countdown() ?? 0) > 0;
+      const facing =
+        this.view.soldiers.find((s) => s.id === this.liveId)?.facing ?? this.homeFacing;
+      const goal = this.lookAhead(target, counting ? facing : this.lastInput.aim);
+      this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
+    }
     cam.centerOn(this.cam.x, this.cam.y);
     this.simFrameMs = ema(this.simFrameMs, simThisFrame, 0.05);
     const frozen = driver?.ended ?? false;
@@ -242,6 +262,19 @@ export class BattleScene extends Phaser.Scene {
       this.frameMax = 0;
       this.frameMaxWindow = 0;
     }
+  }
+
+  /** (06-a) Camera goal for a soldier at `pos` aiming at `aim`: look-ahead, capped on screen. */
+  private lookAhead(pos: { x: number; y: number }, aim: number): { x: number; y: number } {
+    const { display } = this.services;
+    const cam = this.cameras.main;
+    const zoom = display.cameraZoom || 1;
+    const ahead = capLookAhead(
+      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance, aim),
+      cam.width / 2 / zoom,
+      cam.height / 2 / zoom,
+    );
+    return { x: pos.x + ahead.x, y: pos.y + ahead.y };
   }
 
   /** Lead-in preview: a ghost arrow for the movement being held ([D5]). */

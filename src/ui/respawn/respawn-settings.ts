@@ -18,6 +18,8 @@ export interface RespawnViewSettings {
   animations: boolean;
   /** Show the X/O/!/dashed legend under the timeline. */
   legend: boolean;
+  /** (06-b) Show the revealed map panel ([D29]). */
+  showMap: boolean;
 }
 
 export const DEFAULT_RESPAWN_SETTINGS: RespawnViewSettings = {
@@ -27,6 +29,7 @@ export const DEFAULT_RESPAWN_SETTINGS: RespawnViewSettings = {
   wheel: 'zoom',
   animations: true,
   legend: true,
+  showMap: true,
 };
 
 export const RESPAWN_SETTING_IDS: { [K in keyof RespawnViewSettings]: string } = {
@@ -36,6 +39,7 @@ export const RESPAWN_SETTING_IDS: { [K in keyof RespawnViewSettings]: string } =
   wheel: 'respawn.wheel',
   animations: 'respawn.animations',
   legend: 'respawn.legend',
+  showMap: 'respawn.showMap',
 };
 
 export function respawnSettingDefs(): SettingDef[] {
@@ -92,6 +96,13 @@ export function respawnSettingDefs(): SettingDef[] {
       type: 'boolean',
       default: d.legend,
     },
+    {
+      id: id.showMap,
+      group: G,
+      label: str('settings.respawn.showMap'),
+      type: 'boolean',
+      default: d.showMap,
+    },
   ];
 }
 
@@ -104,6 +115,7 @@ export function readRespawnSettings(store: SettingsStore): RespawnViewSettings {
     wheel: store.getString(id.wheel) === 'scroll' ? 'scroll' : 'zoom',
     animations: store.getBool(id.animations),
     legend: store.getBool(id.legend),
+    showMap: store.getBool(id.showMap),
   };
 }
 

@@ -217,3 +217,9 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   also fire. Skipping the empty respawn screen (`flow.skipEmptyRespawn`) also applies to Play
   again and dev Reset (every brand-new mission). Alternatives: a quick key that prefers a fresh
   O resume, or always showing the respawn screen after the first death.
+- **[Q17] Revealed map on a phone (PHASE06-b).** [D29] puts the map on the respawn screen. On a
+  phone with a wide map (mission-01/02) there's no room for timeline, map and spawn list at once,
+  so the map shares the timeline's area behind a **Map / Timeline** toggle (default: timeline,
+  remembered while the page is open). Tall maps (a vertical strip) fit beside the spawn list, so
+  they're always shown. Alternatives: default to the map on phones, or a smaller always-visible
+  map that shrinks the timeline. Desktop shows all three. (`respawn.showMap` hides the map.)
