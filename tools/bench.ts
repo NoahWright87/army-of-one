@@ -1,7 +1,7 @@
 /**
  * Army-scale benchmark (PHASE05-b).
  *
- *   npm run bench -- --map mission-01 --echoes 25,50,100,200,400
+ *   npm run bench -- --echoes 25,50,100,200,400     # --map mission-03 (default) or test-range
  *
  * Builds a mission from N bot lives (`src/sim/bots/`) through chained attempts, so the truth is
  * real, then for each checkpoint N reports:
@@ -43,9 +43,9 @@ function arg(name: string, fallback: string): string {
 const flag = (name: string) => process.argv.includes(`--${name}`);
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 
-const map: MapDef | undefined = findMap(arg('map', 'mission-01'));
+const map: MapDef | undefined = findMap(arg('map', 'mission-03'));
 if (!map) {
-  console.error('Unknown map. Maps: mission-01, mission-02, mission-03, test-range');
+  console.error('Unknown map. Maps: mission-03, test-range');
   process.exit(1);
 }
 const checkpoints = arg('echoes', '25,50,100,200,400')

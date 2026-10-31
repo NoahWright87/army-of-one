@@ -19,8 +19,8 @@ import {
 import { paceFor } from './game-settings';
 import { createHarness } from './test-harness';
 
-const road = (entryTick = 0): SpawnOption => ({ kind: 'new', spawnPointId: 'road', entryTick });
-const beach = (entryTick = 0): SpawnOption => ({ kind: 'new', spawnPointId: 'beach', entryTick });
+const west = (entryTick = 0): SpawnOption => ({ kind: 'new', spawnPointId: 'west', entryTick });
+const east = (entryTick = 0): SpawnOption => ({ kind: 'new', spawnPointId: 'east', entryTick });
 const resumeS1: SpawnOption = {
   kind: 'resume',
   soldierId: 'S1',
@@ -31,14 +31,14 @@ const resumeS1: SpawnOption = {
 describe('flow rules (pure)', () => {
   it('quick redeploy goes from the death beat straight to preparing', () => {
     const beat: FlowState = { kind: 'deathBeat', next: 'respawn' };
-    expect(transition(beat, { type: 'deploy', option: road(120) })).toEqual({
+    expect(transition(beat, { type: 'deploy', option: west(120) })).toEqual({
       kind: 'preparing',
-      option: road(120),
+      option: west(120),
       recovery: false,
     });
     // Not after a mission-complete beat: that one ends at the stats screen.
     expect(() =>
-      transition({ kind: 'deathBeat', next: 'complete' }, { type: 'deploy', option: road() }),
+      transition({ kind: 'deathBeat', next: 'complete' }, { type: 'deploy', option: west() }),
     ).toThrow(FlowError);
   });
 
@@ -50,24 +50,24 @@ describe('flow rules (pure)', () => {
     for (const kind of ['live', 'complete', 'boot'] as const) {
       expect(canQuickRedeploy({ kind } as FlowState)).toBe(false);
     }
-    expect(canQuickRedeploy({ kind: 'leadIn', option: road() })).toBe(false);
+    expect(canQuickRedeploy({ kind: 'leadIn', option: west() })).toBe(false);
   });
 
   it("quick redeploy picks the last spawn point's next slot, else the first new soldier", () => {
-    const opts = [resumeS1, road(240), beach(0)];
-    expect(quickRedeployOption(opts, 'beach')).toEqual(beach(0));
-    expect(quickRedeployOption(opts, 'road')).toEqual(road(240));
+    const opts = [resumeS1, west(240), east(0)];
+    expect(quickRedeployOption(opts, 'east')).toEqual(east(0));
+    expect(quickRedeployOption(opts, 'west')).toEqual(west(240));
     // Never a resume by default: the first new soldier when the point is gone / unknown.
-    expect(quickRedeployOption(opts, 'outpost')).toEqual(road(240));
-    expect(quickRedeployOption(opts, null)).toEqual(road(240));
-    expect(quickRedeployOption([resumeS1], 'road')).toEqual(resumeS1);
-    expect(quickRedeployOption([], 'road')).toBeNull();
+    expect(quickRedeployOption(opts, 'forward')).toEqual(west(240));
+    expect(quickRedeployOption(opts, null)).toEqual(west(240));
+    expect(quickRedeployOption([resumeS1], 'west')).toEqual(resumeS1);
+    expect(quickRedeployOption([], 'west')).toBeNull();
   });
 
   it('a fresh mission deploys the default option only when skipping is on', () => {
-    expect(freshMissionOption(0, [road(), beach()], true)).toEqual(road());
-    expect(freshMissionOption(0, [road(), beach()], false)).toBeNull();
-    expect(freshMissionOption(3, [road(), beach()], true)).toBeNull();
+    expect(freshMissionOption(0, [west(), east()], true)).toEqual(west());
+    expect(freshMissionOption(0, [west(), east()], false)).toBeNull();
+    expect(freshMissionOption(3, [west(), east()], true)).toBeNull();
     expect(freshMissionOption(0, [], true)).toBeNull();
   });
 
@@ -119,12 +119,12 @@ describe('snappy flow through the controller (headless)', () => {
   it('a fresh mission goes straight into the lead-in, without a respawn screen', async () => {
     const h = createHarness({ options: { skipEmptyRespawn: () => true } });
     await h.game.boot();
-    h.lives.push(findAutoLife('road-slow')!);
+    h.lives.push(findAutoLife('breach-slow')!);
     await h.game.newMission();
     expect(h.game.flow.kind).toBe('leadIn');
     expect(h.ui.respawns).toHaveLength(0);
     expect(h.events.some((e) => e.type === 'respawnShown')).toBe(false);
-    expect(h.runs[0]!.run.option).toEqual(road());
+    expect(h.runs[0]!.run.option).toEqual(west());
     await h.settle();
     // After the first death the respawn screen shows as usual.
     expect(h.game.flow.kind).toBe('respawn');
@@ -149,22 +149,22 @@ describe('snappy flow through the controller (headless)', () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    await h.play('breach-slow');
     // Run the life (one clock macrotask), stopping inside the death beat.
     h.clock.advance(0);
     await Promise.resolve();
     expect(h.game.flow).toEqual({ kind: 'deathBeat', next: 'respawn' });
-    expect(h.ui.quickHint).toEqual(road(secondsToTicks(2)));
+    expect(h.ui.quickHint).toEqual(west(secondsToTicks(2)));
     const shown = h.ui.respawns.length;
 
-    h.lives.push(findAutoLife('road-idle')!);
+    h.lives.push(findAutoLife('west-idle')!);
     expect(await h.game.quickRedeploy()).toBe(true);
     expect(h.game.flow.kind).toBe('leadIn');
     expect(h.ui.respawns.length).toBe(shown);
     expect(h.ui.quickHint).toBeNull();
     expect(h.ui.captions[h.ui.captions.length - 1]).toBeNull();
     const run = h.runs[1]!.run;
-    expect(run.option).toEqual(road(secondsToTicks(2)));
+    expect(run.option).toEqual(west(secondsToTicks(2)));
     expect(run.liveId).toBe('S2');
     // The cancelled beat never fires later (it would stop the new battle).
     await h.settle();
@@ -172,19 +172,19 @@ describe('snappy flow through the controller (headless)', () => {
     expect(h.game.flow.kind).toBe('respawn');
   });
 
-  it('quick redeploy on the respawn screen follows the last spawn point (beach)', async () => {
+  it('quick redeploy on the respawn screen follows the last spawn point (East)', async () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('beach-idle');
+    await h.play('east-idle');
     h.game.devKill();
     await h.settle();
     expect(h.game.flow.kind).toBe('respawn');
-    expect(h.game.lastSpawnPointId).toBe('beach');
+    expect(h.game.lastSpawnPointId).toBe('east');
     const opt = h.game.quickRedeployOption()!;
-    expect(opt).toMatchObject({ kind: 'new', spawnPointId: 'beach' });
+    expect(opt).toMatchObject({ kind: 'new', spawnPointId: 'east' });
     expect(h.ui.quickHint).toEqual(opt);
-    h.lives.push(findAutoLife('beach-idle')!);
+    h.lives.push(findAutoLife('east-idle')!);
     expect(await h.game.quickRedeploy()).toBe(true);
     expect(h.game.flow.kind).toBe('leadIn');
     expect(h.runs[1]!.run.option).toEqual(opt);
@@ -195,7 +195,7 @@ describe('snappy flow through the controller (headless)', () => {
     await h.game.boot();
     expect(await h.game.quickRedeploy()).toBe(false);
     await h.game.newMission();
-    await h.play('road-idle');
+    await h.play('west-idle');
     expect(h.game.flow.kind).toBe('leadIn');
     expect(await h.game.quickRedeploy()).toBe(false);
     expect(h.ui.quickHint).toBeNull();
@@ -209,13 +209,13 @@ describe('snappy flow through the controller (headless)', () => {
       });
       await h.game.boot();
       await h.game.newMission();
-      await h.play('road-slow');
+      await h.play('breach-slow');
       await h.settle();
-      await h.play('road-snipe-die');
+      await h.play('breach-snipe-die');
       await h.settle();
       // Resuming S1 fast-forwards from the nearest snapshot to its lead-in start (< 1 s).
       // (Showing the spinner yields a frame on the clock first, so settle while it deploys.)
-      const deployed = h.play('resume');
+      const deployed = h.play('resume-wait');
       await h.settle();
       await deployed;
       return h.ui.busyShown;

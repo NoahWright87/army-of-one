@@ -114,6 +114,10 @@ revise with justification in a PR).
   respawn screen, so you know where you're spawning, and as a small in-game minimap.
 - **[D30] "It's slow" means pace *and* performance.** Fix both: fast pacing per [D28], and the
   browser build should feel smooth (target 60 fps on an ordinary laptop).
+- **[D31] Breach is the only mission, and the template for new ones.** mission-03 "Breach" is the
+  one playable mission. It shows how a mission should look: mostly vertical, moving in one
+  direction ([D27]), with contact within seconds ([D28]). mission-01 and mission-02 were removed
+  because they were too big and slow. Old saves for them are ignored.
 
 ## Platform & process
 

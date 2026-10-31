@@ -1,5 +1,7 @@
 # PHASE02-a: Headless world & combat sim
 
+> **Note ([D31]):** mission-01 and mission-02 were later removed; mission-03 "Breach" is the only mission. The notes below are kept as history; their tests were ported to Breach.
+
 **Goal:** everything that can kill a soldier, and everything a soldier can do about it, running
 headless and deterministically. No recording/echoes yet. This phase gives the replay system
 something meaningful to replay against.

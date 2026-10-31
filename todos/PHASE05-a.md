@@ -1,5 +1,7 @@
 # PHASE05-a: Capture points & forward spawns
 
+> **Note ([D31]):** mission-01 and mission-02 were later removed; mission-03 "Breach" is the only mission. The notes below are kept as history; their tests were ported to Breach.
+
 **Goal:** geographic and temporal strategy. Soldiers capture points Battlefield 2-style. Captured
 points become spawn points that open **when and where** they were captured. Losing the captor in a
 later attempt causally loses the spawn.

@@ -1,9 +1,9 @@
 /**
- * (06-b) Reveal perf: 100 soldiers × 2 min of lossless recordings on mission-01. Prints the
+ * (06-b) Reveal perf: 100 soldiers × 2 min of lossless recordings on mission-03. Prints the
  * numbers (see PHASE06-b notes); asserts loose bounds so slow CI machines don't flake.
  */
 import { describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../../content/maps/mission-01';
+import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import type { LaneFate, LaneTruth, SoldierRecord, Waypoint } from '../../contracts/mission';
 import { createRng, nextFloat } from '../../sim/core/rng';
@@ -16,7 +16,7 @@ const LIFE = secondsToTicks(120);
 
 /** A soldier wandering at walking speed with random heading changes, one waypoint per tick. */
 function wanderer(n: number, rng: ReturnType<typeof createRng>): SoldierRecord {
-  const sp = MISSION_01.spawnPoints[n % MISSION_01.spawnPoints.length]!;
+  const sp = MISSION_03.spawnPoints[n % MISSION_03.spawnPoints.length]!;
   const start = (n % 20) * 120;
   let x = sp.position.x;
   let y = sp.position.y;
@@ -25,8 +25,8 @@ function wanderer(n: number, rng: ReturnType<typeof createRng>): SoldierRecord {
   const wps: Waypoint[] = [];
   for (let t = start; t <= start + LIFE; t++) {
     if (t % 90 === 0) heading += (nextFloat(rng) - 0.5) * 2;
-    x = Math.max(50, Math.min(MISSION_01.width - 50, x + Math.cos(heading) * v));
-    y = Math.max(50, Math.min(MISSION_01.height - 50, y + Math.sin(heading) * v));
+    x = Math.max(50, Math.min(MISSION_03.width - 50, x + Math.cos(heading) * v));
+    y = Math.max(50, Math.min(MISSION_03.height - 50, y + Math.sin(heading) * v));
     wps.push({ t, x, y, facing: heading });
   }
   return {
@@ -65,7 +65,7 @@ describe('reveal perf', () => {
     let grid!: RevealGrid;
     for (let i = 0; i < 5; i++) {
       const t0 = process.hrtime.bigint();
-      grid = new RevealGrid(MISSION_01, opts);
+      grid = new RevealGrid(MISSION_03, opts);
       grid.update(soldiers, lanes);
       full = Math.min(full, ms(t0));
     }
@@ -86,13 +86,13 @@ describe('reveal perf', () => {
     const changed = grid.update(soldiers, lanes);
     const incremental = ms(t1);
     const t2 = process.hrtime.bigint();
-    knownThings(MISSION_01, grid, soldiers, lanes);
+    knownThings(MISSION_03, grid, soldiers, lanes);
     const known = ms(t2);
 
     let occluded = Infinity;
     for (let i = 0; i < 3; i++) {
       const t3 = process.hrtime.bigint();
-      new RevealGrid(MISSION_01, { ...opts, occludeByWalls: true }).update(soldiers, lanes);
+      new RevealGrid(MISSION_03, { ...opts, occludeByWalls: true }).update(soldiers, lanes);
       occluded = Math.min(occluded, ms(t3));
     }
 
