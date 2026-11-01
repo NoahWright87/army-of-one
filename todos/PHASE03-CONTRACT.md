@@ -168,3 +168,30 @@ export interface MissionState {
 
 ## Changes
 _(append additive changes here, with the PR that made them)_
+
+- **PHASE03-c:** added `src/contracts/quantize.ts` (`POSITION_QUANTUM`, `FACING_QUANTUM`,
+  `quantizePosition`, `quantizeFacing`). 03-a snaps soldier state with these, so recordings
+  encode losslessly. `mission.ts` was created verbatim from this doc, then Prettier-formatted.
+- **PHASE03-a:** `RecordedAction` `interact` gained optional `on?: boolean`: the lever's state
+  right after the original press (true = open/lowered). Used by `tuning.echo.replayInteract:
+  'restoreState'` ([Q8]); 03-c's JSON action encoding carries it unchanged. `quantize.ts` is
+  unchanged. Tick convention: a new soldier's first waypoint (t = spawnTick = entryTick) is its
+  spawn pose, and input acts from entryTick+1. A resume continues at recordedTo+1.
+- **PHASE04:** `InProgressLife` gained optional `spawnPointId?: SpawnPointId`, the spawn point of
+  a life in mode `'new'` (its `SoldierRecord` doesn't exist yet, so reload recovery needs it to
+  rebuild the record). 03-c's `loadInProgress` carries it; older saves without it fall back to
+  the spawn point nearest the segment's first waypoint.
+- **PHASE05-a:** capture points. `AttemptObservation.captures?: CaptureObservation[]`
+  (`{ pointId, stage: 'neutral' | 'ours', tick, by: SoldierId[] }`, the stages reached inside
+  the window; absent = none). `CaptureTruth` (= `CaptureObservation` + `observedInAttempt`) and
+  `MissionState.captureTruth?: CaptureTruth[]` (absent in older saves = `[]`). `CaptureChange
+  { pointId, before, after }` (the 'ours' tick, null = not captured) for "Point lost" captions.
+  The fold (`src/timeline/captures.ts`, `applyCaptureObservation`) uses the lane window rules:
+  entries inside `[fromTick, toTick]` are replaced by what the observation saw; one entry per
+  (point, stage), the earliest wins. Capture markers use `MarkerKind 'capture'` (string keys
+  `marker.capture` / `marker.captureNeutral`, `refId` = point id), one per contributor.
+  `deriveSpawnOptions(map, soldiers, lanes, rules, captures?)` gained the optional captures
+  argument. 03-c stores the truth under `aoo:v1:<mission>:captures` (+ `:backup`); old saves
+  load unchanged. Sim side (not persisted): `SpawnPointDef.kind` gained `'capture'` with
+  `capturePointId`, `MapDef.capturePoints`, `WorldState.capturePoints`, `WorldView.capturePoints`
+  (`CapturePointView`), events `captureProgress` / `captureStageChanged`.

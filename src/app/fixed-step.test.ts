@@ -12,7 +12,8 @@ describe('fixed stepper', () => {
   it('caps catch-up steps', () => {
     const s = createFixedStepper(60, 4);
     expect(advance(s, 200).steps).toBe(4);
-    expect(s.accumulatorMs).toBe(0);
+    // (06-c) The rest is a bounded backlog, caught up over the next frames.
+    expect(s.accumulatorMs).toBeCloseTo(200 - 4 * (1000 / 60));
   });
   it('reports interpolation alpha', () => {
     const s = createFixedStepper(60);
