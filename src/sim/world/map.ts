@@ -122,6 +122,21 @@ export interface ObjectiveDef {
   maxHp?: number;
 }
 
+/**
+ * (07-c) A piece of partial cover ([D32]): blocks movement like a wall, but only stops a share of
+ * shots. `material` picks the numbers from `tuning.cover.materials`; `bullet` / `lobbed` override
+ * them (0..1: the share of straight shots / lobbed objects it stops). Solid walls stay in `walls`.
+ */
+export interface CoverDef {
+  id: string;
+  rect: Rect;
+  material: CoverMaterial;
+  bullet?: number;
+  lobbed?: number;
+}
+
+export type CoverMaterial = 'fence' | 'sandbags' | 'halfWall' | 'window' | 'bunkerWindow' | 'crate';
+
 export interface MapDef {
   id: string;
   nameKey: string;
@@ -131,6 +146,8 @@ export interface MapDef {
   walls: Rect[];
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
+  /** (07-c) Partial cover ([D32]): blocks movement, stops a share of shots. */
+  cover?: CoverDef[];
   spawnPoints: SpawnPointDef[];
   // Entities (PHASE02-a). Optional so small test maps can leave them out.
   turrets?: TurretDef[];
@@ -156,11 +173,12 @@ export function validateMap(map: MapDef): void {
     ...(map.levers ?? []),
     ...(map.objectives ?? []),
     ...(map.capturePoints ?? []),
+    ...(map.cover ?? []),
   ];
   for (const e of all) {
     if (ids.has(e.id)) throw new Error(`${map.id}: duplicate entity id ${e.id}`);
-    // Soldier ("S…") and vehicle ("V…") ids are allocated at runtime.
-    if (/^[SV]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
+    // Soldier ("S…"), vehicle ("V…") and grenade ("G…") ids are allocated at runtime.
+    if (/^[SVG]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
     ids.add(e.id);
   }
   for (const l of map.trafficLanes ?? []) {

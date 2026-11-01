@@ -282,6 +282,10 @@ function terrainSvg(map: MapDef, grid: RevealGrid, id: string, u: number): strin
     `<rect class="mp-ground" x="0" y="0" width="${map.width}" height="${map.height}"/>` +
     rects(map.water, 'mp-water') +
     rects(map.walls, 'mp-wall') +
+    rects(
+      (map.cover ?? []).map((c) => c.rect),
+      'mp-cover',
+    ) +
     `</g>` +
     `<rect class="mp-edge" x="0" y="0" width="${map.width}" height="${map.height}" stroke-width="${r1(1.5 * u)}"/>`
   );

@@ -123,6 +123,7 @@ export class MissionSaver {
       ordinal: s.ordinal,
       spawnPointId: s.spawnPointId,
       spawnTick: s.spawnTick,
+      ...(s.roleId ? { roleId: s.roleId } : {}),
       segments: s.segments.map(encodeSegment),
     };
     const json = JSON.stringify(stored);

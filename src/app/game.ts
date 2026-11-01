@@ -7,7 +7,9 @@
  * wiring lives in main.ts / adapters.ts.
  */
 import type { Tuning } from '../content/tuning';
+import { DEFAULT_ROLE } from '../content/roles';
 import type {
+  RoleId,
   AttemptObservation,
   CaptureChange,
   InProgressLife,
@@ -194,6 +196,11 @@ export class GameController {
   private beatTimer: (() => void) | null = null;
   /** (06-c) Spawn point of the latest deployment (quick redeploy uses its next slot). */
   lastSpawnPointId: string | null = null;
+  /**
+   * (07-c) Role for the next new soldier ([D36]): picked on the respawn screen, and reused by
+   * quick redeploy (the last role picked). A resumed soldier keeps their own role.
+   */
+  roleId: RoleId = DEFAULT_ROLE;
   /** (06-c) Measured fast-forward cost, ms per battle tick (EMA), for the spinner rule. */
   private ffMsPerTick: number | null = null;
 
@@ -358,6 +365,7 @@ export class GameController {
             soldierId: nextSoldierId(this.mission.soldiers),
             spawnPointId: option.spawnPointId,
             entryTick: option.entryTick,
+            ...(this.roleId !== DEFAULT_ROLE ? { roleId: this.roleId } : {}),
           }
         : { mode: 'resume', soldierId: option.soldierId, controlFromTick: option.resumeTick };
 
@@ -483,6 +491,9 @@ export class GameController {
       attemptFromTick: run.attempt.fromTick,
       segmentSoFar: seg,
       ...(run.option.kind === 'new' ? { spawnPointId: run.option.spawnPointId } : {}),
+      ...(run.attempt.live?.mode === 'new' && run.attempt.live.roleId
+        ? { roleId: run.attempt.live.roleId }
+        : {}),
     };
     markSaved(this.policy, run.tick);
     this.queue(async () => {
@@ -516,6 +527,7 @@ export class GameController {
         {
           soldierId: live.soldierId,
           ...(option.kind === 'new' ? { spawnPointId: option.spawnPointId } : {}),
+          ...(live.mode === 'new' && live.roleId ? { roleId: live.roleId } : {}),
         },
         res.liveSegment,
       );
@@ -697,6 +709,7 @@ export class GameController {
           ...(life.mode === 'new'
             ? { spawnPointId: life.spawnPointId ?? this.nearestSpawn(seg.waypoints[0]) }
             : {}),
+          ...(life.mode === 'new' && life.roleId ? { roleId: life.roleId } : {}),
         },
         seg,
       );
@@ -775,6 +788,10 @@ export class GameController {
         objectiveComplete: this.objectiveComplete(),
         resolvedUntil: this.resolvedUntil,
         reveal: revealOptions(this.tuning), // (06-b) revealed map
+        roleId: this.roleId, // (07-c) role picker
+        onRole: (r) => {
+          this.roleId = r;
+        },
       },
       (o) => void this.deploy(o),
       notice,

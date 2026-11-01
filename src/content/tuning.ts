@@ -1,3 +1,5 @@
+import type { CoverMaterial } from '../sim/world/map';
+
 /**
  * Every gameplay number lives here. Values marked `// TUNE` are first guesses meant to be
  * adjusted by feel. The sim receives a `Tuning` object explicitly (never imports a global), so
@@ -30,6 +32,74 @@ export interface Tuning {
     range: number;
     /** Minimum time between shots while fire is held. */
     cooldownSeconds: number;
+  };
+  /** (07-c) Soldier shot accuracy: less accurate while moving. */
+  accuracy: {
+    /**
+     * Max random spread (± radians) of a soldier's shot while moving at full speed; scales with
+     * how far the soldier actually moved this tick. Standing still is perfectly accurate.
+     */
+    movingSpread: number;
+  };
+  /** (07-c) Real-time cover ([D32]–[D34]). */
+  cover: {
+    /** Share of straight shots / lobbed objects each material stops, 0..1. */
+    materials: Record<CoverMaterial, { bullet: number; lobbed: number }>;
+    /** A shooter this close (to the cover's nearest edge) fires over cover below `fireOverBelow`. */
+    fireOverDistance: number;
+    /** Cover strictly below this value can be fired over from close up (1 = anything not solid). */
+    fireOverBelow: number;
+    /** Cover cuts sight past it: remaining sight × (1 − cover) ([D33]). false: cover is see-through. */
+    obscuresSight: boolean;
+    /** The live soldier's cover arcs show for cover and walls this close ([D34]). */
+    indicatorRadius: number;
+  };
+  /**
+   * (07-c) The Grenadier's frag grenade ([D37]). Hold fire to wind up (a ring fills); the aimed
+   * distance sets the wind-up time, and releasing early throws shorter. Flight has a height, so it
+   * bounces off the ground and off cover, rolls, then explodes on its fuse: a small blast plus
+   * fragments that fly like bullets. Hurts everyone, your own soldiers included.
+   */
+  grenade: {
+    /** Throws land no nearer than this, and no farther than `maxRange`. */
+    minRange: number;
+    maxRange: number;
+    /** Wind-up = base + perUnit × aimed distance (a longer throw takes longer to wind up). */
+    windupBaseSeconds: number;
+    windupSecondsPerUnit: number;
+    /** After a throw, before the next wind-up can start. */
+    cooldownSeconds: number;
+    /** From the throw. */
+    fuseSeconds: number;
+    /** Horizontal speed at release; the arc is set so the first landing is at the throw distance. */
+    throwSpeed: number;
+    /** Downward acceleration, units/s². */
+    gravity: number;
+    /** Share of vertical speed kept on a ground bounce. */
+    groundRestitution: number;
+    /** Share of horizontal speed kept on a ground bounce. */
+    groundFriction: number;
+    /** Below this vertical speed a landing stops bouncing and starts rolling. */
+    minBounceSpeed: number;
+    /** Rolling friction: horizontal deceleration on the ground, units/s². */
+    rollDeceleration: number;
+    /** Share of speed into a wall/cover kept on a bounce (along the wall it keeps `wallSlide`). */
+    wallRestitution: number;
+    wallSlide: number;
+    /** Below this height the grenade is rolling, and any cover stops it (no lobbing over). */
+    groundedHeight: number;
+    /** Spread of a throw at a full run: ± radians and ± share of the distance. */
+    movingSpread: number;
+    movingDistanceSpread: number;
+    /** The central blast. */
+    blastRadius: number;
+    blastDamage: number;
+    /** Damage to turrets, vehicles, charges and objectives in the blast. */
+    hazardDamage: number;
+    /** Fragments: hitscan rays in a ring, rolling against cover like bullets. */
+    fragments: number;
+    fragmentRange: number;
+    fragmentDamage: number;
   };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
@@ -239,6 +309,48 @@ export const DEFAULT_TUNING: Tuning = {
     damage: 25, // TUNE
     range: 520, // TUNE
     cooldownSeconds: 0.15, // TUNE
+  },
+  accuracy: {
+    movingSpread: 0.1, // TUNE: about ±6° at a full run
+  },
+  cover: {
+    materials: {
+      fence: { bullet: 0.1, lobbed: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
+      sandbags: { bullet: 0.5, lobbed: 0.15 }, // TUNE: half cover, easy to lob over
+      halfWall: { bullet: 0.6, lobbed: 0.15 }, // TUNE
+      window: { bullet: 0.3, lobbed: 0.4 }, // TUNE: an opening in a wall (frame + sill)
+      bunkerWindow: { bullet: 0.9, lobbed: 0.7 }, // TUNE: a narrow armored slit
+      crate: { bullet: 0.75, lobbed: 0.3 }, // TUNE
+    },
+    fireOverDistance: 30, // TUNE: about a soldier's width from the edge
+    fireOverBelow: 1, // TUNE: anything that isn't solid
+    obscuresSight: true, // TUNE
+    indicatorRadius: 30, // TUNE: same as fireOverDistance
+  },
+  grenade: {
+    minRange: 60, // TUNE
+    maxRange: 420, // TUNE: a bit under the rifle's range
+    windupBaseSeconds: 0.2, // TUNE
+    windupSecondsPerUnit: 0.0022, // TUNE: max range ≈ 1.1 s
+    cooldownSeconds: 0.6, // TUNE
+    fuseSeconds: 2.2, // TUNE
+    throwSpeed: 480, // TUNE
+    gravity: 900, // TUNE
+    groundRestitution: 0.3, // TUNE
+    groundFriction: 0.45, // TUNE
+    minBounceSpeed: 70, // TUNE
+    rollDeceleration: 520, // TUNE
+    wallRestitution: 0.5, // TUNE
+    wallSlide: 0.7, // TUNE
+    groundedHeight: 3, // TUNE
+    movingSpread: 0.15, // TUNE: about ±9°
+    movingDistanceSpread: 0.2, // TUNE
+    blastRadius: 40, // TUNE: small; the fragments do the reach
+    blastDamage: 90, // TUNE
+    hazardDamage: 120, // TUNE
+    fragments: 14, // TUNE
+    fragmentRange: 170, // TUNE
+    fragmentDamage: 30, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE

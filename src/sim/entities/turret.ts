@@ -8,6 +8,7 @@ import type { TurretDef } from '../world/map';
 import { isEligible, type SoldierState } from './soldier';
 import { simPerf } from '../perf';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
+import { seesThroughCover } from '../world/cover';
 
 export type TurretMode = 'idle' | 'tracking' | 'windup' | 'destroyed';
 
@@ -46,6 +47,8 @@ function canEngage(
   if (!isEligible(s)) return false;
   const r = world.tuning.turret.range;
   if (distanceSq(def.position, s) > r * r) return false;
+  // (07-c) Partial cover cuts how far the turret sees past it ([D33]).
+  if (!seesThroughCover(world.cover, def.position, s, r, world.tuning)) return false;
   return hasLineOfSight(world, def.position, s, 'enemy', def.id, blockers);
 }
 

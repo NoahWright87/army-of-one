@@ -54,6 +54,15 @@ export class Recorder {
       if (!pose || e.tick !== pose.t) continue;
       if (e.kind === 'shotFired' && e.by === this.soldierId) {
         this.actions.push({ kind: 'shot', t: e.tick, x: e.fromX, y: e.fromY, angle: e.angle });
+      } else if (e.kind === 'grenadeThrown' && e.by === this.soldierId) {
+        this.actions.push({
+          kind: 'throw',
+          t: e.tick,
+          x: e.fromX,
+          y: e.fromY,
+          angle: e.angle,
+          distance: e.distance,
+        });
       } else if (e.kind === 'interacted' && e.by === this.soldierId) {
         this.actions.push({
           kind: 'interact',

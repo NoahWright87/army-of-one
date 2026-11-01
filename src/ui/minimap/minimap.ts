@@ -164,6 +164,10 @@ export class Minimap {
     for (const r of map.water) ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.fillStyle = '#8a949f';
     for (const r of map.walls) ctx.fillRect(r.x, r.y, Math.max(r.w, u), Math.max(r.h, u));
+    ctx.fillStyle = '#a8916a'; // (07-c) partial cover
+    for (const { rect: r } of map.cover ?? []) {
+      ctx.fillRect(r.x, r.y, Math.max(r.w, u), Math.max(r.h, u));
+    }
     ctx.restore();
 
     const k = src.known();

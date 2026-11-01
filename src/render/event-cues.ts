@@ -134,6 +134,23 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         if (e.id === ctx.liveId) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
         break;
       }
+      // (07-c) Frag grenade: a small blast plus fragment tracers ([D37]).
+      case 'grenadeExploded': {
+        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.6 });
+        for (const f of e.fragments) {
+          out.push({
+            type: 'tracer',
+            fromX: e.x,
+            fromY: e.y,
+            toX: f.hitX,
+            toY: f.hitY,
+            style: 'friendly',
+          });
+        }
+        sound('sfx_explosion', e, 0.9);
+        if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
+        break;
+      }
       case 'mineDetonated': {
         out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius });
         sound('sfx_explosion', e, 1);

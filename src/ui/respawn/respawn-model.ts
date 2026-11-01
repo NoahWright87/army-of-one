@@ -17,6 +17,7 @@ import type {
   SoldierRecord,
   SpawnOption,
   TimelineMarker,
+  RoleId,
 } from '../../contracts/mission';
 import { compareIds } from '../../sim/core/ids';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
@@ -49,6 +50,12 @@ export interface RespawnProps {
   captureChanges?: readonly CaptureChange[];
   /** (06-b) Revealed-map options (`revealOptions(tuning)`); default: from DEFAULT_TUNING. */
   reveal?: RevealOptions;
+  /**
+   * (07-c) Role picker ([D36]): the role the next new soldier deploys as, and where a pick goes.
+   * Without `onRole` there's no picker (dev fixtures).
+   */
+  roleId?: RoleId;
+  onRole?: (roleId: RoleId) => void;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */

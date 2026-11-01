@@ -3,7 +3,8 @@ import { quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
-import { trySoldierFire } from './combat/shots';
+import { soldierAttack } from './combat/weapons';
+import { stepGrenades } from './entities/grenade';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
   CAPTURE_FULL,
@@ -36,6 +37,9 @@ import { moveCircle } from './world/collision';
 import { validateMap, type MapDef, type Rect, type SpawnPointId } from './world/map';
 import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
+import { coverArcs, resolveCover, type CoverArc } from './world/cover';
+import { dynamicBlockers } from './world/blockers';
+import { windupProgress } from './combat/weapons';
 import { simPerf } from './perf';
 import type { WorldView } from './view';
 
@@ -48,6 +52,7 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
     map,
     tuning,
     solids,
+    cover: resolveCover(map, tuning),
     nav: createNavGrid(map.width, map.height, solids, tuning),
     eventLog: createEventLog(tuning.eventLogCapacity),
     stepping: false,
@@ -62,6 +67,7 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       bridges: createBridges(map.bridges ?? [], tuning),
       objectives: createObjectives(map.objectives ?? [], tuning),
       capturePoints: createCapturePoints(map.capturePoints ?? []),
+      grenades: [],
       events: [],
       queuedEvents: [],
       missionComplete: null,
@@ -221,11 +227,12 @@ export function step(
     const input = inputs.get(s.id) ?? IDLE_INPUT;
     if (input.interact && !s.interactHeld) interact(world, s);
     s.interactHeld = input.interact;
-    if (input.fire) trySoldierFire(world, s, input.aim);
+    soldierAttack(world, s, input);
   }
 
   stepTurrets(world);
   stepMines(world);
+  stepGrenades(world);
   stepTraffic(world);
   stepBridges(world);
 
@@ -256,6 +263,7 @@ export function getView(world: World): WorldView {
   const { map, state: st, tuning } = world;
   const lanes = (map.trafficLanes ?? []).map((d) => laneInfo(d, tuning));
   const windupTotal = Math.max(1, secondsToTicks(tuning.turret.windupSeconds));
+  const grenadeFuseTotal = Math.max(1, secondsToTicks(tuning.grenade.fuseSeconds));
   return {
     tick: st.tick,
     soldiers: st.soldiers.map((s) => ({
@@ -271,7 +279,18 @@ export function getView(world: World): WorldView {
       role: s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static'),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
+      ...(s.roleId ? { roleId: s.roleId } : {}),
+      ...(s.windupTicks > 0 ? { windup: windupProgress(world, s), windupAim: s.windupAim } : {}),
     })),
+    grenades: (st.grenades ?? []).map((g) => ({
+      kind: 'grenade',
+      id: g.id,
+      x: g.x,
+      y: g.y,
+      z: g.z,
+      fuse: 1 - g.fuseTicks / grenadeFuseTotal,
+    })),
+    coverArcs: liveCoverArcs(world),
     turrets: (map.turrets ?? []).map((def, i) => {
       const tu = st.turrets[i]!;
       return {
@@ -386,6 +405,23 @@ export function getView(world: World): WorldView {
     events: st.events.slice(),
     missionComplete: st.missionComplete ? { ...st.missionComplete } : null,
   };
+}
+
+/** (07-c) Cover arcs around the live soldier ([D34]): partial cover, walls and closed gates. */
+function liveCoverArcs(world: World): CoverArc[] {
+  const live = world.state.soldiers.find(
+    (s) => s.alive && (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined)),
+  );
+  if (!live) return [];
+  const r = world.tuning.cover.indicatorRadius;
+  const pieces: { rect: Rect; value: number }[] = [
+    ...world.cover.map((c) => ({ rect: c.rect, value: c.bullet })),
+    ...world.map.walls.map((rect) => ({ rect, value: 1 })),
+    ...dynamicBlockers(world)
+      .filter((b) => b.blocksShots)
+      .map((b) => ({ rect: b.rect, value: 1 })),
+  ];
+  return coverArcs(live, pieces, r);
 }
 
 export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';

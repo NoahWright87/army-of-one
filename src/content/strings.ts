@@ -61,6 +61,14 @@ export const STRINGS = {
   'spawn.west': 'West',
   'spawn.south': 'South',
   'map.mission03.name': 'Mission 3: Breach',
+
+  // (07-c) Roles ([D36]) and the indoor mission
+  'role.rifleman': 'Rifleman',
+  'role.rifleman.blurb': 'Rifle. Fires over cover you stand next to.',
+  'role.grenadier': 'Grenadier',
+  'role.grenadier.blurb': 'Frag grenades: hold to wind up, release to throw. Hurts everyone.',
+  'respawn.role.title': 'Role (1 / 2)',
+  'respawn.role.keeps': 'A resumed soldier keeps their role',
   'spawn.mission03.west': 'West',
   'spawn.mission03.centre': 'Centre',
   'spawn.mission03.east': 'East',

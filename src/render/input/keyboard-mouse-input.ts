@@ -60,9 +60,12 @@ export class KeyboardMouseInput implements InputSource {
     });
     const tapped = this.fireLatch.consume();
     const held = this.scene.input.activePointer.leftButtonDown() || k.space.isDown;
+    const pointer = this.pointerWorld();
     return {
       move,
-      aim: aimAngle(soldierPos, this.pointerWorld()),
+      aim: aimAngle(soldierPos, pointer),
+      // (07-c) The Grenadier throws to the cursor ([D37]).
+      aimDistance: Math.hypot(pointer.x - soldierPos.x, pointer.y - soldierPos.y),
       fire: held || tapped,
       // Interact is edge-triggered in the sim: true on exactly one tick per press.
       interact: this.interactLatch.consume(),

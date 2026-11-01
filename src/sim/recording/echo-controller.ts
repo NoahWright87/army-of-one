@@ -21,6 +21,7 @@
 import type { Tuning } from '../../content/tuning';
 import type { SoldierId, SoldierRecord, Waypoint } from '../../contracts/mission';
 import { fireRifle } from '../combat/shots';
+import { throwGrenade } from '../entities/grenade';
 import { compareIds } from '../core/ids';
 import { DT, secondsToTicks, type Tick } from '../core/time';
 import { distance, type Vec2 } from '../core/vec';
@@ -194,6 +195,7 @@ export class EchoController {
       spawnSoldier(world, sched.spawnPointId, {
         id: e.id,
         ordinal: sched.ordinal,
+        ...(sched.roleId ? { roleId: sched.roleId } : {}),
         position: { x: pose.x, y: pose.y },
         facing: pose.facing,
         controllable: false,
@@ -400,6 +402,10 @@ export class EchoController {
       if (a.kind === 'shot') {
         fireRifle(world, s.id, s, a.angle);
         s.nextFireTick = t + Math.max(1, secondsToTicks(this.tuning.rifle.cooldownSeconds));
+      } else if (a.kind === 'throw') {
+        // (07-c) Same throw from where the echo is now ([D37]).
+        throwGrenade(world, s.id, s, a.angle, a.distance);
+        s.nextFireTick = t + Math.max(1, secondsToTicks(this.tuning.grenade.cooldownSeconds));
       } else if (
         this.tuning.echo.replayInteract === 'restoreState' &&
         a.on !== undefined &&

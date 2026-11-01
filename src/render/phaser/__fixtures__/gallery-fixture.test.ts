@@ -32,6 +32,8 @@ const ENTITY_LISTS = Object.keys({
   bridges: 1,
   objectives: 1,
   capturePoints: 1,
+  grenades: 1,
+  coverArcs: 1,
 } satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete'>, 1>);
 
 describe('gallery fixture', () => {
@@ -92,7 +94,7 @@ describe('gallery fixture', () => {
   });
 
   it('ids are unique and the live id exists', () => {
-    const ids = ENTITY_LISTS.flatMap((k) =>
+    const ids = ENTITY_LISTS.filter((k) => k !== 'coverArcs').flatMap((k) =>
       (v[k as keyof WorldView] as { id: string }[]).map((e) => e.id),
     );
     expect(new Set(ids).size).toBe(ids.length);
@@ -106,6 +108,7 @@ describe('gallery fixture', () => {
       'shotFired',
       'damaged',
       'mineDetonated',
+      'grenadeExploded',
       'hazardDestroyed',
       'turretWindup',
       'captureStageChanged',

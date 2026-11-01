@@ -3,6 +3,7 @@ import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { MapDef, Rect, SpawnPointId } from '../world/map';
+import type { RoleId } from '../../contracts/mission';
 
 export type SoldierId = string;
 
@@ -14,6 +15,11 @@ export interface SoldierInput {
   aim: number;
   fire: boolean;
   interact: boolean;
+  /**
+   * (07-c) Distance from the soldier to the aim point (the cursor). The Grenadier throws this far
+   * ([D37]). Absent: a mid-range throw.
+   */
+  aimDistance?: number;
 }
 
 export const IDLE_INPUT: SoldierInput = Object.freeze({
@@ -44,8 +50,19 @@ export interface SoldierState {
    * Walls and closing gates still push it.
    */
   kinematic: boolean;
+  /** (07-c) Role ([D36]); absent = 'rifleman'. */
+  roleId?: RoleId;
+  /** (07-c) Grenadier: ticks the throw has been wound up (0 = not winding up). */
+  windupTicks: number;
+  /** (07-c) Grenadier: aimed distance during the current wind-up (for the view's ring). */
+  windupAim: number;
   /** Earliest tick the rifle may fire again. */
   nextFireTick: Tick;
+  /**
+   * (07-c) How far the soldier moved last movement step, as a fraction of a full-speed step
+   * (0..1). Live shots spread more the higher it is ([D35]).
+   */
+  moveFrac: number;
   /** Interact was held last tick (interact is edge-triggered). */
   interactHeld: boolean;
   deathTick: Tick | null;
@@ -61,6 +78,8 @@ export interface SoldierState {
 
 /** Optional flags for a new soldier. Defaults: a live, interactive, killable soldier. */
 export interface SoldierFlags {
+  /** (07-c) Set at spawn only. */
+  roleId?: RoleId;
   controllable?: boolean;
   interactive?: boolean;
   minHp?: number;
@@ -89,7 +108,11 @@ export function createSoldier(
     interactive: flags.interactive ?? true,
     minHp: flags.minHp ?? 0,
     kinematic: flags.kinematic ?? false,
+    ...(flags.roleId && flags.roleId !== 'rifleman' ? { roleId: flags.roleId } : {}),
+    windupTicks: 0,
+    windupAim: 0,
     nextFireTick: 0,
+    moveFrac: 0,
     interactHeld: false,
     deathTick: null,
     deathCause: null,
@@ -103,7 +126,7 @@ export function isEligible(s: SoldierState): boolean {
 
 /** Static geometry that blocks soldier movement. */
 export function movementSolids(map: MapDef): Rect[] {
-  return [...map.walls, ...map.water];
+  return [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
 }
 
 /** Applies one tick of movement + facing from input. Mutates `s`. */
@@ -122,6 +145,7 @@ export function stepSoldierMovement(
     tuning.soldier.wallRadius,
     solids,
   );
+  s.moveFrac = step > 0 ? Math.min(1, Math.hypot(next.x - s.x, next.y - s.y) / step) : 0;
   s.x = next.x;
   s.y = next.y;
   s.facing = input.aim;

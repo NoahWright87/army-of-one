@@ -1,4 +1,4 @@
-import { borderWalls, type MapDef, type Rect } from '../../sim/world/map';
+import { borderWalls, type CoverDef, type MapDef } from '../../sim/world/map';
 
 /**
  * Mission 03: "Breach" (PHASE06-a). The default mission: a straight shot north ([D27], [D28]).
@@ -25,7 +25,7 @@ import { borderWalls, type MapDef, type Rect } from '../../sim/world/map';
  *
  * Story beats (each a problem that past echoes help with):
  * 1. Turret line, ~2 s of walking from every spawn. A naive first soldier dies here. Snipe a
- *    turret from just out of its range (rifle 520 > turret 420), or peek round the sandbags.
+ *    turret from just out of its range (rifle 520 > turret 420), or fire over the sandbags.
  *    Every route north passes within range of one of them, so at least one has to go.
  * 2. The gate: closed, a lever on each side. Shutting it again strands echoes ([D16]).
  * 3. Mine strip: weave between the staggered rows, or shoot a path open.
@@ -65,8 +65,12 @@ const BRIDGE_X: [number, number] = [CX - 60, CX + 60];
 const BUNKER_GAP: [number, number] = [CX - 170, CX + 170];
 const CHANNEL_X: [number, number] = [400, 1200];
 
-/** A sandbag line (a thin wall): blocks movement and shots. */
-const bags = (cx: number, y: number, w: number): Rect => ({ x: cx - w / 2, y, w, h: 28 });
+/** A sandbag line: blocks movement, half cover against shots ([D32]). */
+const bags = (id: string, cx: number, y: number, w: number): CoverDef => ({
+  id,
+  rect: { x: cx - w / 2, y, w, h: 28 },
+  material: 'sandbags',
+});
 
 const mineRow = (y: number, xs: number[], row: number) =>
   xs.map((x, i) => ({ id: `m3-mine-${row}-${i + 1}`, position: { x, y } }));
@@ -83,15 +87,6 @@ export const MISSION_03: MapDef = {
     // Bunker wall around the Command Post, opening in the middle.
     { x: 0, y: M3.bunkerWallY, w: BUNKER_GAP[0], h: 40 },
     { x: BUNKER_GAP[1], y: M3.bunkerWallY, w: M3_W - BUNKER_GAP[1], h: 40 },
-    // Cover inside the bunker (either side of the objective).
-    bags(380, 420, 160),
-    bags(1220, 420, 160),
-    // Nest sandbags (inside range: duck behind them, peek out to shoot).
-    bags(CX - 170, M3.nestCoverY, 160),
-    bags(CX + 170, M3.nestCoverY, 160),
-    // Cover around the Forward Post.
-    bags(470, M3.captureY - 40, 160),
-    bags(1130, M3.captureY - 40, 160),
     // Mine strip rocks: the channel is x 400–1200.
     { x: 0, y: M3.rockY[0], w: CHANNEL_X[0], h: M3.rockY[1] - M3.rockY[0] },
     { x: CHANNEL_X[1], y: M3.rockY[0], w: M3_W - CHANNEL_X[1], h: M3.rockY[1] - M3.rockY[0] },
@@ -101,9 +96,22 @@ export const MISSION_03: MapDef = {
     // First turret line flanks: no sneaking past along the side walls out of range.
     { x: 0, y: M3.turretLineY - 120, w: 200, h: 240 },
     { x: M3_W - 200, y: M3.turretLineY - 120, w: 200, h: 240 },
-    // First turret line: sandbags inside range (duck behind them, peek out to shoot).
-    bags(CX - 180, M3.lineCoverY, 160),
-    bags(CX + 180, M3.lineCoverY, 160),
+  ],
+  // (07-c) Sandbags are half cover ([D32]): they stop half the bullets, you can fire over them
+  // from close up, and they cut a turret's sight past them.
+  cover: [
+    // Cover inside the bunker (either side of the objective).
+    bags('m3-bags-bunker-w', 380, 420, 160),
+    bags('m3-bags-bunker-e', 1220, 420, 160),
+    // Nest sandbags (inside range: duck behind them, fire over them).
+    bags('m3-bags-nest-w', CX - 170, M3.nestCoverY, 160),
+    bags('m3-bags-nest-e', CX + 170, M3.nestCoverY, 160),
+    // Cover around the Forward Post.
+    bags('m3-bags-post-w', 470, M3.captureY - 40, 160),
+    bags('m3-bags-post-e', 1130, M3.captureY - 40, 160),
+    // First turret line: sandbags inside range (duck behind them, fire over them).
+    bags('m3-bags-line-w', CX - 180, M3.lineCoverY, 160),
+    bags('m3-bags-line-e', CX + 180, M3.lineCoverY, 160),
   ],
   water: [
     // Canal below the nest; the drawbridge spans the gap.

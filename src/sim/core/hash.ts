@@ -43,3 +43,21 @@ export function hashState(value: unknown): string {
   visit(value);
   return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
 }
+
+/**
+ * (07-c) Deterministic uniform number in [0, 1) from a string key (FNV-1a + a murmur-style
+ * finalizer). Used for per-shot outcome rolls that must be the same in every replay of the same
+ * shot, independent of anything else that happened ([D32]).
+ */
+export function hash01(key: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+  }
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 0x100000000;
+}

@@ -11,7 +11,9 @@
  *   screen.destroy();
  */
 import { str } from '../../content/strings';
+import { DEFAULT_ROLE, ROLES, isRoleId, roleDef } from '../../content/roles';
 import type {
+  RoleId,
   CaptureChange,
   LaneChange,
   LaneSpanKind,
@@ -133,6 +135,8 @@ export class RespawnScreen {
   private readonly tip = el('div', 'rs-tip');
   private readonly optsEl = el('div', 'rs-opts');
   private readonly deployBtn = el('button', 'rs-deploy');
+  /** (07-c) Role picker ([D36]). */
+  private readonly rolesEl = el('div', 'rs-roles');
   private readonly main = el('div', 'rs-main');
   /** (06-b) Revealed map ([D29]). */
   private readonly mapPanel = new MapPanel({
@@ -227,6 +231,13 @@ export class RespawnScreen {
     this.revealSelection();
   }
 
+  /** (07-c) Picks the role for the next new soldier ([D36]). */
+  pickRole(roleId: RoleId): void {
+    this.props = { ...this.props, roleId };
+    this.props.onRole?.(roleId);
+    this.renderOptions();
+  }
+
   /** Confirms the selected option (same as the Deploy button / Enter). */
   deploy(): void {
     const o = this.selectedOption();
@@ -303,6 +314,7 @@ export class RespawnScreen {
     spawn.append(el('h2', '', str('respawn.spawn.title')), this.optsEl);
     const dbar = el('div', 'rs-deploy-bar');
     this.deployBtn.onclick = () => this.deploy();
+    if (this.props.onRole) dbar.append(this.rolesEl);
     dbar.append(this.deployBtn, el('div', 'rs-keys', str('respawn.keys')));
     spawn.append(dbar);
 
@@ -352,6 +364,25 @@ export class RespawnScreen {
     });
     mro.observe(this.main);
     this.cleanups.push(() => mro.disconnect());
+
+    // (07-c) Role picker: click a role, or press its number.
+    on(this.rolesEl, 'click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-role]');
+      if (b && isRoleId(b.dataset.role)) this.pickRole(b.dataset.role);
+    });
+    const onRoleKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!this.props.onRole || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (t && (t.closest('input, select, textarea') || t.closest('.aoo-settings'))) return;
+      const n = Number(e.key);
+      const role = Number.isInteger(n) && n >= 1 ? ROLES[n - 1] : undefined;
+      if (role) {
+        e.preventDefault();
+        this.pickRole(role.id);
+      }
+    };
+    window.addEventListener('keydown', onRoleKey);
+    this.cleanups.push(() => window.removeEventListener('keydown', onRoleKey));
 
     // Option list clicks.
     on(this.optsEl, 'click', (e) => {
@@ -727,8 +758,29 @@ export class RespawnScreen {
         ?.focus({ preventScroll: true });
     }
     const o = this.selectedOption();
+    this.renderRoles(o);
     this.deployBtn.disabled = !o;
     this.deployBtn.textContent = o ? optionLabel(o, p).deployLabel : str('respawn.deploy.pick');
+  }
+
+  /** (07-c) Role buttons; a resume keeps the soldier's own role, so the picker shows that. */
+  private renderRoles(o: SpawnOption | null): void {
+    if (!this.props.onRole) return;
+    const resumeRole =
+      o?.kind === 'resume'
+        ? roleDef(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId).id
+        : null;
+    const current = resumeRole ?? this.props.roleId ?? DEFAULT_ROLE;
+    const items = ROLES.map((r, i) => {
+      const sel = r.id === current;
+      return (
+        `<button type="button" class="rs-role${sel ? ' sel' : ''}" data-role="${esc(r.id)}"` +
+        ` aria-pressed="${sel}"${resumeRole ? ' disabled' : ''} title="${esc(str(r.blurbKey))}">` +
+        `<span class="k">${i + 1}</span><span class="n">${esc(str(r.nameKey))}</span></button>`
+      );
+    });
+    const label = resumeRole ? str('respawn.role.keeps') : str('respawn.role.title');
+    this.rolesEl.innerHTML = `<div class="rs-roles-label">${esc(label)}</div><div class="rs-roles-row">${items.join('')}</div>`;
   }
 
   private renderTimeline(): void {
