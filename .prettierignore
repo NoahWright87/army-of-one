@@ -1,0 +1,7 @@
+dist
+node_modules
+package-lock.json
+assets
+army-of-one-product-design.html
+tools/fixtures
+*.md

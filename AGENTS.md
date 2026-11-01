@@ -30,7 +30,7 @@ respawn. Read these before doing anything substantial:
 
 ## Architecture rules (non-negotiable)
 
-- `src/sim/`, `src/timeline/` and `src/persistence/` are **pure TypeScript**. No imports from
+- `src/sim/`, `src/timeline/`, `src/persistence/`, `src/contracts/` and `src/content/` are **pure TypeScript**. No imports from
   `phaser`, no DOM/`window`/`document`, no `Date.now()`, no `performance.now()`. (Persistence
   receives a storage interface; the browser `localStorage` adapter lives in `src/app/`.) This is
   enforced by ESLint `no-restricted-imports`/`no-restricted-globals`. The sim must run headless
@@ -87,11 +87,17 @@ npm install
 npm run dev               # Vite dev server
 npm run build             # typecheck + production build to dist/
 npm run test              # Vitest (headless)
-npm run lint              # ESLint + Prettier check
+npm run lint              # ESLint + Prettier check (Markdown is not Prettier-formatted)
+npm run lint:purity       # proves the pure-module lint rules still fire
+npm run format            # Prettier write
 npm run gen:placeholders  # regenerate placeholder assets
+npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 ```
 
-Before pushing: `npm run lint && npm run test && npm run build` must pass.
+Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
+
+`src/content/` is also lint-restricted as pure. It holds data (maps, tuning, strings, the asset
+manifest) that the headless sim and tools import.
 
 ## Working with phase docs
 
