@@ -9,6 +9,7 @@
 import type { Tuning } from '../content/tuning';
 import type {
   AttemptObservation,
+  CaptureChange,
   InProgressLife,
   LaneChange,
   MissionState,
@@ -28,6 +29,7 @@ import {
   nextSoldierId,
   recordedTo,
   SnapshotStore,
+  snapshotThinning,
   startAttempt,
   type Attempt,
   type AttemptFrom,
@@ -40,10 +42,15 @@ import { getSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
+import { applyCaptureObservation } from '../timeline/captures';
+import { revealOptions } from '../timeline/reveal';
 import type { RespawnProps, RespawnUpdate } from '../ui/respawn/respawn-model';
 import {
+  canQuickRedeploy,
   FlowError,
+  freshMissionOption,
   INITIAL_FLOW,
+  quickRedeployOption,
   transition,
   type FlowEvent,
   type FlowNotice,
@@ -57,6 +64,8 @@ import type { ResolveJob, ResolveRunner } from './resolve-runner';
 export interface Clock {
   /** Calls `fn` after `ms` of real time. Returns a cancel function. */
   after(ms: number, fn: () => void): () => void;
+  /** (06-c) Real-time ms (spinner estimate). Optional: without it the tick-count rule applies. */
+  nowMs?(): number;
 }
 
 export interface RespawnHandle {
@@ -86,6 +95,11 @@ export interface GameUi {
   showCaption(text: 'kia' | 'complete' | null): void;
   /** "Preparing…" spinner while a fast-forward / reload re-simulation runs. */
   showBusy(on: boolean): void;
+  /**
+   * (06-c) Quick-redeploy hint ("R / Space: redeploy at Road"): the option R / Space would deploy
+   * now, or null to hide it. Shown on the death beat and the respawn screen.
+   */
+  showQuickRedeploy?(option: SpawnOption | null): void;
 }
 
 export interface BattleHost {
@@ -96,10 +110,20 @@ export interface BattleHost {
 }
 
 export interface GameOptions {
-  /** Scrubber pace in battle ticks per real second; null = as fast as possible. */
-  resolvePace(): number | null;
+  /**
+   * Scrubber pace in battle ticks per real second; null = as fast as possible. `spanTicks` is the
+   * battle time the pass will sweep (06-c: the default paces it to finish in about 1 s).
+   */
+  resolvePace(spanTicks: Tick): number | null;
   /** [D6]: on boot with a life in progress, go straight into its resume lead-in (no title). */
   resumeOnReload: boolean;
+  /** (06-c) A brand-new mission skips the empty respawn screen (setting `flow.skipEmptyRespawn`). */
+  skipEmptyRespawn?: () => boolean;
+  /**
+   * (06-c) Show the "Preparing…" spinner only for work estimated to take longer than this (ms).
+   * Default 150.
+   */
+  spinnerThresholdMs?: () => number;
 }
 
 export interface GameAdapters {
@@ -121,12 +145,20 @@ export type GameEvent =
   | { type: 'flow'; state: FlowState }
   | { type: 'respawnShown'; options: SpawnOption[] }
   | { type: 'runStarted'; run: LiveRun }
-  | { type: 'attemptEnded'; observation: AttemptObservation; changes: LaneChange[] }
+  | {
+      type: 'attemptEnded';
+      observation: AttemptObservation;
+      changes: LaneChange[];
+      captureChanges: CaptureChange[];
+    }
   | { type: 'resolveProgress'; observation: AttemptObservation; done: boolean }
   | { type: 'saved' };
 
-/** Fast-forwards longer than this show the spinner first (≈150 ms at mission-01 speeds). */
+/** Fast-forwards longer than this show the spinner first (≈150 ms as measured on the old, bigger mission-01). */
 const SPINNER_TICKS = 1500;
+/** (06-c) First guess of fast-forward cost (ms per battle tick) before one has been measured. */
+const FF_MS_PER_TICK_GUESS = 0.1;
+const DEFAULT_SPINNER_MS = 150;
 
 export function emptyMission(missionId: string): MissionState {
   return { schemaVersion: 1, missionId, attemptCount: 0, soldiers: [], lanes: [] };
@@ -152,17 +184,25 @@ export class GameController {
   private saver: MissionSaver;
   private respawn: RespawnHandle | null = null;
   private pendingChanges: LaneChange[] = [];
+  private pendingCaptureChanges: CaptureChange[] = [];
+  /** (05-a) Capture changes from the latest fold. */
+  private lastCaptureChanges: CaptureChange[] = [];
   private resolveJob: ResolveJob | null = null;
   private resolve: { attempt: number; fromTick: Tick; snaps: WorldSnapshot[] } | null = null;
   private policy: AutosavePolicy;
   private saveChain: Promise<void> = Promise.resolve();
   private beatTimer: (() => void) | null = null;
+  /** (06-c) Spawn point of the latest deployment (quick redeploy uses its next slot). */
+  lastSpawnPointId: string | null = null;
+  /** (06-c) Measured fast-forward cost, ms per battle tick (EMA), for the spinner rule. */
+  private ffMsPerTick: number | null = null;
 
   constructor(private readonly a: GameAdapters) {
     this.mission = emptyMission(a.map.id);
     this.tuning = a.tuning();
     this.saver = new MissionSaver(a.store, a.map.id);
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
+    this.snapshots.setThinning(snapshotThinning(this.tuning));
   }
 
   // ---------- Boot / title ----------
@@ -188,21 +228,47 @@ export class GameController {
     });
   }
 
-  /** Clears any save and starts a fresh mission at the (empty) respawn screen. */
-  async newMission(): Promise<void> {
+  /**
+   * Clears any save and starts a fresh mission at the (empty) respawn screen, or (06-c, setting
+   * `flow.skipEmptyRespawn`) deploys the default spawn straight away.
+   */
+  async newMission(opts: { deploy?: boolean } = {}): Promise<void> {
     this.teardown();
     await clearMission(this.a.store, this.a.map.id);
     this.saver.reset();
     this.mission = emptyMission(this.a.map.id);
     this.tuning = this.a.tuning();
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
-    this.snapshots = new SnapshotStore();
+    this.snapshots = new SnapshotStore(snapshotThinning(this.tuning));
     this.rescues = 0;
     this.reachedTick = null;
     this.lastObservation = null;
     this.pendingChanges = [];
+    this.pendingCaptureChanges = [];
+    this.lastSpawnPointId = null;
     this.a.ui.hideScreens();
     this.go(this.flow.kind === 'title' ? { type: 'newMission' } : { type: 'reset' });
+    const skip = (opts.deploy ?? true) && (this.a.options.skipEmptyRespawn?.() ?? false);
+    const fresh = freshMissionOption(this.mission.soldiers.length, this.options(), skip);
+    if (fresh) {
+      await this.deploy(fresh);
+      return;
+    }
+    this.showRespawn();
+  }
+
+  /**
+   * (05-b stress mode) Replaces the mission with a prepared one (e.g. generated bot lives, whose
+   * truth and snapshots are already known) and opens the respawn screen.
+   */
+  async adoptMission(state: MissionState, snapshots?: SnapshotStore): Promise<void> {
+    await this.newMission({ deploy: false });
+    this.respawn?.destroy();
+    this.respawn = null;
+    this.mission = state;
+    if (snapshots) this.snapshots = snapshots;
+    this.reachedTick = state.lanes.reduce((m, l) => Math.max(m, l.recordedTo), 0);
+    this.saveMission();
     this.showRespawn();
   }
 
@@ -217,7 +283,7 @@ export class GameController {
     }
     // Snapshots aren't persisted: re-derive the battle from tick 0 in the background. This also
     // finishes a resolve the last session didn't get to.
-    this.startResolve(null, null);
+    this.startResolve(null, 'max');
     this.showRespawn();
   }
 
@@ -229,6 +295,7 @@ export class GameController {
       this.mission.soldiers,
       this.mission.lanes,
       spawnRules(this.tuning),
+      this.mission.captureTruth ?? [],
     );
   }
 
@@ -242,8 +309,42 @@ export class GameController {
     await this.prepare(option);
   }
 
+  /** (06-c) The option R / Space would deploy now, or null when quick redeploy isn't possible. */
+  quickRedeployOption(): SpawnOption | null {
+    if (!canQuickRedeploy(this.flow)) return null;
+    return quickRedeployOption(this.options(), this.lastSpawnPointId);
+  }
+
+  /**
+   * (06-c) Quick redeploy (R / Space): a new soldier at the last-used spawn point's next slot,
+   * from the death beat (cutting it short, no respawn screen) or from the respawn screen.
+   * Returns false when it isn't possible right now.
+   */
+  async quickRedeploy(): Promise<boolean> {
+    const option = this.quickRedeployOption();
+    if (!option) return false;
+    if (this.flow.kind === 'respawn') {
+      await this.deploy(option);
+      return true;
+    }
+    // Death beat: the attempt is already folded and saved; the scrubber is running.
+    this.beatTimer?.();
+    this.beatTimer = null;
+    this.a.ui.showCaption(null);
+    this.a.battle.stop();
+    this.cancelResolve();
+    this.go({ type: 'deploy', option });
+    await this.prepare(option);
+    return true;
+  }
+
   /** Snapshot ≤ lead-in start, headless fast-forward, then the countdown on screen. */
   private async prepare(option: SpawnOption): Promise<void> {
+    this.lastSpawnPointId =
+      option.kind === 'new'
+        ? option.spawnPointId
+        : (this.mission.soldiers.find((r) => r.id === option.soldierId)?.spawnPointId ??
+          this.lastSpawnPointId);
     const rules = spawnRules(this.tuning);
     const start = leadInStart(option, rules);
     const ffTarget = Math.max(0, start);
@@ -261,10 +362,11 @@ export class GameController {
         : { mode: 'resume', soldierId: option.soldierId, controlFromTick: option.resumeTick };
 
     const ffTicks = ffTarget - (snap?.tick ?? 0);
-    if (ffTicks > SPINNER_TICKS) {
+    if (this.spinnerFor(ffTicks)) {
       this.a.ui.showBusy(true);
       await this.yieldFrame();
     }
+    const ff0 = this.a.clock.nowMs?.();
     const attempt = startAttempt({
       map: this.a.map,
       tuning: this.tuning,
@@ -275,6 +377,16 @@ export class GameController {
       snapshots: this.snapshots,
     });
     attempt.runHeadless(ffTarget);
+    if (ff0 !== undefined && ffTicks >= 120) {
+      const k = (this.a.clock.nowMs!() - ff0) / ffTicks;
+      this.ffMsPerTick = this.ffMsPerTick === null ? k : this.ffMsPerTick * 0.5 + k * 0.5;
+    }
+    // (05-a) A forward spawn's capture may no longer happen. Probe the rest of the way to the
+    // entry tick on a copy first: if the point won't be ours, run the real attempt there so the
+    // shift is seen (and folded into the truth) before the countdown, not at its end ([D23]).
+    if (!attempt.isOver() && live.mode === 'new' && this.isCaptureSpawn(live.spawnPointId)) {
+      if (this.probeShifts(attempt, live)) attempt.runHeadless(live.entryTick);
+    }
     this.a.ui.showBusy(false);
 
     const run = new LiveRun(attempt, option, hold, this.cameraHome(attempt, option), {
@@ -298,6 +410,38 @@ export class GameController {
     this.saveMission();
     this.a.battle.start(run);
     this.emit({ type: 'runStarted', run });
+  }
+
+  /**
+   * (06-c) Show the spinner for a fast-forward of `ticks`? Only if it's estimated to take longer
+   * than the threshold (default 150 ms), from the measured cost of earlier fast-forwards. Without
+   * a clock to measure with, the old tick-count rule.
+   */
+  private spinnerFor(ticks: number): boolean {
+    if (!this.a.clock.nowMs) return ticks > SPINNER_TICKS;
+    const threshold = this.a.options.spinnerThresholdMs?.() ?? DEFAULT_SPINNER_MS;
+    return ticks * (this.ffMsPerTick ?? FF_MS_PER_TICK_GUESS) > threshold;
+  }
+
+  private isCaptureSpawn(spawnPointId: string): boolean {
+    return this.a.map.spawnPoints.some((p) => p.id === spawnPointId && p.kind === 'capture');
+  }
+
+  /** Runs a throwaway copy of `attempt` to the live entry tick: does the deployment shift? */
+  private probeShifts(attempt: Attempt, live: LiveSpec & { mode: 'new' }): boolean {
+    const probe = startAttempt({
+      map: this.a.map,
+      tuning: this.tuning,
+      soldiers: this.mission.soldiers,
+      attempt: attempt.attemptNumber,
+      from: { kind: 'snapshot', snapshot: attempt.takeSnapshot() },
+      live,
+      snapshots: new SnapshotStore(),
+    });
+    probe.runHeadless(live.entryTick);
+    const shifted = probe.historyShifted !== null;
+    probe.abandon();
+    return shifted;
   }
 
   private cameraHome(attempt: Attempt, option: SpawnOption): Vec2 {
@@ -378,6 +522,7 @@ export class GameController {
     }
     const changes = this.fold(res.observation);
     this.pendingChanges = changes;
+    this.pendingCaptureChanges = this.lastCaptureChanges;
     this.reachedTick = res.observation.toTick;
     if (reason === 'missionComplete' && res.observation.missionComplete) {
       const mc = res.observation.missionComplete;
@@ -389,14 +534,19 @@ export class GameController {
     }
     delete this.mission.inProgress;
     this.saveMission();
-    this.emit({ type: 'attemptEnded', observation: res.observation, changes });
+    this.emit({
+      type: 'attemptEnded',
+      observation: res.observation,
+      changes,
+      captureChanges: this.lastCaptureChanges,
+    });
 
     const ran = this.run;
     this.run = null;
     if (reason === 'historyShifted') {
       if (ran) this.a.battle.stop();
       this.go({ type: 'attemptEnded', reason });
-      this.startResolve(res.endSnapshot, this.a.options.resolvePace());
+      this.startResolve(res.endSnapshot);
       this.showRespawn();
       return;
     }
@@ -404,7 +554,7 @@ export class GameController {
     const complete = reason === 'missionComplete';
     this.a.ui.showCaption(complete ? 'complete' : 'kia');
     // The scrubber starts at once, during the beat ([D23]).
-    if (!complete) this.startResolve(res.endSnapshot, this.a.options.resolvePace());
+    if (!complete) this.startResolve(res.endSnapshot);
     this.beatTimer = this.a.clock.after(this.tuning.deathBeatSeconds * 1000, () => {
       this.beatTimer = null;
       this.a.ui.showCaption(null);
@@ -419,6 +569,11 @@ export class GameController {
   private fold(obs: AttemptObservation): LaneChange[] {
     const { lanes, changes } = applyObservation(this.mission.lanes, this.mission.soldiers, obs);
     this.mission.lanes = lanes;
+    const caps = applyCaptureObservation(this.mission.captureTruth ?? [], obs);
+    if (caps.captures.length > 0 || this.mission.captureTruth !== undefined) {
+      this.mission.captureTruth = caps.captures;
+    }
+    this.lastCaptureChanges = caps.changes;
     this.rescues += changes.filter(isRescue).length;
     this.lastObservation = obs;
     return changes;
@@ -426,12 +581,16 @@ export class GameController {
 
   // ---------- Background resolve ([D23]) ----------
 
-  /** Starts the scrubber from a snapshot (null = from tick 0, after a reload). */
-  private startResolve(from: WorldSnapshot | null, pace: number | null): void {
+  /**
+   * Starts the scrubber from a snapshot (null = from tick 0, after a reload). Paced by the
+   * `game.resolveSpeed` setting, or flat out with `'max'`.
+   */
+  private startResolve(from: WorldSnapshot | null, speed: 'setting' | 'max' = 'setting'): void {
     this.cancelResolve();
     const target = this.mission.soldiers.reduce((m, r) => Math.max(m, recordedTo(r)), 0);
     const fromTick = from?.tick ?? 0;
     if (this.mission.soldiers.length === 0 || fromTick >= target) return;
+    const pace = speed === 'max' ? null : this.a.options.resolvePace(target - fromTick);
     const attempt = this.mission.attemptCount;
     this.resolve = { attempt, fromTick, snaps: [] };
     this.resolvedUntil = fromTick;
@@ -482,10 +641,14 @@ export class GameController {
         options: this.options(),
         resolvedUntil: this.resolvedUntil,
         objectiveComplete: this.objectiveComplete(),
+        captures: this.mission.captureTruth ?? [],
+        captureChanges: this.lastCaptureChanges,
       });
     } else {
       this.pendingChanges = [...this.pendingChanges, ...changes];
+      this.pendingCaptureChanges = [...this.pendingCaptureChanges, ...this.lastCaptureChanges];
     }
+    if (canQuickRedeploy(this.flow)) this.updateQuickHint();
     this.emit({ type: 'resolveProgress', observation: obs, done });
   }
 
@@ -551,6 +714,7 @@ export class GameController {
       this.mission.soldiers = soldiers;
       this.mission.attemptCount = Math.max(this.mission.attemptCount, life.attempt);
       this.pendingChanges = this.fold(res.observation);
+      this.pendingCaptureChanges = this.lastCaptureChanges;
       this.reachedTick = res.observation.toTick;
       this.saveMission();
       const option = this.options().find(
@@ -604,15 +768,19 @@ export class GameController {
         lanes: this.mission.lanes,
         options,
         changes: this.pendingChanges,
+        captures: this.mission.captureTruth ?? [],
+        captureChanges: this.pendingCaptureChanges,
         attemptsPlayed: this.mission.attemptCount,
         reachedTick: this.reachedTick,
         objectiveComplete: this.objectiveComplete(),
         resolvedUntil: this.resolvedUntil,
+        reveal: revealOptions(this.tuning), // (06-b) revealed map
       },
       (o) => void this.deploy(o),
       notice,
     );
     this.pendingChanges = [];
+    this.pendingCaptureChanges = [];
     this.emit({ type: 'respawnShown', options });
   }
 
@@ -703,7 +871,13 @@ export class GameController {
       if (err instanceof FlowError) this.log(err.message);
       throw err;
     }
+    this.updateQuickHint();
     this.emit({ type: 'flow', state: this.flow });
+  }
+
+  /** (06-c) Keeps the "R / Space: redeploy" hint in step with the flow and the options. */
+  private updateQuickHint(): void {
+    this.a.ui.showQuickRedeploy?.(this.quickRedeployOption());
   }
 
   private emit(e: GameEvent): void {

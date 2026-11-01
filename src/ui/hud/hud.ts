@@ -24,7 +24,7 @@ const HUD_CSS = `
 .aoo-hud .tr { position: absolute; top: 12px; right: 12px; font-size: 22px; font-variant-numeric: tabular-nums; }
 .aoo-hud .obj { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 14px;
   background: rgba(0,0,0,.35); padding: 3px 10px; border-radius: 3px; white-space: nowrap; }
-.aoo-hud .vignette { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease-out;
+.aoo-hud .vignette { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease-out; will-change: opacity;
   box-shadow: inset 0 0 120px 40px rgba(255, 30, 30, .85); }
 .aoo-hud .banner { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 44px;
   color: #ffd34d; letter-spacing: .04em; }
@@ -72,7 +72,7 @@ export class Hud {
     if (this.root.className !== rootCls) this.root.className = rootCls;
     setText(this.clock, m.clock);
     setText(this.obj, m.objective);
-    this.banner.hidden = !m.missionComplete;
+    if (this.banner.hidden === m.missionComplete) this.banner.hidden = !m.missionComplete;
     if (m.missionComplete) setText(this.banner, str('mission.complete'));
   }
 

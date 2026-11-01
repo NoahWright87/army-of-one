@@ -2,13 +2,14 @@
  * Builds a GameController on headless adapters (memory store, manual clock, recording UI,
  * inline resolve, scripted lives). Shared by the flow tests; also handy in a Node REPL.
  */
-import { MISSION_01 } from '../content/maps/mission-01';
+import { MISSION_03 } from '../content/maps/mission-03';
 import { DEFAULT_TUNING, type Tuning } from '../content/tuning';
 import type { SpawnOption } from '../contracts/mission';
+import type { MapDef } from '../sim/world/map';
 import { MemoryStore } from '../persistence/storage';
 import type { InputSource } from '../render/input/input-source';
 import { findAutoLife, pickOption, type AutoLife } from './autoplay-lives';
-import { GameController, type BattleHost, type GameEvent } from './game';
+import { GameController, type BattleHost, type GameEvent, type GameOptions } from './game';
 import { HeadlessBattleHost, ManualClock, RecordingUi } from './headless';
 import type { LiveRun } from './live-run';
 import { createInlineResolveRunner } from './resolve-runner';
@@ -38,6 +39,12 @@ export interface HarnessOptions {
   resolveSlice?: number;
   /** Inline resolve: clock delay between slices (0 = a whole pass runs in one `advance`). */
   resolveDelayMs?: number;
+  /** Map to play (default mission-03). */
+  map?: MapDef;
+  /** (06-c) Extra game options (skip the empty respawn screen, spinner threshold, …). */
+  options?: Partial<GameOptions>;
+  /** (06-c) Give the clock a `nowMs()` (the manual clock's time) for the spinner estimate. */
+  clockNow?: boolean;
 }
 
 export function createHarness(o: HarnessOptions = {}): Harness {
@@ -53,17 +60,17 @@ export function createHarness(o: HarnessOptions = {}): Harness {
   };
   const battle = o.battle ? o.battle(clock, input) : new HeadlessBattleHost(clock, input);
   const game = new GameController({
-    map: MISSION_01,
+    map: o.map ?? MISSION_03,
     tuning: () => o.tuning ?? DEFAULT_TUNING,
     store,
     ui,
     battle,
-    clock,
+    clock: o.clockNow ? { after: (ms, fn) => clock.after(ms, fn), nowMs: () => clock.now } : clock,
     resolver: createInlineResolveRunner(
       (delay) => (run) => clock.after(o.resolveDelayMs ?? delay, run),
       o.resolveSlice ?? 600,
     ),
-    options: { resolvePace: () => null, resumeOnReload: true },
+    options: { resolvePace: () => null, resumeOnReload: true, ...o.options },
     onEvent: (e) => {
       events.push(e);
       if (e.type === 'runStarted') runs.push({ run: e.run, countdownAtStart: e.run.countdown() });

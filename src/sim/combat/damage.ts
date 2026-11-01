@@ -1,6 +1,7 @@
 import { secondsToTicks } from '../core/time';
 import { distanceSq } from '../core/vec';
 import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
+import { allObjectivesDone } from '../entities/capture-point';
 import { armMine } from '../entities/mine';
 import { objectiveRadius } from '../entities/objective';
 import { isEligible, type SoldierState } from '../entities/soldier';
@@ -68,7 +69,7 @@ export function damageObjective(world: World, index: number, amount: number, by:
   if (o.hp > 0) return;
   o.destroyed = true;
   emit(world, { kind: 'objectiveDestroyed', tick: st.tick, id: o.id, by });
-  if (!st.missionComplete && st.objectives.every((x) => x.destroyed)) {
+  if (!st.missionComplete && allObjectivesDone(world)) {
     st.missionComplete = { tick: st.tick, by };
   }
 }

@@ -64,7 +64,7 @@ export function syntheticMission(soldiers: number, lifeTicks: number): MissionSt
   const records = Array.from({ length: soldiers }, (_, i) => syntheticSoldier(i + 1, lifeTicks));
   return {
     schemaVersion: 1,
-    missionId: 'mission-01',
+    missionId: 'mission-03',
     attemptCount: soldiers,
     soldiers: records,
     lanes: records.map(laneFor),
