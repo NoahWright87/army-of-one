@@ -270,6 +270,12 @@ export interface Tuning {
      * the state the original press produced (if the gate is already open, it leaves it open).
      */
     replayInteract: 'toggle' | 'restoreState';
+    /**
+     * (07-b) How echoes of auto-aimed lives replay ([Q22]). 'recorded' (the only value for now):
+     * they fire the recorded shots like any echo ([E1]). A future 'retarget' would re-aim at
+     * whatever is valid now.
+     */
+    autoAimReplay: 'recorded';
   };
   /** (03-a) Attempt runner and background resolve passes. */
   attempt: {
@@ -470,6 +476,7 @@ export const DEFAULT_TUNING: Tuning = {
     lateGraceSeconds: 1, // TUNE
     actionTolerance: 12, // TUNE: about a hitbox radius
     replayInteract: 'toggle', // TUNE
+    autoAimReplay: 'recorded',
   },
   attempt: {
     snapshotIntervalTicks: 60, // TUNE: 1 s of battle time [E4]

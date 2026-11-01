@@ -29,6 +29,68 @@ export const GAME_SETTING_IDS = {
   transitionMs: 'flow.transitionMs',
 } as const;
 
+/** (07-b) Controls ([D41]). 'auto' follows the device: touch → touch + auto-aim. */
+export const INPUT_SETTING_IDS = {
+  /** 'auto' | 'touch' | 'mouse' */
+  mode: 'input.mode',
+  /** 'auto' (on with touch, off with mouse) | 'on' | 'off' */
+  autoAim: 'input.autoAim',
+  /** Auto-aim fires by itself ('auto') or only while you hold fire ('hold'). */
+  autoFire: 'input.autoFire',
+} as const;
+
+export function inputSettingDefs(): SettingDef[] {
+  const G = 'settings.group.input';
+  return [
+    {
+      id: INPUT_SETTING_IDS.mode,
+      group: G,
+      label: str('settings.input.mode'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.auto') },
+        { value: 'touch', label: str('settings.input.mode.touch') },
+        { value: 'mouse', label: str('settings.input.mode.mouse') },
+      ],
+    },
+    {
+      id: INPUT_SETTING_IDS.autoAim,
+      group: G,
+      label: str('settings.input.autoAim'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.autoAim.auto') },
+        { value: 'on', label: str('settings.input.on') },
+        { value: 'off', label: str('settings.input.off') },
+      ],
+    },
+    {
+      id: INPUT_SETTING_IDS.autoFire,
+      group: G,
+      label: str('settings.input.autoFire'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.autoFire.auto') },
+        { value: 'hold', label: str('settings.input.autoFire.hold') },
+      ],
+    },
+  ];
+}
+
+/** (07-b) Resolved control scheme for this device and these settings ([D41]). */
+export function controlScheme(
+  mode: string,
+  autoAim: string,
+  touchDevice: boolean,
+): { touch: boolean; autoAim: boolean } {
+  const touch = mode === 'touch' || (mode === 'auto' && touchDevice);
+  const aim = autoAim === 'on' || (autoAim === 'auto' && touch);
+  return { touch, autoAim: aim };
+}
+
 const SPEEDS = ['fit', 'max', '40', '20', '10', '5'];
 /** (06-c) 'fit': the scrubber sweeps whatever is left in about this long. */
 export const FIT_SWEEP_SECONDS = 1;

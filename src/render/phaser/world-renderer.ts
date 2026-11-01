@@ -35,6 +35,9 @@ export interface RenderFrame {
   nowMs: number;
   liveId: string | null;
   pointer: Vec2 | null;
+  /** (07-b) Auto-aim: the target to mark, and the reach ring around the live soldier. */
+  aimTarget?: Vec2 | null;
+  aimRange?: number | null;
 }
 
 interface Effect {
@@ -398,6 +401,7 @@ export class WorldRenderer {
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
     this.drawReticle(f.pointer, f.liveId);
+    this.drawAutoAim(f);
     this.updateLoops();
   }
 
@@ -1003,6 +1007,33 @@ export class WorldRenderer {
       g.beginPath();
       g.arc(pointer.x, pointer.y, mr, -Math.PI / 2, -Math.PI / 2 + live.mount * 2 * Math.PI, false);
       g.strokePath();
+    }
+  }
+
+  /** (07-b) Auto-aim: a faint reach ring around the live soldier and brackets on the target. */
+  private drawAutoAim(f: RenderFrame): void {
+    const g = this.reticleGfx;
+    const pos = this.livePos;
+    if (!pos) return;
+    if (f.aimRange) {
+      g.lineStyle(1, 0xffffff, 0.12);
+      g.strokeCircle(pos.x, pos.y, f.aimRange);
+    }
+    const t = f.aimTarget;
+    if (!t) return;
+    const r = 30;
+    const k = 10;
+    g.lineStyle(3, 0xff5a3c, 0.95);
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ] as const) {
+      const cx = t.x + sx * r;
+      const cy = t.y + sy * r;
+      g.lineBetween(cx, cy, cx - sx * k, cy);
+      g.lineBetween(cx, cy, cx, cy - sy * k);
     }
   }
 

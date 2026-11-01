@@ -7,10 +7,10 @@ import { DEFAULT_TUNING } from '../../content/tuning';
 import { castRay, fireRifle } from '../combat/shots';
 import { hashState } from '../core/hash';
 import { chooseTurretTarget } from '../entities/turret';
-import { getSoldier, getView, step } from '../sim';
+import { getSoldier, getView } from '../sim';
 import { coverArcs, coverStops, seesThroughCover } from '../world/cover';
 import type { CoverDef } from '../world/map';
-import { arena, idle, ofKind, run, soldierAt, walk, world } from './helpers';
+import { arena, run, soldierAt, walk, world } from './helpers';
 
 const wallOfCover = (bullet: number, id = 'c1'): CoverDef => ({
   id,

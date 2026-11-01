@@ -49,7 +49,22 @@ import { Autopilot } from './autoplay';
 import { AUTO_LIVES, parseAutoplay } from './autoplay-lives';
 import { createDefaultSession } from './battle-setup';
 import { GameController, type BattleHost, type GameUi, type RespawnHandle } from './game';
-import { cycleSpeed, GAME_SETTING_IDS, gameSettingDefs, resolvePace } from './game-settings';
+import {
+  controlScheme,
+  cycleSpeed,
+  GAME_SETTING_IDS,
+  gameSettingDefs,
+  INPUT_SETTING_IDS,
+  inputSettingDefs,
+  resolvePace,
+} from './game-settings';
+import { AutoAimInput, type AutoFireMode } from '../render/input/auto-aim';
+import type { InputSource } from '../render/input/input-source';
+import { TouchInput } from '../render/input/touch-input';
+import { TouchControls } from '../ui/touch/touch-controls';
+import { looksLikeTouch } from '../ui/touch/stick-math';
+import type { MapDef } from '../sim/world/map';
+import type { Tuning } from '../content/tuning';
 import { HeadlessBattleHost } from './headless';
 import { installHotkeys } from './hotkeys';
 import type { LiveRun } from './live-run';
@@ -104,6 +119,7 @@ settings.register(displaySettingDefs());
 settings.register(minimapSettingDefs()); // (06-b)
 settings.register(respawnSettingDefs());
 settings.register(gameSettingDefs());
+settings.register(inputSettingDefs()); // (07-b)
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
 const display = bindDisplaySettings(settings);
 
@@ -120,6 +136,46 @@ const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
 const quickHint = new QuickRedeployHint(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
+// (07-b) Touch controls and auto-aim ([D41]).
+const touchDevice = looksLikeTouch({
+  coarse: window.matchMedia?.('(pointer: coarse)').matches ?? false,
+  fine: window.matchMedia?.('(any-pointer: fine)').matches ?? false,
+  maxTouchPoints: navigator.maxTouchPoints ?? 0,
+});
+const touchControls = new TouchControls(uiRoot, () => panel.toggle());
+const scheme = () =>
+  controlScheme(
+    settings.getString(INPUT_SETTING_IDS.mode),
+    settings.getString(INPUT_SETTING_IDS.autoAim),
+    touchDevice,
+  );
+quickHint.setBig(scheme().touch);
+settings.subscribe((id) => {
+  if (id === INPUT_SETTING_IDS.mode || id === INPUT_SETTING_IDS.autoAim) {
+    quickHint.setBig(scheme().touch);
+  }
+});
+/** (07-b) The live soldier's input: keyboard/mouse or touch, optionally wrapped in auto-aim. */
+function makeControls(
+  scene: Phaser.Scene,
+  map: MapDef,
+  tuning: Tuning,
+  liveId: string,
+): InputSource {
+  const sc = scheme();
+  touchControls.setAimStick(!sc.autoAim);
+  touchControls.setVisible(sc.touch);
+  const base: InputSource = sc.touch
+    ? new TouchInput(touchControls, { tuning })
+    : new KeyboardMouseInput(scene);
+  if (!sc.autoAim) return base;
+  return new AutoAimInput(base, {
+    map,
+    tuning,
+    liveId,
+    fireMode: () => settings.getString(INPUT_SETTING_IDS.autoFire) as AutoFireMode,
+  });
+}
 // (06-b) In-game minimap ([D29]).
 const minimap = new Minimap(uiRoot);
 minimap.setSettings(readMinimapSettings(settings));
@@ -150,11 +206,17 @@ const services: SceneServices = {
   leadInHint,
   leadInPreview: () => settings.getBool(GAME_SETTING_IDS.ghostArrow),
   renderScale: () => renderScale,
-  createSession: () =>
-    createDefaultSession(
-      effectiveTuning(settings, DEFAULT_TUNING),
-      (scene) => new KeyboardMouseInput(scene),
-    ),
+  createSession: () => {
+    const tuning = effectiveTuning(settings, DEFAULT_TUNING);
+    const session = createDefaultSession(tuning, () => {
+      throw new Error('replaced below');
+    });
+    return {
+      ...session,
+      makeInput: (scene: Phaser.Scene) =>
+        makeControls(scene, session.world.map, tuning, session.liveId),
+    };
+  },
 };
 
 // (06-c) The game flow starts at once (title, save loading) while Phaser boots and loads assets
@@ -286,7 +348,7 @@ async function startGame(): Promise<void> {
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
       const on = option && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
-      quickHint.set(on ? quickHintText(option) : null);
+      quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
 
@@ -334,7 +396,8 @@ async function startGame(): Promise<void> {
         liveId: run.liveId,
         driver: run,
         makeInput: (scene: Phaser.Scene) =>
-          autopilot.inputFor(run) ?? new KeyboardMouseInput(scene),
+          autopilot.inputFor(run) ??
+          makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
       },
     });
   };
@@ -351,6 +414,7 @@ async function startGame(): Promise<void> {
     stop: () => {
       pendingRun = null;
       if (game.scene.isActive('battle') || game.scene.isPaused('battle')) game.scene.stop('battle');
+      touchControls.setVisible(false);
       hud.setVisible(false);
       countdown.update(null);
       leadInHint.set(false);
@@ -414,6 +478,14 @@ async function startGame(): Promise<void> {
     log: (m) => console.warn(`[game] ${m}`),
   });
   autopilot.attach(controller);
+  // (07-b) Tapping the quick-redeploy hint redeploys (the touch death beat's big button).
+  quickHint.onTap = () => {
+    if (!quickHint.visible) return;
+    if (performance.now() - diedAt < settings.getNumber(GAME_SETTING_IDS.quickRedeployGuardMs)) {
+      return;
+    }
+    void controller.quickRedeploy();
+  };
 
   // (06-c) Quick redeploy: R / Space on the death beat or the respawn screen. Capture phase, so a
   // focused button doesn't take the Space first. Held keys (auto-fire on Space) repeat and are
@@ -525,10 +597,10 @@ async function startGame(): Promise<void> {
 }
 
 /** (06-c) "R / Space: redeploy at Road (0:04)". */
-function quickHintText(option: SpawnOption): string {
-  if (option.kind !== 'new') return str('quick.hintAny');
+function quickHintText(option: SpawnOption, touch = false): string {
+  if (option.kind !== 'new') return touch ? str('touch.redeploy') : str('quick.hintAny');
   const sp = MISSION.spawnPoints.find((p) => p.id === option.spawnPointId);
-  return str('quick.hint', {
+  return str(touch ? 'touch.redeployAt' : 'quick.hint', {
     spawn: sp ? strDynamic(sp.nameKey) : option.spawnPointId,
     time: formatBattleTime(option.entryTick),
   });

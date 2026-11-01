@@ -181,6 +181,10 @@ export const RESPAWN_CSS = `
   .rs-opt-icon { flex-basis: 64px; }
   .rs-opt-icon .thumb { width: 64px; height: 44px; }
   .rs-deploy-bar { padding: 8px 10px 10px; }
+  /* (07-c/b) Role picker fits a phone: no key numbers, smaller, wraps if it must. */
+  .rs-roles-row { flex-wrap: wrap; gap: 4px; }
+  .rs-role { min-height: 34px; font-size: 13px; padding: 0 6px; }
+  .rs-role .k { display: none; }
   .rs-legend { gap: 0 10px; font-size: 11px; padding: 4px 10px; }
 }
 

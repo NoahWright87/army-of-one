@@ -1,4 +1,3 @@
-import { secondsToTicks } from '../core/time';
 import { distance, fromAngle, type Vec2 } from '../core/vec';
 import { objectiveRadius } from '../entities/objective';
 import { isEligible, type SoldierState } from '../entities/soldier';

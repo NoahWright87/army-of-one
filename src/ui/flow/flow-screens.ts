@@ -55,10 +55,12 @@ const CSS = `
   pointer-events: none; color: #c8f4ff; font: 600 15px system-ui, sans-serif; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
 .aoo-leadin-hint[hidden] { display: none; }
 .aoo-quick-hint { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 27;
-  pointer-events: none; background: rgba(10,13,16,.88); border: 1px solid #ffd34d; border-radius: 6px;
+  pointer-events: auto; cursor: pointer; touch-action: manipulation; background: rgba(10,13,16,.88); border: 1px solid #ffd34d; border-radius: 6px;
   padding: 8px 16px; color: #ffe9a8; font: 700 16px system-ui, sans-serif; white-space: nowrap;
   box-shadow: 0 4px 16px rgba(0,0,0,.6); }
 .aoo-quick-hint[hidden] { display: none; }
+/* (07-b) Touch: a big tap target on the death beat. */
+.aoo-quick-hint.big:not(.docked) { bottom: 40%; padding: 18px 28px; font-size: 20px; }
 .aoo-quick-hint.docked { position: static; transform: none; z-index: auto; font-size: 13px; padding: 5px 10px;
   text-align: center; white-space: normal; box-shadow: none; }
 .aoo-quick-hint kbd { font: inherit; color: #ffd34d; }
@@ -264,11 +266,20 @@ export class QuickRedeployHint {
   private readonly root = el('div', 'aoo-quick-hint');
   private host: HTMLElement | null = null;
 
+  /** (07-b) Tapping/clicking the hint redeploys (set by the app). */
+  onTap: (() => void) | null = null;
+
   constructor(private readonly parent: HTMLElement) {
     injectStyle('aoo-flow-css', CSS);
+    this.root.addEventListener('click', () => this.onTap?.());
     this.root.hidden = true;
     this.root.setAttribute('role', 'status');
     parent.append(this.root);
+  }
+
+  /** (07-b) Big tap target (touch controls). */
+  setBig(on: boolean): void {
+    this.root.classList.toggle('big', on);
   }
 
   /** `text` null hides it. */

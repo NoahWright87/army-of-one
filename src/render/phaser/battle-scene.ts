@@ -72,6 +72,7 @@ export class BattleScene extends Phaser.Scene {
     const driver = this.session.driver;
     this.view = driver ? driver.view() : getView(this.world);
     this.prevView = this.view;
+    this.source.observe?.(this.view);
     // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
     const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
     this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
@@ -164,6 +165,7 @@ export class BattleScene extends Phaser.Scene {
       simThisFrame += dt;
       this.stepMs = ema(this.stepMs, dt, 0.05);
       this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
+      this.source.observe?.(this.view);
       if (this.countdownTicks !== null) this.countdownTicks--;
     }
 
@@ -194,6 +196,8 @@ export class BattleScene extends Phaser.Scene {
       nowMs: time,
       liveId: this.liveId,
       pointer: frozen ? null : this.source.pointerWorld(),
+      aimTarget: frozen ? null : (this.source.aimTarget?.() ?? null),
+      aimRange: frozen ? null : (this.source.aimRange?.() ?? null),
     });
     this.renderMs = ema(this.renderMs, performance.now() - r0, 0.05);
 
