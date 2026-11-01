@@ -1,7 +1,7 @@
 /**
  * Web Worker hosting the background resolve pass ([D23]). Started per pass by
  * `createWorkerResolveRunner` (resolve-runner.ts); it streams progressive observations and the
- * snapshots it makes (plain data, ~3 KB each on mission-01) back to the main thread, which
+ * snapshots it makes (plain data, ~3 KB each, measured on the old mission-01) back to the main thread, which
  * commits them to the mission's SnapshotStore. Cancelling terminates the worker.
  */
 import {

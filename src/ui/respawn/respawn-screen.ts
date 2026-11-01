@@ -21,6 +21,8 @@ import type {
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import { el, injectStyle } from '../dom';
 import { mapThumbSvg } from './map-thumb';
+import { MapPanel } from './map-panel';
+import { isTallMap } from './map-panel-model';
 import {
   captureChangeCaption,
   captureFlags,
@@ -79,6 +81,9 @@ const LEAVE_MS = 600;
 const AXIS_H = 40;
 const DRAG_SLOP_PX = 6;
 
+/** (06-b) Phone, wide map: the top area shows the map instead of the timeline (remembered). */
+let phoneShowsMap = false;
+
 /** Last zoom/pan, reused on the next open when auto-fit is off. */
 let lastView: { view: TimeView; fitted: boolean } | null = null;
 
@@ -128,6 +133,15 @@ export class RespawnScreen {
   private readonly tip = el('div', 'rs-tip');
   private readonly optsEl = el('div', 'rs-opts');
   private readonly deployBtn = el('button', 'rs-deploy');
+  private readonly main = el('div', 'rs-main');
+  /** (06-b) Revealed map ([D29]). */
+  private readonly mapPanel = new MapPanel({
+    select: (key) => this.select(key),
+    deploy: (key) => {
+      this.select(key);
+      this.deploy();
+    },
+  });
 
   static mount(root: HTMLElement, props: RespawnProps, opts: RespawnScreenOptions = {}) {
     return new RespawnScreen(root, props, opts);
@@ -209,6 +223,7 @@ export class RespawnScreen {
     this.selected = key !== null && findOption(this.props.options, key) ? key : null;
     this.renderOptions();
     this.renderTimeline();
+    if (this.settings.showMap) this.mapPanel.setSelected(this.selected);
     this.revealSelection();
   }
 
@@ -241,13 +256,14 @@ export class RespawnScreen {
     if (this.animTimer) clearTimeout(this.animTimer);
     if (this.tipTimer) clearTimeout(this.tipTimer);
     for (const c of this.cleanups) c();
+    this.mapPanel.destroy();
     this.root.remove();
   }
 
   // ---------- Build ----------
 
   private build(): void {
-    const main = el('div', 'rs-main');
+    const main = this.main;
     const tl = el('section', 'rs-tl');
     const bar = el('div', 'rs-tl-bar');
     bar.append(el('h2', '', str('respawn.timeline.title')));
@@ -266,6 +282,18 @@ export class RespawnScreen {
       mk(str('respawn.timeline.fit'), str('respawn.timeline.fit'), () => this.fitAll()),
     );
     tools.lastElementChild!.classList.add('wide');
+    // (06-b) Phone + wide map: the map shares the timeline's area; these swap them.
+    const toMap = mk(str('respawn.map.show'), str('respawn.map.show'), () =>
+      this.showPhoneMap(true),
+    );
+    toMap.classList.add('wide', 'rs-view-toggle');
+    tools.append(toMap);
+    const toTl = mk(str('respawn.map.back'), str('respawn.map.back'), () =>
+      this.showPhoneMap(false),
+    );
+    toTl.classList.add('wide', 'rs-view-toggle');
+    this.mapPanel.addBarButton(toTl);
+    this.main.classList.toggle('phone-map', phoneShowsMap);
     bar.append(tools);
     this.scroller.append(this.axisWrap, this.rowsWrap);
     this.frame.append(this.scroller, this.emptyEl, this.tip);
@@ -278,7 +306,7 @@ export class RespawnScreen {
     dbar.append(this.deployBtn, el('div', 'rs-keys', str('respawn.keys')));
     spawn.append(dbar);
 
-    main.append(tl, spawn);
+    main.append(tl, this.mapPanel.root, spawn);
     this.root.append(this.head, main);
   }
 
@@ -318,6 +346,12 @@ export class RespawnScreen {
     const ro = new ResizeObserver(() => this.scheduleRender());
     ro.observe(this.frame);
     this.cleanups.push(() => ro.disconnect());
+    // (06-b) The map keeps marker sizes in px and sizes a tall map's column from the height.
+    const mro = new ResizeObserver(() => {
+      if (this.settings.showMap && !this.destroyed) this.mapPanel.resize();
+    });
+    mro.observe(this.main);
+    this.cleanups.push(() => mro.disconnect());
 
     // Option list clicks.
     on(this.optsEl, 'click', (e) => {
@@ -565,8 +599,31 @@ export class RespawnScreen {
     this.renderCaptions();
     this.renderLegend();
     this.renderOptions();
+    this.renderMap();
     this.renderTimeline();
     this.scheduleAnimCleanup();
+  }
+
+  /** (06-b) Phone, wide map: show the map (or the timeline) in the top area. */
+  private showPhoneMap(on: boolean): void {
+    phoneShowsMap = on;
+    this.main.classList.toggle('phone-map', on);
+    requestAnimationFrame(() => {
+      if (this.destroyed) return;
+      this.mapPanel.resize();
+      this.scheduleRender();
+    });
+  }
+
+  /** (06-b) Revealed map: layout classes, then the panel (incremental reveal). */
+  private renderMap(): void {
+    const on = this.settings.showMap;
+    const tall = isTallMap(this.props.map);
+    this.main.classList.toggle('with-map', on);
+    this.main.classList.toggle('map-tall', on && tall);
+    this.main.classList.toggle('map-wide', on && !tall);
+    this.mapPanel.root.hidden = !on;
+    if (on) this.mapPanel.render(this.props, this.selected, this.settings.legend);
   }
 
   private renderHeader(): void {

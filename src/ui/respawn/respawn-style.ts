@@ -173,4 +173,93 @@ export const RESPAWN_CSS = `
   .rs-deploy-bar { padding: 8px 10px 10px; }
   .rs-legend { gap: 0 10px; font-size: 11px; padding: 4px 10px; }
 }
+
+/* (06-b) Revealed map panel ([D29]). Wide maps sit above the spawn list; tall maps (a vertical
+   strip, forward = up) get their own column, sized from the height by map-panel.ts. */
+.rs-main.with-map > .rs-tl { grid-area: tl; }
+.rs-main.with-map > .rs-map { grid-area: map; }
+.rs-main.with-map > .rs-spawn { grid-area: spawn; }
+.rs-main.with-map.map-wide { grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "tl map" "tl spawn"; }
+.rs-main.with-map.map-tall { grid-template-columns: minmax(0, 1fr) auto 320px;
+  grid-template-rows: minmax(0, 1fr); grid-template-areas: "tl map spawn"; }
+.rs-map { background: rgba(16,20,24,.94); border: 1px solid #39424c; border-radius: 6px; min-width: 0;
+  min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.rs-map-bar { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px 6px; height: 34px; flex-shrink: 0;
+  min-width: 0; overflow: hidden; }
+.rs-map-bar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #9fb3c8; margin: 0; }
+.rs-map-pct { font-size: 12px; color: #6f7b88; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rs-map-body { position: relative; flex: 0 1 auto; width: 100%; min-height: 0; max-height: 42vh;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.rs-main.map-tall .rs-map-body { flex: 1 1 auto; max-height: none; }
+.rs-map-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rs-map-tip { max-width: 220px; }
+.rs-view-toggle { display: none; }
+.rs-map-bar .rs-view-toggle { margin-left: auto; align-self: center; height: 44px; min-width: 44px; }
+.rs-map-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; padding: 4px 10px 6px; font-size: 11px;
+  color: #9aa7b6; border-top: 1px solid #2b333b; flex-shrink: 0; }
+.rs-map-legend .lg { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.rs-map-legend svg { overflow: visible; }
+.mp-fog, .mp-fog-sw { fill: #050608; }
+.mp-fog-sw { stroke: #39424c; stroke-width: 1; }
+.mp-edge { fill: none; stroke: #2f3842; }
+.mp-ground { fill: #3d4f38; }
+.mp-water { fill: #3a76a8; }
+.mp-wall { fill: #b4bdc7; }
+.mp-hit { fill: transparent; cursor: default; }
+.mp-hit[data-select] { cursor: pointer; }
+.mp-spawn { fill: #12313d; stroke: #4fd1ff; }
+.mp-spawn.sel { fill: #3a3010; stroke: #ffd34d; }
+.mp-spawn.off { fill: #1b2229; stroke: #6f7b88; }
+.mp-spawn-a { fill: none; stroke: #bff0ff; stroke-linecap: round; stroke-linejoin: round; }
+.mp-spawn.sel + .mp-spawn-a { stroke: #ffe9a3; }
+.mp-spawn.off + .mp-spawn-a { stroke: #8a96a3; }
+.mp-sel-ring { fill: none; stroke: #ffd34d; }
+.mp-label { fill: #d8f4ff; font-family: system-ui, sans-serif; font-weight: 700; text-anchor: middle;
+  paint-order: stroke; stroke: #07090c; stroke-linejoin: round; }
+.mp-label.sel { fill: #ffe9a3; }
+.mp-turret { fill: #ff4d5e; stroke: #3a0d12; }
+.mp-turret.off { fill: #59626c; stroke: #2a2f35; }
+.mp-dead { stroke: #e6e9ec; fill: none; stroke-linecap: round; }
+.mp-mine { fill: #ff8a3d; stroke: #3a1a06; }
+.mp-mine.off { fill: none; stroke: #6f7b88; }
+.mp-traffic { stroke: #ffae42; fill: none; opacity: .55; }
+.mp-gate { fill: #ffae42; stroke: #3a2606; }
+.mp-bridge { fill: #9a7246; stroke: #2a1c0c; }
+.mp-bridge.off { fill: #2f6390; stroke: #ff4d5e; stroke-dasharray: 3 2; }
+.mp-cap { fill: none; stroke: #c8d0d8; }
+.mp-cap.ours { stroke: #4ade80; }
+.mp-obj { fill: #2a1206; stroke: #ffd34d; filter: drop-shadow(0 0 3px rgba(255,211,77,.7)); }
+.mp-obj-in { fill: #ffd34d; }
+.mp-obj.done { stroke: #5ee38a; fill: #0f2a1a; }
+.mp-obj-in.done { fill: #5ee38a; }
+.mp-flag { fill: #ffd34d; stroke: #1a1406; stroke-linejoin: round; }
+.mp-flag.done { fill: #4ade80; }
+.mp-x { stroke: #ff4d5e; fill: none; stroke-linecap: round; }
+.mp-x-back { stroke: #07090c; fill: none; stroke-linecap: round; opacity: .8; }
+.mp-o { fill: #0f2a1a; stroke: #5ee38a; filter: drop-shadow(0 0 3px #5ee38a); }
+.mp-o.off { stroke: #3f7a52; filter: none; }
+.mp-bang { fill: #ffae42; }
+.mp-bang-t { fill: #1a1206; font-weight: 800; text-anchor: middle; font-family: system-ui, sans-serif; }
+.rs-map-legend .mp-o { filter: none; }
+
+@media (max-width: 760px) {
+  /* Wide map on a phone: the map shares the timeline's area (toggle buttons swap them). */
+  .rs-main.with-map.map-wide { grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(160px, 1fr) auto; grid-template-areas: "tl" "spawn"; }
+  .rs-main.with-map.map-wide > .rs-map { grid-area: tl; }
+  .rs-main.with-map.map-wide:not(.phone-map) > .rs-map,
+  .rs-main.with-map.map-wide.phone-map > .rs-tl { display: none; }
+  .rs-main.with-map.map-wide .rs-view-toggle { display: inline-block; }
+  .rs-main.with-map.map-wide .rs-map-body { flex: 1 1 auto; max-height: none; aspect-ratio: auto !important; }
+  .rs-main.with-map.map-wide .rs-map-bar { height: 52px; align-items: center; }
+  .rs-main.with-map.map-tall { grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: minmax(130px, 1fr) auto; grid-template-areas: "tl tl" "map spawn"; }
+  .rs-main.with-map .rs-spawn { max-height: 36vh; }
+  /* The map shows where each spawn is, so the option thumbnails go (more room for text). */
+  .rs-main.with-map .rs-opt-icon { display: none; }
+  .rs-main.with-map .rs-opt { padding-left: 10px; }
+  .rs-map-bar { padding: 6px 10px 4px; height: 28px; }
+  .rs-map-legend { display: none; }
+}
 `;

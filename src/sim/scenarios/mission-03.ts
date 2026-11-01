@@ -9,6 +9,7 @@ import { SnapshotStore } from '../attempt/snapshots';
 import { secondsToTicks } from '../core/time';
 import type { Vec2 } from '../core/vec';
 import { recordedTo } from '../recording/records';
+import type { SoldierState } from '../entities/soldier';
 import type { World } from '../state';
 import { isCrossingSafeUp, type Scenario, type ScriptStep } from './driver';
 import { playLife, type LifeResult } from './lives';
@@ -126,6 +127,129 @@ export const BREACH_AFTER_O: ScriptStep[] = [
   ...BREACH_MINES,
 ];
 
+// ---- [D31] More story pieces (ported from the removed mission-01/02 tests and lives) ----
+
+/** A script predicate; autoplay wraps them in timeouts so a life can't wait forever. */
+type Until = (w: World, me: SoldierState) => boolean;
+const asIs = (u: Until): Until => u;
+
+const minePos = (id: string): Vec2 => MISSION_03.mines!.find((m) => m.id === id)!.position;
+export const m3MineGone = (id: string) => (w: World) =>
+  w.state.mines[(w.map.mines ?? []).findIndex((m) => m.id === id)]?.state === 'detonated';
+/** First-row mine in the middle: walking straight up x = 800 sets it off. */
+export const MINE_MIDDLE = 'm3-mine-1-3';
+/** Third-row mine next to BREACH_MINES' weave (80 from its (560, 3410) waypoint). */
+export const MINE_WEAVE = 'm3-mine-3-2';
+/** North of the gate, south of the mine strip: sees the middle of the strip, triggers nothing. */
+export const MINE_WATCH: Vec2 = { x: 760, y: 3820 };
+/** South of the gate, within reach of its south lever, clear of whoever stands at the lever. */
+export const GATE_SHUT_SPOT: Vec2 = { x: 640, y: 4165 };
+/** Where a later soldier waits for an echo to open the gate (out of everyone's way). */
+const GATE_WAIT: Vec2 = { x: 450, y: 4300 };
+
+/** S2 of the rescue chain: snipes T1 before S1 gets there, then holds 10 s. */
+export const BREACH_RESCUER: ScriptStep[] = [
+  ...BREACH_SNIPE_T1,
+  { kind: 'wait', ticks: secondsToTicks(10), label: 'hold' },
+];
+
+/** From any initial spawn: wait for T1 to go down, then up the west side to wait at the gate. */
+export function breachToGate(guard: (u: Until) => Until = asIs): ScriptStep[] {
+  return [
+    { kind: 'waitUntil', until: guard(m3TurretDown('t1')), label: 'T1 down' },
+    { kind: 'moveTo', to: { x: 300, y: M3.turretLineY - 200 }, label: 'west side, past T1' },
+    { kind: 'moveTo', to: GATE_WAIT, label: 'wait by the gate' },
+  ];
+}
+
+/** West: T1, opens the gate, lingers 8 s, then straight up the middle into the mines (X). */
+export const BREACH_MINE_WALKER: ScriptStep[] = [
+  ...BREACH_SNIPE_T1,
+  ...BREACH_OPEN_GATE,
+  { kind: 'wait', ticks: secondsToTicks(8), label: 'linger' },
+  { kind: 'moveTo', to: { x: 800, y: M3.gateWallY - 100 }, label: 'through the gate' },
+  { kind: 'walkStraight', to: { x: 800, y: M3.rockY[0] - 50 }, label: 'straight up the mines' },
+];
+
+/** Once an echo opens the gate: shoot the middle mine before the mine walker reaches it. */
+export function breachMineClear(guard: (u: Until) => Until = asIs): ScriptStep[] {
+  return [
+    ...breachToGate(guard),
+    { kind: 'waitUntil', until: guard(m3GateOpen), label: 'an echo opens the gate' },
+    { kind: 'moveTo', to: MINE_WATCH, label: 'below the mine strip' },
+    {
+      kind: 'shoot',
+      at: minePos(MINE_MIDDLE),
+      until: m3MineGone(MINE_MIDDLE),
+      label: 'clear the middle mine',
+    },
+    { kind: 'wait', ticks: 60 },
+  ];
+}
+
+/** Once an echo opens the gate: shut it again from the south lever (strands that echo). */
+export function breachGateShut(guard: (u: Until) => Until = asIs): ScriptStep[] {
+  return [
+    ...breachToGate(guard),
+    { kind: 'moveTo', to: GATE_SHUT_SPOT, label: 'next to the lever' },
+    { kind: 'waitUntil', until: guard(m3GateOpen), label: 'an echo opens it' },
+    { kind: 'interact', label: 'shut it' },
+  ];
+}
+
+/**
+ * Make history worse: wait below the mine strip and set off a mine next to `soldierId` while it
+ * weaves through (BREACH_MINES), killing it earlier than its recording.
+ */
+export function breachMineUnder(
+  soldierId = 'S1',
+  mineId = MINE_WEAVE,
+  guard: (u: Until) => Until = asIs,
+): ScriptStep[] {
+  const mine = minePos(mineId);
+  const near: Until = (w) => {
+    const s = w.state.soldiers.find((x) => x.id === soldierId);
+    return !!s && s.alive && Math.hypot(s.x - mine.x, s.y - mine.y) < 85;
+  };
+  return [
+    ...breachToGate(guard),
+    { kind: 'waitUntil', until: guard(m3GateOpen), label: 'an echo opens the gate' },
+    { kind: 'moveTo', to: MINE_WATCH, label: 'below the mine strip' },
+    { kind: 'waitUntil', until: guard(near), label: `wait for ${soldierId} at the mine` },
+    { kind: 'shoot', at: mine, until: m3MineGone(mineId), label: 'set it off' },
+    { kind: 'wait', ticks: 30 },
+  ];
+}
+
+/** Like breach-capture, but lingers 12 s at the gate first (a slow captor). */
+export const BREACH_CAPTURE_SLOW: ScriptStep[] = [
+  ...BREACH_SNIPE_T1,
+  ...BREACH_OPEN_GATE,
+  { kind: 'wait', ticks: secondsToTicks(12), label: 'dawdle' },
+  ...BREACH_MINES,
+  ...BREACH_ROAD,
+  ...BREACH_CAPTURE,
+];
+
+/**
+ * A later soldier behind an echo that handles T1 and the gate: wait for both, then the mines,
+ * the road and the Forward Post (pressing the lever again would shut the echo's open gate).
+ */
+export function breachFollowToForward(guard: (u: Until) => Until = asIs): ScriptStep[] {
+  return [
+    ...breachToGate(guard),
+    { kind: 'waitUntil', until: guard(m3GateOpen), label: 'an echo opens the gate' },
+    ...BREACH_MINES,
+    ...BREACH_ROAD,
+    ...BREACH_CAPTURE,
+  ];
+}
+
+/** East: straight up into T2's range (X within seconds). */
+export const BREACH_NAIVE_EAST: ScriptStep[] = [
+  { kind: 'walkStraight', to: { x: 1140, y: M3.gateWallY + 80 }, label: 'straight up the east' },
+];
+
 const S = (n: number) => secondsToTicks(n);
 
 export const MISSION_03_SCENARIOS: Scenario[] = [
@@ -144,6 +268,14 @@ export const MISSION_03_SCENARIOS: Scenario[] = [
     spawn: 'west',
     steps: [...BREACH_SNIPE_T1, ...BREACH_OPEN_GATE],
     maxTicks: S(40),
+  },
+  {
+    name: 'breach-mines-naive',
+    description: 'West spawn: T1, opens the gate, walks straight up the middle into a mine.',
+    map: MISSION_03,
+    spawn: 'west',
+    steps: BREACH_MINE_WALKER,
+    maxTicks: S(60),
   },
   {
     name: 'breach-capture',
@@ -210,7 +342,7 @@ export function runBreachRescueChain(tuning: Tuning): BreachRescueChain {
     records: a1.records,
     attempt: 2,
     live: { mode: 'new', soldierId: 'S2', spawnPointId: 'west', entryTick: S(2) },
-    steps: [...BREACH_SNIPE_T1, { kind: 'wait', ticks: S(10), label: 'hold' }],
+    steps: BREACH_RESCUER,
     fromTick: 0,
   });
   const s1 = a2.records.find((r) => r.id === 'S1')!;

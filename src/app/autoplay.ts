@@ -1,6 +1,6 @@
 /**
  * Dev autoplay: plays a list of scripted lives through the real game flow, deploying each from
- * the respawn screen as soon as it opens. `?autoplay=road-slow,road-snipe-die` (see
+ * the respawn screen as soon as it opens. `?autoplay=breach-slow,breach-rescue` (see
  * autoplay-lives.ts for names; `name*3` repeats), or `__aoo.autoplay('…')` in the console.
  * Options: `&autowait=1` waits for the scrubber to finish before each deploy; `&fast=1` plays
  * the lives headless (not drawn); `&continue=1` continues the saved mission instead of starting

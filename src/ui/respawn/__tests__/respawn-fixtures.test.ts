@@ -44,11 +44,11 @@ describe('respawn fixtures (built with the real truth model)', () => {
     }
   });
 
-  it('first death: one X, two new options', () => {
+  it('first death: one X, three new options', () => {
     const p = fixture('first-death').props;
     expect(p.lanes).toHaveLength(1);
     expect(p.lanes[0]!.end).toEqual({ kind: 'death', tick: secondsToTicks(41) });
-    expect(p.options.map((o) => o.kind)).toEqual(['new', 'new']);
+    expect(p.options.map((o) => o.kind)).toEqual(['new', 'new', 'new']);
   });
 
   it('rescue: S1 X→O is a change and a resume option', () => {
@@ -88,7 +88,7 @@ describe('respawn fixtures (built with the real truth model)', () => {
   it('twelve: 12 lanes across two spawn points with every end kind we can make', () => {
     const p = fixture('twelve').props;
     expect(p.lanes).toHaveLength(12);
-    expect(new Set(p.soldiers.map((s) => s.spawnPointId))).toEqual(new Set(['road', 'beach']));
+    expect(new Set(p.soldiers.map((s) => s.spawnPointId))).toEqual(new Set(['west', 'east']));
     const kinds = new Set(p.lanes.map((l) => l.end.kind));
     for (const k of ['death', 'open', 'interrupted', 'unresolved']) expect(kinds).toContain(k);
   });
@@ -131,12 +131,13 @@ describe('respawn fixtures (built with the real truth model)', () => {
     expect(f.props.options.some((o) => o.kind === 'resume' && o.soldierId === 'S1')).toBe(true);
   });
 
-  it('empty: no lanes, both spawn points at 0:00', () => {
+  it('empty: no lanes, all three spawn points at 0:00', () => {
     const p = fixture('empty').props;
     expect(p.lanes).toEqual([]);
     expect(p.options).toEqual([
-      { kind: 'new', spawnPointId: 'road', entryTick: 0 },
-      { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'west', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'centre', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'east', entryTick: 0 },
     ]);
   });
 

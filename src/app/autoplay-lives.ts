@@ -1,38 +1,33 @@
 /**
- * Named scripted lives for dev autoplay (`?autoplay=road-slow,road-snipe-die,resume`) and the
- * headless flow tests. Each picks a respawn option and a script from src/sim/scenarios/
- * (`breach-*` lives are for mission-03, the default; `outpost-*` for mission-02; the rest
- * mission-01). `end: 'kill'` dev-kills the soldier when its script runs out, so every
- * life ends without waiting.
+ * Named scripted lives for dev autoplay (`?autoplay=breach-slow,breach-rescue,breach-resume`) and
+ * the headless flow tests. Each picks a respawn option and a script from
+ * src/sim/scenarios/mission-03.ts (mission-03 "Breach" is the only mission, [D31]).
+ * `end: 'kill'` dev-kills the soldier when its script runs out, so every life ends without
+ * waiting.
  */
-import { MISSION_01 } from '../content/maps/mission-01';
 import type { SpawnOption } from '../contracts/mission';
+import type { SoldierState } from '../sim/entities/soldier';
 import { secondsToTicks } from '../sim/core/time';
 import type { ScriptStep } from '../sim/scenarios/driver';
 import {
-  DESTROY_DEPOT,
-  findScenario,
-  ROAD_TO_HIGHWAY,
-  TURRET,
-  turretDestroyed,
-} from '../sim/scenarios/mission-01';
-import {
-  OUTPOST_TO_HQ,
-  ROAD_CAPTURE_OUTPOST,
-  ROAD_CAPTURE_OUTPOST_SLOW,
-} from '../sim/scenarios/mission-02';
-import {
   BREACH_AFTER_O,
   BREACH_CAPTURE,
+  BREACH_CAPTURE_SLOW,
+  BREACH_MINE_WALKER,
   BREACH_MINES,
   BREACH_NAIVE,
+  BREACH_NAIVE_EAST,
   BREACH_NEST_TO_WIN,
   BREACH_OPEN_GATE,
+  BREACH_RESCUER,
   BREACH_ROAD,
   BREACH_SLOW,
   BREACH_SNIPE_T1,
+  breachFollowToForward,
+  breachGateShut,
+  breachMineClear,
+  breachMineUnder,
 } from '../sim/scenarios/mission-03';
-import { S1_ROAD_SLOW, S2_SNIPE_AND_HOLD } from '../sim/scenarios/rescue';
 import { getSoldier } from '../sim/sim';
 import type { World } from '../sim/state';
 import type { ScriptEnd } from './scripted-input';
@@ -46,115 +41,131 @@ export interface AutoLife {
   end: ScriptEnd;
 }
 
-const bridgeGone = (w: World) => w.state.bridges[0]!.state === 'destroyed';
-const gateOpen = (w: World) => w.state.gates[0]!.open;
+type Until = (w: World, me: SoldierState) => boolean;
+
 const soldierIs =
   (id: string, test: (s: NonNullable<ReturnType<typeof getSoldier>>) => boolean) => (w: World) => {
     const s = getSoldier(w, id);
     return !!s && test(s);
   };
-const timeout = (ticks: number, until: (w: World) => boolean) => {
+/** `until`, or give up after `ticks` (so an autoplay life never waits forever). */
+const timeout = (ticks: number, until: Until): Until => {
   let start = -1;
-  return (w: World) => {
+  return (w, me) => {
     if (start < 0) start = w.state.tick;
-    return until(w) || w.state.tick - start >= ticks;
+    return until(w, me) || w.state.tick - start >= ticks;
   };
 };
+const guard40 = (u: Until) => timeout(secondsToTicks(40), u);
 
-const SNIPE: ScriptStep[] = [
-  ...ROAD_TO_HIGHWAY,
-  { kind: 'moveTo', to: { x: 4000, y: 1300 }, label: 'just outside turret range' },
-  { kind: 'shoot', at: TURRET, until: turretDestroyed, label: 'shoot the turret' },
-];
-
-const fromScenario = (name: string): ScriptStep[] => [...(findScenario(name)?.steps ?? [])];
+const idle = (s: number): ScriptStep[] => [{ kind: 'wait', ticks: secondsToTicks(s) }];
 
 export const AUTO_LIVES: AutoLife[] = [
+  // ---- First deaths ----
   {
-    name: 'road-slow',
-    about: 'Road: dawdles past the highway, then walks into the turret (X at ~0:56).',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: S1_ROAD_SLOW,
+    name: 'breach-naive',
+    about: 'Centre: straight up the middle into the first turret line (X at ~0:03).',
+    pick: { kind: 'new', spawnPointId: 'centre' },
+    steps: BREACH_NAIVE,
     end: 'kill',
   },
   {
-    name: 'road-snipe',
-    about: 'Road: snipes the turret from out of range, holds 20 s, then is killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: S2_SNIPE_AND_HOLD,
+    name: 'breach-naive-east',
+    about: 'East: straight up into T2 (X at ~0:03).',
+    pick: { kind: 'new', spawnPointId: 'east' },
+    steps: BREACH_NAIVE_EAST,
     end: 'kill',
   },
   {
-    name: 'road-snipe-die',
-    about: 'Road: snipes the turret, then is killed at once (the scrubber must find the rescue).',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: SNIPE,
+    name: 'breach-snipe',
+    about: 'West: snipes T1 from out of range, opens the gate, holds 2 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_SNIPE_T1, ...BREACH_OPEN_GATE, ...idle(2)],
+    end: 'kill',
+  },
+  // ---- The rescue story: X → rescue → O → resume ----
+  {
+    name: 'breach-slow',
+    about: 'West: dawdles 6 s, then walks past T1 toward the gate (X at ~0:08).',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: BREACH_SLOW,
     end: 'kill',
   },
   {
-    name: 'road-blow-bridge',
-    about: 'Road: blows the road bridge early, then is killed (S1 is cut off: history shifts).',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: [
-      ...ROAD_TO_HIGHWAY,
-      { kind: 'moveTo', to: { x: 2900, y: 1260 }, label: 'west of the chasm' },
-      {
-        kind: 'shoot',
-        at: MISSION_01.bridges![0]!.charge!,
-        until: bridgeGone,
-        label: 'blow the bridge',
-      },
-    ],
+    name: 'breach-rescue',
+    about: 'West: snipes T1 before breach-slow gets there (S1 → O), holds 3 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_SNIPE_T1, ...idle(3)],
     end: 'kill',
   },
   {
-    name: 'bridge-under-s1',
-    about: 'Road: waits west of the chasm, blows the road bridge under S1 (make it worse), killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    // A getter: the timeouts below keep per-play state.
+    name: 'breach-rescue-hold',
+    about: 'West: snipes T1 (S1 → O) and holds 10 s, outliving S1’s old X, then killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: BREACH_RESCUER,
+    end: 'kill',
+  },
+  {
+    name: 'breach-snipe-die',
+    about: 'West: snipes T1, then is killed at once (the scrubber must find the rescue).',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: BREACH_SNIPE_T1,
+    end: 'kill',
+  },
+  {
+    name: 'breach-resume',
+    about: 'Resume the first O, open the gate, mines, road, capture the Forward Post, killed.',
+    pick: { kind: 'resume' },
+    steps: [...BREACH_AFTER_O, ...BREACH_ROAD, ...BREACH_CAPTURE, { kind: 'wait', ticks: 120 }],
+    end: 'kill',
+  },
+  {
+    name: 'breach-resume-win',
+    about: 'Resume the first O and play the rest of Breach in one go (mission complete).',
+    pick: { kind: 'resume' },
+    steps: [...BREACH_AFTER_O, ...BREACH_ROAD, ...BREACH_CAPTURE, ...BREACH_NEST_TO_WIN],
+    end: 'idle',
+  },
+  {
+    name: 'resume-wait',
+    about: 'Resume the first O, stand still 3 s, then is killed.',
+    pick: { kind: 'resume' },
+    steps: idle(3),
+    end: 'kill',
+  },
+  // ---- Mines, gate: interruption, history shifted, make it worse ----
+  {
+    name: 'breach-mine-walker',
+    about: 'West: T1, opens the gate, lingers 8 s, straight up the middle into a mine (X).',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_MINE_WALKER, ...idle(2)],
+    end: 'kill',
+  },
+  {
+    name: 'breach-mine-clear',
+    about: 'West: clears the middle mine before breach-mine-walker gets there (S1 → O), killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
     get steps(): ScriptStep[] {
-      return [
-        ...ROAD_TO_HIGHWAY,
-        { kind: 'moveTo', to: { x: 2900, y: 1260 }, label: 'west of the chasm' },
-        {
-          kind: 'waitUntil',
-          until: timeout(
-            secondsToTicks(40),
-            soldierIs('S1', (s) => s.alive && s.x > 3215 && s.x < 3300 && s.y > 1200 && s.y < 1400),
-          ),
-          label: 'wait for S1 on the bridge',
-        },
-        { kind: 'shoot', at: MISSION_01.bridges![0]!.charge!, until: bridgeGone, label: 'blow it' },
-        { kind: 'wait', ticks: 60 },
-      ];
+      return breachMineClear(guard40); // a getter: the timeouts keep per-play state
     },
     end: 'kill',
   },
   {
-    name: 'gate-walker',
-    about: 'Road: opens the north gate, lingers 12 s, walks through, then is killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: [
-      ...ROAD_TO_HIGHWAY,
-      { kind: 'moveTo', to: { x: 3500, y: 380 }, label: 'to the gate lever' },
-      { kind: 'interact', label: 'open the gate' },
-      { kind: 'wait', ticks: secondsToTicks(12), label: 'linger' },
-      { kind: 'moveTo', to: { x: 4200, y: 400 }, label: 'through the gate' },
-      { kind: 'wait', ticks: secondsToTicks(2) },
-    ],
+    name: 'breach-gate-shut',
+    about: 'West: shuts the gate right after an echo opens it, then is killed at once.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    get steps(): ScriptStep[] {
+      return breachGateShut(guard40);
+    },
     end: 'kill',
   },
   {
-    name: 'gate-closer',
-    about: 'Road: shuts the gate after S1 opens it (S1 freezes with !), waits, then is killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    // A getter: the timeouts below keep per-play state.
+    name: 'breach-gate-closer',
+    about: 'West: shuts the gate after S1 opens it (S1 freezes with !), waits, then is killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
     get steps(): ScriptStep[] {
       return [
-        ...ROAD_TO_HIGHWAY,
-        { kind: 'moveTo', to: { x: 3520, y: 420 }, label: 'next to the lever' },
-        { kind: 'waitUntil', until: timeout(secondsToTicks(20), gateOpen), label: 'S1 opens it' },
-        { kind: 'interact', label: 'shut it' },
+        ...breachGateShut(guard40),
         {
           kind: 'waitUntil',
           until: timeout(
@@ -163,106 +174,25 @@ export const AUTO_LIVES: AutoLife[] = [
           ),
           label: 'S1 freezes',
         },
-        { kind: 'wait', ticks: secondsToTicks(4) },
+        ...idle(4),
       ];
     },
     end: 'kill',
   },
   {
-    name: 'resume',
-    about: 'Resume the first O, walk into the compound and destroy the depot.',
-    pick: { kind: 'resume' },
-    steps: DESTROY_DEPOT,
-    end: 'idle',
-  },
-  {
-    name: 'resume-wait',
-    about: 'Resume the first O, stand still 3 s, then is killed.',
-    pick: { kind: 'resume' },
-    steps: [{ kind: 'wait', ticks: secondsToTicks(3) }],
-    end: 'kill',
-  },
-  {
-    name: 'road-idle',
-    about: 'Road: stands still 3 s, then is killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: [{ kind: 'wait', ticks: secondsToTicks(3) }],
-    end: 'kill',
-  },
-  {
-    name: 'beach-idle',
-    about: 'Beach: stands still 3 s, then is killed.',
-    pick: { kind: 'new', spawnPointId: 'beach' },
-    steps: [{ kind: 'wait', ticks: secondsToTicks(3) }],
-    end: 'kill',
-  },
-  {
-    name: 'road-naive',
-    about: 'Road: walks the road into the turret (X at ~0:46).',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: fromScenario('road-naive'),
-    end: 'kill',
-  },
-  {
-    name: 'road-gate',
-    about: 'Road: north corridor, opens the gate, destroys the depot.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: fromScenario('road-gate'),
-    end: 'idle',
-  },
-  {
-    name: 'beach-naive',
-    about: 'Beach: straight up the mine channel (X to a mine).',
-    pick: { kind: 'new', spawnPointId: 'beach' },
-    steps: fromScenario('beach-naive'),
-    end: 'kill',
-  },
-  {
-    name: 'beach-drawbridge',
-    about: 'Beach: weaves the mines, lowers the drawbridge, destroys the depot.',
-    pick: { kind: 'new', spawnPointId: 'beach' },
-    steps: fromScenario('beach-drawbridge'),
-    end: 'idle',
-  },
-  // ---- mission-03 "Breach" (06-a, the default mission): straight up the map ----
-  {
-    name: 'breach-naive',
-    about: 'Breach Centre: straight up the middle into the first turret line (X at ~0:03).',
+    name: 'breach-mine-under-s1',
+    about:
+      'Centre: sets off a mine next to S1 as it weaves the mine strip (make it worse), killed.',
     pick: { kind: 'new', spawnPointId: 'centre' },
-    steps: BREACH_NAIVE,
+    get steps(): ScriptStep[] {
+      return breachMineUnder('S1', undefined, guard40);
+    },
     end: 'kill',
   },
-  {
-    name: 'breach-snipe',
-    about: 'Breach West: snipes T1 from out of range, opens the gate, holds 2 s, killed.',
-    pick: { kind: 'new', spawnPointId: 'west' },
-    steps: [...BREACH_SNIPE_T1, ...BREACH_OPEN_GATE, { kind: 'wait', ticks: secondsToTicks(2) }],
-    end: 'kill',
-  },
-  {
-    name: 'breach-slow',
-    about: 'Breach West: dawdles 6 s, then walks past T1 toward the gate (X at ~0:08).',
-    pick: { kind: 'new', spawnPointId: 'west' },
-    steps: BREACH_SLOW,
-    end: 'kill',
-  },
-  {
-    name: 'breach-rescue',
-    about: 'Breach West: snipes T1 before breach-slow gets there (S1 → O), holds 3 s, killed.',
-    pick: { kind: 'new', spawnPointId: 'west' },
-    steps: [...BREACH_SNIPE_T1, { kind: 'wait', ticks: secondsToTicks(3) }],
-    end: 'kill',
-  },
-  {
-    name: 'breach-resume',
-    about: 'Breach: resume the first O, open the gate, mines, road, capture the Forward Post.',
-    pick: { kind: 'resume' },
-    steps: [...BREACH_AFTER_O, ...BREACH_ROAD, ...BREACH_CAPTURE, { kind: 'wait', ticks: 120 }],
-    end: 'kill',
-  },
+  // ---- Forward capture ----
   {
     name: 'breach-capture',
-    about: 'Breach West: T1, gate, mines, road; captures the Forward Post (~0:32), killed.',
+    about: 'West: T1, gate, mines, road; captures the Forward Post (~0:32), killed.',
     pick: { kind: 'new', spawnPointId: 'west' },
     steps: [
       ...BREACH_SNIPE_T1,
@@ -270,20 +200,43 @@ export const AUTO_LIVES: AutoLife[] = [
       ...BREACH_MINES,
       ...BREACH_ROAD,
       ...BREACH_CAPTURE,
-      { kind: 'wait', ticks: secondsToTicks(2) },
+      ...idle(2),
     ],
     end: 'kill',
   },
   {
+    name: 'breach-capture-slow',
+    about: 'West: like breach-capture, but dawdles 12 s at the gate first; holds 1 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: [...BREACH_CAPTURE_SLOW, ...idle(1)],
+    end: 'kill',
+  },
+  {
+    name: 'breach-follow-capture',
+    about: 'West: behind S1’s echo (T1, gate), rushes mines, road and the Forward Post; killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    get steps(): ScriptStep[] {
+      return [...breachFollowToForward(guard40), ...idle(2)];
+    },
+    end: 'kill',
+  },
+  {
+    name: 'breach-forward-hold',
+    about: 'Deploys at the captured Forward Post, stands 3 s, killed.',
+    pick: { kind: 'new', spawnPointId: 'forward' },
+    steps: idle(3),
+    end: 'kill',
+  },
+  {
     name: 'breach-win',
-    about: 'Breach: deploys at the Forward Post, snipes T3 and T5, destroys the Command Post.',
+    about: 'Deploys at the Forward Post, snipes T3 and T5, destroys the Command Post.',
     pick: { kind: 'new', spawnPointId: 'forward' },
     steps: BREACH_NEST_TO_WIN,
     end: 'idle',
   },
   {
     name: 'breach-solo',
-    about: 'Breach West: the whole map in one life (capture included), ends the mission.',
+    about: 'West: the whole map in one life (capture included), ends the mission.',
     pick: { kind: 'new', spawnPointId: 'west' },
     steps: [
       ...BREACH_SNIPE_T1,
@@ -295,35 +248,20 @@ export const AUTO_LIVES: AutoLife[] = [
     ],
     end: 'idle',
   },
-  // ---- mission-02 (05-a): capture the Outpost, deploy forward, raise the flag at HQ ----
+  // ---- Idlers ----
   {
-    name: 'outpost-capture',
-    about: 'mission-02 Road: rushes the Outpost and captures it (~0:40), holds 2 s, killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: [...ROAD_CAPTURE_OUTPOST, { kind: 'wait', ticks: secondsToTicks(2) }],
+    name: 'west-idle',
+    about: 'West: stands still 3 s, then is killed.',
+    pick: { kind: 'new', spawnPointId: 'west' },
+    steps: idle(3),
     end: 'kill',
   },
   {
-    name: 'outpost-capture-slow',
-    about: 'mission-02 Road: dawdles 12 s, then captures the Outpost, holds 1 s, killed.',
-    pick: { kind: 'new', spawnPointId: 'road' },
-    steps: [...ROAD_CAPTURE_OUTPOST_SLOW, { kind: 'wait', ticks: secondsToTicks(1) }],
+    name: 'east-idle',
+    about: 'East: stands still 3 s, then is killed.',
+    pick: { kind: 'new', spawnPointId: 'east' },
+    steps: idle(3),
     end: 'kill',
-  },
-  {
-    name: 'outpost-hold',
-    about: 'mission-02: deploys at the captured Outpost, stands 3 s, killed.',
-    pick: { kind: 'new', spawnPointId: 'outpost' },
-    steps: [{ kind: 'wait', ticks: secondsToTicks(3) }],
-    end: 'kill',
-  },
-  {
-    name: 'outpost-hq',
-    about:
-      'mission-02: deploys at the Outpost, snipes the turret, captures the HQ flag (complete).',
-    pick: { kind: 'new', spawnPointId: 'outpost' },
-    steps: OUTPOST_TO_HQ,
-    end: 'idle',
   },
 ];
 
@@ -331,7 +269,7 @@ export function findAutoLife(name: string): AutoLife | undefined {
   return AUTO_LIVES.find((l) => l.name === name);
 }
 
-/** `"road-slow,road-naive*3"` → lives (`*N` repeats). Unknown names are reported in `unknown`. */
+/** `"breach-slow,breach-naive*3"` → lives (`*N` repeats). Unknown names are reported in `unknown`. */
 export function parseAutoplay(spec: string): { lives: AutoLife[]; unknown: string[] } {
   const lives: AutoLife[] = [];
   const unknown: string[] = [];
