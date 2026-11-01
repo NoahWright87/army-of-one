@@ -58,4 +58,24 @@ changes to the mission-complete flow in `src/app/game.ts` / `src/ui/flow/**`.
   camera keeps everyone in frame, zooming in and out sensibly. It works on desktop and phone sizes.
 
 ## Notes from implementation
-_(append here)_
+
+Built (2026-11, in the same branch as 07-c, owner request):
+- `src/app/replay/replay-player.ts`: the replay is an `Attempt` with every record as an echo and
+  no live soldier (`kind: 'resolve'`). Snapshots every 2 s of battle time while playing; seek =
+  nearest snapshot ≤ target + fast-forward (past the played part: fast-forward from the latest).
+  `ReplayInput` is a plain value (`version`, `missionId`, records, `endTick`, `winnerId`).
+- `src/render/director.ts` (pure, tested): framing of points (padding, clamp between whole-map
+  width and `maxZoom`, slight upward lean, clamped to the map), critically damped spring
+  (sub-stepped, no overshoot), key moments held in frame.
+- `src/render/phaser/replay-scene.ts`: steps the player at 1×/2×/4× (×3 in quiet stretches when
+  `results.skipQuiet` is on), draws with the battle renderer, gold ring on the winning soldier.
+- `src/ui/results/`: `results-model.ts` (stats, radar, bests, scrub marks; pure, tested) and
+  `results-screen.ts` (card + bar; collapsed by default on phones). Bests in localStorage
+  (`aoo:bests:<missionId>`).
+- `GameUi.showComplete` got an optional third argument (`CompleteResults`); headless/test UIs
+  ignore it and keep the old card.
+- Not built: accuracy (hits aren't recorded; the replay could count them while it plays),
+  per-moment "dwell" slow-downs, sharing. Sharing needs: export `ReplayInput` with the 03-c
+  segment codec (URL hash for small ones, a file otherwise) and a viewer-only mode that opens
+  the results screen straight from it.
+- Open: [Q23] radar axes, [Q24] framing rules.

@@ -27,6 +27,10 @@ export const GAME_SETTING_IDS = {
   spinnerThresholdMs: 'flow.spinnerThresholdMs',
   /** (06-c) Length of screen transitions / caption pop-ins. */
   transitionMs: 'flow.transitionMs',
+  /** (07-a) Results screen: show the play-style radar ([D18], provisional axes). */
+  resultsRadar: 'results.radar',
+  /** (07-a) After-action replay: fast-forward stretches with no shots or deaths. */
+  replaySkipQuiet: 'results.skipQuiet',
 } as const;
 
 /** (07-b) Controls ([D41]). 'auto' follows the device: touch → touch + auto-aim. */
@@ -163,6 +167,20 @@ export function gameSettingDefs(): SettingDef[] {
       min: 0,
       max: 2000,
       step: 50,
+    },
+    {
+      id: GAME_SETTING_IDS.resultsRadar,
+      group: G,
+      label: str('settings.results.radar'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: GAME_SETTING_IDS.replaySkipQuiet,
+      group: G,
+      label: str('settings.results.skipQuiet'),
+      type: 'boolean',
+      default: true,
     },
     {
       id: GAME_SETTING_IDS.transitionMs,

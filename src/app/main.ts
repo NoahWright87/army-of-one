@@ -48,7 +48,23 @@ import { effectiveTuning, tuningSettingDefs } from '../ui/settings/tuning-settin
 import { Autopilot } from './autoplay';
 import { AUTO_LIVES, parseAutoplay } from './autoplay-lives';
 import { createDefaultSession } from './battle-setup';
-import { GameController, type BattleHost, type GameUi, type RespawnHandle } from './game';
+import {
+  GameController,
+  type BattleHost,
+  type CompleteResults,
+  type GameUi,
+  type RespawnHandle,
+} from './game';
+import { REPLAY_VERSION, ReplayPlayer } from './replay/replay-player';
+import { ReplayScene, type ReplayControls } from '../render/phaser/replay-scene';
+import { ResultsScreen } from '../ui/results/results-screen';
+import {
+  parseBests,
+  radarAxes,
+  resultStats,
+  scrubMarks,
+  updateBests,
+} from '../ui/results/results-model';
 import {
   controlScheme,
   cycleSpeed,
@@ -134,6 +150,7 @@ const busy = new Busy(uiRoot);
 const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
+const results = new ResultsScreen(uiRoot); // (07-a)
 const quickHint = new QuickRedeployHint(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
 // (07-b) Touch controls and auto-aim ([D41]).
@@ -237,6 +254,7 @@ const game = new Phaser.Game({
     ),
     new BattleScene(services),
     new GalleryScene(services),
+    new ReplayScene(services),
   ],
 });
 
@@ -338,10 +356,17 @@ async function startGame(): Promise<void> {
         },
       };
     },
-    showComplete: (stats, onPlayAgain) => complete.show(stats, onPlayAgain),
+    showComplete: (stats, onPlayAgain, extra) => {
+      if (!extra) {
+        complete.show(stats, onPlayAgain);
+        return;
+      }
+      showResults(extra, onPlayAgain);
+    },
     hideScreens: () => {
       title.hide();
       complete.hide();
+      stopReplay();
     },
     // The HUD already shows "Mission complete" over the field; the caption is for KIA.
     showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
@@ -380,13 +405,77 @@ async function startGame(): Promise<void> {
     if (sleepTimer) clearTimeout(sleepTimer);
     sleepTimer = setTimeout(() => {
       sleepTimer = null;
-      if (!pendingRun && !game.scene.isActive('battle')) game.loop.sleep();
+      if (!pendingRun && !game.scene.isActive('battle') && !game.scene.isActive('replay')) {
+        game.loop.sleep();
+      }
     }, 200);
   };
   // Asleep on the title screen too, once the assets are in.
   void assetsReady.then(() => {
     if (!pendingRun && !game.scene.isActive('battle')) sleepLoopSoon();
   });
+  // (07-a) Results screen over the after-action replay ([D42]).
+  const stopReplay = () => {
+    results.hide();
+    if (game.scene.isActive('replay') || game.scene.isPaused('replay')) game.scene.stop('replay');
+    sleepLoopSoon();
+  };
+  const showResults = (r: CompleteResults, onPlayAgain: () => void) => {
+    const m = r.mission;
+    const endTick = (m.completed?.tick ?? 0) + 2 * 60;
+    const stats = resultStats(m, r.rescues, m.completed?.tick ?? 0);
+    const key = `aoo:bests:${m.missionId}`;
+    let prev = parseBests(null);
+    try {
+      prev = parseBests(window.localStorage.getItem(key));
+    } catch {
+      // No storage (private mode): bests just don't persist.
+    }
+    const upd = updateBests(prev, stats);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(upd.bests));
+    } catch {
+      // ignore
+    }
+    const player = new ReplayPlayer(r.map, r.tuning, {
+      version: REPLAY_VERSION,
+      missionId: m.missionId,
+      soldiers: m.soldiers,
+      endTick,
+      ...(m.completed ? { winnerId: m.completed.bySoldierId } : {}),
+    });
+    let controls: ReplayControls | null = null;
+    results.show(
+      {
+        stats,
+        radar: settings.getBool(GAME_SETTING_IDS.resultsRadar) ? radarAxes(stats, m) : null,
+        bests: upd.bests,
+        improved: upd.improved,
+        marks: scrubMarks(m),
+      },
+      {
+        onWatchAgain: () => controls?.restart(),
+        onPlayAgain: () => {
+          stopReplay();
+          onPlayAgain();
+        },
+      },
+    );
+    void assetsReady.then(() => {
+      if (!results.visible) return;
+      wakeLoop();
+      game.scene.start('replay', {
+        player,
+        objectives: (r.map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
+        insets: () => results.insets(),
+        onReady: (c: ReplayControls) => {
+          controls = c;
+          c.setSkipQuiet(settings.getBool(GAME_SETTING_IDS.replaySkipQuiet));
+          results.attach(c);
+        },
+      });
+    });
+  };
   const startScene = (run: LiveRun) => {
     wakeLoop();
     hud.setVisible(true);

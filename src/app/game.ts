@@ -83,6 +83,14 @@ export interface MissionStats {
   attempts: number;
 }
 
+/** (07-a) What the results screen and the after-action replay need ([D42]). */
+export interface CompleteResults {
+  mission: MissionState;
+  tuning: Tuning;
+  map: MapDef;
+  rescues: number;
+}
+
 export interface GameUi {
   showTitle(p: { canContinue: boolean; onNew(): void; onContinue(): void }): void;
   showRespawn(
@@ -90,7 +98,7 @@ export interface GameUi {
     onDeploy: (option: SpawnOption) => void,
     notice: FlowNotice,
   ): RespawnHandle;
-  showComplete(stats: MissionStats, onPlayAgain: () => void): void;
+  showComplete(stats: MissionStats, onPlayAgain: () => void, results?: CompleteResults): void;
   /** Hides the title / mission-complete screens. */
   hideScreens(): void;
   /** Big caption over the battlefield ("KIA" in the death beat); null hides it. */
@@ -811,7 +819,12 @@ export class GameController {
   }
 
   private showComplete(): void {
-    this.a.ui.showComplete(this.stats(), () => void this.playAgain());
+    this.a.ui.showComplete(this.stats(), () => void this.playAgain(), {
+      mission: this.mission,
+      tuning: this.tuning,
+      map: this.a.map,
+      rescues: this.rescues,
+    });
   }
 
   /** Mission complete → "Play again": clears the save, back to the first respawn screen. */

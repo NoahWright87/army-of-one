@@ -165,6 +165,18 @@ revise with justification in a PR).
   the spread and recoil drop sharply and the reticle turns cyan. The bonus only applies when
   firing **across** the cover you're braced on. Moving unmounts at once. No ammo or reloading
   yet (they come later, for every gun).
+- **[D41] Phone controls and auto-aim (PHASE07-b).** Touch devices default to touch controls
+  plus auto-aim; desktop to keyboard/mouse with manual aim. Both are settings (Controls group).
+  Touch: a floating move stick on the left, an aim stick on the right when auto-aim is off
+  (pushed far, it fires), a fire button, an interact button only near a lever, a settings
+  button. Auto-aim picks a target in weapon range with a clear line (a turret winding up on you
+  first, then the nearest), sticks with it, and fires by itself or while you hold fire
+  (setting). What's recorded is still the actual shot ([E1]).
+- **[D42] Results screen with the whole mission replaying (PHASE07-a).** When a mission is won,
+  the stats, a play-style radar and personal bests show over a replay of the whole battle with
+  every life at once. The camera frames every soldier in action and zooms with the group. Play/
+  pause, 1×/2×/4×, a scrub bar marked with deaths, captures, kills and the win, skip to end,
+  Watch again, Play again. Quiet stretches fast-forward (setting).
 - **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
   fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
   an armored slit. A separate playable mission (more missions are coming); Breach stays the
@@ -295,6 +307,18 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   roll); a grenade thrown from right next to cover clears it like a shot fires over it.
   Questions: a sidearm or limited grenades? Fuse from the throw or from landing ("cook" it by
   holding)? Should grenades set off when they hit a soldier?
+- **[Q22] Auto-aim echoes (PHASE07-b).** An auto-aimed life replays its recorded shots like any
+  echo (`echo.autoAimReplay: 'recorded'`, the only value). Design doc §05 floats the
+  alternative: auto-aim echoes re-target whatever is valid now. Not built.
+- **[Q23] Radar axes (PHASE07-a, [D18]).** Provisional, each 0–1: Speed (1 at ≤ 60 s battle
+  time, 0 at ≥ 6 min), Economy (1 soldier → 1, 40+ → 0), Teamwork (rescues per soldier, 1 at ≥
+  0.5), Aggression (hazards destroyed per life, 1 at ≥ 2), Survival (average life, 1 at ≥ 60 s),
+  Tactics (captures + lever uses per life, 1 at ≥ 1). All in `src/ui/results/results-model.ts`;
+  the radar can be turned off (`results.radar`). Redefine as you like.
+- **[Q24] Replay framing (PHASE07-a).** The camera frames soldiers still following their
+  recording (echoes); soldiers who already ended alive (O statics) aren't framed, so it follows
+  the action. Deaths, captures and the win stay in frame for 1.5 s; the objective joins the
+  framing in the last 3 s. A seek is a cut (no glide).
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
