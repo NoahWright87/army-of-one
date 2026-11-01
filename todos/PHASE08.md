@@ -1,10 +1,10 @@
-# PHASE08: Multiplayer snapshot experiment (sketch)
+# PHASE08: Multiplayer snapshot experiment (DEFERRED: "way later", owner, 2026-10)
 
 **Goal:** prove the design doc's §08 model. Players in the same synchronized instance affect each
 other live. A player who respawns starts a new independent instance built from the history
 **snapshot** available at that moment, and does not stream other players' later actions.
 
-**Depends on:** PHASE07 (or at least 06). **Parallel with:** — (split once designed).
+**Depends on:** PHASE07 + PHASE09. **Deferred** until well after the single-player game is fun and content-rich.
 
 ## Direction
 - The architecture so far helps: pure deterministic sim, recordings as data, truth folded from

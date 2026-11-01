@@ -1,13 +1,27 @@
 # Performance: army scale (PHASE05-b)
 
-How many echoes can mission-01 carry? Measured, not guessed. Reproduce with:
+How many echoes can a mission carry? Measured, not guessed. Reproduce with:
 
 ```
-npm run bench -- --map mission-01 --echoes 25,50,100,200,400            # bot lives 30–100 s
-npm run bench -- --map mission-01 --echoes 50,100,200 --life 150,240    # long lives: crowded field
+npm run bench -- --echoes 25,50,100,200,400            # mission-03 (default), bot lives 30–100 s
+npm run bench -- --echoes 50,100,200 --life 150,240    # long lives: crowded field
 npm run bench -- ... --naive                                            # optimizations off
 npm run build && npx vite preview   # then open /?stress=100 (add &dev=1 for the DEV bar)
 ```
+
+> **[D31]: the old mission-01 was removed.** The tables below were measured on it (PHASE05-b,
+> 06-c) and are kept as the reference for the optimizations. mission-03 "Breach", the only
+> mission now, lands in the same range. Same container, seed 1, bot lives 30–100 s, optimized
+> build (`npm run bench -- --echoes 25,50,100,200`):
+>
+> | Army | Peak alive echoes | Live ms/tick (mean / p95) | Resolve ticks/s |
+> |---:|---:|---:|---:|
+> | 50 | 41 | 0.064 / 0.098 | 23.0k |
+> | 100 | 76 | 0.136 / 0.215 | 12.4k |
+> | 200 | 102 | 0.122 / 0.181 | 8.7k |
+>
+> Bots never pull levers, so a Breach bot army stays below the closed gate: a denser field
+> than mission-01's, on a smaller map.
 
 ## Machine notes
 

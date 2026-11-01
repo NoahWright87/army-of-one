@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TEST_RANGE } from '../../../content/maps/test-range';
 import { buildFixture } from '../__fixtures__/respawn-fixtures';
 import {
   isTallMap,
@@ -20,7 +21,7 @@ describe('respawn map (real-recording fixtures)', () => {
   const p = props('map');
   const { grid, known } = revealFor(p);
 
-  it('mission-01: reveals the explored routes, shows X/O and the destroyed turret', () => {
+  it('Breach: reveals the explored routes, shows X/O and the destroyed turret', () => {
     const summary = {
       revealed: Math.round(grid.fraction * 100),
       ends: known.ends.map((e) => `${e.soldierId}:${e.kind}`),
@@ -33,12 +34,13 @@ describe('respawn map (real-recording fixtures)', () => {
     expect(summary.revealed).toBeLessThan(90);
     expect(known.ends.some((e) => e.kind === 'death')).toBe(true);
     expect(known.ends.find((e) => e.soldierId === 'S1')?.kind).toBe('open');
-    expect(known.threats.find((t) => t.id === 'turret-1')).toMatchObject({
+    expect(known.threats.find((t) => t.id === 't1')).toMatchObject({
       kind: 'turret',
       destroyed: expect.objectContaining({ by: expect.any(String) }),
     });
     // Spawns are where the map says; the objective is always known.
-    expect(known.spawns.map((s) => s.id)).toEqual(['road', 'beach']);
+    // (The Forward Post isn't a spawn until it's captured.)
+    expect(known.spawns.map((s) => s.id)).toEqual(['west', 'centre', 'east']);
     expect(known.objectives).toHaveLength(1);
   });
 
@@ -61,20 +63,29 @@ describe('respawn map (real-recording fixtures)', () => {
     for (const m of ms) expect(m.tip.length).toBeGreaterThan(0);
   });
 
-  it('mission-02: the captured Outpost shows as an open forward spawn', () => {
-    const q = props('map-outpost');
+  it('Breach: the captured Forward Post shows as an open forward spawn', () => {
+    const q = props('map-forward');
     const r = revealFor(q);
     const fwd = r.known.spawns.find((s) => s.kind === 'capture');
     expect(fwd).toMatchObject({ open: true });
     const ms = mapMarkers(q, r.known, null);
     expect(ms.find((m) => m.kind === 'spawn' && m.id === fwd!.id)?.select).toBe(`new:${fwd!.id}`);
-    expect(ms.some((m) => m.kind === 'flag')).toBe(true);
+    expect(ms.some((m) => m.kind === 'objective')).toBe(true);
+    // A flag objective ([D17]; mission-02's HQ was one) draws as a flag: make the post one.
+    const flagMap = {
+      ...q.map,
+      id: 'breach-flag',
+      capturePoints: q.map.capturePoints!.map((c) => ({ ...c, objective: true })),
+    };
+    const f = { ...q, map: flagMap };
+    expect(mapMarkers(f, revealFor(f).known, null).some((m) => m.kind === 'flag')).toBe(true);
   });
 
   it('tall strip: a tall layout, spawns at the bottom', () => {
     const q = props('map-tall');
     expect(isTallMap(q.map)).toBe(true);
-    expect(isTallMap(p.map)).toBe(false);
+    expect(isTallMap(p.map)).toBe(true); // Breach is tall too
+    expect(isTallMap(TEST_RANGE)).toBe(false);
     const r = revealFor(q);
     expect(r.known.spawns.every((s) => s.y > q.map.height * 0.9)).toBe(true);
     expect(r.grid.isRevealedAt(700, 5800)).toBe(true);

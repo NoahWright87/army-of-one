@@ -2,7 +2,7 @@
  * Builds a GameController on headless adapters (memory store, manual clock, recording UI,
  * inline resolve, scripted lives). Shared by the flow tests; also handy in a Node REPL.
  */
-import { MISSION_01 } from '../content/maps/mission-01';
+import { MISSION_03 } from '../content/maps/mission-03';
 import { DEFAULT_TUNING, type Tuning } from '../content/tuning';
 import type { SpawnOption } from '../contracts/mission';
 import type { MapDef } from '../sim/world/map';
@@ -39,7 +39,7 @@ export interface HarnessOptions {
   resolveSlice?: number;
   /** Inline resolve: clock delay between slices (0 = a whole pass runs in one `advance`). */
   resolveDelayMs?: number;
-  /** Map to play (default mission-01). */
+  /** Map to play (default mission-03). */
   map?: MapDef;
   /** (06-c) Extra game options (skip the empty respawn screen, spinner threshold, …). */
   options?: Partial<GameOptions>;
@@ -60,7 +60,7 @@ export function createHarness(o: HarnessOptions = {}): Harness {
   };
   const battle = o.battle ? o.battle(clock, input) : new HeadlessBattleHost(clock, input);
   const game = new GameController({
-    map: o.map ?? MISSION_01,
+    map: o.map ?? MISSION_03,
     tuning: () => o.tuning ?? DEFAULT_TUNING,
     store,
     ui,

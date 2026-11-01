@@ -154,7 +154,7 @@ export type GameEvent =
   | { type: 'resolveProgress'; observation: AttemptObservation; done: boolean }
   | { type: 'saved' };
 
-/** Fast-forwards longer than this show the spinner first (≈150 ms at mission-01 speeds). */
+/** Fast-forwards longer than this show the spinner first (≈150 ms as measured on the old, bigger mission-01). */
 const SPINNER_TICKS = 1500;
 /** (06-c) First guess of fast-forward cost (ms per battle tick) before one has been measured. */
 const FF_MS_PER_TICK_GUESS = 0.1;

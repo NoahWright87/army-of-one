@@ -3,14 +3,15 @@
  * life is played by the attempt runner (scripted inputs, echoes replaying earlier lives), and the
  * truth is folded with the real `applyObservation` / `applyCaptureObservation`.
  *
- * - `map`: mission-01. S1 walks the road into the turret; S2 snipes the turret (S1 → O);
- *   S3 dies in the beach minefield; S4 crosses the highway and is killed by traffic or holds.
- * - `map-outpost`: mission-02. S1 captures the Outpost (forward spawn opens); S2 dies on the road.
- * - `map-tall`: a tall, narrow strip (forward = up, like 06-a's mission-03) with three spawns at
- *   the bottom and a turret line ahead.
+ * - `map`: mission-03 "Breach". S1 dawdles and walks into T1; S2 snipes T1 (S1 → O); S3 runs
+ *   up the middle into the turret line; S4 opens the gate and dies in the mine strip.
+ * - `map-forward`: mission-03. S1 captures the Forward Post (forward spawn opens); S2 dies to
+ *   the first turret line.
+ * - `map-tall`: a tall, narrow strip (forward = up, like mission-03) with three spawns at the
+ *   bottom and a turret line ahead.
+ * (`map` and `map-outpost` were on the removed mission-01/02 until [D31].)
  */
-import { MISSION_01 } from '../../../content/maps/mission-01';
-import { MISSION_02 } from '../../../content/maps/mission-02';
+import { MISSION_03 } from '../../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../../content/tuning';
 import type {
   AttemptObservation,
@@ -24,10 +25,17 @@ import type { LiveSpec } from '../../../sim/attempt';
 import { secondsToTicks } from '../../../sim/core/time';
 import type { ScriptStep } from '../../../sim/scenarios/driver';
 import { playLife } from '../../../sim/scenarios/lives';
-import { ROAD_TO_HIGHWAY, TURRET, turretDestroyed } from '../../../sim/scenarios/mission-01';
-import { ROAD_CAPTURE_OUTPOST } from '../../../sim/scenarios/mission-02';
-import { S1_ROAD_SLOW, S2_SNIPE_AND_HOLD } from '../../../sim/scenarios/rescue';
-import { findScenario } from '../../../sim/scenarios/mission-01';
+import {
+  BREACH_CAPTURE,
+  BREACH_MINES,
+  BREACH_NAIVE,
+  BREACH_OPEN_GATE,
+  BREACH_RESCUER,
+  BREACH_ROAD,
+  BREACH_SLOW,
+  BREACH_SNIPE_T1,
+  findBreachScenario,
+} from '../../../sim/scenarios/mission-03';
 import { borderWalls, type MapDef } from '../../../sim/world/map';
 import { applyCaptureObservation } from '../../../timeline/captures';
 import { revealOptions } from '../../../timeline/reveal';
@@ -119,26 +127,28 @@ class RealStory {
   }
 }
 
-const steps = (name: string): ScriptStep[] => [...(findScenario(name)?.steps ?? [])];
+const steps = (name: string): ScriptStep[] => [...(findBreachScenario(name)?.steps ?? [])];
 
-export function mapMission01(): RespawnProps {
-  const s = new RealStory(MISSION_01);
-  s.life('road', S1_ROAD_SLOW);
-  s.life('road', S2_SNIPE_AND_HOLD);
-  s.life('beach', steps('beach-naive'));
-  s.life('road', [
-    ...ROAD_TO_HIGHWAY,
-    { kind: 'moveTo', to: { x: 2600, y: 1000 }, label: 'north of the road' },
-    { kind: 'shoot', at: TURRET, until: turretDestroyed, label: 'shoot the turret' },
-  ]);
+export function mapBreach(): RespawnProps {
+  const s = new RealStory(MISSION_03);
+  s.life('west', BREACH_SLOW);
+  s.life('west', BREACH_RESCUER);
+  s.life('centre', BREACH_NAIVE);
+  s.life('west', steps('breach-mines-naive'));
   s.resolve();
   return s.props();
 }
 
-export function mapOutpost(): RespawnProps {
-  const s = new RealStory(MISSION_02);
-  s.life('road', ROAD_CAPTURE_OUTPOST);
-  s.life('road', steps('road-naive'));
+export function mapForward(): RespawnProps {
+  const s = new RealStory(MISSION_03);
+  s.life('west', [
+    ...BREACH_SNIPE_T1,
+    ...BREACH_OPEN_GATE,
+    ...BREACH_MINES,
+    ...BREACH_ROAD,
+    ...BREACH_CAPTURE,
+  ]);
+  s.life('centre', BREACH_NAIVE);
   s.resolve();
   return s.props();
 }

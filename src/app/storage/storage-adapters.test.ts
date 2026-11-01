@@ -5,14 +5,14 @@ import { syntheticMission } from '../../persistence/__tests__/fixtures';
 import { IndexedDbStore } from './indexeddb-store';
 import { LocalStorageStore } from './local-storage-store';
 
-const keys = missionKeys('mission-01');
+const keys = missionKeys('mission-03');
 
 describe('browser adapters', () => {
   it('IndexedDB store round-trips a mission', async () => {
     const store = await IndexedDbStore.open(indexedDB, `test-${Math.random()}`);
     const state = syntheticMission(3, 120);
-    await new MissionSaver(store, 'mission-01').save(state);
-    expect(await loadMission(store, 'mission-01')).toEqual({ ok: true, state });
+    await new MissionSaver(store, 'mission-03').save(state);
+    expect(await loadMission(store, 'mission-03')).toEqual({ ok: true, state });
     expect((await store.keys(keys.prefix)).length).toBeGreaterThan(0);
   });
 

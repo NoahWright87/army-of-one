@@ -1,5 +1,7 @@
 # PHASE06-a: Linear "straight shot" mission + fast pacing
 
+> **Note ([D31]):** mission-01 and mission-02 were later removed; mission-03 "Breach" is the only mission. The notes below are kept as history; their tests were ported to Breach.
+
 **Goal:** a mission that *is* the game within seconds. You spawn at the bottom of the map and the
 turrets are right there, up ahead. You die, respawn, stack echoes, push upward. Rulings: [D27]
 (one direction, forward = up), [D28] (contact within seconds), plus everything earlier.
