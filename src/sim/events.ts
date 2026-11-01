@@ -21,11 +21,31 @@ export type SimEvent =
   | { kind: 'damaged'; tick: Tick; target: string; amount: number; by?: string }
   | { kind: 'soldierDied'; tick: Tick; id: SoldierId; cause: string; by?: string }
   | { kind: 'hazardDestroyed'; tick: Tick; id: string; by?: string }
-  | { kind: 'mineDetonated'; tick: Tick; id: string; x: number; y: number; radius: number }
+  | {
+      kind: 'mineDetonated';
+      tick: Tick;
+      id: string;
+      x: number;
+      y: number;
+      radius: number;
+      /** (03-a) Who set it off: a shooter's id, another mine's id, or its own id (proximity). */
+      by?: string;
+    }
   | { kind: 'turretWindup'; tick: Tick; id: string; targetId: string }
   | { kind: 'interacted'; tick: Tick; by: SoldierId; targetId: string }
   | { kind: 'gateChanged'; tick: Tick; id: string; open: boolean }
   | { kind: 'bridgeChanged'; tick: Tick; id: string; state: BridgeState }
-  | { kind: 'objectiveDestroyed'; tick: Tick; id: string; by?: string };
+  | { kind: 'objectiveDestroyed'; tick: Tick; id: string; by?: string }
+  /**
+   * (03-a) Debug: an echo skipped a recorded action because it was more than
+   * `tuning.echo.actionTolerance` from the recorded origin (or an interact target was out of reach).
+   */
+  | {
+      kind: 'echoDivergence';
+      tick: Tick;
+      id: SoldierId;
+      action: 'shot' | 'interact';
+      distance: number;
+    };
 
 export type BridgeState = 'down' | 'raising' | 'up' | 'lowering' | 'destroyed';

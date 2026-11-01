@@ -1,4 +1,5 @@
 import type { Tuning } from '../content/tuning';
+import { quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
@@ -26,7 +27,7 @@ import type { SimEvent } from './events';
 import { emit, type World } from './state';
 import { currentSolids } from './world/blockers';
 import { moveCircle } from './world/collision';
-import { validateMap, type MapDef, type SpawnPointId } from './world/map';
+import { validateMap, type MapDef, type Rect, type SpawnPointId } from './world/map';
 import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
 import type { WorldView } from './view';
@@ -66,6 +67,20 @@ export interface SpawnOptions extends SoldierFlags {
   /** Spawn here instead of at the spawn point (e.g. tests, snapshot restores). */
   position?: Vec2;
   facing?: number;
+  /**
+   * (03-a) Explicit id, e.g. a recorded soldier's `SoldierRecord.id`, so ids match across
+   * attempts. Must be `S<n>` and unused; the allocator skips past it so it never collides.
+   */
+  id?: SoldierId;
+  /** (03-a) Explicit ordinal (default: the id's number, or the allocation count). */
+  ordinal?: number;
+}
+
+/** Snaps a soldier's pose to the recording quanta (`contracts/quantize.ts`). */
+export function quantizeSoldier(s: SoldierState): void {
+  s.x = quantizePosition(s.x);
+  s.y = quantizePosition(s.y);
+  s.facing = quantizeFacing(s.facing);
 }
 
 /**
@@ -81,19 +96,30 @@ export function spawnSoldier(
   const point = world.map.spawnPoints.find((p) => p.id === spawnPointId);
   if (!point) throw new Error(`Unknown spawn point ${spawnPointId}`);
   const st = world.state;
-  const id = allocateId(st.ids, 'S');
-  const ordinal = st.ids['S'] ?? 1;
-  st.soldiers.push(
-    createSoldier(
-      id,
-      ordinal,
-      spawnPointId,
-      opts.position ?? point.position,
-      opts.facing ?? point.facing,
-      world.tuning,
-      opts,
-    ),
+  let id: SoldierId;
+  let ordinal: number;
+  if (opts.id !== undefined) {
+    const m = /^S(\d+)$/.exec(opts.id);
+    if (!m) throw new Error(`Soldier id must look like S<n>: ${opts.id}`);
+    if (st.soldiers.some((s) => s.id === opts.id)) throw new Error(`Duplicate soldier ${opts.id}`);
+    id = opts.id;
+    st.ids['S'] = Math.max(st.ids['S'] ?? 0, Number(m[1]));
+    ordinal = opts.ordinal ?? Number(m[1]);
+  } else {
+    id = allocateId(st.ids, 'S');
+    ordinal = opts.ordinal ?? st.ids['S'] ?? 1;
+  }
+  const soldier = createSoldier(
+    id,
+    ordinal,
+    spawnPointId,
+    opts.position ?? point.position,
+    opts.facing ?? point.facing,
+    world.tuning,
+    opts,
   );
+  quantizeSoldier(soldier);
+  st.soldiers.push(soldier);
   st.soldiers.sort((a, b) => compareIds(a.id, b.id));
   emit(world, { kind: 'soldierSpawned', tick: st.tick, id });
   return id;
@@ -114,13 +140,33 @@ export function setSoldierFlags(world: World, id: SoldierId, flags: SoldierFlags
 }
 
 /**
+ * (03-a) Optional extension points inside `step`, used by the echo controller so echoes move and
+ * act at exactly the point in the tick where live soldiers do. That is what makes an unchanged
+ * history replay bit-exactly.
+ */
+export interface StepHooks {
+  /** Moves non-controllable soldiers (echoes), right after live movement, before separation. */
+  moveUncontrolled?(world: World, solids: readonly Rect[]): void;
+  /** After movement + separation + quantization, before any action (recorders read poses here). */
+  afterMovement?(world: World): void;
+  /** Actions of one alive, non-controllable soldier, called in id order alongside live ones. */
+  actUncontrolled?(world: World, s: SoldierState): void;
+}
+
+/**
  * Advances the world exactly one tick and returns that tick's events (also in `state.events` and
  * the event log). Inputs only drive alive, controllable soldiers; missing inputs are idle.
  *
- * Order within a tick: movement → soft separation → soldier actions (interact, fire; id order) →
- * turrets → mines → traffic → bridges → push soldiers out of anything that became solid.
+ * Order within a tick: movement (live, then `hooks.moveUncontrolled`) → soft separation →
+ * quantize poses → `hooks.afterMovement` → soldier actions (interact, fire; echoes via
+ * `hooks.actUncontrolled`; id order) → turrets → mines → traffic → bridges → push soldiers out of
+ * anything that became solid → quantize poses.
  */
-export function step(world: World, inputs: ReadonlyMap<SoldierId, SoldierInput>): SimEvent[] {
+export function step(
+  world: World,
+  inputs: ReadonlyMap<SoldierId, SoldierInput>,
+  hooks: StepHooks = {},
+): SimEvent[] {
   const st = world.state;
   const t = world.tuning;
   world.stepping = true;
@@ -133,10 +179,17 @@ export function step(world: World, inputs: ReadonlyMap<SoldierId, SoldierInput>)
     if (!s.alive || !s.controllable) continue;
     stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
   }
+  hooks.moveUncontrolled?.(world, solids);
   separateSoldiers(st.soldiers, solids, t);
+  for (const s of st.soldiers) if (s.alive) quantizeSoldier(s);
+  hooks.afterMovement?.(world);
 
   for (const s of st.soldiers) {
-    if (!s.alive || !s.controllable) continue;
+    if (!s.alive) continue;
+    if (!s.controllable) {
+      hooks.actUncontrolled?.(world, s);
+      continue;
+    }
     const input = inputs.get(s.id) ?? IDLE_INPUT;
     if (input.interact && !s.interactHeld) interact(world, s);
     s.interactHeld = input.interact;
@@ -155,6 +208,7 @@ export function step(world: World, inputs: ReadonlyMap<SoldierId, SoldierInput>)
     const p = moveCircle(s, { x: 0, y: 0 }, t.soldier.wallRadius, solids);
     s.x = p.x;
     s.y = p.y;
+    quantizeSoldier(s);
   }
 
   world.stepping = false;
@@ -183,7 +237,7 @@ export function getView(world: World): WorldView {
       hp: s.hp,
       maxHp: tuning.soldier.maxHp,
       alive: s.alive,
-      role: s.controllable ? 'live' : s.interactive ? 'echo' : 'static',
+      role: s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static'),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
     })),
@@ -288,4 +342,5 @@ export function getView(world: World): WorldView {
 export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';
 export { fireRifle, trySoldierFire, castRay, hasLineOfSight } from './combat/shots';
 export { interact } from './entities/lever';
+export { isSpawnPointOpen } from './world/spawn-points';
 export { findPath, isWalkable, isSegmentWalkable, pathLength, syncNav } from './world/nav';

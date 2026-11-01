@@ -226,7 +226,12 @@ function heapPop(heap: HeapNode[]): HeapNode | undefined {
  * neighbours open), octile heuristic. Ties break on (f, h, cell index): deterministic.
  * Returns cell indices from start to goal, or null.
  */
-export function findCellPath(nav: NavGrid, start: number, goal: number): number[] | null {
+export function findCellPath(
+  nav: NavGrid,
+  start: number,
+  goal: number,
+  maxCost = Infinity,
+): number[] | null {
   if (!isCellOpen(nav, start) || !isCellOpen(nav, goal)) return null;
   const n = nav.cols * nav.rows;
   const g = new Float64Array(n).fill(Infinity);
@@ -245,6 +250,8 @@ export function findCellPath(nav: NavGrid, start: number, goal: number): number[
   for (let node = heapPop(heap); node; node = heapPop(heap)) {
     const cur = node.i;
     if (closed[cur]) continue;
+    // (03-a) Bounded search: nothing cheaper is left, so the goal is out of budget.
+    if (node.f > maxCost) return null;
     if (cur === goal) {
       const path: number[] = [];
       for (let c = goal; c !== -1; c = parent[c]!) path.push(c);
@@ -294,8 +301,16 @@ function smooth(nav: NavGrid, pts: Vec2[]): Vec2[] {
  * Smoothed walkable path from `from` to `to`, including both endpoints, or null when there is
  * none. A blocked start/goal (e.g. a soldier hugging a wall) snaps to the nearest open cell within
  * `tuning.nav.snapRadiusCells`; the returned path still ends exactly at `to`.
+ *
+ * (03-a) `opts.maxLength` bounds the search: paths longer than that (approximately, in grid
+ * terms) return null, so "can I get there in time?" queries stay cheap on a big map.
  */
-export function findPath(world: World, from: Vec2, to: Vec2): Vec2[] | null {
+export function findPath(
+  world: World,
+  from: Vec2,
+  to: Vec2,
+  opts: { maxLength?: number } = {},
+): Vec2[] | null {
   const nav = syncNav(world);
   const snap = world.tuning.nav.snapRadiusCells;
   const s = nearestOpenCell(nav, from, snap);
@@ -304,7 +319,9 @@ export function findPath(world: World, from: Vec2, to: Vec2): Vec2[] | null {
   const a = { x: from.x, y: from.y };
   const b = { x: to.x, y: to.y };
   if (s === g || isSegmentOpen(nav, a, b)) return [a, b];
-  const cells = findCellPath(nav, s, g);
+  const maxCost =
+    opts.maxLength === undefined ? Infinity : opts.maxLength / nav.cellSize + 2 * SQRT2;
+  const cells = findCellPath(nav, s, g, maxCost);
   if (!cells) return null;
   // Keep the snapped start/goal cell centers when the endpoints themselves sit in closed cells.
   const first = cellIndexAt(nav, a) === s ? 1 : 0;

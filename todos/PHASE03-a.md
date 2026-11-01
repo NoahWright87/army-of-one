@@ -90,50 +90,50 @@ attempt.snapshots: SnapshotStore                // taken every `tuning.snapshotI
   re-simulated. Expose `nearestValidSnapshot(atOrBefore: Tick)`.
 
 ## Tasks
-- [ ] Create `src/contracts/mission.ts` if missing (verbatim from the contract doc).
-- [ ] **Quantize soldier position/facing in sim state every tick** (e.g. position to 1/256 world
+- [x] Create `src/contracts/mission.ts` if missing (verbatim from the contract doc).
+- [x] **Quantize soldier position/facing in sim state every tick** (e.g. position to 1/256 world
   unit, facing to 1/4096 rad; tune). Recordings then hold exact integers, so 03-c can encode them
   losslessly as compact deltas, and a replay after a page reload stays exact.
-- [ ] `recording/recorder.ts` + tests.
-- [ ] `recording/echo-controller.ts`: schedule interpolation, on-schedule kinematic snap,
+- [x] `recording/recorder.ts` + tests.
+- [x] `recording/echo-controller.ts`: schedule interpolation, on-schedule kinematic snap,
   off-schedule pathfinding with "never early" throttling, interruption detection, action replay.
-- [ ] Soldier separation update: kinematic on-schedule echoes per the design above.
-- [ ] `attempt/attempt.ts`, `attempt/observation.ts`, `attempt/snapshots.ts`.
-- [ ] `attempt/resolve.ts`: resolve pass with progress callback + cancellation.
-- [ ] Tuning: `catchUpFactor`, `lateTolerance`, `lateGrace`, `actionTolerance`,
+- [x] Soldier separation update: kinematic on-schedule echoes per the design above.
+- [x] `attempt/attempt.ts`, `attempt/observation.ts`, `attempt/snapshots.ts`.
+- [x] `attempt/resolve.ts`: resolve pass with progress callback + cancellation.
+- [x] Tuning: `catchUpFactor`, `lateTolerance`, `lateGrace`, `actionTolerance`,
   `snapshotIntervalTicks`, `resolveProgressIntervalTicks`. All `// TUNE`.
-- [ ] Extend `WorldView` with soldier `role: 'live' | 'echo' | 'static' | 'interrupted'` and
+- [x] Extend `WorldView` with soldier `role: 'live' | 'echo' | 'static' | 'interrupted'` and
   `leadIn: boolean` (02-b's renderer already has sprites for these).
-- [ ] Extend `tools/sim-cli.ts` with a scenario runner that chains attempts:
+- [x] Extend `tools/sim-cli.ts` with a scenario runner that chains attempts:
   `npm run sim -- --scenario rescue` prints each attempt's observation.
 
 ## Scenario tests (the heart of this phase; all headless, on `mission-01`)
-- [ ] **Exact replay:** attempt 1, S1 scripted along the road and dies at the turret at tick
+- [x] **Exact replay:** attempt 1, S1 scripted along the road and dies at the turret at tick
   `d`. Attempt 2 has S1 as an echo and a live S2 idle far away, out of everyone's LOS (or a test
   hook for "no live soldier"). S1 dies at exactly `d`, and the world hash matches attempt 1 tick
   for tick (excluding S2).
-- [ ] **Rescue → O:** attempt 2, S2 destroys the turret before S1 reaches it, and S2 stays alive
+- [x] **Rescue → O:** attempt 2, S2 destroys the turret before S1 reaches it, and S2 stays alive
   past S1's recording end. S1's fate is `static` at its last recorded tick.
-- [ ] **Resume O:** attempt 3 with `resume S1`. Before `controlFromTick` S1 follows its recording
+- [x] **Resume O:** attempt 3 with `resume S1`. Before `controlFromTick` S1 follows its recording
   with HP floored at 1. After it, S1 obeys scripted input. The new segment is contiguous with the old.
-- [ ] **Ignore O:** attempt 3 with new S3. S1 replays and turns static at its O. Static S1 can't
+- [x] **Ignore O:** attempt 3 with new S3. S1 replays and turns static at its O. Static S1 can't
   be shot and isn't targeted by turrets.
-- [ ] **History made worse:** S3 does something that gets S1 killed earlier. S1's fate is `died`
+- [x] **History made worse:** S3 does something that gets S1 killed earlier. S1's fate is `died`
   earlier than its recording end.
-- [ ] **Interruption:** S1's recording walks through the gate. S2 closes the gate first. S1
+- [x] **Interruption:** S1's recording walks through the gate. S2 closes the gate first. S1
   detours if another route reaches its schedule in time, otherwise it freezes with `interrupted`.
-- [ ] **Never early:** with the obstacle S1 originally sidestepped removed, S1 still arrives at its
+- [x] **Never early:** with the obstacle S1 originally sidestepped removed, S1 still arrives at its
   later waypoints on time (not early).
-- [ ] **Crowd:** live soldier pushes through 10 on-schedule echoes without stopping them. Echoes
+- [x] **Crowd:** live soldier pushes through 10 on-schedule echoes without stopping them. Echoes
   pushed off schedule rejoin it.
-- [ ] **Resolve pass:** S2 dies at 0:30 after destroying the turret. A resolve from 0:30 shows S1
+- [x] **Resolve pass:** S2 dies at 0:30 after destroying the turret. A resolve from 0:30 shows S1
   (recorded to 0:50) turning static at 0:50. Progress callbacks are monotonic. Cancelling stops
   it promptly.
-- [ ] **Interrupted stays frozen:** after S1 freezes at a closed gate, reopening the gate doesn't
+- [x] **Interrupted stays frozen:** after S1 freezes at a closed gate, reopening the gate doesn't
   revive its schedule. S1 can still be killed.
-- [ ] **Snapshot equivalence:** running from a snapshot at tick s gives the same hash at tick
+- [x] **Snapshot equivalence:** running from a snapshot at tick s gives the same hash at tick
   s+k as running from tick 0.
-- [ ] **Chain of 20 attempts** with scripted bot lives completes headless in well under a second.
+- [x] **Chain of 20 attempts** with scripted bot lives completes headless in well under a second.
   Report ticks/sec in the CLI.
 
 ## Acceptance
@@ -141,4 +141,134 @@ attempt.snapshots: SnapshotStore                // taken every `tuning.snapshotI
 - `npm run sim -- --scenario rescue` demonstrates the full X → rescue → O → resume chain headless.
 
 ## Notes from implementation
-_(append here)_
+
+### Layout
+- `src/sim/recording/`: `schedule.ts` (a record's segments flattened into one waypoint list,
+  O(1) per-tick lookup, interpolation for future sparse waypoints, `validateRecord`),
+  `recorder.ts` (`Recorder`), `echo-controller.ts` (`EchoController`, plain-data
+  `EchoControllerState`), `records.ts` (`addSegment`, `recordedTo`, `nextSoldierId`).
+- `src/sim/attempt/`: `attempt.ts` (`Attempt` / `startAttempt`), `observation.ts`
+  (`ObservationBuilder`, `MARKER_STRING_KEYS`), `snapshots.ts` (`SnapshotStore`, `WorldSnapshot`),
+  `resolve.ts` (`Resolve` / `startResolve`), `outcome-hash.ts` (`outcomeHash`, hashes what
+  happened and ignores live/echo flags), `index.ts` (the public API).
+- `src/sim/scenarios/lives.ts`: `playLife()` runs one scripted attempt through the runner.
+  `rescue.ts` has the X → rescue → O → resume chain, and `chain.ts` has the 20-attempt bot chain
+  and `recordMarchers` (benchmark).
+
+### Additive sim changes
+- **Quantization:** `step` snaps every alive soldier's x/y/facing (`quantizeSoldier`) after
+  movement + separation, and again after the end-of-tick push-out. `spawnSoldier` quantizes the
+  spawn pose. So live soldiers and echoes see identical numbers. One PHASE02 test tolerance moved
+  by one quantum.
+- **`step(world, inputs, hooks?)`** with `StepHooks`: `moveUncontrolled` (right after live
+  movement, before separation), `afterMovement` (after separation and quantization, before
+  actions; the recorder reads the live pose here), and `actUncontrolled` (called for each
+  non-controllable soldier inside the id-ordered action loop). Echoes therefore move and act at
+  exactly the points where live soldiers do, which is what makes unchanged history replay
+  bit-exactly.
+- `SpawnOptions.id` / `ordinal`: explicit `S<n>` ids. The allocator is bumped past the id, so ids
+  never collide.
+- `SoldierState.viewRole?: 'live' | 'interrupted'`. `getView` uses it for `role`, so the lead-in
+  shows as live with `leadIn: true` and frozen echoes show as `interrupted`.
+- `world/spawn-points.ts`: `isSpawnPointOpen(world, pointId, tick)` ([D26] hook; true for any
+  known point; PHASE05-a fills it in).
+- `findPath(world, from, to, { maxLength })`: a bounded A* (prunes at f > budget), so "can I get
+  there in time?" queries stay cheap.
+- Events: `echoDivergence {id, action, distance}` (debug) and `mineDetonated.by?`.
+- `scenarios/driver.ts`: `createScriptDriver(steps)` was extracted (`runScenario` uses it and is
+  unchanged in behaviour). The mission-01 script fragments are now exported.
+
+### Tick conventions (important for PHASE04)
+- **New soldier, entry E:** spawned between steps when the world is at tick E. Its first
+  waypoint (t = E) is the spawn pose. Input acts from the step that produces E+1, so
+  `controlFromTick = E+1`.
+- **Resume, O tick e** (= `recordedTo`): it follows its recording through e. Input acts from e+1,
+  and the new segment starts at e+1, contiguous with the old one. `controlFromTick` may be passed
+  as e (03-b's `resumeTick`) or as e+1; both mean the same.
+- An echo whose last recorded tick is e turns static between steps right after tick e; its fate
+  is `static @ e`.
+
+### API for PHASE04
+```ts
+import { startAttempt, startResolve, SnapshotStore, addSegment } from 'src/sim/attempt';
+const store = new SnapshotStore();                         // one per mission, in memory
+const snap = store.nearestValidSnapshot(leadInFromTick);   // null → { kind: 'start' }
+const a = startAttempt({ map, tuning, soldiers, attempt, snapshots: store,
+  from: snap ? { kind: 'snapshot', snapshot: snap } : { kind: 'start' },
+  live: { mode: 'new', soldierId, spawnPointId, entryTick }    // or
+     // { mode: 'resume', soldierId, controlFromTick }
+});
+a.step(input)          // → { tick, events, controlled, leadInTicksLeft, over }
+a.leadInTicksLeft()    // countdown; 0 ⇒ the next step honors input. a.inLeadIn(), a.inControl
+a.runHeadless(untilTick | pred, inputFn?)  // fast-forward (e.g. snapshot → lead-in start)
+a.view()               // WorldView;  a.world is readable;  a.historyShifted → bounce ([D23])
+a.isOver() / a.overReason()   // 'death' | 'missionComplete' | 'historyShifted' | null
+const { observation, liveSegment, historyShifted, endSnapshot } = a.finish(endReason?);
+soldiers = addSegment(soldiers, { soldierId, spawnPointId }, liveSegment);
+const r = startResolve({ map, tuning, soldiers, attempt, snapshots: store,
+  from: { kind: 'snapshot', snapshot: endSnapshot }, onProgress });
+while (!r.done) r.advance(600);   // per frame / worker message; r.cancel() on deploy
+```
+- `finish()` commits the attempt's snapshots (every `snapshotIntervalTicks`, plus start and end)
+  to the store. The store's validity rules are in `snapshots.ts`. `abandon()` discards them.
+- `historyShifted` is `{ tick, reason: 'leadInInterrupted' | 'leadInLost' | 'spawnPointLost' }`.
+  It means the chosen deployment became impossible during the fast-forward or lead-in.
+  `liveSegment` is null if control never began.
+- For autosave ([D6]), use `Recorder.segment('suspended')` (via the attempt's recorder; expose
+  it if needed) or just `finish('suspended')`.
+- Marker string keys: `marker.spawn|death|damaged|kill|hazardDestroyed|interact|objective|
+  interrupted|open` (`MARKER_STRING_KEYS`). `strings.ts` doesn't exist on this branch, so 02-b
+  adds the copy. `kill` = a turret destroyed by a soldier. `hazardDestroyed` = a vehicle, a bridge
+  charge or a mine shot by a soldier. `damaged` = one per soldier per tick. Interrupt reasons:
+  `'late' | 'noPath'`. Never-spawned reasons: `'spawnPointLost' | 'notSpawned'`.
+
+### Echo behaviour (as designed; see the header of `echo-controller.ts`)
+- **Snap test** (every tick, cheap): if the scheduled pose is within `snapDistance` and a
+  `moveCircle` toward it ends within `blockEpsilon`, the echo snaps there and is kinematic. On
+  schedule there is no pathfinding at all.
+- **Off schedule:** a bounded `findPath` to the pose `lookaheadSeconds` ahead, replanned every
+  `replanSeconds`. Speed is `min(remaining / ticksLeft, speed × catchUpFactor)`. Lag is
+  `ceil(remaining / maxStep) - ticksLeft`. Being more than `lateToleranceSeconds` late, or having
+  no path within budget, for `lateGraceSeconds` → interrupted.
+  **Deviation:** "no path" uses the same grace as lateness rather than interrupting instantly,
+  so a momentary blockage (e.g. a wreck being pushed) doesn't freeze an echo.
+- A knocked-off echo walks back at a pace set by the lookahead target, so it takes about
+  `lookaheadSeconds` to rejoin, even when it's standing still.
+- Interrupted echoes are kinematic, interactive and killable, with `viewRole: 'interrupted'`.
+- Static echoes have `interactive = false` and kinematic.
+- The lead-in sets `minHp = 1` and `viewRole: 'live'`. At hand-over the soldier becomes
+  controllable, with `minHp` 0 and `interactHeld` false. HP lost in the lead-in carries over (it
+  can start at 1 HP).
+- The constructor rebuilds controller state from snapshots: restored states are used as they
+  are; a soldier present without state (the snapshot attempt's live soldier) is set to
+  `following`; absent and due in the future → `pending`; absent and past due → `neverSpawned`.
+
+### Tuning added (`tuning.echo.*`, `tuning.attempt.*`, all `// TUNE`)
+`catchUpFactor 1.25`, `snapDistance 4`, `blockEpsilon 0.05`, `lookaheadSeconds 0.5`,
+`replanSeconds 0.25`, `lateToleranceSeconds 0.75`, `lateGraceSeconds 1`, `actionTolerance 12`,
+`replayInteract 'toggle'` (design option, [Q8]), `snapshotIntervalTicks 60`,
+`resolveProgressIntervalTicks 60`.
+
+### Contract
+- Additive: `RecordedAction` interact gained `on?: boolean` (the lever state after the original
+  press; used by `replayInteract: 'restoreState'`). `quantize.ts` is unchanged.
+
+### Tests (34 new, 114 total)
+`recording.test.ts` (recorder, schedules, records, SnapshotStore, explicit ids),
+`echoes-mission01.test.ts` (exact replay tick for tick, with an idle far-away live soldier and
+with no live soldier; exact echo shots; X → rescue → O; resume with the lead-in HP floor and
+ignored early input; ignore O; history made worse via a bridge collapse; gate interruption,
+frozen for good and still killable; resolve with monotonic progress and cancel; snapshot
+equivalence including an off-schedule echo with a planned path), and `echoes-arena.test.ts`
+(detour in time vs interruption, never early with and without a shove, a crowd of 10, static vs
+turret, action tolerance, replayInteract modes, and the 20-attempt chain with a 1.5 s timeout).
+
+### Perf (this container, Node)
+- `npm run sim -- --scenario rescue`: 3 attempts, 8.4k ticks in ~620 ms including JIT warm-up
+  (~13.6k ticks/s).
+- `--scenario chain`: 20 attempts from snapshots, 8.7k ticks in ~520 ms (~16.8k ticks/s).
+- `--scenario bench`: 20 echoes marching across mission-01 from 0:00: **~19.5k ticks/s**
+  (~325× real time).
+- The remaining cost is PHASE02's turret LOS rays and per-call `dynamicBlockers`.
+  `findCellPath` still allocates its full-grid arrays per call (only off-schedule echoes call
+  it); reusing those buffers is a 05-b item.

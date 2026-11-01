@@ -3,6 +3,7 @@
  *   npm run sim -- --ticks 3600                              # test-range, walk in a square
  *   npm run sim -- --map mission-01 --script road-naive      # scripted scenario, prints events
  *   npm run sim -- --map mission-01 --list                   # list scenarios
+ *   npm run sim -- --scenario rescue|chain|bench             # PHASE03-a echoes (sim-echoes.ts)
  * Flags: --quiet (no per-event lines), --all-events (include every shot/damage event).
  */
 import { DEFAULT_TUNING } from '../src/content/tuning';
@@ -16,12 +17,21 @@ import type { SimEvent } from '../src/sim/events';
 import { runScenario } from '../src/sim/scenarios/driver';
 import { MISSION_01_SCENARIOS } from '../src/sim/scenarios/mission-01';
 import type { MapDef } from '../src/sim/world/map';
+import { runEchoScenario } from './sim-echoes';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : fallback;
 }
 const flag = (name: string) => process.argv.includes(`--${name}`);
+
+if (process.argv.includes('--scenario')) {
+  runEchoScenario(arg('scenario', ''), {
+    json: flag('json'),
+    echoes: Number(arg('echoes', '20')),
+  });
+  process.exit(0);
+}
 
 const MAPS: Record<string, MapDef> = { 'test-range': TEST_RANGE, 'mission-01': MISSION_01 };
 const SCENARIOS = { 'mission-01': MISSION_01_SCENARIOS } as Record<

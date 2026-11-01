@@ -93,6 +93,7 @@ npm run format            # Prettier write
 npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md from the manifest
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --map mission-01 --script road-naive  # scripted scenario, prints events (--list)
+npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 ```
 
 In the browser: `/?scene=gallery` renders every entity/soldier state from a fixture (visual test

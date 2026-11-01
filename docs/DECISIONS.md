@@ -156,3 +156,13 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q7] Is traffic already running at battle start (PHASE02-a)?** `tuning.vehicle.prewarm`:
   `true` (default: lanes start full, as if traffic had always run) or `false` (empty road at 0:00,
   first vehicle enters at each lane's offset).
+- **[Q8] How does an echo replay a lever press (PHASE03-a)?** `tuning.echo.replayInteract`:
+  `'toggle'` (default: it presses the lever again, so if a later soldier already opened the gate,
+  the echo's replayed press *closes* it, possibly blocking itself) or `'restoreState'` (it only
+  presses if that brings the gate/bridge to the state its original press produced; an
+  already-open gate stays open).
+- **[Q9] Lead-in protection in later replays (PHASE03-a).** During a resume lead-in the soldier
+  can't drop below 1 HP ([D5]). When that life later replays as an echo there's no floor, so a
+  hit the lead-in absorbed can kill the echo in a later attempt. Currently: no floor for echoes
+  (damage is always simulated, [E3]). Alternative: echoes keep `minHp = 1` over their recorded
+  lead-in windows.
