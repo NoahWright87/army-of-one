@@ -122,7 +122,7 @@ export const timeoutScheduler: SliceSchedulerFactory = (delayMs) => (run) => {
 
 /**
  * Time-sliced resolve on the calling thread. Each slice runs `ticksPerSlice` ticks (≈ a few ms
- * at mission-01 speeds), then yields through `schedule`.
+ * as measured on the old, bigger mission-01), then yields through `schedule`.
  */
 export function createInlineResolveRunner(
   scheduler: SliceSchedulerFactory = timeoutScheduler,

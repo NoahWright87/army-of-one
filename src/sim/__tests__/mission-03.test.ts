@@ -1,6 +1,6 @@
 /** (06-a) mission-03 "Breach": layout rules ([D27], [D28]), scripted lives, echoes, bots. */
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MISSION, MISSIONS, missionOrDefault } from '../../content/maps';
+import { DEFAULT_MISSION, findMap, MISSIONS, missionOrDefault } from '../../content/maps';
 import { M3, MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { outcomeHash } from '../attempt/outcome-hash';
@@ -18,10 +18,22 @@ import {
   BREACH_ROAD,
   BREACH_SNIPE_T1,
   findBreachScenario,
+  MISSION_03_SCENARIOS,
   runBreachRescueChain,
   SHOOT_COMMAND,
 } from '../scenarios/mission-03';
-import { createWorld, findPath, getSoldier, pathLength, type World } from '../sim';
+import type { SoldierInput } from '../entities/soldier';
+import {
+  createWorld,
+  findPath,
+  getSoldier,
+  getView,
+  pathLength,
+  recentEvents,
+  spawnSoldier,
+  step,
+  type World,
+} from '../sim';
 import { isSpawnPointOpen } from '../world/spawn-points';
 
 const T = DEFAULT_TUNING;
@@ -46,12 +58,27 @@ const forwardTick = (w: World) =>
   w.state.capturePoints.find((c) => c.id === 'cp-forward')!.capturedTick;
 
 describe('mission-03 layout', () => {
-  it('is the default mission; the others stay selectable', () => {
+  it('is the only mission ([D31]); anything else falls back to it', () => {
     expect(DEFAULT_MISSION.id).toBe('mission-03');
+    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03']);
     expect(missionOrDefault(null).id).toBe('mission-03');
     expect(missionOrDefault('nonsense').id).toBe('mission-03');
-    expect(missionOrDefault('mission-01').id).toBe('mission-01');
-    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03', 'mission-01', 'mission-02']);
+    // Removed missions (a remembered pick, an old link) fall back too.
+    expect(missionOrDefault('mission-01').id).toBe('mission-03');
+    expect(missionOrDefault('mission-02').id).toBe('mission-03');
+    expect(findMap('mission-01')).toBeUndefined();
+    expect(findMap('test-range')).toBeDefined();
+  });
+
+  it('has every entity type (it is the template mission)', () => {
+    expect(MISSION_03.turrets!.length).toBeGreaterThan(0);
+    expect(MISSION_03.mines!.length).toBeGreaterThan(0);
+    expect(MISSION_03.trafficLanes!.length).toBeGreaterThan(0);
+    expect(MISSION_03.gates!.length).toBeGreaterThan(0);
+    expect(MISSION_03.levers!.length).toBeGreaterThan(0);
+    expect(MISSION_03.bridges!.some((b) => b.kind === 'draw')).toBe(true);
+    expect(MISSION_03.capturePoints!.length).toBeGreaterThan(0);
+    expect(MISSION_03.objectives).toHaveLength(1);
   });
 
   it('is tall and narrow: spawns at the bottom facing up, the objective at the top', () => {
@@ -162,6 +189,21 @@ describe('mission-03 scripted lives', () => {
     expect(win.completed).toBe(true);
     expect(win.world.state.missionComplete).toMatchObject({ by: win.soldierId });
     expect(ticksToSeconds(win.world.state.missionComplete!.tick)).toBeLessThan(60);
+    // (ported from mission-01's beach-drawbridge) It weaved the mines without setting any off,
+    // lowered the drawbridge and opened the gate on the way.
+    expect(win.world.state.mines.every((m) => m.state === 'idle')).toBe(true);
+    expect(win.world.state.bridges[0]!.state).toBe('down');
+    expect(win.world.state.gates[0]!.open).toBe(true);
+    expect(getSoldier(win.world, win.soldierId)!.hp).toBe(T.soldier.maxHp);
+  });
+
+  it('breach-mines-naive: straight up the middle of the mine strip dies to a mine', () => {
+    const res = runScenario(scenario('breach-mines-naive'), T);
+    expect(getSoldier(res.world, res.soldierId)).toMatchObject({
+      alive: false,
+      deathCause: 'mine',
+    });
+    expect(res.world.state.gates[0]!.open).toBe(true);
   });
 
   it('is deterministic: the same script twice gives the same hash every 60 ticks', () => {
@@ -175,6 +217,81 @@ describe('mission-03 scripted lives', () => {
     const a = run();
     expect(a.length).toBeGreaterThan(30);
     expect(run()).toEqual(a);
+  });
+
+  it.each(MISSION_03_SCENARIOS.map((s) => s.name))(
+    '%s is deterministic: identical hash every tick across two runs',
+    (name) => {
+      const hashes: string[] = [];
+      runScenario(scenario(name), T, (w) => hashes.push(hashState(w.state)));
+      let i = 0;
+      runScenario(scenario(name), T, (w) => {
+        expect(hashState(w.state), `tick ${w.state.tick}`).toBe(hashes[i]);
+        i++;
+      });
+      expect(i).toBe(hashes.length);
+    },
+  );
+});
+
+describe('mission-03 world (ported from mission-01)', () => {
+  /** A live soldier walking up and firing, plus traffic and turrets: exercises most of the state. */
+  const input = (t: number): SoldierInput => ({
+    move: { x: t % 400 < 200 ? 0.3 : -0.3, y: -1 },
+    aim: t * 0.01,
+    fire: t % 30 === 0,
+    interact: t % 50 === 0,
+  });
+
+  it('state survives structuredClone: a restored snapshot continues identically', () => {
+    const a = createWorld(MISSION_03, T);
+    const id = spawnSoldier(a, 'west');
+    for (let t = 0; t < 120; t++) step(a, new Map([[id, input(t)]]));
+    const b = createWorld(MISSION_03, T);
+    b.state = structuredClone(a.state);
+    expect(hashState(b.state)).toBe(hashState(a.state));
+    // Into the turret line: shots, damage and (likely) a death all continue identically.
+    for (let t = 120; t < 600; t++) {
+      step(a, new Map([[id, input(t)]]));
+      step(b, new Map([[id, input(t)]]));
+      expect(hashState(b.state)).toBe(hashState(a.state));
+    }
+  });
+
+  it('getView exposes every entity from real state', () => {
+    const w = createWorld(MISSION_03, T);
+    spawnSoldier(w, 'west');
+    spawnSoldier(w, 'east');
+    step(w, new Map());
+    const v = getView(w);
+    expect(v.soldiers).toHaveLength(2);
+    expect(v.turrets).toHaveLength(MISSION_03.turrets!.length);
+    expect(v.mines).toHaveLength(MISSION_03.mines!.length);
+    expect(v.vehicles.length).toBeGreaterThan(0); // prewarmed traffic
+    expect(v.gates).toEqual([expect.objectContaining({ id: 'm3-gate', open: false })]);
+    expect(v.levers.map((l) => l.on)).toEqual([false, false, false, false]);
+    expect(v.bridges.map((b) => [b.id, b.state, b.raised])).toEqual([['m3-drawbridge', 'up', 1]]);
+    expect(v.capturePoints.map((c) => [c.id, c.stage])).toEqual([['cp-forward', 'enemy']]);
+    expect(v.objectives[0]).toMatchObject({ id: 'm3-command', destroyed: false });
+    expect(v.missionComplete).toBeNull();
+    expect(v.events.map((e) => e.kind)).toEqual(['soldierSpawned', 'soldierSpawned']);
+    // The view is a copy: mutating it doesn't touch the sim.
+    v.soldiers[0]!.x = -1;
+    expect(getSoldier(w, 'S1')!.x).not.toBe(-1);
+  });
+
+  it('keeps recent events in a ring buffer', () => {
+    const w = createWorld(MISSION_03, { ...T, eventLogCapacity: 5 });
+    const id = spawnSoldier(w, 'west');
+    for (let t = 0; t < secondsToTicks(3); t++) {
+      step(w, new Map([[id, { move: { x: 0, y: 0 }, aim: 0, fire: true, interact: false }]]));
+    }
+    const log = recentEvents(w);
+    expect(log).toHaveLength(5);
+    expect(log.every((e, i) => i === 0 || e.tick >= log[i - 1]!.tick)).toBe(true);
+    // Newest last: the most recent shot (one every rifle cooldown).
+    expect(log[log.length - 1]!.tick).toBeGreaterThan(w.state.tick - 10);
+    expect(log[0]!.tick).toBeGreaterThan(0);
   });
 });
 

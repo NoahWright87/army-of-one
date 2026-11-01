@@ -10,7 +10,7 @@ import {
   type FlowState,
 } from './flow';
 
-const road: SpawnOption = { kind: 'new', spawnPointId: 'road', entryTick: 0 };
+const west: SpawnOption = { kind: 'new', spawnPointId: 'west', entryTick: 0 };
 const resume: SpawnOption = {
   kind: 'resume',
   soldierId: 'S1',
@@ -29,7 +29,7 @@ describe('game flow state machine', () => {
     for (const e of [
       { type: 'loaded', hasSave: false },
       { type: 'newMission' },
-      { type: 'deploy', option: road },
+      { type: 'deploy', option: west },
       { type: 'prepared' },
       { type: 'controlStarted' },
       { type: 'attemptEnded', reason: 'death' },
@@ -54,7 +54,7 @@ describe('game flow state machine', () => {
     const s = run([
       { type: 'loaded', hasSave: false },
       { type: 'newMission' },
-      { type: 'deploy', option: road },
+      { type: 'deploy', option: west },
       { type: 'prepared' },
       { type: 'controlStarted' },
       { type: 'attemptEnded', reason: 'missionComplete' },
@@ -93,19 +93,19 @@ describe('game flow state machine', () => {
   });
 
   it('rejects events that make no sense', () => {
-    expect(() => transition(INITIAL_FLOW, { type: 'deploy', option: road })).toThrow(FlowError);
+    expect(() => transition(INITIAL_FLOW, { type: 'deploy', option: west })).toThrow(FlowError);
     const title = run([{ type: 'loaded', hasSave: false }]);
     expect(() => transition(title, { type: 'continue', completed: false })).toThrow(FlowError);
     const live = run(
       [
         { type: 'newMission' },
-        { type: 'deploy', option: road },
+        { type: 'deploy', option: west },
         { type: 'prepared' },
         { type: 'controlStarted' },
       ],
       title,
     );
-    expect(() => transition(live, { type: 'deploy', option: road })).toThrow(FlowError);
+    expect(() => transition(live, { type: 'deploy', option: west })).toThrow(FlowError);
     expect(() => transition(live, { type: 'beatDone' })).toThrow(FlowError);
   });
 
@@ -113,14 +113,14 @@ describe('game flow state machine', () => {
     const live = run([
       { type: 'loaded', hasSave: false },
       { type: 'newMission' },
-      { type: 'deploy', option: road },
+      { type: 'deploy', option: west },
       { type: 'prepared' },
     ]);
     expect(transition(live, { type: 'reset' })).toEqual({ kind: 'respawn', notice: null });
   });
 
   it('inBattle covers lead-in, live and the death beat', () => {
-    expect(inBattle({ kind: 'leadIn', option: road })).toBe(true);
+    expect(inBattle({ kind: 'leadIn', option: west })).toBe(true);
     expect(inBattle({ kind: 'deathBeat', next: 'respawn' })).toBe(true);
     expect(inBattle({ kind: 'respawn', notice: null })).toBe(false);
   });
@@ -128,21 +128,21 @@ describe('game flow state machine', () => {
 
 describe('autoplay specs', () => {
   it('parses names and repeats', () => {
-    const { lives, unknown } = parseAutoplay('road-slow, road-naive*3,nope');
+    const { lives, unknown } = parseAutoplay('breach-slow, breach-naive*3,nope');
     expect(lives.map((l) => l.name)).toEqual([
-      'road-slow',
-      'road-naive',
-      'road-naive',
-      'road-naive',
+      'breach-slow',
+      'breach-naive',
+      'breach-naive',
+      'breach-naive',
     ]);
     expect(unknown).toEqual(['nope']);
   });
 
   it('picks options', () => {
-    const [slow] = parseAutoplay('road-slow').lives;
-    const [res] = parseAutoplay('resume').lives;
-    expect(pickOption(slow!, [road, resume])).toBe(road);
-    expect(pickOption(res!, [road, resume])).toBe(resume);
-    expect(pickOption(res!, [road])).toBeNull();
+    const [slow] = parseAutoplay('breach-slow').lives;
+    const [res] = parseAutoplay('breach-resume').lives;
+    expect(pickOption(slow!, [west, resume])).toBe(west);
+    expect(pickOption(res!, [west, resume])).toBe(resume);
+    expect(pickOption(res!, [west])).toBeNull();
   });
 });

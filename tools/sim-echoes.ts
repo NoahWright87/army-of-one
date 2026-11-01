@@ -1,19 +1,18 @@
 /**
  * PHASE03-a scenario runners for the sim CLI:
- *   npm run sim -- --scenario rescue   # X → rescue → O → resume chain; prints each observation
- *   npm run sim -- --scenario breach-rescue   # (06-a) the same story on mission-03
+ *   npm run sim -- --scenario rescue   # X → rescue → O → resume chain on Breach; prints each observation
+ *                                      # (`breach-rescue` is an alias)
  *   npm run sim -- --scenario chain    # 20 scripted bot attempts with snapshots; ticks/sec
  *   npm run sim -- --scenario bench    # 20 marching echoes replayed headless from 0:00; ticks/sec
  * Flags: --echoes <n> (bench/chain size), --json (print full observations).
  */
-import { MISSION_01 } from '../src/content/maps/mission-01';
+import { MISSION_03 } from '../src/content/maps/mission-03';
 import { DEFAULT_TUNING } from '../src/content/tuning';
 import type { AttemptObservation, LaneFate } from '../src/contracts/mission';
 import { Attempt } from '../src/sim/attempt/attempt';
 import { formatBattleTime } from '../src/sim/core/time';
 import { recordedTo } from '../src/sim/recording/records';
 import { recordMarchers, runBotChain } from '../src/sim/scenarios/chain';
-import { runRescueChain } from '../src/sim/scenarios/rescue';
 import { runBreachRescueChain } from '../src/sim/scenarios/mission-03';
 
 const time = (t: number) => `${formatBattleTime(t)} [${t}]`;
@@ -62,7 +61,7 @@ export function runEchoScenario(name: string, opts: { json: boolean; echoes: num
   const t = DEFAULT_TUNING;
   if (name === 'rescue' || name === 'breach-rescue') {
     const start = now();
-    const chain = name === 'rescue' ? runRescueChain(t) : runBreachRescueChain(t);
+    const chain = runBreachRescueChain(t);
     const ms = now() - start;
     chain.lives.forEach((l) => {
       printObservation(l.observation, opts.json);
@@ -98,7 +97,7 @@ export function runEchoScenario(name: string, opts: { json: boolean; echoes: num
     const records = recordMarchers(t, opts.echoes);
     const end = Math.max(...records.map(recordedTo));
     const a = new Attempt({
-      map: MISSION_01,
+      map: MISSION_03,
       tuning: t,
       soldiers: records,
       attempt: 99,
