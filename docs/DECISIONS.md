@@ -100,6 +100,25 @@ revise with justification in a PR).
 - **[D18] No time cap.** Play however you want: one perfect life or 300 sacrifices. Later, missions
   get scored (speed, soldiers used, etc.), possibly with a radar chart of play style.
 
+## Pacing & map design (playtest feedback on PHASE04/05)
+
+- **[D27] The action travels in one direction.** Missions are linear: you enter at one end and push
+  toward the objective at the other. On screen, **forward is up**. Side routes can exist, but
+  nothing loops back or sprawls sideways. This keeps multi-soldier (and later multiplayer)
+  orchestration readable.
+- **[D28] Jump straight into what the game is.** Contact within a few seconds of spawning: a
+  straight shot into turrets. People will die, and that's fine; respawning *is* the game.
+  Minimise dead time everywhere: walking, menus, waits, transitions.
+- **[D29] A basic map of what's been revealed so far.** Show the parts of the battlefield your
+  soldiers have seen (in the current truth), plus spawn points and known threats. It lives on the
+  respawn screen, so you know where you're spawning, and as a small in-game minimap.
+- **[D30] "It's slow" means pace *and* performance.** Fix both: fast pacing per [D28], and the
+  browser build should feel smooth (target 60 fps on an ordinary laptop).
+- **[D31] Breach is the only mission, and the template for new ones.** mission-03 "Breach" is the
+  one playable mission. It shows how a mission should look: mostly vertical, moving in one
+  direction ([D27]), with contact within seconds ([D28]). mission-01 and mission-02 were removed
+  because they were too big and slow. Old saves for them are ignored.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -131,7 +150,7 @@ revise with justification in a PR).
 - **[E5] The respawn timeline is a DOM/SVG overlay**, independent of Phaser.
 - **[E6] Fixed 60 Hz sim tick**, render interpolated separately.
 - **[E7] Recordings start lossless (every tick, quantized positions)** so unchanged history replays
-  exactly. Thinning to sparse waypoints is a later, outcome-tested optimization (PHASE06-a).
+  exactly. Thinning to sparse waypoints is a later, outcome-tested optimization (PHASE07-a).
 - **[E8] On-schedule echoes are kinematic.** They push the live soldier (and off-schedule echoes)
   but aren't pushed themselves, which keeps replays exact. The live soldier squirms around them
   via soft separation.
@@ -156,3 +175,55 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q7] Is traffic already running at battle start (PHASE02-a)?** `tuning.vehicle.prewarm`:
   `true` (default: lanes start full, as if traffic had always run) or `false` (empty road at 0:00,
   first vehicle enters at each lane's offset).
+- **[Q8] How does an echo replay a lever press (PHASE03-a)?** `tuning.echo.replayInteract`:
+  `'toggle'` (default: it presses the lever again, so if a later soldier already opened the gate,
+  the echo's replayed press *closes* it, possibly blocking itself) or `'restoreState'` (it only
+  presses if that brings the gate/bridge to the state its original press produced; an
+  already-open gate stays open).
+- **[Q9] Lead-in protection in later replays (PHASE03-a).** During a resume lead-in the soldier
+  can't drop below 1 HP ([D5]). When that life later replays as an echo there's no floor, so a
+  hit the lead-in absorbed can kill the echo in a later attempt. Currently: no floor for echoes
+  (damage is always simulated, [E3]). Alternative: echoes keep `minHp = 1` over their recorded
+  lead-in windows.
+- **[Q10] Can a background resolve finish the mission (PHASE04)?** If the scrubber ([D23])
+  replays an echo destroying the objective, the lane shows ✓ and the respawn header says the
+  objective is destroyed, but the mission does **not** complete: it completes only when a live
+  attempt sees it happen ("you have to live long enough to see it through", [D3]). Any deploy
+  that doesn't interfere will then reach it. Alternative: end the mission as soon as the truth
+  says the objective falls.
+- **[Q11] Death beat style (PHASE04).** Currently a freeze on the last frame plus a big "KIA"
+  caption for `tuning.deathBeatSeconds` (1 s), while the scrubber already runs. Alternative: a
+  slow-motion second (the battle keeps simulating after the death, which would also extend
+  what the attempt "saw").
+- **[Q12] Reload mid-life skips the title (PHASE04).** [D6] says reloading resumes that soldier;
+  with setting `game.resumeOnReload` on (default) a reload with a life in progress goes straight
+  into its resume lead-in, without the title screen. Off: the title shows first and Continue
+  starts the lead-in. (Browsers block sound until the first click either way.)
+- **[Q13] Maps with both kinds of objective (PHASE05-a).** [D17] says blow up an objective *or*
+  capture a flag point. Implemented: the mission completes when **every** objective is done
+  (all destroy targets destroyed and every flag point ours). mission-02 has only the HQ flag, so
+  capturing it wins. Alternative: any one objective wins. No setting yet (no map mixes them).
+- **[Q14] Forward-spawn slots when the capture time moves (PHASE05-a).** [D7] gives each spawn
+  point its own clock from its open tick. If a re-capture happens at a different tick, the next
+  new soldier there enters at `max(captureTick + N × interval, latest soldier there + interval)`,
+  where N counts only soldiers who entered at or after the current capture tick (earlier ones now
+  never spawn, [D26]). Alternative: keep counting every soldier ever spawned there.
+- **[Q15] Do captured points ever revert (PHASE05-a)?** There are no enemy soldiers, so a point
+  that is ours stays ours for the rest of the battle, and stage boundaries lock in ([D11]). Any
+  soldier counts toward a capture, echoes included ([D10]), so echoes alone can (re)capture in
+  replay; static figures don't count. Revisit when enemies that recapture arrive.
+- **[Q16] Quick redeploy details (PHASE06-c).** R / Space on the death beat or the respawn
+  screen deploys a **new soldier at the last-used spawn point's next slot** (a resumed soldier
+  counts as their own spawn point). If that point isn't offered any more, it uses the first new
+  soldier option, and it never picks an O resume while a new soldier is possible. From the death
+  beat it skips the respawn screen, so a scrubber reveal (X → O) is only seen on the next screen.
+  A press within 300 ms of the death is ignored (`flow.quickRedeployGuardMs`), because Space is
+  also fire. Skipping the empty respawn screen (`flow.skipEmptyRespawn`) also applies to Play
+  again and dev Reset (every brand-new mission). Alternatives: a quick key that prefers a fresh
+  O resume, or always showing the respawn screen after the first death.
+- **[Q17] Revealed map on a phone (PHASE06-b).** [D29] puts the map on the respawn screen. On a
+  phone with a wide map (mission-01/02) there's no room for timeline, map and spawn list at once,
+  so the map shares the timeline's area behind a **Map / Timeline** toggle (default: timeline,
+  remembered while the page is open). Tall maps (a vertical strip) fit beside the spawn list, so
+  they're always shown. Alternatives: default to the map on phones, or a smaller always-visible
+  map that shrinks the timeline. Desktop shows all three. (`respawn.showMap` hides the map.)

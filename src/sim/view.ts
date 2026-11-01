@@ -7,6 +7,7 @@
  */
 import type { Tick } from './core/time';
 import type { BridgeState, SimEvent } from './events';
+import type { CaptureStage } from './world/map';
 
 export type SoldierRole = 'live' | 'echo' | 'static' | 'interrupted';
 
@@ -122,6 +123,26 @@ export interface ObjectiveView {
   destroyed: boolean;
 }
 
+/** (05-a) A capture point ([D10]–[D12]); a flag objective if `objective` ([D17]). */
+export interface CapturePointView {
+  kind: 'capturePoint';
+  id: string;
+  /** Display name key (strings.ts). */
+  nameKey: string;
+  x: number;
+  y: number;
+  radius: number;
+  stage: CaptureStage;
+  /** 0..1 through the current stage (0 once ours). */
+  progress: number;
+  /** Soldiers in the circle counting toward the capture, id-sorted. */
+  contributors: string[];
+  /** Flag objective: capturing it is (part of) the mission. */
+  objective: boolean;
+  /** Forward spawn points this point opens once ours. */
+  spawnPointIds: string[];
+}
+
 export type EntityView =
   | SoldierView
   | TurretView
@@ -130,7 +151,8 @@ export type EntityView =
   | GateView
   | LeverView
   | BridgeView
-  | ObjectiveView;
+  | ObjectiveView
+  | CapturePointView;
 
 export interface WorldView {
   tick: Tick;
@@ -142,6 +164,8 @@ export interface WorldView {
   levers: LeverView[];
   bridges: BridgeView[];
   objectives: ObjectiveView[];
+  /** (05-a) */
+  capturePoints: CapturePointView[];
   /** Events emitted during the most recent tick. */
   events: SimEvent[];
   missionComplete: { tick: Tick; by?: string } | null;

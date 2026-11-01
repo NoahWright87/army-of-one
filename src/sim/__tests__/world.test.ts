@@ -49,7 +49,10 @@ describe('world', () => {
     const id = spawnSoldier(world, 'west');
     const input: SoldierInput = { move: { x: 1, y: 0 }, aim: 0, fire: false, interact: false };
     for (let t = 0; t < 60; t++) step(world, new Map([[id, input]]));
-    expect(getSoldier(world, id)!.x).toBeCloseTo(120 + DEFAULT_TUNING.soldier.speed);
+    // Positions are quantized (1/256 per tick), so allow a quantum per tick.
+    expect(Math.abs(getSoldier(world, id)!.x - (120 + DEFAULT_TUNING.soldier.speed))).toBeLessThan(
+      0.25,
+    );
     expect(world.state.tick).toBe(60);
   });
 

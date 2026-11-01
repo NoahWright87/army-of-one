@@ -26,6 +26,26 @@ export interface DisplaySettings {
   debugOverlay: boolean;
   interpolation: boolean;
   timeScale: string;
+  /** (05-b) Readability in a big army: echoes and static figures fade back. */
+  dimEchoes: boolean;
+  dimEchoesLevel: number;
+  /** (05-b) Echo number labels only within this distance of the live soldier (0 = all). */
+  echoLabelRadius: number;
+  /** (05-b) Perf: don't draw soldiers outside the camera view (no visible change). */
+  cullOffscreen: boolean;
+  /**
+   * (06-c) Canvas resolution relative to the window: 'auto' (1, lower only on very large
+   * windows), '1', '0.75', '0.5'. Lower = less GPU fill work, softer image.
+   */
+  renderScale: string;
+  /** (06-c) Max sim steps run in one frame to catch up after a slow frame (scaled by sim speed). */
+  maxCatchUpSteps: number;
+  /** (06-c) WebGL antialiasing (MSAA). Off saves GPU work on weak laptops. Applies on reload. */
+  antialias: boolean;
+  /** (06-a) Camera look-ahead: off / up / aim / upAim (see render/camera-look-ahead.ts). */
+  cameraLookAhead: string;
+  /** (06-a) How far ahead the camera looks, in world units. */
+  cameraLookAheadDistance: number;
 }
 
 export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
@@ -46,6 +66,15 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   debugOverlay: 'debug.overlay',
   interpolation: 'debug.interpolation',
   timeScale: 'debug.timeScale',
+  dimEchoes: 'display.dimEchoes',
+  dimEchoesLevel: 'display.dimEchoesLevel',
+  echoLabelRadius: 'display.echoLabelRadius',
+  cullOffscreen: 'debug.cullOffscreen',
+  renderScale: 'display.renderScale',
+  maxCatchUpSteps: 'debug.maxCatchUpSteps',
+  antialias: 'display.antialias',
+  cameraLookAhead: 'display.cameraLookAhead',
+  cameraLookAheadDistance: 'display.cameraLookAheadDistance',
 };
 
 const showOptions = [
@@ -129,6 +158,33 @@ export function displaySettingDefs(): SettingDef[] {
     },
     { id: id.tracers, group: D, label: str('settings.tracers'), type: 'boolean', default: true },
     {
+      id: id.dimEchoes,
+      group: D,
+      label: str('settings.dimEchoes'),
+      type: 'boolean',
+      default: false,
+    },
+    {
+      id: id.dimEchoesLevel,
+      group: D,
+      label: str('settings.dimEchoesLevel'),
+      type: 'number',
+      default: 0.25,
+      min: 0.05,
+      max: 0.8,
+      step: 0.05,
+    },
+    {
+      id: id.echoLabelRadius,
+      group: D,
+      label: str('settings.echoLabelRadius'),
+      type: 'number',
+      default: 0,
+      min: 0,
+      max: 2000,
+      step: 50,
+    },
+    {
       id: id.cameraSmoothing,
       group: C,
       label: str('settings.cameraSmoothing'),
@@ -147,6 +203,29 @@ export function displaySettingDefs(): SettingDef[] {
       min: 0.4,
       max: 2.5,
       step: 0.05,
+    },
+    {
+      id: id.cameraLookAhead,
+      group: C,
+      label: str('settings.cameraLookAhead'),
+      type: 'choice',
+      default: 'upAim',
+      options: [
+        { value: 'off', label: str('settings.cameraLookAhead.off') },
+        { value: 'up', label: str('settings.cameraLookAhead.up') },
+        { value: 'aim', label: str('settings.cameraLookAhead.aim') },
+        { value: 'upAim', label: str('settings.cameraLookAhead.upAim') },
+      ],
+    },
+    {
+      id: id.cameraLookAheadDistance,
+      group: C,
+      label: str('settings.cameraLookAheadDistance'),
+      type: 'number',
+      default: 280,
+      min: 0,
+      max: 400,
+      step: 10,
     },
     {
       id: id.screenShake,
@@ -179,6 +258,42 @@ export function displaySettingDefs(): SettingDef[] {
       label: str('settings.interpolation'),
       type: 'boolean',
       default: true,
+    },
+    {
+      id: id.cullOffscreen,
+      group: G,
+      label: str('settings.cullOffscreen'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: id.renderScale,
+      group: D,
+      label: str('settings.renderScale'),
+      type: 'choice',
+      default: 'auto',
+      options: ['auto', '1', '0.75', '0.5'].map((v) => ({
+        value: v,
+        label:
+          v === 'auto' ? str('settings.renderScale.auto') : str('settings.renderScale.x', { x: v }),
+      })),
+    },
+    {
+      id: id.antialias,
+      group: D,
+      label: str('settings.antialias'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: id.maxCatchUpSteps,
+      group: G,
+      label: str('settings.maxCatchUpSteps'),
+      type: 'number',
+      default: 4,
+      min: 1,
+      max: 16,
+      step: 1,
     },
     {
       id: id.timeScale,

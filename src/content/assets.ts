@@ -306,6 +306,34 @@ export const IMAGE_ASSETS = {
     `${TOPDOWN}. Rubble and fire where the bunker stood, 96×96.`,
     80,
   ),
+  capture_base: img(
+    'capture_base',
+    128,
+    128,
+    'A capture point on the ground (05-a); the game draws the radius and progress ring on top.',
+    `${TOPDOWN}. Round concrete pad with painted chevrons and a socket for a flag pole, 128×128, transparent outside the pad.`,
+  ),
+  flag_pole: img(
+    'flag_pole',
+    12,
+    96,
+    'Flag pole of a capture point; flags slide up and down it.',
+    'Thin steel flag pole seen slightly from the side, 12×96, transparent background, foot at the bottom.',
+  ),
+  flag_enemy: img(
+    'flag_enemy',
+    48,
+    32,
+    'Enemy flag (lowered while a capture point goes from enemy to neutral).',
+    'Waving enemy flag, red with a dark emblem, 48×32, attaches on its left edge, transparent background.',
+  ),
+  flag_ours: img(
+    'flag_ours',
+    48,
+    32,
+    'Our flag (raised while a capture point goes from neutral to ours).',
+    'Waving friendly flag, green with a white star, 48×32, attaches on its left edge, transparent background.',
+  ),
   spawn_marker: img(
     'spawn_marker',
     64,
@@ -404,6 +432,12 @@ export const SOUND_ASSETS = {
     'Bright rising "go" chime.',
   ),
   sfx_mine_armed: snd('sfx_mine_armed', 60, 'A mine was triggered.', 'Tiny high-pitched beep.'),
+  sfx_capture: snd(
+    'sfx_capture',
+    500,
+    'A capture point reached a stage (enemy flag down, or our flag up).',
+    'Short rising two-note bugle/radio chirp.',
+  ),
   sfx_mission_complete: snd(
     'sfx_mission_complete',
     900,

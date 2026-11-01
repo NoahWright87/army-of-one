@@ -431,6 +431,50 @@ export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
     }
     return r.paint(circle(48, 48, 8), hex('#ff7a1a', 0.6));
   },
+  capture_base: (r) => {
+    r.paint(circle(64, 64, 60), hex('#5b6168', 0.85));
+    r.paint(ring(64, 64, 58, 3), hex('#2c2f33', 0.9));
+    r.paint(ring(64, 64, 40, 2), hex('#e8e8e8', 0.35));
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2;
+      const cx = 64 + Math.cos(a) * 49;
+      const cy = 64 + Math.sin(a) * 49;
+      r.paint(regular(cx, cy, 6, 3, a), hex('#e8e8e8', 0.5));
+    }
+    r.shape(circle(64, 64, 7), '#3a3d42', OUT, 2);
+    return r;
+  },
+  flag_pole: (r) => r.shape(box(6, 48, 1.8, 45, 1), '#c9cdd2', OUT, 1.5),
+  flag_enemy: (r) => {
+    r.shape(
+      polygon([
+        [2, 3],
+        [45, 8],
+        [42, 16],
+        [45, 25],
+        [2, 29],
+      ]),
+      '#c0392b',
+      OUT,
+      2,
+    );
+    return r.paint(star(18, 16, 7, 3, 5, -Math.PI / 2), '#2b0d0a');
+  },
+  flag_ours: (r) => {
+    r.shape(
+      polygon([
+        [2, 3],
+        [45, 8],
+        [42, 16],
+        [45, 25],
+        [2, 29],
+      ]),
+      '#2fa35a',
+      OUT,
+      2,
+    );
+    return r.paint(star(18, 16, 7, 3, 5, -Math.PI / 2), '#ffffff');
+  },
   spawn_marker: (r) => {
     r.paint(circle(32, 32, 28), hex('#3ddc6e', 0.15));
     r.paint(ring(32, 32, 27, 3), hex('#3ddc6e', 0.9));

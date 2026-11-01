@@ -1,5 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import type { Rect } from './map';
+import { simPerf } from '../perf';
 
 /** Penetration resolution for a circle against an AABB. Returns the push-out vector (0,0 if none). */
 export function circleRectPush(center: Vec2, radius: number, r: Rect): Vec2 {
@@ -44,6 +45,11 @@ export function circlesOverlap(a: Vec2, ra: number, b: Vec2, rb: number): boolea
 /**
  * Moves a circle by `delta`, sliding along any solid rects. Sub-steps so fast movers can't tunnel
  * through thin walls. Deterministic: rects are resolved in array order.
+ *
+ * (05-b) With `simPerf.collisionBroadphase`, only rects near the move are tested. That is exact:
+ * a rect at least `radius` away from every position the circle is tested at pushes by exactly
+ * 0, so skipping it changes nothing. If pushes ever carry the circle outside the safe box the
+ * candidates were chosen for, the move is redone against every rect.
  */
 export function moveCircle(
   start: Vec2,
@@ -51,6 +57,40 @@ export function moveCircle(
   radius: number,
   solids: readonly Rect[],
 ): Vec2 {
+  if (!simPerf.collisionBroadphase || solids.length <= 4) {
+    return moveCircleIn(start, delta, radius, solids, null)!;
+  }
+  const x0 = Math.min(start.x, start.x + delta.x) - BROAD_SLACK;
+  const x1 = Math.max(start.x, start.x + delta.x) + BROAD_SLACK;
+  const y0 = Math.min(start.y, start.y + delta.y) - BROAD_SLACK;
+  const y1 = Math.max(start.y, start.y + delta.y) + BROAD_SLACK;
+  // Candidates: every rect within `radius` of the safe box [x0, x1] × [y0, y1].
+  const cand: Rect[] = [];
+  for (const r of solids) {
+    if (
+      r.x - radius < x1 &&
+      r.x + r.w + radius > x0 &&
+      r.y - radius < y1 &&
+      r.y + r.h + radius > y0
+    )
+      cand.push(r);
+  }
+  const box = { x0, x1, y0, y1 };
+  const res = moveCircleIn(start, delta, radius, cand, box);
+  return res ?? moveCircleIn(start, delta, radius, solids, null)!;
+}
+
+/** How far (beyond the move itself) the broadphase box reaches. */
+const BROAD_SLACK = 48;
+
+/** The reference algorithm. With `box`, returns null if any tested position leaves it. */
+function moveCircleIn(
+  start: Vec2,
+  delta: Vec2,
+  radius: number,
+  solids: readonly Rect[],
+  box: { x0: number; x1: number; y0: number; y1: number } | null,
+): Vec2 | null {
   const dist = Math.hypot(delta.x, delta.y);
   const steps = Math.max(1, Math.ceil(dist / (radius * 0.5)));
   let x = start.x;
@@ -61,12 +101,30 @@ export function moveCircle(
     // Two passes handle corners where resolving one rect pushes into another.
     for (let pass = 0; pass < 2; pass++) {
       for (const r of solids) {
+        if (box && (x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1)) {
+          return null;
+        }
+        // Inlined circleRectPush (same arithmetic, no allocation).
+        const cx = Math.max(r.x, Math.min(x, r.x + r.w));
+        const cy = Math.max(r.y, Math.min(y, r.y + r.h));
+        const dx = x - cx;
+        const dy = y - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 0) {
+          if (d2 >= radius * radius) continue;
+          const d = Math.sqrt(d2);
+          const push = radius - d;
+          x += (dx / d) * push;
+          y += (dy / d) * push;
+          continue;
+        }
         const p = circleRectPush({ x, y }, radius, r);
         x += p.x;
         y += p.y;
       }
     }
   }
+  if (box && (x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1)) return null;
   return { x, y };
 }
 

@@ -17,8 +17,36 @@ export interface SpawnPointDef {
   position: Vec2;
   /** Initial facing in radians. */
   facing: number;
-  /** 'initial' points open at tick 0 ([D8]); capture points arrive in PHASE05-a. */
-  kind: 'initial';
+  /**
+   * 'initial' points open at tick 0 ([D8]). (05-a) 'capture' points belong to a capture point
+   * (`capturePointId`) and are open only while that point is ours ([D8], [D26]).
+   */
+  kind: 'initial' | 'capture';
+  /** (05-a) kind 'capture' only: the capture point that opens this spawn point. */
+  capturePointId?: string;
+}
+
+/** (05-a) Capture stages ([D11]): lower the enemy flag → neutral; raise ours → ours. */
+export type CaptureStage = 'enemy' | 'neutral' | 'ours';
+
+/**
+ * (05-a) A Battlefield 2-style capture point ([D10]–[D12]). Stats come from `tuning.capture`.
+ * A spawn point of kind 'capture' with `capturePointId` = this id makes it a forward spawn.
+ */
+export interface CapturePointDef {
+  id: string;
+  /** Key into src/content/strings.ts for the display name. */
+  nameKey: string;
+  position: Vec2;
+  /** Overrides `tuning.capture.radius`. */
+  radius?: number;
+  /** Default 'enemy'. */
+  initialStage?: 'enemy' | 'neutral';
+  /**
+   * Flag objective ([D17]): this point reaching 'ours' is a mission objective. The mission
+   * completes once every objective (destroy targets and flag points) is done.
+   */
+  objective?: boolean;
 }
 
 /** A fixed gun emplacement ([D15]). Stats come from `tuning.turret`. */
@@ -112,6 +140,8 @@ export interface MapDef {
   bridges?: BridgeDef[];
   levers?: LeverDef[];
   objectives?: ObjectiveDef[];
+  /** (05-a) Capture points ([D10]–[D12]); flag objectives ([D17]). */
+  capturePoints?: CapturePointDef[];
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */
@@ -125,6 +155,7 @@ export function validateMap(map: MapDef): void {
     ...(map.bridges ?? []),
     ...(map.levers ?? []),
     ...(map.objectives ?? []),
+    ...(map.capturePoints ?? []),
   ];
   for (const e of all) {
     if (ids.has(e.id)) throw new Error(`${map.id}: duplicate entity id ${e.id}`);
@@ -140,6 +171,12 @@ export function validateMap(map: MapDef): void {
   for (const b of map.bridges ?? []) {
     if (b.kind === 'destructible' && !b.charge) {
       throw new Error(`${map.id}: destructible bridge ${b.id} needs a charge`);
+    }
+  }
+  for (const sp of map.spawnPoints) {
+    if (sp.kind !== 'capture') continue;
+    if (!(map.capturePoints ?? []).some((c) => c.id === sp.capturePointId)) {
+      throw new Error(`${map.id}: capture spawn ${sp.id} needs a known capturePointId`);
     }
   }
   for (const lever of map.levers ?? []) {
