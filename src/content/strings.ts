@@ -73,7 +73,10 @@ export const STRINGS = {
   'role.rifleman.blurb': 'Rifle. Fires over cover you stand next to.',
   'role.grenadier': 'Grenadier',
   'role.grenadier.blurb': 'Frag grenades: hold to wind up, release to throw. Hurts everyone.',
-  'respawn.role.title': 'Role (1 / 2)',
+  'role.gunner': 'Machine Gunner',
+  'role.gunner.blurb':
+    'Machine gun: sprays on the move. Stand still at cover to mount it and tighten the spread.',
+  'respawn.role.title': 'Role (1–3)',
   'respawn.role.keeps': 'A resumed soldier keeps their role',
   'spawn.mission03.west': 'West',
   'spawn.mission03.centre': 'Centre',

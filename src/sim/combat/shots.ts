@@ -239,7 +239,7 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
 /**
  * Fires the rifle from (x, y) at angle θ. This is THE way soldier shots enter the sim: the live
  * soldier's fire input calls it with its current position and aim, and echoes call it with a
- * recorded angle ([E1]). No cooldown check here (see `trySoldierFire`).
+ * recorded angle ([E1]). No cooldown check here. (07-c) Same as `fireGun(…, 'rifle')`.
  */
 export function fireRifle(world: World, shooterId: string, from: Vec2, angle: number): ShotResult {
   const rt = world.tuning.rifle;
@@ -255,24 +255,16 @@ export function fireRifle(world: World, shooterId: string, from: Vec2, angle: nu
 }
 
 /**
- * (07-c) A live shot's actual angle: the aim plus a spread that grows with movement ([D35]). The
- * offset is a hash of (soldier, tick), so it's deterministic; the recording stores the result.
+ * (07-c) A deterministic offset within ± (fullSpread × how much the soldier moved) ([D35]):
+ * used for the Grenadier's throw scatter. Guns use `guns.ts` (spread + recoil).
  */
 export function movingAimOffset(
   world: World,
   s: SoldierState,
-  salt = 'aim',
-  fullSpread = world.tuning.accuracy.movingSpread,
+  salt: string,
+  fullSpread: number,
 ): number {
   const spread = fullSpread * s.moveFrac;
   if (spread <= 0) return 0;
   return (hash01(`${s.id}@${world.state.tick}:${salt}`) * 2 - 1) * spread;
-}
-
-/** Live-fire wrapper: fires from the soldier's position if its rifle is off cooldown. */
-export function trySoldierFire(world: World, s: SoldierState, angle: number): ShotResult | null {
-  if (!isEligible(s) || world.state.tick < s.nextFireTick) return null;
-  s.nextFireTick =
-    world.state.tick + Math.max(1, secondsToTicks(world.tuning.rifle.cooldownSeconds));
-  return fireRifle(world, s.id, s, angle + movingAimOffset(world, s));
 }

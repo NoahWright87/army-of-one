@@ -9,6 +9,7 @@ import { isEligible, type SoldierState } from './soldier';
 import { simPerf } from '../perf';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { seesThroughCover } from '../world/cover';
+import { recoverRecoil, spreadOf, spreadOffset } from '../combat/guns';
 
 export type TurretMode = 'idle' | 'tracking' | 'windup' | 'destroyed';
 
@@ -23,6 +24,8 @@ export interface TurretEntity {
   windupTicks: number;
   /** Ticks left before the next wind-up may start. */
   cooldownTicks: number;
+  /** (07-c) Recoil, radians of extra spread ([D39]). Optional for older snapshots. */
+  recoil?: number;
 }
 
 export function createTurrets(defs: readonly TurretDef[], tuning: Tuning): TurretEntity[] {
@@ -81,7 +84,8 @@ function rotateToward(t: TurretEntity, desired: number, maxStep: number): number
 /**
  * idle → tracking (nearest eligible soldier in range with LOS; rotate toward it) → windup (a
  * telegraph, target locked) → hitscan shot → cooldown → … If the locked target breaks LOS, leaves
- * range or dies during the wind-up, the shot is cancelled. No randomness: a shot fired with LOS hits.
+ * range or dies during the wind-up, the shot is cancelled. (07-c) Shots spread by the turret's
+ * recoil ([D39]); at the default timings it recovers fully between shots, so they stay exact.
  */
 export function stepTurrets(world: World): void {
   const tt = world.tuning.turret;
@@ -91,6 +95,7 @@ export function stepTurrets(world: World): void {
     if (t.mode === 'destroyed') return;
     const def = defs[i]!;
     if (t.cooldownTicks > 0) t.cooldownTicks -= 1;
+    if (t.recoil) t.recoil = recoverRecoil(t.recoil, tt);
     // (05-b) Turret shots only ever damage soldiers, which never block anything, so the blocker
     // list can't change during this turret's step: compute it once for all its LOS rays.
     const blockers = simPerf.turretBlockerCache ? dynamicBlockers(world) : undefined;
@@ -106,8 +111,12 @@ export function stepTurrets(world: World): void {
         if (tt.trackDuringWindup) rotateToward(t, desired, maxTurn);
         t.windupTicks -= 1;
         if (t.windupTicks <= 0) {
-          const angle = tt.trackDuringWindup ? desired : t.aim;
-          t.aim = angle;
+          const aimed = tt.trackDuringWindup ? desired : t.aim;
+          t.aim = aimed;
+          // (07-c) Turrets have spread and recoil too ([D39]).
+          const spread = spreadOf(tt, 0, t.recoil ?? 0);
+          const angle = aimed + spreadOffset(`${t.id}@${world.state.tick}:aim`, spread);
+          t.recoil = Math.min(tt.maxRecoil, (t.recoil ?? 0) + tt.kick);
           fireShot(world, {
             by: t.id,
             team: 'enemy',

@@ -55,6 +55,8 @@ interface Tracer {
 }
 
 const TRACER_MS = 110;
+/** (07-c) Smallest aim circle drawn (an exact shot still shows a small ring). */
+const RETICLE_MIN_R = 5;
 /** (06-c) Lever → target links: dash and gap length (world units), as the old dashed Graphics. */
 const DASH = 12;
 const DASH_TEXTURE = 'aoo_dash';
@@ -95,6 +97,8 @@ export class WorldRenderer {
   /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
   private coverGfx!: Phaser.GameObjects.Graphics;
   private grenadeGfx!: Phaser.GameObjects.Graphics;
+  /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
+  private reticleGfx!: Phaser.GameObjects.Graphics;
   private cur: WorldView;
   private now = 0;
   /**
@@ -231,6 +235,7 @@ export class WorldRenderer {
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
+    this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
     this.hpGfx = scene.add.graphics().setDepth(DEPTH.hpBars);
     this.reticle = scene.add.image(0, 0, 'reticle').setDepth(DEPTH.reticle).setVisible(false);
@@ -392,7 +397,7 @@ export class WorldRenderer {
 
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
-    this.drawReticle(f.pointer);
+    this.drawReticle(f.pointer, f.liveId);
     this.updateLoops();
   }
 
@@ -446,11 +451,12 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
-    // PLACEHOLDER role badge: a small grenade-green square on each Grenadier ([D36]).
+    // PLACEHOLDER role badges ([D36]): a small square, grenade green for Grenadiers, rust for
+    // Machine Gunners.
     for (const s of this.cur.soldiers) {
-      if (!s.alive || s.roleId !== 'grenadier') continue;
+      if (!s.alive || !s.roleId || s.roleId === 'rifleman') continue;
       const p = s.role === 'live' && this.livePos ? this.livePos : s;
-      g.fillStyle(0x6b8f3a, 1);
+      g.fillStyle(s.roleId === 'grenadier' ? 0x6b8f3a : 0xb0532a, 1);
       g.fillRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
       g.lineStyle(1, 0x111111, 1);
       g.strokeRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
@@ -963,12 +969,41 @@ export class WorldRenderer {
     }
   }
 
-  private drawReticle(pointer: Vec2 | null): void {
+  /**
+   * (07-c) The reticle shows the current aim cone ([D39]): a circle that just fits the spread at
+   * the cursor's distance, so it grows with distance, movement and sustained fire. A Machine
+   * Gunner mounting on cover gets a ring filling around it, and the reticle turns cyan once the
+   * mounted bonus applies ([D40]).
+   */
+  private drawReticle(pointer: Vec2 | null, liveId: string | null): void {
+    const g = this.reticleGfx;
+    g.clear();
     if (!pointer) {
       this.reticle.setVisible(false);
       return;
     }
-    this.reticle.setVisible(true).setPosition(pointer.x, pointer.y);
+    const live = liveId ? this.cur.soldiers.find((x) => x.id === liveId) : undefined;
+    const mounted = !!live?.mounted;
+    this.reticle
+      .setVisible(true)
+      .setPosition(pointer.x, pointer.y)
+      .setTint(mounted ? 0x4dd8ff : 0xffffff);
+    const pos = this.livePos;
+    if (!live || !live.alive || !pos || live.aimSpread === undefined) return;
+    const d = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
+    const r = Math.max(RETICLE_MIN_R, d * Math.tan(Math.min(live.aimSpread, 1.2)));
+    const color = mounted ? 0x4dd8ff : 0xffffff;
+    g.lineStyle(3, 0x000000, 0.35);
+    g.strokeCircle(pointer.x, pointer.y, r);
+    g.lineStyle(1.5, color, 0.85);
+    g.strokeCircle(pointer.x, pointer.y, r);
+    if (live.mount !== undefined && live.mount < 1) {
+      const mr = r + 6;
+      g.lineStyle(3, 0x4dd8ff, 0.9);
+      g.beginPath();
+      g.arc(pointer.x, pointer.y, mr, -Math.PI / 2, -Math.PI / 2 + live.mount * 2 * Math.PI, false);
+      g.strokePath();
+    }
   }
 
   /** Loops follow the nearest source: vehicle engines, static hum. */

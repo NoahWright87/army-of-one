@@ -129,8 +129,9 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   back to Breach, and old saves for removed missions are ignored. The title-screen picker only
   shows with more than one mission.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
-  roles are picked on the respawn screen (keys 1/2). The Grenadier holds fire to wind up and
-  releases to throw at the cursor. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
+  roles are picked on the respawn screen (keys 1–3). The Grenadier holds fire to wind up and
+  releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
+  reticle circle is the current cone. The Machine Gunner mounts by standing still at cover. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one
   life); `breach-capture&fast=1` captures the Forward Post, then deploy at it yourself. More
   stories (gate interruption, mines, make it worse) are listed in `src/app/autoplay-lives.ts`.

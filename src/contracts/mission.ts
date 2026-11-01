@@ -7,7 +7,7 @@ export type MissionId = string;
  * (07-c) A soldier's role, picked per new soldier on the respawn screen ([D36]). A resumed
  * soldier keeps theirs. Absent on a record means 'rifleman' (records from before 07-c).
  */
-export type RoleId = 'rifleman' | 'grenadier';
+export type RoleId = 'rifleman' | 'grenadier' | 'gunner';
 
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 

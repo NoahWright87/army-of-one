@@ -83,10 +83,25 @@ Built (first slice):
 - [x] Tests: `cover.test.ts`, `grenade.test.ts` (incl. echo replay of a throw and a grenade
   killing an echo), `mission-04.test.ts`.
 
+Second slice (owner follow-up):
+- [x] **Spread + recoil for every gun** ([D39], `src/sim/combat/guns.ts`): `GunSpread` on
+  `tuning.rifle`, `tuning.mg`, `tuning.turret` (replaces the old `tuning.accuracy`). Soldier
+  `recoil` state; turret `recoil` (optional field). Live fire rolls within the cone with a hash;
+  echoes fire the recorded angle with their own gun (`fireGun`). At the default timings turret
+  recoil recovers fully between shots, so turrets are still exact unless tuned.
+- [x] **Reticle = cone** ([D39]): `SoldierView.aimSpread` (live soldier only); the renderer draws a
+  circle at the cursor sized `distance × tan(spread)`.
+- [x] **Machine Gunner** ([D40]): role `gunner`, `tuning.mg`, mount (`mountTicks`, `braceId` on the
+  soldier; `SoldierView.mount/mounted`), ring around the reticle while mounting, cyan reticle when
+  the bonus applies (mounted + aiming across the braced cover, `mg.braceReach`).
+- [x] Removed the wind-up "landing now" dot; [D33] settled with the owner's example.
+- [x] Tests: `guns.test.ts` (tap vs hold, recovery, moving, MG vs rifle, determinism, mount
+  progress/bonus/unmount, MG echo replay).
+
 Not done / next:
 - Cover and grenade looks are Graphics placeholders in `world-renderer.ts` (`COVER_STYLE`), not
   manifest assets yet; the role badge too. They should move to `assets.ts` entries when art is made.
 - No autoplay lives or headless scenario scripts for the Grenadier/Compound yet (the script
   driver has a `throw` step for them).
 - Open questions [Q18], [Q20], [Q21] in DECISIONS.md ([Q19] became part of [D33]).
-- Then: MG (steadied on cover), MG nest, mortar ([D38]).
+- Then: MG nest and mortar enemies; ammo and reloading for every gun (owner: later).

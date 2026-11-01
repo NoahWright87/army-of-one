@@ -34,6 +34,12 @@ export interface SoldierView {
   windup?: number;
   /** (07-c) While winding up: the aimed throw distance (where the ring's throw would land). */
   windupAim?: number;
+  /** (07-c) Live soldier only: current ± aim spread, radians (the reticle's size, [D39]). */
+  aimSpread?: number;
+  /** (07-c) Live Machine Gunner: mount progress 0..1 while braced on cover ([D40]). */
+  mount?: number;
+  /** (07-c) Live Machine Gunner: mounted and aiming across the cover (the bonus applies). */
+  mounted?: boolean;
 }
 
 /** (07-c) A grenade in flight ([D37]). */

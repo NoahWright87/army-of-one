@@ -15,7 +15,7 @@ export interface RoleDef {
   /** Spawn cost. Placeholder: nothing spends it yet ([D36]). */
   cost: number;
   /** What the fire button does. */
-  weapon: 'rifle' | 'grenade';
+  weapon: 'rifle' | 'grenade' | 'mg';
 }
 
 export const DEFAULT_ROLE: RoleId = 'rifleman';
@@ -34,6 +34,13 @@ export const ROLES: readonly RoleDef[] = [
     blurbKey: 'role.grenadier.blurb',
     cost: 0, // TUNE: the costs get balanced later
     weapon: 'grenade',
+  },
+  {
+    id: 'gunner',
+    nameKey: 'role.gunner',
+    blurbKey: 'role.gunner.blurb',
+    cost: 0, // TUNE: the costs get balanced later
+    weapon: 'mg',
   },
 ];
 

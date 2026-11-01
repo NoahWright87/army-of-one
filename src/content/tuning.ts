@@ -1,6 +1,20 @@
 import type { CoverMaterial } from '../sim/world/map';
 
 /**
+ * (07-c) A gun's spread ([D39]): every shot goes out at a random angle within ± the current
+ * spread (half-angle, radians) = baseSpread + movingSpread × (share of full speed moved) + recoil.
+ * Each shot adds `kick` to the recoil (capped at `maxRecoil`); it recovers at `recoveryPerSecond`.
+ * Tapping stays accurate; holding the trigger sprays.
+ */
+export interface GunSpread {
+  baseSpread: number;
+  movingSpread: number;
+  kick: number;
+  maxRecoil: number;
+  recoveryPerSecond: number;
+}
+
+/**
  * Every gameplay number lives here. Values marked `// TUNE` are first guesses meant to be
  * adjusted by feel. The sim receives a `Tuning` object explicitly (never imports a global), so
  * tests, headless tools and the in-game settings panel can all run with different values.
@@ -25,22 +39,28 @@ export interface Tuning {
     /** Radius used against walls and other static geometry. */
     wallRadius: number;
   };
-  /** The soldier's hitscan rifle. */
+  /** The soldier's hitscan rifle. (07-c) Spread and recoil: see `GunSpread` ([D39]). */
   rifle: {
     damage: number;
     /** Max shot distance. Longer than the turret's range, so a turret can be out-ranged. */
     range: number;
     /** Minimum time between shots while fire is held. */
     cooldownSeconds: number;
-  };
-  /** (07-c) Soldier shot accuracy: less accurate while moving. */
-  accuracy: {
-    /**
-     * Max random spread (± radians) of a soldier's shot while moving at full speed; scales with
-     * how far the soldier actually moved this tick. Standing still is perfectly accurate.
-     */
-    movingSpread: number;
-  };
+  } & GunSpread;
+  /**
+   * (07-c) The Machine Gunner's MG ([D40]): fast fire, big recoil, unless mounted. Standing still
+   * next to non-solid cover for `mountSeconds` mounts it; while mounted and firing across that
+   * cover, `mounted` replaces the spread numbers. Moving unmounts it at once.
+   */
+  mg: {
+    damage: number;
+    range: number;
+    cooldownSeconds: number;
+    mountSeconds: number;
+    /** Fire counts as "across the cover" if the aim ray enters a braced piece this close. */
+    braceReach: number;
+    mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
+  } & GunSpread;
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
     /** Share of straight shots / lobbed objects each material stops, 0..1. */
@@ -133,7 +153,8 @@ export interface Tuning {
      * the shot goes where it was pointing, so sidestepping can dodge.
      */
     trackDuringWindup: boolean;
-  };
+    /** (07-c) Turrets have recoil too ([D39]); `movingSpread` is unused (they don't move). */
+  } & GunSpread;
   mine: {
     /** Body radius, for shots. */
     radius: number;
@@ -309,9 +330,28 @@ export const DEFAULT_TUNING: Tuning = {
     damage: 25, // TUNE
     range: 520, // TUNE
     cooldownSeconds: 0.15, // TUNE
-  },
-  accuracy: {
+    baseSpread: 0, // TUNE: a tap from a standing rifleman is exact
     movingSpread: 0.1, // TUNE: about ±6° at a full run
+    kick: 0.04, // TUNE
+    maxRecoil: 0.12, // TUNE
+    recoveryPerSecond: 0.2, // TUNE: held fire blooms slowly; a tap every 0.2 s stays exact
+  },
+  mg: {
+    damage: 14, // TUNE
+    range: 560, // TUNE
+    cooldownSeconds: 0.07, // TUNE: ~14 shots/s
+    baseSpread: 0.03, // TUNE
+    movingSpread: 0.25, // TUNE: firing on the move sprays
+    kick: 0.05, // TUNE
+    maxRecoil: 0.32, // TUNE
+    recoveryPerSecond: 0.4, // TUNE
+    mountSeconds: 0.6, // TUNE
+    braceReach: 60, // TUNE
+    mounted: {
+      baseSpread: 0.005, // TUNE
+      kick: 0.006, // TUNE
+      maxRecoil: 0.04, // TUNE
+    },
   },
   cover: {
     materials: {
@@ -369,6 +409,11 @@ export const DEFAULT_TUNING: Tuning = {
     cooldownSeconds: 0.45, // TUNE
     damage: 40, // TUNE: 3 hits kill a full-HP soldier
     trackDuringWindup: true, // TUNE
+    baseSpread: 0, // TUNE
+    movingSpread: 0,
+    kick: 0.03, // TUNE: recovers fully between its shots at the default timings
+    maxRecoil: 0.1, // TUNE
+    recoveryPerSecond: 0.2, // TUNE
   },
   mine: {
     radius: 10, // TUNE

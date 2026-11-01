@@ -153,6 +153,18 @@ revise with justification in a PR).
   blast plus fragments that fly like bullets. **Grenades hurt your own soldiers too**, echoes
   included (an exception to [D13]: that's the risk/reward). Cover stops airborne grenades by its
   lobbed number; you can miss the window.
+- **[D39] Spread and recoil for every gun.** Each shot goes out at a random angle within the
+  gun's current cone: resting spread + a movement penalty + recoil. Every shot adds recoil and
+  it recovers over time, so tapping stays accurate and holding the trigger sprays. Everything
+  gets recoil (rifle, MG, turrets), all tunable (`tuning.rifle`, `tuning.mg`, `tuning.turret`).
+  The MG's recoil is much larger than the rifle's, except when mounted. **The reticle is the
+  cone:** its circle fits the current spread at the cursor's distance, so it grows when you aim
+  further away, when you move, and during sustained fire.
+- **[D40] Machine Gunner.** A third role with an MG: fast fire, big spread and recoil. Standing
+  still right next to non-solid cover mounts it: a ring fills around the reticle (0.6 s), then
+  the spread and recoil drop sharply and the reticle turns cyan. The bonus only applies when
+  firing **across** the cover you're braced on. Moving unmounts at once. No ammo or reloading
+  yet (they come later, for every gun).
 - **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
   fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
   an armored slit. A separate playable mission (more missions are coming); Breach stays the

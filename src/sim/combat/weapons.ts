@@ -1,5 +1,6 @@
 /**
- * (07-c) What a live soldier's fire input does, by role ([D36]): the Rifleman fires the rifle;
+ * (07-c) What a live soldier's fire input does, by role ([D36]): the Rifleman and Machine Gunner
+ * fire their guns (`guns.ts`);
  * the Grenadier holds fire to wind up a throw and releases to throw ([D37]).
  *
  * Wind-up: the time needed grows with the aimed distance (`windupBaseSeconds +
@@ -7,13 +8,13 @@
  * distance. Moving scatters the throw (angle and distance), like it spreads rifle shots ([D35]).
  * The recording stores the throw's final angle and distance, so echoes replay the same throw.
  */
-import { roleDef } from '../../content/roles';
 import { hash01 } from '../core/hash';
 import { secondsToTicks } from '../core/time';
 import { isEligible, type SoldierInput, type SoldierState } from '../entities/soldier';
 import { throwGrenade } from '../entities/grenade';
 import type { World } from '../state';
-import { movingAimOffset, trySoldierFire } from './shots';
+import { movingAimOffset } from './shots';
+import { gunOf, stepGunner } from './guns';
 
 /** Aimed throw distance, clamped to the grenade's range (default: a mid-range throw). */
 export function aimedThrowDistance(world: World, input: SoldierInput): number {
@@ -37,8 +38,9 @@ export function windupProgress(world: World, s: SoldierState, aimDistance?: numb
 
 /** Applies one tick of a live soldier's fire input. */
 export function soldierAttack(world: World, s: SoldierState, input: SoldierInput): void {
-  if (roleDef(s.roleId).weapon === 'rifle') {
-    if (input.fire) trySoldierFire(world, s, input.aim);
+  const gun = gunOf(s);
+  if (gun) {
+    stepGunner(world, s, input, gun);
     return;
   }
   if (!isEligible(s)) return;

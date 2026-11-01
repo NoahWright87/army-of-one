@@ -20,7 +20,7 @@
  */
 import type { Tuning } from '../../content/tuning';
 import type { SoldierId, SoldierRecord, Waypoint } from '../../contracts/mission';
-import { fireRifle } from '../combat/shots';
+import { fireGun, gunCooldownTicks, gunOf } from '../combat/guns';
 import { throwGrenade } from '../entities/grenade';
 import { compareIds } from '../core/ids';
 import { DT, secondsToTicks, type Tick } from '../core/time';
@@ -400,8 +400,10 @@ export class EchoController {
         continue;
       }
       if (a.kind === 'shot') {
-        fireRifle(world, s.id, s, a.angle);
-        s.nextFireTick = t + Math.max(1, secondsToTicks(this.tuning.rifle.cooldownSeconds));
+        // (07-c) The echo's own gun (rifle or MG), at the recorded (already spread) angle.
+        const gun = gunOf(s) ?? 'rifle';
+        fireGun(world, s.id, s, a.angle, gun);
+        s.nextFireTick = t + gunCooldownTicks(this.tuning, gun);
       } else if (a.kind === 'throw') {
         // (07-c) Same throw from where the echo is now ([D37]).
         throwGrenade(world, s.id, s, a.angle, a.distance);

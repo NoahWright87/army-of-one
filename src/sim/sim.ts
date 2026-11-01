@@ -40,6 +40,7 @@ import { separateSoldiers } from './world/separation';
 import { coverArcs, resolveCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
 import { windupProgress } from './combat/weapons';
+import { currentSpread, mountBonus, mountTicksNeeded } from './combat/guns';
 import { simPerf } from './perf';
 import type { WorldView } from './view';
 
@@ -281,6 +282,7 @@ export function getView(world: World): WorldView {
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
       ...(s.windupTicks > 0 ? { windup: windupProgress(world, s), windupAim: s.windupAim } : {}),
+      ...aimView(world, s),
     })),
     grenades: (st.grenades ?? []).map((g) => ({
       kind: 'grenade',
@@ -407,6 +409,23 @@ export function getView(world: World): WorldView {
   };
 }
 
+/** (07-c) Aim feedback for the live soldier only ([D39], [D40]): spread, mount progress. */
+function aimView(
+  world: World,
+  s: SoldierState,
+): { aimSpread?: number; mount?: number; mounted?: boolean } {
+  const live = s.alive && (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined));
+  if (!live) return {};
+  const out: { aimSpread?: number; mount?: number; mounted?: boolean } = {
+    aimSpread: currentSpread(world, s, s.facing),
+  };
+  if (s.braceId !== null && s.mountTicks > 0) {
+    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning));
+    out.mounted = mountBonus(world, s, s.facing);
+  }
+  return out;
+}
+
 /** (07-c) Cover arcs around the live soldier ([D34]): partial cover, walls and closed gates. */
 function liveCoverArcs(world: World): CoverArc[] {
   const live = world.state.soldiers.find(
@@ -425,7 +444,8 @@ function liveCoverArcs(world: World): CoverArc[] {
 }
 
 export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';
-export { fireRifle, trySoldierFire, castRay, hasLineOfSight } from './combat/shots';
+export { fireRifle, castRay, hasLineOfSight } from './combat/shots';
+export { fireGun, trySoldierFire } from './combat/guns';
 export { interact } from './entities/lever';
 export { isSpawnPointOpen } from './world/spawn-points';
 export { findPath, isWalkable, isSegmentWalkable, pathLength, syncNav } from './world/nav';

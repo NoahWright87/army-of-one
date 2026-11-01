@@ -56,6 +56,12 @@ export interface SoldierState {
   windupTicks: number;
   /** (07-c) Grenadier: aimed distance during the current wind-up (for the view's ring). */
   windupAim: number;
+  /** (07-c) Gun recoil, radians of extra spread; recovers every tick ([D39]). */
+  recoil: number;
+  /** (07-c) Machine Gunner: ticks spent mounting on `braceId` ([D40]). */
+  mountTicks: number;
+  /** (07-c) Machine Gunner: the cover piece being mounted on, or null. */
+  braceId: string | null;
   /** Earliest tick the rifle may fire again. */
   nextFireTick: Tick;
   /**
@@ -111,6 +117,9 @@ export function createSoldier(
     ...(flags.roleId && flags.roleId !== 'rifleman' ? { roleId: flags.roleId } : {}),
     windupTicks: 0,
     windupAim: 0,
+    recoil: 0,
+    mountTicks: 0,
+    braceId: null,
     nextFireTick: 0,
     moveFrac: 0,
     interactHeld: false,

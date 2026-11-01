@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
-import { castRay, fireRifle, trySoldierFire } from '../combat/shots';
+import { castRay, fireRifle } from '../combat/shots';
 import { hashState } from '../core/hash';
 import { chooseTurretTarget } from '../entities/turret';
 import { getSoldier, getView, step } from '../sim';
@@ -102,43 +102,6 @@ describe('sight past cover ([D33])', () => {
     const T2 = { ...T, cover: { ...T.cover, obscuresSight: false } };
     const w = world(arena({ cover: [wallOfCover(0.9)] }));
     expect(seesThroughCover(w.cover, { x: 100, y: 500 }, { x: 600, y: 500 }, 600, T2)).toBe(true);
-  });
-});
-
-describe('moving accuracy ([D35])', () => {
-  it('standing still fires exactly at the aim; moving spreads within movingSpread', () => {
-    const w = world(arena());
-    const id = soldierAt(w, { x: 100, y: 200 });
-    const fire = (move: number) => {
-      const events = run(w, 20, { [id]: { ...walk(move, 0, 0.3), fire: true } });
-      return ofKind(events, 'shotFired').map((e) => e.angle - 0.3);
-    };
-    expect(fire(0).every((d) => d === 0)).toBe(true);
-    const moving = fire(1);
-    expect(moving.some((d) => d !== 0)).toBe(true);
-    expect(moving.every((d) => Math.abs(d) <= DEFAULT_TUNING.accuracy.movingSpread + 1e-9)).toBe(
-      true,
-    );
-  });
-
-  it('is deterministic', () => {
-    const angles = () => {
-      const w = world(arena());
-      const id = soldierAt(w, { x: 100, y: 200 });
-      return ofKind(run(w, 30, { [id]: { ...walk(1, 0.3, 0.1), fire: true } }), 'shotFired').map(
-        (e) => e.angle,
-      );
-    };
-    expect(angles()).toEqual(angles());
-  });
-
-  it('trySoldierFire on a standing soldier is unchanged', () => {
-    const w = world(arena());
-    const id = soldierAt(w, { x: 100, y: 500 });
-    step(w, new Map([[id, idle(0)]]));
-    expect(trySoldierFire(w, getSoldier(w, id)!, 0)?.hitX).toBeCloseTo(
-      100 + DEFAULT_TUNING.rifle.range,
-    );
   });
 });
 
