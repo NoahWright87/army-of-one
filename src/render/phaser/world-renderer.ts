@@ -10,13 +10,14 @@ import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
 import type { Vec2 } from '../../sim/core/vec';
 import type { MapDef } from '../../sim/world/map';
-import type { BridgeView, SoldierView, TurretView, VehicleView, WorldView } from '../../sim/view';
+import type { VehicleView, WorldView } from '../../sim/view';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
 import { cueContextFromView, eventCues, type Cue, type TracerStyle } from '../event-cues';
 import { rectViewCenter } from '../geometry';
-import { indexById, interpPos, lerp, lerpAngle } from '../interp';
-import { soldierVisual } from '../soldier-style';
+import { interpPos, lerp, lerpAngle, nearById, SNAP_DISTANCE } from '../interp';
+import { emptyVisual, soldierVisual } from '../soldier-style';
+import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
 
@@ -54,6 +55,9 @@ interface Tracer {
 }
 
 const TRACER_MS = 110;
+/** (06-c) Lever → target links: dash and gap length (world units), as the old dashed Graphics. */
+const DASH = 12;
+const DASH_TEXTURE = 'aoo_dash';
 const HIT_FLASH_MS = 90;
 const TRACER_STYLE: Record<TracerStyle, { color: number; width: number; alpha: number }> = {
   live: { color: 0xffe066, width: 2, alpha: 0.95 },
@@ -65,14 +69,19 @@ const TRACER_STYLE: Record<TracerStyle, { color: number; width: number; alpha: n
 type Img = Phaser.GameObjects.Image;
 type Txt = Phaser.GameObjects.Text;
 type Tile = Phaser.GameObjects.TileSprite;
+type MutableVec2 = { x: number; y: number };
 
 export class WorldRenderer {
   private cur: WorldView;
   private now = 0;
-  private prevSoldiers = new Map<string, SoldierView>();
-  private prevTurrets = new Map<string, TurretView>();
-  private prevVehicles = new Map<string, VehicleView>();
-  private prevBridges = new Map<string, BridgeView>();
+  /**
+   * The view before the latest step. (06-c) Entities are looked up in it by index first
+   * (`nearById`: views keep a stable order), so there are no per-step id maps to build.
+   */
+  private prev: WorldView;
+  /** (06-c) Per-frame scratch (no allocations in the soldier loop). */
+  private readonly scratchVisual = emptyVisual();
+  private readonly livePosBuf: MutableVec2 = { x: 0, y: 0 };
 
   private readonly hitFlashUntil = new Map<string, number>();
   /** turretId → targetId while a windup is in progress (TurretView has no target field). */
@@ -98,7 +107,14 @@ export class WorldRenderer {
   private readonly bridgeBases: KeyedPool<Tile>;
   private readonly bridgeTops: KeyedPool<Tile>;
   private readonly objectives: KeyedPool<Img>;
+  private readonly captureBases: KeyedPool<Img>;
+  private readonly flagPoles: KeyedPool<Img>;
+  private readonly flags: KeyedPool<Img>;
+  private readonly captureMarkers: KeyedPool<Img>;
+  private readonly captureLabels: KeyedPool<Txt>;
   private readonly prompts: KeyedPool<Txt>;
+  /** (06-c) Lever links as dashed tile sprites: one quad each instead of per-frame Graphics. */
+  private readonly links: KeyedPool<Tile>;
   private readonly allPools: { begin(): void; end(): void }[];
   private readonly effectImages: FreeList<Img>;
 
@@ -118,9 +134,11 @@ export class WorldRenderer {
     private readonly opts: RendererOptions,
   ) {
     this.cur = initialView;
-    const img = (depth: number) => () => scene.add.image(0, 0, '__DEFAULT').setDepth(depth);
+    this.prev = initialView;
+    const img = (depth: number) => () =>
+      skipNoOpSetters(scene.add.image(0, 0, '__DEFAULT').setDepth(depth));
     const tile = (depth: number) => () =>
-      scene.add.tileSprite(0, 0, 64, 64, 'bridge_down').setDepth(depth);
+      skipNoOpSetters(scene.add.tileSprite(0, 0, 64, 64, 'bridge_down').setDepth(depth));
     const text = (depth: number, size: number) => () =>
       scene.add
         .text(0, 0, '', {
@@ -149,7 +167,19 @@ export class WorldRenderer {
     this.bridgeBases = new KeyedPool(tile(DEPTH.bridges));
     this.bridgeTops = new KeyedPool(tile(DEPTH.bridges + 0.5));
     this.objectives = new KeyedPool(img(DEPTH.objectives));
+    this.captureBases = new KeyedPool(img(DEPTH.decals));
+    this.flagPoles = new KeyedPool(img(DEPTH.objectives + 1));
+    this.flags = new KeyedPool(img(DEPTH.objectives + 0.5));
+    this.captureMarkers = new KeyedPool(img(DEPTH.spawnMarkers));
+    this.captureLabels = new KeyedPool(text(DEPTH.labels, 12));
     this.prompts = new KeyedPool(text(DEPTH.prompts, 13));
+    ensureDashTexture(scene);
+    this.links = new KeyedPool(() =>
+      scene.add
+        .tileSprite(0, 0, DASH * 2, 2, DASH_TEXTURE)
+        .setOrigin(0, 0.5)
+        .setDepth(DEPTH.overlays),
+    );
     this.allPools = [
       this.soldiers,
       this.liveMarkers,
@@ -166,7 +196,13 @@ export class WorldRenderer {
       this.bridgeBases,
       this.bridgeTops,
       this.objectives,
+      this.captureBases,
+      this.flagPoles,
+      this.flags,
+      this.captureMarkers,
+      this.captureLabels,
       this.prompts,
+      this.links,
     ];
     this.effectImages = new FreeList(img(DEPTH.effects));
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
@@ -198,6 +234,8 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
     for (const sp of map.spawnPoints) {
+      // Forward (capture) spawn markers are drawn with their capture point, only while ours.
+      if (sp.kind === 'capture') continue;
       scene.add
         .image(sp.position.x, sp.position.y, 'spawn_marker')
         .setRotation(sp.facing)
@@ -220,20 +258,23 @@ export class WorldRenderer {
   /** Call once per sim step with the views before/after it. Queues effects for that tick. */
   onStep(prev: WorldView, cur: WorldView, liveId: string | null): void {
     this.cur = cur;
-    this.prevSoldiers = indexById(prev.soldiers);
-    this.prevTurrets = indexById(prev.turrets);
-    this.prevVehicles = indexById(prev.vehicles);
-    this.prevBridges = indexById(prev.bridges);
+    this.prev = prev;
     for (const t of cur.turrets) if (t.state !== 'windup') this.windupTargets.delete(t.id);
     // State changes that have no event of their own.
-    const prevMines = indexById(prev.mines);
-    for (const m of cur.mines) {
-      if (m.state === 'armed' && prevMines.get(m.id)?.state === 'idle') {
+    for (let i = 0; i < cur.mines.length; i++) {
+      const m = cur.mines[i]!;
+      if (m.state === 'armed' && nearById(prev.mines, i, m.id)?.state === 'idle') {
         this.pendingCues.push({ type: 'sound', key: 'sfx_mine_armed', x: m.x, y: m.y, gain: 1 });
       }
     }
+    for (const e of cur.events) {
+      if (e.kind !== 'captureStageChanged') continue;
+      const c = cur.capturePoints.find((x) => x.id === e.id);
+      if (c) this.pendingCues.push({ type: 'sound', key: 'sfx_capture', x: c.x, y: c.y, gain: 1 });
+    }
     if (cur.events.length) {
-      this.pendingCues.push(...eventCues(cur.events, cueContextFromView(cur, liveId)));
+      for (const c of eventCues(cur.events, cueContextFromView(cur, liveId)))
+        this.pendingCues.push(c);
     }
   }
 
@@ -251,12 +292,23 @@ export class WorldRenderer {
   soldierRenderPos(id: string, alpha: number): Vec2 | null {
     const s = this.cur.soldiers.find((x) => x.id === id);
     if (!s) return null;
-    return interpPos(this.prevSoldiers.get(id), s, this.settings.interpolation ? alpha : 1);
+    const prev = this.prev.soldiers.find((x) => x.id === id);
+    return interpPos(prev, s, this.settings.interpolation ? alpha : 1);
   }
 
   get pooledObjectCount(): number {
     return this.allPools.reduce((n, p) => n + (p as KeyedPool<Img>).totalCount, 0);
   }
+
+  /** (05-b) Game objects drawn last frame (pooled entity objects in use + live effects). */
+  get drawnObjectCount(): number {
+    return (
+      this.allPools.reduce((n, p) => n + (p as KeyedPool<Img>).activeCount, 0) + this.effects.length
+    );
+  }
+
+  /** (05-b) Soldiers skipped last frame because they were off screen. */
+  culledSoldiers = 0;
 
   render(f: RenderFrame): void {
     const a = this.settings.interpolation ? f.alpha : 1;
@@ -272,6 +324,7 @@ export class WorldRenderer {
     this.drawLevers(f);
     this.drawMines(f.nowMs);
     this.drawObjectives();
+    this.drawCapturePoints(f.nowMs);
     this.drawVehicles(a);
     this.drawTurrets(a, f);
     this.drawSoldiers(a, f);
@@ -285,6 +338,7 @@ export class WorldRenderer {
   // ---- cues ---------------------------------------------------------------------------------
 
   private flushCues(nowMs: number): void {
+    if (this.pendingCues.length === 0) return;
     const cues = this.pendingCues;
     this.pendingCues = [];
     const r = this.opts.spriteRadius;
@@ -379,7 +433,9 @@ export class WorldRenderer {
         g.lineBetween(tr.fromX, tr.fromY, tr.toX, tr.toY);
       }
       const st = incoming || tr.style !== 'incoming' ? s : TRACER_STYLE.hostile;
-      g.lineStyle(st.width, st.color, st.alpha * (1 - t));
+      // Dimmed echoes: their tracers fade back too, so the live soldier's and incoming fire pop.
+      const dim = tr.style === 'friendly' && this.settings.dimEchoes ? 0.35 : 1;
+      g.lineStyle(st.width, st.color, st.alpha * dim * (1 - t));
       g.lineBetween(tr.fromX, tr.fromY, tr.toX, tr.toY);
     }
   }
@@ -397,6 +453,8 @@ export class WorldRenderer {
   }
 
   private clearTint(obj: Img): void {
+    // (06-c) Most objects are untinted most frames: nothing to clear.
+    if (!obj.isTinted) return;
     obj.clearTint();
     obj.setTintMode(Phaser.TintModes.MULTIPLY);
   }
@@ -416,34 +474,74 @@ export class WorldRenderer {
   private drawSoldiers(a: number, f: RenderFrame): void {
     const r = this.opts.spriteRadius;
     const now = f.nowMs;
-    for (const s of this.cur.soldiers) {
-      const prev = this.prevSoldiers.get(s.id);
-      const p = interpPos(prev, s, a);
+    // (05-b) Off-screen culling: anything outside the camera view (plus a margin for sprites,
+    // labels and HP bars) is simply not drawn this frame; the pools hide it. The live soldier is
+    // always drawn.
+    const view = this.settings.cullOffscreen ? this.cameraView(r * 4) : null;
+    const live = f.liveId ? this.cur.soldiers.find((x) => x.id === f.liveId) : undefined;
+    const labelR = this.settings.echoLabelRadius;
+    let culled = 0;
+    const soldiers = this.cur.soldiers;
+    const prevSoldiers = this.prev.soldiers;
+    const snap2 = SNAP_DISTANCE * SNAP_DISTANCE;
+    for (let i = 0; i < soldiers.length; i++) {
+      const s = soldiers[i]!;
+      const prev = nearById(prevSoldiers, i, s.id);
+      // Interpolated position as plain locals (no object per soldier per frame).
+      let px = s.x;
+      let py = s.y;
+      if (prev) {
+        const dx = s.x - prev.x;
+        const dy = s.y - prev.y;
+        if (dx * dx + dy * dy <= snap2) {
+          px = prev.x + dx * a;
+          py = prev.y + dy * a;
+        }
+      }
+      if (
+        view &&
+        s.id !== f.liveId &&
+        (px < view.x0 || px > view.x1 || py < view.y0 || py > view.y1)
+      ) {
+        culled++;
+        continue;
+      }
       const facing = prev ? lerpAngle(prev.facing, s.facing, a) : s.facing;
-      const v = soldierVisual(s, this.settings, now);
+      const v = soldierVisual(s, this.settings, now, this.scratchVisual);
+      if (
+        v.label !== null &&
+        labelR > 0 &&
+        live &&
+        Math.hypot(live.x - s.x, live.y - s.y) > labelR
+      ) {
+        v.label = null;
+      }
       const spr = this.soldiers.get(s.id);
-      spr
-        .setTexture(v.texture)
-        .setPosition(p.x, p.y)
-        .setRotation(facing)
-        .setScale((r * 2) / fitPx(v.texture))
-        .setAlpha(v.alpha)
-        .setDepth(v.depth);
+      // (06-c) Only touch what changed: most soldiers in a crowd (corpses, statics, waiting
+      // echoes) are still, and each setter call stores fresh numbers on the sprite.
+      spr.setTexture(v.texture).setDepth(v.depth);
+      if (spr.x !== px || spr.y !== py) spr.setPosition(px, py);
+      if (spr.rotation !== facing) spr.setRotation(facing);
+      const scale = (r * 2) / fitPx(v.texture);
+      if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
+      if (spr.alpha !== v.alpha) spr.setAlpha(v.alpha);
       if (!this.applyHitFlash(spr, s.id, now)) this.clearTint(spr);
       if (s.role === 'live' && s.alive && (f.liveId === null || s.id === f.liveId)) {
-        this.livePos = p;
+        this.livePosBuf.x = px;
+        this.livePosBuf.y = py;
+        this.livePos = this.livePosBuf;
       }
       if (v.liveMarker) {
         const m = this.liveMarkers.get(s.id);
         const pulse = 1 + 0.06 * Math.sin(now / 160);
         m.setTexture('soldier_live_marker')
-          .setPosition(p.x, p.y)
+          .setPosition(px, py)
           .setScale(((r * 2.6) / fitPx('soldier_live_marker')) * pulse);
       }
       if (v.shield) {
         const sh = this.shields.get(s.id);
         sh.setTexture('soldier_shield_ring')
-          .setPosition(p.x, p.y)
+          .setPosition(px, py)
           .setRotation(now / 700)
           .setScale((r * 2.9) / fitPx('soldier_shield_ring'))
           .setAlpha(0.7 + 0.3 * Math.sin(now / 120));
@@ -452,7 +550,7 @@ export class WorldRenderer {
         const o = this.staticOverlays.get(s.id);
         const flip = Math.floor(now / 50 + s.ordinal) % 4;
         o.setTexture('static_overlay')
-          .setPosition(p.x, p.y)
+          .setPosition(px, py)
           .setScale((r * 2) / fitPx('static_overlay'))
           .setFlip(flip % 2 === 1, flip >= 2)
           .setAlpha(v.staticOverlay);
@@ -460,30 +558,45 @@ export class WorldRenderer {
       if (v.interruptedIcon) {
         const ic = this.icons.get(s.id);
         ic.setTexture('icon_interrupted')
-          .setPosition(p.x, p.y - r - 14 + Math.sin(now / 200) * 2)
+          .setPosition(px, py - r - 14 + Math.sin(now / 200) * 2)
           .setScale(0.8);
       }
       if (v.label !== null) {
         const t = this.labels.get(s.id);
         if (t.text !== v.label) t.setText(v.label);
-        t.setPosition(p.x + r * 0.95, p.y + r * 0.95).setAlpha(Math.max(0.6, v.alpha));
+        t.setPosition(px + r * 0.95, py + r * 0.95).setAlpha(Math.max(0.6, v.alpha));
       }
       if (s.alive) {
         const isLive = s.role === 'live';
-        this.hpBar(p.x, p.y - r - 9, isLive ? 34 : 26, s.hp, s.maxHp, isLive);
+        if (isLive || !this.settings.dimEchoes) {
+          this.hpBar(px, py - r - 9, isLive ? 34 : 26, s.hp, s.maxHp, isLive);
+        }
       }
     }
+    this.culledSoldiers = culled;
+  }
+
+  /** The camera's world-space view rectangle, grown by `margin`. */
+  private cameraView(margin: number): { x0: number; y0: number; x1: number; y1: number } {
+    const cam = this.scene.cameras.main;
+    const vw = cam.width / cam.zoom;
+    const vh = cam.height / cam.zoom;
+    const x0 = cam.scrollX + (cam.width - vw) / 2;
+    const y0 = cam.scrollY + (cam.height - vh) / 2;
+    return { x0: x0 - margin, y0: y0 - margin, x1: x0 + vw + margin, y1: y0 + vh + margin };
   }
 
   private drawTurrets(a: number, f: RenderFrame): void {
     const g = this.overlayGfx;
-    for (const t of this.cur.turrets) {
+    const turrets = this.cur.turrets;
+    for (let i = 0; i < turrets.length; i++) {
+      const t = turrets[i]!;
       const base = this.turretBases.get(t.id);
       const destroyed = t.state === 'destroyed';
       base.setTexture(destroyed ? 'turret_wreck' : 'turret_base').setPosition(t.x, t.y);
       if (!this.applyHitFlash(base, t.id, f.nowMs)) this.clearTint(base);
       if (destroyed) continue;
-      const prev = this.prevTurrets.get(t.id);
+      const prev = nearById(this.prev.turrets, i, t.id);
       const aim = prev ? lerpAngle(prev.aim, t.aim, a) : t.aim;
       const gun = this.turretGuns.get(t.id);
       gun.setTexture('turret_gun').setPosition(t.x, t.y).setRotation(aim);
@@ -544,8 +657,10 @@ export class WorldRenderer {
   }
 
   private drawVehicles(a: number): void {
-    for (const v of this.cur.vehicles) {
-      const prev = this.prevVehicles.get(v.id);
+    const vehicles = this.cur.vehicles;
+    for (let i = 0; i < vehicles.length; i++) {
+      const v = vehicles[i]!;
+      const prev = nearById(this.prev.vehicles, i, v.id);
       const p = interpPos(prev, v, a);
       const heading = prev ? lerpAngle(prev.heading, v.heading, a) : v.heading;
       const spr = this.vehicles.get(v.id);
@@ -573,9 +688,11 @@ export class WorldRenderer {
   }
 
   private drawBridges(a: number): void {
-    for (const b of this.cur.bridges) {
+    const bridges = this.cur.bridges;
+    for (let i = 0; i < bridges.length; i++) {
+      const b = bridges[i]!;
       const c = rectViewCenter(b);
-      const prev = this.prevBridges.get(b.id);
+      const prev = nearById(this.prev.bridges, i, b.id);
       const raised = prev ? lerp(prev.raised, b.raised, a) : b.raised;
       const base = this.bridgeBases.get(b.id);
       base
@@ -596,7 +713,6 @@ export class WorldRenderer {
   }
 
   private drawLevers(f: RenderFrame): void {
-    const g = this.overlayGfx;
     const promptR = this.opts.interactPromptRadius ?? 56;
     const live = f.liveId ? this.cur.soldiers.find((s) => s.id === f.liveId && s.alive) : undefined;
     for (const l of this.cur.levers) {
@@ -606,7 +722,7 @@ export class WorldRenderer {
         .setPosition(l.x, l.y);
       if (this.settings.leverLinks) {
         const target = this.targetCenter(l.targetId);
-        if (target) dashedLine(g, l.x, l.y, target.x, target.y, l.on ? 0x40e070 : 0xb0b6bd, 0.45);
+        if (target) this.drawLink(l.id, l.x, l.y, target.x, target.y, l.on ? 0x40e070 : 0xb0b6bd);
       }
       if (live && Math.hypot(live.x - l.x, live.y - l.y) <= promptR) {
         const t = this.prompts.get(l.id);
@@ -627,6 +743,87 @@ export class WorldRenderer {
         .setScale((o.radius * 2) / fitPx(key));
       if (!this.applyHitFlash(spr, o.id, this.now)) this.clearTint(spr);
       if (!o.destroyed) this.hpBar(o.x, o.y - o.radius - 12, 56, o.hp, o.maxHp);
+    }
+  }
+
+  /**
+   * (05-a) Capture points: pad, radius circle (team colour by stage), flag pole with the enemy
+   * flag lowering / our flag raising, a progress ring, and a highlight on each contributor.
+   */
+  private drawCapturePoints(nowMs: number): void {
+    const g = this.overlayGfx;
+    const STAGE_COLOR = { enemy: 0xe0533f, neutral: 0xd8d8d8, ours: 0x4ade80 } as const;
+    for (const c of this.cur.capturePoints) {
+      const color = STAGE_COLOR[c.stage];
+      const base = this.captureBases.get(c.id);
+      base
+        .setTexture('capture_base')
+        .setPosition(c.x, c.y)
+        .setScale((Math.min(c.radius, 80) * 2) / fitPx('capture_base'))
+        .setAlpha(0.9);
+      g.fillStyle(color, c.contributors.length ? 0.12 : 0.06);
+      g.fillCircle(c.x, c.y, c.radius);
+      g.lineStyle(2, color, 0.8);
+      g.strokeCircle(c.x, c.y, c.radius);
+      // Progress ring around the radius (clockwise from 12 o'clock).
+      if (c.stage !== 'ours' && c.progress > 0) {
+        const ringColor = c.stage === 'enemy' ? 0xffd34d : 0x4ade80;
+        g.lineStyle(6, ringColor, 0.95);
+        g.beginPath();
+        g.arc(c.x, c.y, c.radius + 6, -Math.PI / 2, -Math.PI / 2 + c.progress * Math.PI * 2);
+        g.strokePath();
+      }
+      // Pole + flags. The pole's foot sits at the point's centre.
+      const poleH = 72;
+      const foot = c.y;
+      this.flagPoles
+        .get(c.id)
+        .setTexture('flag_pole')
+        .setOrigin(0.5, 1)
+        .setPosition(c.x, foot)
+        .setScale(poleH / 96);
+      const h = flagHeights(c.stage, c.progress);
+      const flagKey = h.enemy > 0 ? 'flag_enemy' : h.ours > 0 ? 'flag_ours' : null;
+      if (flagKey) {
+        const lift = h.enemy > 0 ? h.enemy : h.ours;
+        const wave = 1 + Math.sin(nowMs / 180) * 0.06;
+        this.flags
+          .get(c.id)
+          .setTexture(flagKey)
+          .setOrigin(0, 0)
+          .setPosition(c.x + 1, foot - 14 - lift * (poleH - 22))
+          .setScale(0.7 * wave, 0.7);
+      }
+      // Contributor highlight.
+      for (const id of c.contributors) {
+        const s = this.cur.soldiers.find((x) => x.id === id);
+        if (!s) continue;
+        const r = this.opts.spriteRadius + 5 + Math.sin(nowMs / 160) * 1.5;
+        g.lineStyle(2, c.stage === 'enemy' ? 0xffd34d : 0x4ade80, 0.9);
+        g.strokeCircle(s.x, s.y, r);
+      }
+      // Label: name (+ "flag" objectives get the HQ name in caps by their string). (06-c) Text and
+      // colour are set only when they change: each change re-renders the label's texture.
+      const label = this.captureLabels.get(c.id);
+      const name = strDynamic(c.nameKey);
+      if (label.text !== name) label.setText(name);
+      const labelColor =
+        c.stage === 'ours' ? '#bff5cf' : c.stage === 'enemy' ? '#ffc2b8' : '#e6e6e6';
+      if (label.style.color !== labelColor) label.setColor(labelColor);
+      label.setPosition(c.x, c.y + c.radius + 16);
+      // A forward spawn point opens while ours: show its insertion marker.
+      if (c.stage === 'ours') {
+        for (const spId of c.spawnPointIds) {
+          const sp = this.map.spawnPoints.find((p) => p.id === spId);
+          if (!sp) continue;
+          this.captureMarkers
+            .get(spId)
+            .setTexture('spawn_marker')
+            .setPosition(sp.position.x, sp.position.y)
+            .setRotation(sp.facing)
+            .setAlpha(0.8);
+        }
+      }
     }
   }
 
@@ -657,6 +854,24 @@ export class WorldRenderer {
     this.sounds.setLoop('sfx_static_hum', 0.35 * this.sounds.loopGainFor(nearStatic));
   }
 
+  /**
+   * (06-c) A dashed lever → target line as one tile sprite (a repeating dash texture): the same
+   * look as the old per-frame dashed Graphics, without re-tessellating it every frame.
+   */
+  private drawLink(id: string, x0: number, y0: number, x1: number, y1: number, color: number) {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    // Dash length as before: the line split into whole 12-unit segments, every other one drawn.
+    const n = Math.max(1, Math.floor(len / DASH));
+    const seg = len / n;
+    const t = this.links.get(id);
+    if (t.width !== len) t.setSize(len, 2);
+    t.setPosition(x0, y0)
+      .setRotation(Math.atan2(y1 - y0, x1 - x0))
+      .setTileScale(seg / DASH, 1)
+      .setTint(color)
+      .setAlpha(0.45);
+  }
+
   private targetCenter(id: string): Vec2 | undefined {
     const gate = this.cur.gates.find((g) => g.id === id);
     if (gate) return rectViewCenter(gate);
@@ -666,23 +881,29 @@ export class WorldRenderer {
   }
 }
 
-function dashedLine(
-  g: Phaser.GameObjects.Graphics,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  color: number,
-  alpha: number,
-): void {
-  const len = Math.hypot(x1 - x0, y1 - y0);
-  const n = Math.max(1, Math.floor(len / 12));
-  g.lineStyle(2, color, alpha);
-  for (let i = 0; i < n; i += 2) {
-    const t0 = i / n;
-    const t1 = Math.min(1, (i + 1) / n);
-    g.lineBetween(lerp(x0, x1, t0), lerp(y0, y1, t0), lerp(x0, x1, t1), lerp(y0, y1, t1));
-  }
+/**
+ * (06-c) Pooled objects are redrawn every frame with the same texture and depth most of the time.
+ * Phaser's `setTexture` re-resolves the texture and frame (and resizes) and `setDepth` queues a
+ * sort of the whole display list on every call, even for the same value; skip those no-ops.
+ */
+function skipNoOpSetters<T extends Img | Tile>(o: T): T {
+  const setTexture = o.setTexture.bind(o);
+  const setDepth = o.setDepth.bind(o);
+  o.setTexture = ((key: string, frame?: string | number) =>
+    frame === undefined && o.texture.key === key ? o : setTexture(key, frame)) as T['setTexture'];
+  o.setDepth = ((value: number) => (o.depth === value ? o : setDepth(value))) as T['setDepth'];
+  return o;
+}
+
+/** (06-c) A 24×2 texture: 12 px of white dash, 12 px gap (tinted per link). */
+function ensureDashTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(DASH_TEXTURE)) return;
+  const tex = scene.textures.createCanvas(DASH_TEXTURE, DASH * 2, 2);
+  if (!tex) return;
+  const ctx = tex.getContext();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, DASH, 2);
+  tex.refresh();
 }
 
 /** Sprite size (length along heading, width across) from a vehicle's world-axis extents. */

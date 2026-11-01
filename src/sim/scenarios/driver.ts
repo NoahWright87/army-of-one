@@ -203,3 +203,42 @@ export function isCrossingSafe(
   }
   return true;
 }
+
+/**
+ * (06-a) The forward-is-up counterpart of `isCrossingSafe`: true if a soldier walking straight
+ * up (−y) at column `x` from its current y, at full speed, would cross the given horizontal
+ * traffic lanes without touching a moving vehicle (with a safety margin). Only vehicles already
+ * on the road count, so cross far enough from the lanes' entry ends (e.g. mid-map).
+ */
+export function isCrossingSafeUp(
+  world: World,
+  me: SoldierState,
+  x: number,
+  laneIds: string[],
+): boolean {
+  const t = world.tuning;
+  const perTick = t.soldier.speed / 60;
+  const r = t.soldier.hitboxRadius;
+  const lanes = world.map.trafficLanes ?? [];
+  const marginTicks = 10;
+  for (const v of world.state.vehicles) {
+    if (v.state !== 'moving') continue;
+    const def = lanes[v.lane]!;
+    if (!laneIds.includes(def.id)) continue;
+    const info = laneInfo(def, t);
+    // When is the soldier inside this lane's y-band?
+    const sIn = (me.y - (v.y + info.h / 2 + r)) / perTick;
+    const sOut = (me.y - (v.y - info.h / 2 - r)) / perTick;
+    if (sOut < 0) continue;
+    // When is the vehicle over the soldier's x-band?
+    const reach = info.w / 2 + r;
+    const vx = info.dir.x * info.stepPerTick;
+    const a = (x - reach - v.x) / vx;
+    const b = (x + reach - v.x) / vx;
+    const vIn = Math.min(a, b);
+    const vOut = Math.max(a, b);
+    if (vOut < 0) continue;
+    if (vIn - marginTicks < sOut && sIn < vOut + marginTicks) return false;
+  }
+  return true;
+}

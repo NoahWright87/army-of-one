@@ -121,6 +121,26 @@ export interface Tuning {
     /** Default radius when the map doesn't give one. */
     radius: number;
   };
+  /** (05-a) Battlefield 2-style capture points ([D10]–[D12]). */
+  capture: {
+    /** Default capture radius when the map doesn't give one. */
+    radius: number;
+    /** Seconds for ONE soldier to complete one stage (lower the enemy flag, or raise ours). */
+    stageSeconds: number;
+    /**
+     * More soldiers capture faster ([D10]): rate = (1 / stageSeconds) × min(n, maxContributors)^
+     * contributorExponent. With 0.6: 2 soldiers ≈ 1.5×, 3 ≈ 1.9×, 6 ≈ 2.9×.
+     */
+    contributorExponent: number;
+    /** Soldiers beyond this many don't speed the capture up further. */
+    maxContributors: number;
+    /**
+     * Empty-circle decay ([D12]), progress per second: decayBasePerSecond × (1 + decayAccel ×
+     * emptySeconds²). Defaults: a 0.5 s step-out loses ≈ 3 %, 1 s ≈ 8 %, 2 s ≈ 32 %, 3 s ≈ 90 %.
+     */
+    decayBasePerSecond: number;
+    decayAccel: number;
+  };
   nav: {
     /** Walkability grid cell size. */
     cellSize: number;
@@ -166,15 +186,50 @@ export interface Tuning {
     snapshotIntervalTicks: number;
     /** A resolve pass ([D23]) reports partial observations every this many ticks. */
     resolveProgressIntervalTicks: number;
+    /**
+     * (05-b) Snapshot thinning: snapshots more than this far behind the newest one are kept
+     * only every `snapshotSparseEveryTicks`. Saves memory with big armies; costs a longer
+     * fast-forward (≤ the sparse interval) when deploying into old battle time. 0 = keep all.
+     */
+    snapshotDenseWindowTicks: number;
+    snapshotSparseEveryTicks: number;
   };
+  /** (04) New-soldier spawning and the deploy lead-in ([D7], [D5], [D25]). */
+  spawn: {
+    /** Gap between successive new soldiers at the same spawn point ([D7]). */
+    intervalSeconds: number;
+    /** Countdown before control on every deploy ([D5], [D25]). */
+    leadInSeconds: number;
+  };
+  /** (04) Real-time pause on the frozen battlefield with a "KIA" caption after the live soldier dies. */
+  deathBeatSeconds: number;
+  /** (04) Battle time between in-progress autosaves while a life is played ([D6], [D20]). */
+  autosaveIntervalSeconds: number;
   /** Size of the world's recent-events ring buffer. */
   eventLogCapacity: number;
+  /**
+   * (06-b) Revealed map ([D29]): what the soldiers have seen in the current truth. UI only (the
+   * sim never reads it); used by the respawn-screen map and the in-game minimap.
+   */
+  reveal: {
+    /** A soldier reveals everything within this distance of where it was alive. */
+    radius: number;
+    /** Fog grid cell size (world units). Smaller = finer edges, more work. */
+    cellSize: number;
+    /**
+     * false: a plain radius (basic map). true: static walls block the reveal (line of sight on
+     * the fog grid, so thin walls are approximate).
+     */
+    occludeByWalls: boolean;
+    /** Recordings are sampled every this many ticks (gaps are interpolated). */
+    sampleTicks: number;
+  };
 }
 
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
     maxHp: 100, // TUNE
-    speed: 150, // TUNE
+    speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
@@ -199,7 +254,7 @@ export const DEFAULT_TUNING: Tuning = {
     turnRate: Math.PI, // TUNE: 180°/s
     aimTolerance: 0.15, // TUNE
     windupSeconds: 0.5, // TUNE
-    cooldownSeconds: 0.6, // TUNE
+    cooldownSeconds: 0.45, // TUNE
     damage: 40, // TUNE: 3 hits kill a full-HP soldier
     trackDuringWindup: true, // TUNE
   },
@@ -236,6 +291,14 @@ export const DEFAULT_TUNING: Tuning = {
     maxHp: 600, // TUNE
     radius: 40, // TUNE
   },
+  capture: {
+    radius: 110, // TUNE
+    stageSeconds: 4, // TUNE: one soldier takes 8 s for both stages
+    contributorExponent: 0.6, // TUNE
+    maxContributors: 6, // TUNE
+    decayBasePerSecond: 0.05, // TUNE
+    decayAccel: 1.667, // TUNE: ~3 s empty drains a 90 % bar ([D12])
+  },
   nav: {
     cellSize: 16, // TUNE
     snapRadiusCells: 2, // TUNE
@@ -254,8 +317,22 @@ export const DEFAULT_TUNING: Tuning = {
   attempt: {
     snapshotIntervalTicks: 60, // TUNE: 1 s of battle time [E4]
     resolveProgressIntervalTicks: 60, // TUNE
+    snapshotDenseWindowTicks: 3600, // TUNE: last 60 s of battle time stay at 1 s density
+    snapshotSparseEveryTicks: 300, // TUNE: older battle time every 5 s (0 = no thinning)
   },
+  spawn: {
+    intervalSeconds: 2, // TUNE [D7]
+    leadInSeconds: 5, // TUNE [D5]
+  },
+  deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
+  autosaveIntervalSeconds: 5, // TUNE
   eventLogCapacity: 512, // TUNE
+  reveal: {
+    radius: 480, // TUNE: about half a screen at zoom 1
+    cellSize: 64, // TUNE
+    occludeByWalls: false, // TUNE
+    sampleTicks: 30, // TUNE: 0.5 s; the gaps between samples are interpolated
+  },
 };
 
 /** Deep-merges partial overrides onto a tuning object (used by tests and the settings panel). */

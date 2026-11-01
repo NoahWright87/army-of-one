@@ -2,6 +2,11 @@ import type { Tuning } from '../../content/tuning';
 import { isEligible, type SoldierState } from '../entities/soldier';
 import { moveCircle } from './collision';
 import type { Rect } from './map';
+import { simPerf } from '../perf';
+import { buildPointGrid } from './soldier-grid';
+
+/** Below this many soldiers the plain pair scan is cheaper than building a grid. */
+const GRID_MIN = 24;
 
 /**
  * Soft soldier-vs-soldier separation ([D14]). Soldiers closer than two blocker radii are pushed
@@ -23,33 +28,47 @@ export function separateSoldiers(
   const py = new Float64Array(active.length);
   let any = false;
 
-  for (let i = 0; i < active.length; i++) {
+  // (05-b) Pair candidates from a spatial hash for big crowds. Per soldier, pushes still
+  // accumulate in ascending partner order (all i < k during earlier outer iterations, then
+  // j > k ascending), exactly as in the full O(n²) scan, so the result is bit-identical.
+  const grid =
+    simPerf.soldierGrid && active.length > GRID_MIN ? buildPointGrid(active, minD * 2) : null;
+  const pair = (i: number, j: number) => {
     const a = active[i]!;
-    for (let j = i + 1; j < active.length; j++) {
-      const b = active[j]!;
-      if (a.kinematic && b.kinematic) continue;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 >= minD * minD) continue;
-      const d = Math.sqrt(d2);
-      // Exactly coincident: push along a direction derived from the pair's order (deterministic).
-      const nx = d > 1e-9 ? dx / d : Math.cos(j * 2.399963);
-      const ny = d > 1e-9 ? dy / d : Math.sin(j * 2.399963);
-      const push = (minD - d) * stiffness;
-      if (a.kinematic) {
-        px[j] = px[j]! + nx * push;
-        py[j] = py[j]! + ny * push;
-      } else if (b.kinematic) {
-        px[i] = px[i]! - nx * push;
-        py[i] = py[i]! - ny * push;
-      } else {
-        px[i] = px[i]! - nx * push * 0.5;
-        py[i] = py[i]! - ny * push * 0.5;
-        px[j] = px[j]! + nx * push * 0.5;
-        py[j] = py[j]! + ny * push * 0.5;
+    const b = active[j]!;
+    if (a.kinematic && b.kinematic) return;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= minD * minD) return;
+    const d = Math.sqrt(d2);
+    // Exactly coincident: push along a direction derived from the pair's order (deterministic).
+    const nx = d > 1e-9 ? dx / d : Math.cos(j * 2.399963);
+    const ny = d > 1e-9 ? dy / d : Math.sin(j * 2.399963);
+    const push = (minD - d) * stiffness;
+    if (a.kinematic) {
+      px[j] = px[j]! + nx * push;
+      py[j] = py[j]! + ny * push;
+    } else if (b.kinematic) {
+      px[i] = px[i]! - nx * push;
+      py[i] = py[i]! - ny * push;
+    } else {
+      px[i] = px[i]! - nx * push * 0.5;
+      py[i] = py[i]! - ny * push * 0.5;
+      px[j] = px[j]! + nx * push * 0.5;
+      py[j] = py[j]! + ny * push * 0.5;
+    }
+    any = true;
+  };
+
+  for (let i = 0; i < active.length; i++) {
+    if (grid) {
+      const a = active[i]!;
+      for (const j of grid.query(a.x - minD, a.y - minD, a.x + minD, a.y + minD)) {
+        if (j > i) pair(i, j);
       }
-      any = true;
+    } else {
+      for (let j = i + 1; j < active.length; j++) pair(i, j);
     }
   }
   if (!any) return;

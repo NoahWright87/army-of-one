@@ -45,11 +45,11 @@ describe('tuning settings', () => {
     const s = new SettingsStore(new MemoryStorage(), 'k');
     s.register(tuningSettingDefs(DEFAULT_TUNING));
     expect(tuningOverrides(s, DEFAULT_TUNING)).toEqual({});
-    s.set('tuning.soldier.speed', 200);
-    expect(tuningOverrides(s, DEFAULT_TUNING)).toEqual({ soldier: { speed: 200 } });
+    s.set('tuning.soldier.speed', 240);
+    expect(tuningOverrides(s, DEFAULT_TUNING)).toEqual({ soldier: { speed: 240 } });
     const t = effectiveTuning(s, DEFAULT_TUNING);
-    expect(t.soldier.speed).toBe(200);
+    expect(t.soldier.speed).toBe(240);
     expect(t.soldier.maxHp).toBe(DEFAULT_TUNING.soldier.maxHp);
-    expect(DEFAULT_TUNING.soldier.speed).toBe(150); // defaults untouched
+    expect(DEFAULT_TUNING.soldier.speed).toBe(190); // defaults untouched
   });
 });

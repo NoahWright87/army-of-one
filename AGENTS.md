@@ -92,13 +92,44 @@ npm run lint:purity       # proves the pure-module lint rules still fire
 npm run format            # Prettier write
 npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md from the manifest
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
-npm run sim -- --map mission-01 --script road-naive  # scripted scenario, prints events (--list)
+npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
+npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
+                          # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
-In the browser: `/?scene=gallery` renders every entity/soldier state from a fixture (visual test
-page). Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options + sim tuning,
-saved in localStorage), `F4` play the lead-in countdown.
+In the browser: `/` is the game (title → respawn screen → lead-in → battle → …, PHASE04).
+`/?scene=gallery` renders every entity/soldier state from a fixture (visual test page),
+`/?scene=sandbox` is the old free-play battle, `/?screen=respawn&fixture=<name>` the respawn
+screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,
+game flow, sim tuning; saved in localStorage), `F4` play the countdown overlay, `R` / `Space`
+quick redeploy on the death beat or respawn screen (PHASE06-c; a fresh mission skips the empty
+respawn screen). Perf knobs: `display.renderScale`, `display.antialias`, `debug.maxCatchUpSteps`
+(see `docs/perf.md`, PHASE06-c).
+
+Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
+
+- `K` kills the live soldier; `[` / `]` sim speed ×0.25…×4; a DEV bar (top right) with Kill,
+  Reset mission and Timeline JSON; `?debugTimeline=1` opens the raw lanes/observation panel.
+- Autoplay plays scripted lives (`src/app/autoplay-lives.ts`) through the real flow:
+  `?dev=1&autoplay=breach-slow,breach-snipe-die,breach-resume-win`. `name*N` repeats; `&fast=1` plays them
+  headless (not drawn); `&autowait=1` waits for the scrubber before each deploy;
+  `&continue=1` continues the save instead of starting over; `&autodelay=ms`. In the console:
+  `__aoo.autoplay('breach-naive*3')`, `__aoo.lives` (list), `__aoo.kill()`, `__aoo.controller`.
+- `&resolveWorker=0` runs the background resolve on the main thread instead of a Web Worker.
+- Stress mode (PHASE05-b): `?stress=100` plays 100 seeded bot lives (`src/sim/bots/`) through
+  chained attempts, then opens the respawn screen so you can play among them (`&stressSeed=n`
+  for another army). It replaces the saved mission. The debug overlay shows sim/render ms,
+  sprite count and soldiers by role; `__aoo.services.perf` has the same numbers. See
+  `docs/perf.md`.
+- Missions: mission-03 "Breach" (PHASE06-a) is the **only** mission ([D31]) and the template
+  for new ones: mostly vertical, one direction, contact within seconds. mission-01/02 were
+  removed; `?mission=` with any other id (or an old remembered pick) falls back to Breach, and
+  old saves for removed missions are ignored. The title-screen picker only shows with more than
+  one mission. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
+  (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one
+  life); `breach-capture&fast=1` captures the Forward Post, then deploy at it yourself. More
+  stories (gate interruption, mines, make it worse) are listed in `src/app/autoplay-lives.ts`.
 
 Before pushing: `npm run lint && npm run lint:purity && npm run test && npm run build` must pass.
 
