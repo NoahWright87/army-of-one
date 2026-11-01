@@ -17,14 +17,18 @@
     "lint:purity": "node tools/check-purity-lint.mjs",
     "format": "prettier --write .",
     "gen:placeholders": "tsx tools/gen-placeholders.ts",
-    "sim": "tsx tools/sim-cli.ts"
+    "sim": "tsx tools/sim-cli.ts",
+    "bench": "tsx tools/bench.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
+    "@types/pngjs": "^6.0.5",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
+    "fake-indexeddb": "^6.2.6",
     "globals": "^17.13.0",
+    "pngjs": "^7.0.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
