@@ -1,12 +1,14 @@
 /**
  * Headless sim runner. Seed of the PHASE05-b stress harness.
  *   npm run sim -- --ticks 3600                              # test-range, walk in a square
- *   npm run sim -- --map mission-01 --script road-naive      # scripted scenario, prints events
- *   npm run sim -- --map mission-01 --list                   # list scenarios
+ *   npm run sim -- --map mission-03 --script breach-naive    # scripted scenario, prints events
+ *   npm run sim -- --map mission-03 --list                   # list scenarios
+ *   npm run sim -- --scenario rescue|chain|bench             # PHASE03-a echoes (sim-echoes.ts)
+ * mission-03 "Breach" is the only mission ([D31]); `--script` defaults to it.
  * Flags: --quiet (no per-event lines), --all-events (include every shot/damage event).
  */
 import { DEFAULT_TUNING } from '../src/content/tuning';
-import { MISSION_01 } from '../src/content/maps/mission-01';
+import { MISSION_03 } from '../src/content/maps/mission-03';
 import { TEST_RANGE } from '../src/content/maps/test-range';
 import { hashState } from '../src/sim/core/hash';
 import { formatBattleTime } from '../src/sim/core/time';
@@ -14,8 +16,9 @@ import { createWorld, getSoldier, spawnSoldier, step } from '../src/sim/sim';
 import type { SoldierInput } from '../src/sim/entities/soldier';
 import type { SimEvent } from '../src/sim/events';
 import { runScenario } from '../src/sim/scenarios/driver';
-import { MISSION_01_SCENARIOS } from '../src/sim/scenarios/mission-01';
+import { MISSION_03_SCENARIOS } from '../src/sim/scenarios/mission-03';
 import type { MapDef } from '../src/sim/world/map';
+import { runEchoScenario } from './sim-echoes';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -23,13 +26,26 @@ function arg(name: string, fallback: string): string {
 }
 const flag = (name: string) => process.argv.includes(`--${name}`);
 
-const MAPS: Record<string, MapDef> = { 'test-range': TEST_RANGE, 'mission-01': MISSION_01 };
-const SCENARIOS = { 'mission-01': MISSION_01_SCENARIOS } as Record<
-  string,
-  typeof MISSION_01_SCENARIOS
->;
+if (process.argv.includes('--scenario')) {
+  runEchoScenario(arg('scenario', ''), {
+    json: flag('json'),
+    echoes: Number(arg('echoes', '20')),
+  });
+  process.exit(0);
+}
 
-const mapId = arg('map', 'test-range');
+const MAPS: Record<string, MapDef> = {
+  'test-range': TEST_RANGE,
+  'mission-03': MISSION_03,
+};
+const SCENARIOS = {
+  'mission-03': MISSION_03_SCENARIOS,
+} as Record<string, typeof MISSION_03_SCENARIOS>;
+
+// A script or a scenario list means Breach unless --map says otherwise; the free walk defaults
+// to the small test range.
+const scripted = process.argv.includes('--script') || flag('list');
+const mapId = arg('map', scripted ? 'mission-03' : 'test-range');
 const map = MAPS[mapId];
 if (!map) {
   console.error(`Unknown map ${mapId}. Maps: ${Object.keys(MAPS).join(', ')}`);

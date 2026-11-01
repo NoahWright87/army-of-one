@@ -50,7 +50,7 @@ export const purityRules = {
 };
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'tools/fixtures/**', 'assets/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'tools/fixtures/**', 'assets/**', '.claude/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

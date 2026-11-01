@@ -2,6 +2,7 @@ import type { Tuning } from '../content/tuning';
 import type { IdCounters } from './core/ids';
 import type { Tick } from './core/time';
 import type { BridgeEntity } from './entities/bridge';
+import type { CapturePointEntity } from './entities/capture-point';
 import type { GateEntity } from './entities/gate';
 import type { MineEntity } from './entities/mine';
 import type { ObjectiveEntity } from './entities/objective';
@@ -31,11 +32,13 @@ export interface WorldState {
   gates: GateEntity[];
   bridges: BridgeEntity[];
   objectives: ObjectiveEntity[];
+  /** (05-a) Parallel to `map.capturePoints`. */
+  capturePoints: CapturePointEntity[];
   /** Events emitted during the most recent tick. */
   events: SimEvent[];
   /** Events emitted between ticks (e.g. spawns); they open the next tick's `events`. */
   queuedEvents: SimEvent[];
-  /** Set when every objective is destroyed ([D17]). */
+  /** Set when every objective is done: targets destroyed, flag points ours ([D17]). */
   missionComplete: { tick: Tick; by?: string } | null;
 }
 

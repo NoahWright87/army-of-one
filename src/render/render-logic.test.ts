@@ -43,6 +43,7 @@ const view = (p: Partial<WorldView> = {}): WorldView => ({
   levers: [],
   bridges: [],
   objectives: [],
+  capturePoints: [],
   events: [],
   missionComplete: null,
   ...p,
@@ -93,6 +94,18 @@ describe('soldier style', () => {
     for (const role of ['echo', 'static', 'interrupted'] as const) {
       expect(v.depth).toBeGreaterThan(soldierVisual(soldier({ role }), settings, 0).depth);
     }
+  });
+
+  it('dim echoes (05-b): everyone but the live soldier fades back, labels go', () => {
+    const dim = { ...settings, dimEchoes: true, dimEchoesLevel: 0.2 };
+    expect(soldierVisual(soldier(), dim, 0).alpha).toBe(1);
+    const echo = soldierVisual(soldier({ role: 'echo', ordinal: 3 }), dim, 0);
+    expect(echo.alpha).toBeCloseTo(0.2);
+    expect(echo.label).toBeNull();
+    const stat = soldierVisual(soldier({ role: 'static' }), dim, 0);
+    expect(stat.alpha).toBeLessThan(soldierVisual(soldier({ role: 'static' }), settings, 0).alpha);
+    const corpse = soldierVisual(soldier({ role: 'echo', alive: false }), dim, 0);
+    expect(corpse.alpha).toBeLessThanOrEqual(0.2);
   });
 
   it('echoes are translucent and labelled (toggleable)', () => {

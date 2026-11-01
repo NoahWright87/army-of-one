@@ -7,6 +7,8 @@ import type { World, WorldState } from '../state';
 import { circleOverlapsRect, rectsOverlap } from '../world/collision';
 import type { Rect, TrafficLaneDef } from '../world/map';
 import { isEligible } from './soldier';
+import { simPerf } from '../perf';
+import { postActionGrid, type PointGrid } from '../world/soldier-grid';
 
 /** 'stopped': halted behind a wreck (solid, harmless, still shootable). */
 export type VehicleMode = 'moving' | 'stopped' | 'wreck';
@@ -163,10 +165,30 @@ export function stepTraffic(world: World): void {
 
   // Moving vehicles kill on contact.
   const r = world.tuning.soldier.hitboxRadius;
+  // (05-b) With many soldiers, test only those near each vehicle (ascending index order, so
+  // damage happens in the same order as the full scan).
+  const soldiers = st.soldiers;
+  let grid: PointGrid | null = null;
+  const useGrid = simPerf.soldierGrid && soldiers.length > 24;
   for (const v of st.vehicles) {
     if (v.state !== 'moving') continue;
     const rect = vehicleRect(v, lanes[v.lane]!);
-    for (const s of st.soldiers) {
+    if (useGrid) {
+      grid ??= postActionGrid(world);
+      for (const k of grid.query(
+        rect.x - r,
+        rect.y - r,
+        rect.x + rect.w + r,
+        rect.y + rect.h + r,
+      )) {
+        const s = soldiers[k]!;
+        if (isEligible(s) && circleOverlapsRect(s, r, rect)) {
+          damageSoldier(world, s, vt.contactDamage, v.id, 'vehicle');
+        }
+      }
+      continue;
+    }
+    for (const s of soldiers) {
       if (isEligible(s) && circleOverlapsRect(s, r, rect)) {
         damageSoldier(world, s, vt.contactDamage, v.id, 'vehicle');
       }
