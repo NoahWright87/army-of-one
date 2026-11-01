@@ -1,24 +1,22 @@
-# PHASE07: Multiplayer snapshot experiment (sketch)
+# PHASE07: Replayable & playable anywhere
 
-**Goal:** prove the design doc's §08 model. Players in the same synchronized instance affect each
-other live. A player who respawns starts a new independent instance built from the history
-**snapshot** available at that moment, and does not stream other players' later actions.
+Owner direction after playing PHASE06 (2026-10):
+1. A score screen and the other "phase 9" bits. **While the stats show, replay the entire mission**
+   with all your lives together. The camera scrolls smoothly, zooming out to fit every soldier
+   alive at that moment and back in as they die or bunch up. It might be **shareable** later.
+2. **Auto-aim and touch controls**, so it can be tested on a phone.
+3. Multiplayer is deferred until "way later" (PHASE08).
+4. Recordings are small enough, so optimizations are deferred (PHASE10).
+5. **More variety:** soldier types, vehicles, and more kinds of enemies.
 
-**Depends on:** PHASE06 (or at least 04 + 05). **Parallel with:** — (split once designed).
+| Part | What | Notes |
+|---|---|---|
+| [07-a](PHASE07-a.md) | Results screen + full-mission "after-action" replay | No decision gates for the core; scoring axes are provisional, behind a setting |
+| [07-b](PHASE07-b.md) | Auto-aim + touch controls (phone-playable) | One product question, built behind a setting |
+| [07-c](PHASE07-c.md) | Variety: soldier roles, enemy types, vehicles | ⛔ Starts with a decision step: the owner picks from the menu |
 
-## Direction
-- The architecture so far helps: pure deterministic sim, recordings as data, truth folded from
-  observations. Multiplayer is mostly about **publishing** observations/recordings between
-  players and **merging** truth.
-- Start with the smallest experiment: two browser tabs, local relay (BroadcastChannel), asymmetric
-  lives (the design doc's "careful player and meat grinder").
-- Then a minimal relay server, only if needed. "Large server infrastructure" is out of scope.
+07-a and 07-b can run in parallel. 07-c's decision step can happen alongside them; its build
+follows once the owner has picked.
 
-## ⛔ Open product rules (design doc §08 table; all must be decided first)
-- What's included from an in-progress life in a snapshot? Can a partial life yield an O?
-- How is a cross-instance rescue published, without modifying a player's active session?
-- How do conflicting parallel histories resolve? (Note how [D2] "latest attempt is truth"
-  generalizes, or doesn't, with two players' latest attempts.)
-- When can live players rejoin a synchronized instance (optional O-based sync delay)?
-- Versus win conditions, tie-breaking, and when a match ends for everyone.
-- Whether captures ([D9]) become contested between teams.
+Context for a fresh session: start with `todos/README.md` ("Start here"), then `AGENTS.md`,
+`docs/DECISIONS.md`, and this file.

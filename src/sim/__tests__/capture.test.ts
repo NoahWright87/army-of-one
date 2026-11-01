@@ -1,9 +1,10 @@
 /**
  * PHASE05-a: capture points ([D10]–[D12]), forward spawns ([D8], [D9], [D26]) and the flag
- * objective ([D17]). Mechanics on a tiny arena; causality scenarios on mission-02.
+ * objective ([D17]). Mechanics on a tiny arena; causality scenarios on mission-03 "Breach"
+ * (they ran on the removed mission-02, [D31]).
  */
 import { describe, expect, it } from 'vitest';
-import { MISSION_02 } from '../../content/maps/mission-02';
+import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING, withTuning } from '../../content/tuning';
 import { SnapshotStore } from '../attempt/snapshots';
 import { outcomeHash } from '../attempt/outcome-hash';
@@ -13,14 +14,18 @@ import { createWorld, getSoldier, getView, spawnSoldier, step, type World } from
 import { borderWalls, type MapDef } from '../world/map';
 import { isSpawnPointOpen } from '../world/spawn-points';
 import { playLife } from '../scenarios/lives';
-import {
-  OUTPOST_TO_HQ,
-  ROAD_CAPTURE_OUTPOST,
-  ROAD_CAPTURE_OUTPOST_SLOW,
-  outpostOurs,
-} from '../scenarios/mission-02';
-import { ROAD_TO_HIGHWAY } from '../scenarios/mission-01';
 import type { ScriptStep } from '../scenarios/driver';
+import {
+  BREACH_CAPTURE,
+  BREACH_CAPTURE_SLOW,
+  BREACH_MINES,
+  BREACH_OPEN_GATE,
+  BREACH_ROAD,
+  BREACH_SNIPE_T1,
+  breachFollowToForward,
+  breachMineUnder,
+  m3ForwardOurs,
+} from '../scenarios/mission-03';
 
 const T = DEFAULT_TUNING;
 const STAGE_TICKS_1 = secondsToTicks(T.capture.stageSeconds);
@@ -193,48 +198,37 @@ describe('capture point mechanics', () => {
   });
 });
 
-// ---------- mission-02: echoes, forward spawns, causality ----------
+// ---------- mission-03: echoes, forward spawns, causality ----------
 
 const TUNING = DEFAULT_TUNING;
-const outpostTick = (w: World) => w.state.capturePoints[0]!.capturedTick;
+const forwardTick = (w: World) => w.state.capturePoints[0]!.capturedTick;
 
-/** S3 on mission-02: waits west of the chasm and blows the road bridge under S1. */
-const blowBridgeUnderS1: ScriptStep[] = [
-  ...ROAD_TO_HIGHWAY,
-  { kind: 'moveTo', to: { x: 2900, y: 1260 }, label: 'west of the chasm' },
-  {
-    kind: 'waitUntil',
-    until: (w) => {
-      const s = getSoldier(w, 'S1');
-      return !!s && s.alive && s.x > 3215 && s.x < 3300 && s.y > 1200 && s.y < 1400;
-    },
-    label: 'S1 on the bridge',
-  },
-  {
-    kind: 'shoot',
-    at: MISSION_02.bridges![0]!.charge!,
-    until: (w) => w.state.bridges[0]!.state === 'destroyed',
-  },
-  { kind: 'wait', ticks: 30 },
+/** West: T1, gate, mines, road, then stand on the Forward Post until it's ours. */
+const RUSH_FORWARD: ScriptStep[] = [
+  ...BREACH_SNIPE_T1,
+  ...BREACH_OPEN_GATE,
+  ...BREACH_MINES,
+  ...BREACH_ROAD,
+  ...BREACH_CAPTURE,
 ];
 
-describe('mission-02: forward capture and causality', () => {
+describe('mission-03: forward capture and causality', () => {
   it('echoes re-capture deterministically in replay', () => {
     const snapshots = new SnapshotStore();
     const a1 = playLife({
-      map: MISSION_02,
+      map: MISSION_03,
       tuning: TUNING,
       records: [],
       attempt: 1,
       snapshots,
-      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'road', entryTick: 0 },
-      steps: ROAD_CAPTURE_OUTPOST,
+      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'west', entryTick: 0 },
+      steps: RUSH_FORWARD,
     });
-    const t1 = outpostTick(a1.attempt.world);
+    const t1 = forwardTick(a1.attempt.world);
     expect(t1).not.toBeNull();
     expect(a1.observation.captures!.map((c) => c.stage)).toEqual(['neutral', 'ours']);
     expect(a1.observation.captures![1]).toMatchObject({
-      pointId: 'cp-outpost',
+      pointId: 'cp-forward',
       tick: t1,
       by: ['S1'],
     });
@@ -244,96 +238,75 @@ describe('mission-02: forward capture and causality', () => {
     // Replay with no live soldier, twice: same capture tick, same hash.
     const hashes = [0, 1].map(() => {
       const r = playLife({
-        map: MISSION_02,
+        map: MISSION_03,
         tuning: TUNING,
         records: a1.records,
         attempt: 2,
         live: null,
         maxTick: t1! + 10,
       });
-      expect(outpostTick(r.attempt.world)).toBe(t1);
+      expect(forwardTick(r.attempt.world)).toBe(t1);
       return outcomeHash(r.attempt.world.state);
     });
     expect(hashes[0]).toBe(hashes[1]);
   });
 
-  it('forward spawn: deploy at the outpost at its capture tick, finish at the HQ flag', () => {
-    const snapshots = new SnapshotStore();
-    const base = { map: MISSION_02, tuning: TUNING, snapshots };
-    const a1 = playLife({
-      ...base,
-      records: [],
-      attempt: 1,
-      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'road', entryTick: 0 },
-      steps: ROAD_CAPTURE_OUTPOST,
-    });
-    const t1 = outpostTick(a1.attempt.world)!;
-    const a2 = playLife({
-      ...base,
-      records: a1.records,
-      attempt: 2,
-      fromTick: t1 - secondsToTicks(5),
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'outpost', entryTick: t1 },
-      steps: OUTPOST_TO_HQ,
-      maxTick: secondsToTicks(240),
-    });
-    expect(a2.historyShifted).toBeNull();
-    const s2 = a2.records.find((r) => r.id === 'S2')!;
-    expect(s2.spawnTick).toBe(t1);
-    expect(a2.observation.missionComplete?.bySoldierId).toBe('S2');
-  });
+  // (mission-02's "deploy at the outpost at its capture tick, finish at the HQ flag" lives on as
+  // mission-03.test.ts' "forward capture → forward spawn" test: deploy at the Forward Post at its
+  // capture tick and destroy the Command Post.)
 
-  it('captor killed earlier → outpost soldier never spawns; re-capturing in time brings them back', () => {
+  it('captor killed earlier → forward soldier never spawns; re-capturing in time brings them back', () => {
     const snapshots = new SnapshotStore();
-    const base = { map: MISSION_02, tuning: TUNING, snapshots };
-    // 1. S1 dawdles, then captures the outpost.
+    const base = { map: MISSION_03, tuning: TUNING, snapshots };
+    // 1. S1 dawdles at the gate, then captures the Forward Post.
     const a1 = playLife({
       ...base,
       records: [],
       attempt: 1,
-      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'road', entryTick: 0 },
-      steps: [...ROAD_CAPTURE_OUTPOST_SLOW, { kind: 'wait', ticks: 60 }],
+      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'west', entryTick: 0 },
+      steps: [...BREACH_CAPTURE_SLOW, { kind: 'wait', ticks: 60 }],
     });
-    const t1 = outpostTick(a1.attempt.world)!;
+    const t1 = forwardTick(a1.attempt.world)!;
     expect(t1).toBeGreaterThan(0);
-    // 2. S2 enters at the outpost when it opens and holds there.
+    // 2. S2 enters at the Forward Post when it opens and holds there.
     const a2 = playLife({
       ...base,
       records: a1.records,
       attempt: 2,
       fromTick: t1 - secondsToTicks(5),
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'outpost', entryTick: t1 },
+      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'forward', entryTick: t1 },
       steps: [{ kind: 'wait', ticks: 120 }],
     });
     expect(a2.historyShifted).toBeNull();
-    // 3. S3 (road, 0:02) blows the bridge under S1: S1 dies before capturing.
+    // 3. S3 (Centre, 0:00) sets off a mine next to S1 in the mine strip: S1 dies before capturing.
     const a3 = playLife({
       ...base,
       records: a2.records,
       attempt: 3,
-      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'road', entryTick: secondsToTicks(2) },
-      steps: [...blowBridgeUnderS1, { kind: 'wait', ticks: 100_000 }],
+      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'centre', entryTick: 0 },
+      steps: [...breachMineUnder('S1'), { kind: 'wait', ticks: 100_000 }],
       maxTick: t1 + 60,
     });
-    expect(a3.observation.lanes['S1']!.kind).toBe('died');
-    expect(outpostTick(a3.attempt.world)).toBeNull();
+    expect(a3.observation.lanes['S1']).toMatchObject({ kind: 'died', cause: 'mine' });
+    expect(forwardTick(a3.attempt.world)).toBeNull();
     expect(a3.observation.lanes['S2']).toEqual({ kind: 'neverSpawned', reason: 'spawnPointLost' });
     expect((a3.observation.captures ?? []).some((c) => c.stage === 'ours')).toBe(false);
-    // 4. S4 (road, 0:04) rushes the outpost before S3 blows the bridge: captured before S2's
-    //    spawn tick, so S2 spawns and replays again.
+    // 4. S4 (West, 0:02) follows the echoes through and rushes the post while S1 dawdles:
+    //    captured before S2's spawn tick, so S2 spawns and replays again.
     const a4 = playLife({
       ...base,
       records: a3.records,
       attempt: 4,
-      live: { mode: 'new', soldierId: 'S4', spawnPointId: 'road', entryTick: secondsToTicks(4) },
-      steps: [...ROAD_CAPTURE_OUTPOST, { kind: 'wait', ticks: 100_000 }],
+      live: { mode: 'new', soldierId: 'S4', spawnPointId: 'west', entryTick: secondsToTicks(2) },
+      steps: [...breachFollowToForward(), { kind: 'wait', ticks: 100_000 }],
       maxTick: t1 + 120,
     });
-    const t4 = outpostTick(a4.attempt.world);
+    const t4 = forwardTick(a4.attempt.world);
     expect(t4).not.toBeNull();
     expect(t4!).toBeLessThanOrEqual(t1);
+    expect(a4.observation.lanes['S1']).toMatchObject({ kind: 'died', cause: 'mine' });
     expect(a4.observation.lanes['S2']!.kind).not.toBe('neverSpawned');
     expect(getSoldier(a4.attempt.world, 'S2')?.alive).toBe(true);
-    expect(outpostOurs(a4.attempt.world)).toBe(true);
+    expect(m3ForwardOurs(a4.attempt.world)).toBe(true);
   });
 });

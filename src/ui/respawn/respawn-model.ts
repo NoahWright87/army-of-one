@@ -21,6 +21,7 @@ import type {
 import { compareIds } from '../../sim/core/ids';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
 import type { MapDef } from '../../sim/world/map';
+import type { RevealOptions } from '../../timeline/reveal';
 import { MIN_DOMAIN_TICKS, type TimeDomain } from './time-scale';
 
 /** Everything the screen renders. PHASE04 builds this from MissionState + the latest fold. */
@@ -46,6 +47,8 @@ export interface RespawnProps {
   captures?: readonly CaptureTruth[];
   /** (05-a) Points whose capture changed in the latest fold ("Point lost" etc.). */
   captureChanges?: readonly CaptureChange[];
+  /** (06-b) Revealed-map options (`revealOptions(tuning)`); default: from DEFAULT_TUNING. */
+  reveal?: RevealOptions;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */

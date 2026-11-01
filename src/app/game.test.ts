@@ -1,10 +1,10 @@
 /**
  * Headless end-to-end tests of the PHASE04 loop: the real attempt runner, truth model and
  * persistence, driven through the GameController with scripted lives, a manual clock and fake
- * screens.
+ * screens. On mission-03 "Breach" (they ran on the removed mission-01, [D31]).
  */
 import { describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../content/maps/mission-01';
+import { MISSION_03 } from '../content/maps/mission-03';
 import type { LaneTruth } from '../contracts/mission';
 import { loadMission } from '../persistence/mission-store';
 import { secondsToTicks } from '../sim/core/time';
@@ -22,16 +22,17 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     await h.game.newMission();
     expect(h.game.flow.kind).toBe('respawn');
 
-    // First respawn screen: no lanes, both spawn points at 0:00.
+    // First respawn screen: no lanes, the three spawn points at 0:00.
     const first = h.ui.current!;
     expect(first.props.lanes).toEqual([]);
     expect(first.props.options).toEqual([
-      { kind: 'new', spawnPointId: 'road', entryTick: 0 },
-      { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'west', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'centre', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'east', entryTick: 0 },
     ]);
 
-    // Life 1: S1 walks into the turret.
-    await h.play('road-slow');
+    // Life 1: S1 walks into T1.
+    await h.play('breach-slow');
     // The very first soldier gets a full 5 s countdown over a frozen battlefield ([D25]).
     expect(h.runs[0]!.countdownAtStart).toBe(LEAD_IN);
     expect(h.runs[0]!.run.holdTicks).toBe(LEAD_IN);
@@ -42,15 +43,16 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     const s1 = lane(screen.latest.lanes, 'S1');
     expect(s1.end.kind).toBe('death');
     const s1DeathTick = (s1.end as { tick: number }).tick;
-    // Spawn stagger ([D7]): Road's next soldier enters at 0:02, Beach's first still at 0:00.
+    // Spawn stagger ([D7]): West's next soldier enters at 0:02, the others' first still at 0:00.
     expect(screen.latest.options).toEqual([
-      { kind: 'new', spawnPointId: 'road', entryTick: secondsToTicks(2) },
-      { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'west', entryTick: secondsToTicks(2) },
+      { kind: 'new', spawnPointId: 'centre', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'east', entryTick: 0 },
     ]);
 
-    // Life 2: S2 snipes the turret, then dies before S1's old death time. The attempt itself
-    // can't tell S1 survives; the background resolve sweeps on and flips X → O.
-    await h.play('road-snipe-die');
+    // Life 2: S2 snipes T1, then dies before S1's old death time. The attempt itself can't
+    // tell S1 survives; the background resolve sweeps on and flips X → O.
+    await h.play('breach-snipe-die');
     expect(h.runs[1]!.countdownAtStart).toBe(LEAD_IN);
     expect(h.runs[1]!.run.holdTicks).toBe(LEAD_IN - secondsToTicks(2));
     await h.settle();
@@ -72,8 +74,8 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     const resume = screen.latest.options.find((o) => o.kind === 'resume')!;
     expect(resume).toMatchObject({ kind: 'resume', soldierId: 'S1', resumeTick: s1DeathTick });
 
-    // Life 3: resume S1 (the same identity) with a 5 s lead-in, then destroy the depot.
-    await h.play('resume');
+    // Life 3: resume S1 (the same identity) with a 5 s lead-in, then play on to the win.
+    await h.play('breach-resume-win');
     const run3 = h.runs[2]!;
     expect(run3.run.liveId).toBe('S1');
     expect(run3.countdownAtStart).toBe(LEAD_IN);
@@ -92,7 +94,7 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     expect(h.game.mission.soldiers.find((s) => s.id === 'S1')!.segments).toHaveLength(2);
 
     // Saved: the completed mission loads back.
-    const loaded = await loadMission(h.store, MISSION_01.id);
+    const loaded = await loadMission(h.store, MISSION_03.id);
     expect(loaded.ok && loaded.state.completed?.bySoldierId).toBe('S1');
     expect(loaded.ok && loaded.state.inProgress).toBeUndefined();
 
@@ -100,7 +102,7 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     h.ui.complete!.playAgain();
     await h.settle();
     expect(h.game.flow).toEqual({ kind: 'respawn', notice: null });
-    expect((await loadMission(h.store, MISSION_01.id)).ok).toBe(false);
+    expect((await loadMission(h.store, MISSION_03.id)).ok).toBe(false);
     expect(h.ui.current!.props.lanes).toEqual([]);
   });
 
@@ -108,9 +110,9 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    await h.play('breach-slow');
     await h.settle();
-    await h.play('road-snipe');
+    await h.play('breach-rescue-hold');
     await h.settle();
     const att = h.events.filter((e) => e.type === 'attemptEnded').at(-1)!;
     expect(att.type === 'attemptEnded' && att.changes).toContainEqual(
@@ -125,12 +127,12 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    await h.play('breach-slow');
     await h.settle();
-    await h.play('road-snipe');
+    await h.play('breach-rescue-hold');
     await h.settle();
-    await h.play('beach-idle');
-    // S3 at the beach; S1 replays (not controlled).
+    await h.play('east-idle');
+    // S3 at the East spawn; S1 replays (not controlled).
     expect(h.runs[2]!.run.liveId).toBe('S3');
     await h.settle();
     const s1 = lane(h.game.mission.lanes, 'S1');
@@ -144,13 +146,14 @@ describe('history shifted ([D23])', () => {
     const h = createHarness({ resolveSlice: 5, resolveDelayMs: 16 });
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    // S1 walks into a mine; S2 clears it first (S1 → O, found by the scrubber).
+    await h.play('breach-mine-walker');
     await h.settle();
-    await h.play('road-snipe');
+    await h.play('breach-mine-clear');
     await h.settle();
     expect(lane(h.game.mission.lanes, 'S1').end.kind).toBe('open');
-    // S3 blows the road bridge before S1 crosses it, then dies at once.
-    await h.play('road-blow-bridge');
+    // S3 shuts the gate before S1 walks through it, then dies at once.
+    await h.play('breach-gate-shut');
     // Let the life play and the death beat end, but deploy before the scrubber gets far.
     for (let i = 0; i < 200 && h.game.flow.kind !== 'respawn'; i++) {
       await Promise.resolve();
@@ -195,16 +198,16 @@ describe('reload recovery ([D6])', () => {
     });
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    await h.play('breach-capture'); // a long life: still going at 0:20
     await h.settle();
     expect(h.game.flow.kind).toBe('live');
     h.game.saveInProgressNow('hidden');
     await h.game.flushSaves();
-    const saved = await loadMission(h.store, MISSION_01.id);
+    const saved = await loadMission(h.store, MISSION_03.id);
     expect(saved.ok && saved.state.inProgress).toMatchObject({
       soldierId: 'S1',
       mode: 'new',
-      spawnPointId: 'road',
+      spawnPointId: 'west',
       segmentSoFar: { endTick: stopAt, endReason: 'suspended' },
     });
 
@@ -236,7 +239,7 @@ describe('reload recovery ([D6])', () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-slow');
+    await h.play('breach-mine-walker'); // a real death (to a mine) at ~0:17
     await h.settle();
     const r = createHarness({ store: h.store });
     const booting = r.game.boot();
@@ -257,7 +260,7 @@ describe('dev kill and autosave', () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('road-idle');
+    await h.play('west-idle');
     await h.settle();
     const s1 = lane(h.game.mission.lanes, 'S1');
     expect(s1.end.kind).toBe('death');
@@ -267,11 +270,16 @@ describe('dev kill and autosave', () => {
 });
 
 describe('acceptance scenarios, headless', () => {
-  it('make it worse: S3 blows the bridge under a rescued S1 → X earlier, dashed remainder', async () => {
+  it('make it worse: S3 sets off a mine next to a rescued, resumed S1 → X earlier, dashed remainder', async () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    for (const l of ['road-slow', 'road-snipe', 'bridge-under-s1']) {
+    for (const l of [
+      'breach-slow',
+      'breach-rescue-hold',
+      'breach-resume',
+      'breach-mine-under-s1',
+    ]) {
       await h.play(l);
       await h.settle();
     }
@@ -286,9 +294,9 @@ describe('acceptance scenarios, headless', () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
-    await h.play('gate-walker');
+    await h.play('breach-mine-walker');
     await h.settle();
-    await h.play('gate-closer');
+    await h.play('breach-gate-closer');
     await h.settle();
     const s1 = lane(h.game.mission.lanes, 'S1');
     expect(s1.end.kind).toBe('interrupted');
@@ -297,23 +305,24 @@ describe('acceptance scenarios, headless', () => {
     expect(h.ui.current!.latest.options.some((o) => o.kind === 'resume')).toBe(false);
   });
 
-  it('ten-plus lives replay together; road spawns stagger 2 s apart', async () => {
+  it('ten-plus lives replay together; Centre spawns stagger 2 s apart', async () => {
     const h = createHarness();
     await h.game.boot();
     await h.game.newMission();
     const t0 = Date.now();
     for (let i = 0; i < 11; i++) {
-      await h.play(i % 2 ? 'beach-naive' : 'road-naive');
+      await h.play(i % 2 ? 'breach-naive-east' : 'breach-naive');
       await h.settle();
     }
     expect(h.game.mission.soldiers).toHaveLength(11);
     // Every lane is resolved (the scrubber caught up after each life).
     const ends = h.game.mission.lanes.map((l) => l.end.kind);
     expect(ends.filter((k) => k === 'unresolved')).toEqual([]);
-    // Earlier echoes clear mines and draw turret fire, so some later lives now survive (O).
+    // Earlier echoes draw turret fire, so some later lives may now survive (O).
     expect(ends.every((k) => k === 'death' || k === 'open')).toBe(true);
-    const roads = h.game.mission.soldiers.filter((s) => s.spawnPointId === 'road');
-    expect(roads.map((s) => s.spawnTick)).toEqual(roads.map((_, i) => i * secondsToTicks(2)));
+    const centre = h.game.mission.soldiers.filter((s) => s.spawnPointId === 'centre');
+    expect(centre).toHaveLength(6);
+    expect(centre.map((s) => s.spawnTick)).toEqual(centre.map((_, i) => i * secondsToTicks(2)));
     expect(Date.now() - t0).toBeLessThan(30_000);
   }, 60_000);
 });
