@@ -62,7 +62,13 @@ export const STRINGS = {
   'spawn.south': 'South',
   'map.mission03.name': 'Mission 3: Breach',
 
-  // (07-c) Roles ([D36]) and the indoor mission
+  // (07-c) Roles ([D36]) and the indoor mission ([D38])
+  'map.mission04.name': 'Mission 4: Compound',
+  'spawn.mission04.west': 'West gate',
+  'spawn.mission04.centre': 'Main gate',
+  'spawn.mission04.east': 'East gate',
+  'spawn.mission04.office': 'Office',
+  'capture.mission04.office': 'Office',
   'role.rifleman': 'Rifleman',
   'role.rifleman.blurb': 'Rifle. Fires over cover you stand next to.',
   'role.grenadier': 'Grenadier',

@@ -64,6 +64,7 @@ const TRACER_STYLE: Record<TracerStyle, { color: number; width: number; alpha: n
   friendly: { color: 0xcfe0ee, width: 1.5, alpha: 0.5 },
   hostile: { color: 0xff8a3d, width: 2, alpha: 0.85 },
   incoming: { color: 0xff2020, width: 4, alpha: 1 },
+  fragment: { color: 0xffb060, width: 1.5, alpha: 0.85 }, // (07-c) always drawn
 };
 
 type Img = Phaser.GameObjects.Image;
@@ -412,11 +413,11 @@ export class WorldRenderer {
     const r = this.opts.spriteRadius + 7;
     for (const arc of this.cur.coverArcs ?? []) {
       const v = Math.max(0, Math.min(1, arc.value));
-      g.lineStyle(2 + v * 4, 0x101418, 0.25 + v * 0.7);
+      g.lineStyle(2.5 + v * 3.5, 0x101418, 0.5 + v * 0.45);
       g.beginPath();
       g.arc(pos.x, pos.y, r, arc.angle - arc.halfWidth, arc.angle + arc.halfWidth, false);
       g.strokePath();
-      g.lineStyle(1, 0xffffff, 0.15 + v * 0.45);
+      g.lineStyle(1.5, 0xffffff, 0.35 + v * 0.45);
       g.beginPath();
       g.arc(
         pos.x,
@@ -484,7 +485,7 @@ export class WorldRenderer {
     for (const c of cues) {
       switch (c.type) {
         case 'tracer':
-          if (this.settings.tracers || c.style === 'incoming') {
+          if (this.settings.tracers || c.style === 'incoming' || c.style === 'fragment') {
             this.tracers.push({ ...c, startMs: nowMs });
           }
           break;

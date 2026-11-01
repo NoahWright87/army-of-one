@@ -58,9 +58,9 @@ const forwardTick = (w: World) =>
   w.state.capturePoints.find((c) => c.id === 'cp-forward')!.capturedTick;
 
 describe('mission-03 layout', () => {
-  it('is the only mission ([D31]); anything else falls back to it', () => {
+  it('is the default mission ([D31]); anything unknown falls back to it', () => {
     expect(DEFAULT_MISSION.id).toBe('mission-03');
-    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03']);
+    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03', 'mission-04']);
     expect(missionOrDefault(null).id).toBe('mission-03');
     expect(missionOrDefault('nonsense').id).toBe('mission-03');
     // Removed missions (a remembered pick, an old link) fall back too.

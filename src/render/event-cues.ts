@@ -8,7 +8,7 @@ import type { WorldView } from '../sim/view';
 import { rectViewCenter } from './geometry';
 import { pointSegmentDistance } from './interp';
 
-export type TracerStyle = 'live' | 'friendly' | 'hostile' | 'incoming';
+export type TracerStyle = 'live' | 'friendly' | 'hostile' | 'incoming' | 'fragment';
 
 export type Cue =
   | {
@@ -144,7 +144,7 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
             fromY: e.y,
             toX: f.hitX,
             toY: f.hitY,
-            style: 'friendly',
+            style: 'fragment',
           });
         }
         sound('sfx_explosion', e, 0.9);

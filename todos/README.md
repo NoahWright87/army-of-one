@@ -16,8 +16,9 @@ in a stack of PRs on GitHub, each based on the previous one and each with a GitH
 #7 03-b → #8 04 → #10 05-a → #11 05-b → #12 06 plan → #13 06-a → #14 06-b → #15 06-c →
 #16 single mission → #17 this plan.
 
-**Next:** PHASE07 ([overview](PHASE07.md)). Run 07-a and 07-b in parallel. Hold the 07-c decision
-session with the owner before building any of it. Base new work on the top of the stack (or on
+**Next:** PHASE07 ([overview](PHASE07.md)). Run 07-a and 07-b in parallel. 07-c's decision
+session is done ([D32]–[D38]) and its first slice (cover, Grenadier, Compound) is built; see the
+notes at the bottom of [PHASE07-c](PHASE07-c.md). Base new work on the top of the stack (or on
 `main` once the stack is merged).
 
 How work has gone so far: parallel agents per letter part, each verified (lint, purity check,
@@ -58,7 +59,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [07 plan](PHASE07.md) | **Replayable & playable anywhere**: overview | 06 | — | Full |
 | [07-a](PHASE07-a.md) | Results screen + full-mission after-action replay | 06 | 07-b | Full |
 | [07-b](PHASE07-b.md) | Auto-aim + touch controls (phone-playable) | 06 | 07-a | Full |
-| [07-c](PHASE07-c.md) | Variety: soldier roles, enemy types, vehicles (⛔ owner picks first) | 06 | 07-a, 07-b | Full |
+| [07-c](PHASE07-c.md) | Variety: cover, roles (Grenadier), indoor mission; MG/mortar next | 06 | 07-a, 07-b | First slice built |
 | [08](PHASE08.md) | Multiplayer snapshot experiment | 07, 09 | — | **Deferred** |
 | [09](PHASE09.md) | More missions, art pass, 3D spike | 07 | — | Sketch |
 | [10](PHASE10.md) | Lazy outcome-tested recording simplification | 07 | — | **Deferred** |

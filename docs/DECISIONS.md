@@ -119,6 +119,44 @@ revise with justification in a PR).
   direction ([D27]), with contact within seconds ([D28]). mission-01 and mission-02 were removed
   because they were too big and slow. Old saves for them are ignored.
 
+## Cover, roles and weapons (PHASE07-c, owner session 2026-11)
+
+- **[D32] Real-time cover with two numbers.** Every cover piece has the share of **straight shots**
+  (bullets, fragments) it stops and the share of **lobbed** objects (grenades) it stops, 0–100 %.
+  Most things are 100 % or 50 %. Materials set both: chain-link fence 10 % / 50 %, sandbags
+  50 % / 15 %, half wall 60 % / 15 %, window 30 % / 40 %, crate 75 % / 30 %, bunker window
+  90 % / 70 % (`tuning.cover.materials`; a map may override either number per piece). Solid walls
+  are 100 % / 100 %. A bullet that crosses a cover piece is stopped with that probability. Cover
+  is directional by nature: only shots that actually cross it are affected. Cover blocks movement
+  like a wall. Breach's sandbags are 50 %.
+- **[D33] Cover also hides you.** Crossing cover cuts the remaining sight past it: after cover
+  of value c at distance d, sight reaches `d + (range − d) × (1 − c)`. So a turret can still shoot
+  at a soldier hugging the far side of half cover, but won't spot one standing well back from it.
+- **[D34] Cover indicator: arcs.** The soldier you control shows an arc toward each nearby piece
+  of cover (or wall), darker and thicker for better cover: a solid wall to the east is a hard `)`,
+  a fence to the west a faint `(`. Echoes don't show it.
+- **[D35] Firing over cover, and accuracy.** A shooter standing right next to cover that isn't
+  solid (below 100 %) fires over it: that piece doesn't stop their shots or their sight. There's
+  no per-piece "can fire over" property. All soldiers are less accurate while moving (spread
+  grows with speed; standing still is exact).
+- **[D36] Roles.** Picked per new soldier on the respawn screen, no limits on how many of each.
+  Each role has a spawn cost: the Rifleman is free, the others will cost something, but every cost
+  is 0 for now and nothing spends them yet. A resumed soldier keeps their role; quick redeploy
+  reuses the last role picked. **No Medic** (too easy to exploit). First roles: Rifleman and
+  Grenadier.
+- **[D37] Grenadier: frag grenades.** Hold fire to wind up (a ring fills); the further you aim,
+  the longer the wind-up, and releasing early throws shorter. Throws scatter more while moving.
+  Grenades have a simulated height: they arc, bounce off the ground and off cover (with speed
+  carried from before the bounce), roll, and explode on a fuse. Explosions are a small central
+  blast plus fragments that fly like bullets. **Grenades hurt your own soldiers too**, echoes
+  included (an exception to [D13]: that's the risk/reward). Cover stops airborne grenades by its
+  lobbed number; you can miss the window.
+- **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
+  fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
+  an armored slit. A separate playable mission (more missions are coming); Breach stays the
+  default and the template. Machine guns (steadied on cover), mortars and enemy soldiers come
+  after cover.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -156,6 +194,11 @@ revise with justification in a PR).
   via soft separation.
 - **[E9] Storage may move to IndexedDB** if a large army's recordings outgrow localStorage. Same
   intent as [D20].
+- **[E10] Outcome rolls are hashes, not a random stream (PHASE07-c).** Each cover roll, moving
+  spread and fragment ring rotation is `hash(shooter, tick, cover id …)`. The same shot through
+  the same cover gets the same answer in every replay, however much else in history changed;
+  a shared PRNG stream would reshuffle every later roll after any change. Recordings store the
+  final shot angle and throw (angle + distance), so spread is never re-rolled for echoes ([E1]).
 
 ---
 
@@ -227,3 +270,22 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   remembered while the page is open). Tall maps (a vertical strip) fit beside the spawn list, so
   they're always shown. Alternatives: default to the map on phones, or a smaller always-visible
   map that shrinks the timeline. Desktop shows all three. (`respawn.showMap` hides the map.)
+- **[Q18] Fire over cover: who and how close (PHASE07-c)?** Implemented: anyone (soldiers and
+  turrets) whose centre is within `cover.fireOverDistance` (30, about a soldier's width) of a
+  piece below `cover.fireOverBelow` (1 = anything not solid) ignores it, for their shots and
+  sight. Set `fireOverBelow` to 0.9 for the "≤ 90 %" variant. Grenade fragments never fire over.
+- **[Q19] Sight past cover (PHASE07-c).** [D33] is implemented as "the sight *remaining* after
+  the cover is multiplied by (1 − c)" (`cover.obscuresSight`, off = cover is see-through). The
+  alternative reading, "you see range × (1 − c) past the cover", lets a turret see anyone hugging
+  cover. Only turrets use sight today; the player sees the whole screen.
+- **[Q20] Grenade details (PHASE07-c).** Implemented: the Grenadier carries only grenades
+  (unlimited, a 0.6 s cooldown, no rifle); the throw lands at the cursor (clamped to 60–420
+  units); releasing early throws the wound-up share of that distance; the fuse runs from the throw
+  (2.2 s); a **rolling** grenade is always stopped by cover (only airborne grenades get the lobbed
+  roll); a grenade thrown from right next to cover clears it like a shot fires over it.
+  Questions: a sidearm or limited grenades? Fuse from the throw or from landing ("cook" it by
+  holding)? Should grenades set off when they hit a soldier?
+- **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
+  soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
+  Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
+  sandbag positions if so.
