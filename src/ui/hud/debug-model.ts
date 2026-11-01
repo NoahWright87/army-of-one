@@ -9,6 +9,13 @@ export interface DebugStats {
   hash: string;
   /** Average milliseconds per sim step. */
   stepMs: number;
+  /** (05-b) Average sim milliseconds per rendered frame (steps × step cost). */
+  simFrameMs?: number;
+  /** (05-b) Average milliseconds spent drawing the world per frame (renderer CPU side). */
+  renderMs?: number;
+  /** (05-b) Game objects drawn last frame, and soldiers culled off screen. */
+  sprites?: number;
+  culled?: number;
 }
 
 /** Entity counts by kind, with soldiers split by role (and dead ones counted as corpses). */
@@ -38,10 +45,22 @@ export function formatDebugLines(s: DebugStats): string[] {
   return [
     `${str('debug.fps')} ${Math.round(s.fps)}`,
     `${str('debug.tick')} ${s.tick}`,
-    `${str('debug.stepMs')} ${s.stepMs.toFixed(3)}`,
+    `${str('debug.stepMs')} ${s.stepMs.toFixed(3)}` +
+      (s.simFrameMs !== undefined ? ` · sim/frame ${s.simFrameMs.toFixed(2)}` : ''),
+    ...(s.renderMs !== undefined ? [`${str('debug.renderMs')} ${s.renderMs.toFixed(2)}`] : []),
+    ...(s.sprites !== undefined
+      ? [`${str('debug.sprites')} ${s.sprites}${s.culled ? ` (−${s.culled} off-screen)` : ''}`]
+      : []),
     `${str('debug.hash')} ${s.hash}`,
     `${str('debug.entities')} ${counts || '-'}`,
+    `${str('debug.echoes')} ${echoLine(s.counts)}`,
   ];
+}
+
+/** Soldier counts by role: live · echo · static · interrupted · corpse. */
+function echoLine(c: Readonly<Record<string, number>>): string {
+  const roles = ['live', 'echo', 'static', 'interrupted', 'corpse'];
+  return roles.map((r) => `${r} ${c[r] ?? 0}`).join(' · ');
 }
 
 /** Exponential moving average; first sample seeds it. */

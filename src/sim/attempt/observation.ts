@@ -14,6 +14,8 @@ import { compareIds } from '../core/ids';
 import type { Tick } from '../core/time';
 import type { SimEvent } from '../events';
 import type { World } from '../state';
+import { simPerf } from '../perf';
+import { soldierIndex } from '../sim';
 import type { EchoController, EchoTransition } from '../recording/echo-controller';
 
 /** String keys (into src/content/strings.ts) for each marker kind's tooltip. */
@@ -73,8 +75,11 @@ export class ObservationBuilder {
 
   /** Feeds one tick's events (only events by/about our soldiers become markers). */
   ingest(world: World, events: readonly SimEvent[]): void {
-    const isSoldier = (id: string | undefined): id is string =>
-      id !== undefined && world.state.soldiers.some((s) => s.id === id);
+    const isSoldier = (id: string | undefined): id is string => {
+      if (id === undefined) return false;
+      if (!simPerf.soldierIndex) return world.state.soldiers.some((s) => s.id === id);
+      return soldierIndex(world.state.soldiers).has(id);
+    };
     let damagedThisTick: Set<string> | null = null;
     for (const e of events) {
       switch (e.kind) {
@@ -151,8 +156,9 @@ export class ObservationBuilder {
     const lanes: Record<SoldierId, LaneFate> = {};
     const ids = new Set<SoldierId>([...echoes.schedules.keys()]);
     if (liveSoldierId) ids.add(liveSoldierId);
+    const byId = simPerf.soldierIndex ? soldierIndex(world.state.soldiers) : null;
     for (const id of [...ids].sort(compareIds)) {
-      const fate = laneFate(world, echoes, id, this.existed.has(id));
+      const fate = laneFate(world, echoes, id, this.existed.has(id), byId);
       if (fate) lanes[id] = fate;
     }
     const mc = world.state.missionComplete;
@@ -178,10 +184,11 @@ function laneFate(
   echoes: EchoController,
   id: SoldierId,
   existed: boolean,
+  byId: Map<SoldierId, World['state']['soldiers'][number]> | null,
 ): LaneFate | null {
   const echo = echoes.echo(id);
   if (echo?.mode === 'neverSpawned') return { kind: 'neverSpawned', reason: echo.reason ?? '' };
-  const s = world.state.soldiers.find((x) => x.id === id);
+  const s = byId ? byId.get(id) : world.state.soldiers.find((x) => x.id === id);
   if (!s || !existed) return null; // not spawned in the window, or already dead at its start
   if (!s.alive) return { kind: 'died', tick: s.deathTick!, cause: s.deathCause ?? 'unknown' };
   if (echo?.mode === 'static') return { kind: 'static', tick: echo.fateTick! };

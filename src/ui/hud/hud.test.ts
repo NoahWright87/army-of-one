@@ -140,7 +140,14 @@ describe('debug overlay model', () => {
       hash: 'abc',
       stepMs: 0.12345,
     });
-    expect(lines).toEqual(['FPS 60', 'Tick 42', 'ms/step 0.123', 'Hash abc', 'Entities live 1']);
+    expect(lines).toEqual([
+      'FPS 60',
+      'Tick 42',
+      'ms/step 0.123',
+      'Hash abc',
+      'Entities live 1',
+      'Echoes live 1 · echo 0 · static 0 · interrupted 0 · corpse 0',
+    ]);
   });
 
   it('ema', () => {

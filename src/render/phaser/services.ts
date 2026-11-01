@@ -59,4 +59,16 @@ export interface SceneServices {
   debug: DebugOverlay;
   createSession(): BattleSession;
   commands: SceneCommands;
+  /** (05-b) Latest perf readout from the battle scene (stress checks read it via `__aoo`). */
+  perf?: BattlePerf;
+}
+
+export interface BattlePerf {
+  fps: number;
+  stepMs: number;
+  simFrameMs: number;
+  renderMs: number;
+  sprites: number;
+  culled: number;
+  counts: Record<string, number>;
 }

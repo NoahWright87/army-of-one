@@ -6,6 +6,8 @@ import { fireShot, hasLineOfSight } from '../combat/shots';
 import { emit, type World } from '../state';
 import type { TurretDef } from '../world/map';
 import { isEligible, type SoldierState } from './soldier';
+import { simPerf } from '../perf';
+import { dynamicBlockers, type Blocker } from '../world/blockers';
 
 export type TurretMode = 'idle' | 'tracking' | 'windup' | 'destroyed';
 
@@ -35,19 +37,28 @@ export function createTurrets(defs: readonly TurretDef[], tuning: Tuning): Turre
 }
 
 /** Can this turret see and reach this soldier right now? */
-function canEngage(world: World, def: TurretDef, s: SoldierState): boolean {
+function canEngage(
+  world: World,
+  def: TurretDef,
+  s: SoldierState,
+  blockers?: readonly Blocker[],
+): boolean {
   if (!isEligible(s)) return false;
   const r = world.tuning.turret.range;
   if (distanceSq(def.position, s) > r * r) return false;
-  return hasLineOfSight(world, def.position, s, 'enemy', def.id);
+  return hasLineOfSight(world, def.position, s, 'enemy', def.id, blockers);
 }
 
 /** Nearest engageable soldier; ties broken by id. */
-export function chooseTurretTarget(world: World, def: TurretDef): SoldierState | null {
+export function chooseTurretTarget(
+  world: World,
+  def: TurretDef,
+  blockers?: readonly Blocker[],
+): SoldierState | null {
   let best: SoldierState | null = null;
   let bestD = Infinity;
   for (const s of world.state.soldiers) {
-    if (!canEngage(world, def, s)) continue;
+    if (!canEngage(world, def, s, blockers)) continue;
     const d = distanceSq(def.position, s);
     if (d < bestD || (d === bestD && best && compareIds(s.id, best.id) < 0)) {
       best = s;
@@ -77,10 +88,13 @@ export function stepTurrets(world: World): void {
     if (t.mode === 'destroyed') return;
     const def = defs[i]!;
     if (t.cooldownTicks > 0) t.cooldownTicks -= 1;
+    // (05-b) Turret shots only ever damage soldiers, which never block anything, so the blocker
+    // list can't change during this turret's step: compute it once for all its LOS rays.
+    const blockers = simPerf.turretBlockerCache ? dynamicBlockers(world) : undefined;
 
     if (t.mode === 'windup') {
       const target = world.state.soldiers.find((s) => s.id === t.targetId);
-      if (!target || !canEngage(world, def, target)) {
+      if (!target || !canEngage(world, def, target, blockers)) {
         t.mode = 'tracking';
         t.targetId = null;
         t.windupTicks = 0;
@@ -107,7 +121,7 @@ export function stepTurrets(world: World): void {
       }
     }
 
-    const target = chooseTurretTarget(world, def);
+    const target = chooseTurretTarget(world, def, blockers);
     if (!target) {
       t.mode = 'idle';
       t.targetId = null;

@@ -26,6 +26,13 @@ export interface DisplaySettings {
   debugOverlay: boolean;
   interpolation: boolean;
   timeScale: string;
+  /** (05-b) Readability in a big army: echoes and static figures fade back. */
+  dimEchoes: boolean;
+  dimEchoesLevel: number;
+  /** (05-b) Echo number labels only within this distance of the live soldier (0 = all). */
+  echoLabelRadius: number;
+  /** (05-b) Perf: don't draw soldiers outside the camera view (no visible change). */
+  cullOffscreen: boolean;
 }
 
 export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
@@ -46,6 +53,10 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   debugOverlay: 'debug.overlay',
   interpolation: 'debug.interpolation',
   timeScale: 'debug.timeScale',
+  dimEchoes: 'display.dimEchoes',
+  dimEchoesLevel: 'display.dimEchoesLevel',
+  echoLabelRadius: 'display.echoLabelRadius',
+  cullOffscreen: 'debug.cullOffscreen',
 };
 
 const showOptions = [
@@ -129,6 +140,33 @@ export function displaySettingDefs(): SettingDef[] {
     },
     { id: id.tracers, group: D, label: str('settings.tracers'), type: 'boolean', default: true },
     {
+      id: id.dimEchoes,
+      group: D,
+      label: str('settings.dimEchoes'),
+      type: 'boolean',
+      default: false,
+    },
+    {
+      id: id.dimEchoesLevel,
+      group: D,
+      label: str('settings.dimEchoesLevel'),
+      type: 'number',
+      default: 0.25,
+      min: 0.05,
+      max: 0.8,
+      step: 0.05,
+    },
+    {
+      id: id.echoLabelRadius,
+      group: D,
+      label: str('settings.echoLabelRadius'),
+      type: 'number',
+      default: 0,
+      min: 0,
+      max: 2000,
+      step: 50,
+    },
+    {
       id: id.cameraSmoothing,
       group: C,
       label: str('settings.cameraSmoothing'),
@@ -177,6 +215,13 @@ export function displaySettingDefs(): SettingDef[] {
       id: id.interpolation,
       group: G,
       label: str('settings.interpolation'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: id.cullOffscreen,
+      group: G,
+      label: str('settings.cullOffscreen'),
       type: 'boolean',
       default: true,
     },

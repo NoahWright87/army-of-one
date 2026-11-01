@@ -281,6 +281,16 @@ export class WorldRenderer {
     return this.allPools.reduce((n, p) => n + (p as KeyedPool<Img>).totalCount, 0);
   }
 
+  /** (05-b) Game objects drawn last frame (pooled entity objects in use + live effects). */
+  get drawnObjectCount(): number {
+    return (
+      this.allPools.reduce((n, p) => n + (p as KeyedPool<Img>).activeCount, 0) + this.effects.length
+    );
+  }
+
+  /** (05-b) Soldiers skipped last frame because they were off screen. */
+  culledSoldiers = 0;
+
   render(f: RenderFrame): void {
     const a = this.settings.interpolation ? f.alpha : 1;
     this.now = f.nowMs;
@@ -403,7 +413,9 @@ export class WorldRenderer {
         g.lineBetween(tr.fromX, tr.fromY, tr.toX, tr.toY);
       }
       const st = incoming || tr.style !== 'incoming' ? s : TRACER_STYLE.hostile;
-      g.lineStyle(st.width, st.color, st.alpha * (1 - t));
+      // Dimmed echoes: their tracers fade back too, so the live soldier's and incoming fire pop.
+      const dim = tr.style === 'friendly' && this.settings.dimEchoes ? 0.35 : 1;
+      g.lineStyle(st.width, st.color, st.alpha * dim * (1 - t));
       g.lineBetween(tr.fromX, tr.fromY, tr.toX, tr.toY);
     }
   }
@@ -440,11 +452,34 @@ export class WorldRenderer {
   private drawSoldiers(a: number, f: RenderFrame): void {
     const r = this.opts.spriteRadius;
     const now = f.nowMs;
+    // (05-b) Off-screen culling: anything outside the camera view (plus a margin for sprites,
+    // labels and HP bars) is simply not drawn this frame; the pools hide it. The live soldier is
+    // always drawn.
+    const view = this.settings.cullOffscreen ? this.cameraView(r * 4) : null;
+    const live = f.liveId ? this.cur.soldiers.find((x) => x.id === f.liveId) : undefined;
+    const labelR = this.settings.echoLabelRadius;
+    let culled = 0;
     for (const s of this.cur.soldiers) {
       const prev = this.prevSoldiers.get(s.id);
       const p = interpPos(prev, s, a);
+      if (
+        view &&
+        s.id !== f.liveId &&
+        (p.x < view.x0 || p.x > view.x1 || p.y < view.y0 || p.y > view.y1)
+      ) {
+        culled++;
+        continue;
+      }
       const facing = prev ? lerpAngle(prev.facing, s.facing, a) : s.facing;
       const v = soldierVisual(s, this.settings, now);
+      if (
+        v.label !== null &&
+        labelR > 0 &&
+        live &&
+        Math.hypot(live.x - s.x, live.y - s.y) > labelR
+      ) {
+        v.label = null;
+      }
       const spr = this.soldiers.get(s.id);
       spr
         .setTexture(v.texture)
@@ -494,9 +529,22 @@ export class WorldRenderer {
       }
       if (s.alive) {
         const isLive = s.role === 'live';
-        this.hpBar(p.x, p.y - r - 9, isLive ? 34 : 26, s.hp, s.maxHp, isLive);
+        if (isLive || !this.settings.dimEchoes) {
+          this.hpBar(p.x, p.y - r - 9, isLive ? 34 : 26, s.hp, s.maxHp, isLive);
+        }
       }
     }
+    this.culledSoldiers = culled;
+  }
+
+  /** The camera's world-space view rectangle, grown by `margin`. */
+  private cameraView(margin: number): { x0: number; y0: number; x1: number; y1: number } {
+    const cam = this.scene.cameras.main;
+    const vw = cam.width / cam.zoom;
+    const vh = cam.height / cam.zoom;
+    const x0 = cam.scrollX + (cam.width - vw) / 2;
+    const y0 = cam.scrollY + (cam.height - vh) / 2;
+    return { x0: x0 - margin, y0: y0 - margin, x1: x0 + vw + margin, y1: y0 + vh + margin };
   }
 
   private drawTurrets(a: number, f: RenderFrame): void {

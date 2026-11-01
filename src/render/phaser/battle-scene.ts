@@ -35,6 +35,8 @@ export class BattleScene extends Phaser.Scene {
   private cam = { x: 0, y: 0 };
   private countdownTicks: number | null = null;
   private stepMs: number | null = null;
+  private simFrameMs: number | null = null;
+  private renderMs: number | null = null;
   private frame = 0;
   private hash = '';
   private lastInput: SoldierInput = IDLE_INPUT;
@@ -107,6 +109,7 @@ export class BattleScene extends Phaser.Scene {
     const deltaMs = this.game.loop.rawDelta;
     const { steps, alpha } = advance(this.stepper, deltaMs, Number(display.timeScale) || 1);
     const driver = this.session.driver;
+    let simThisFrame = 0;
     for (let i = 0; i < steps; i++) {
       if (driver?.ended) break;
       const live = this.view.soldiers.find((s) => s.id === this.liveId);
@@ -123,7 +126,9 @@ export class BattleScene extends Phaser.Scene {
         step(this.world, new Map([[this.liveId, input]]));
         this.view = getView(this.world);
       }
-      this.stepMs = ema(this.stepMs, performance.now() - t0, 0.05);
+      const dt = performance.now() - t0;
+      simThisFrame += dt;
+      this.stepMs = ema(this.stepMs, dt, 0.05);
       this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
       if (this.countdownTicks !== null) this.countdownTicks--;
     }
@@ -134,13 +139,16 @@ export class BattleScene extends Phaser.Scene {
     const target = this.worldRenderer.soldierRenderPos(this.liveId, alpha);
     if (target) this.cam = smoothFollow(this.cam, target, display.cameraSmoothing, deltaMs);
     cam.centerOn(this.cam.x, this.cam.y);
+    this.simFrameMs = ema(this.simFrameMs, simThisFrame, 0.05);
     const frozen = driver?.ended ?? false;
+    const r0 = performance.now();
     this.worldRenderer.render({
       alpha: frozen ? 1 : alpha,
       nowMs: time,
       liveId: this.liveId,
       pointer: frozen ? null : this.source.pointerWorld(),
     });
+    this.renderMs = ema(this.renderMs, performance.now() - r0, 0.05);
 
     hud.update(buildHudModel(this.view, this.liveId));
     if (driver) {
@@ -163,9 +171,23 @@ export class BattleScene extends Phaser.Scene {
         counts: entityCounts(this.view),
         hash: this.hash,
         stepMs: this.stepMs ?? 0,
+        simFrameMs: this.simFrameMs ?? 0,
+        renderMs: this.renderMs ?? 0,
+        sprites: this.worldRenderer.drawnObjectCount,
+        culled: this.worldRenderer.culledSoldiers,
       });
     }
     this.frame++;
+    // (05-b) Perf readout for browser checks (stress mode, Playwright).
+    this.services.perf = {
+      fps: this.game.loop.actualFps,
+      stepMs: this.stepMs ?? 0,
+      simFrameMs: this.simFrameMs ?? 0,
+      renderMs: this.renderMs ?? 0,
+      sprites: this.worldRenderer.drawnObjectCount,
+      culled: this.worldRenderer.culledSoldiers,
+      counts: entityCounts(this.view),
+    };
   }
 
   /** Lead-in preview: a ghost arrow for the movement being held ([D5]). */
