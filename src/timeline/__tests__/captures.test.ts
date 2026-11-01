@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MISSION_02 } from '../../content/maps/mission-02';
+import { MISSION_03 } from '../../content/maps/mission-03';
 import type {
   AttemptObservation,
   CaptureObservation,
@@ -27,13 +27,13 @@ const obs = (
   captures,
 });
 const ours = (tick: number, by = ['S1']): CaptureObservation => ({
-  pointId: 'cp-outpost',
+  pointId: 'cp-forward',
   stage: 'ours',
   tick,
   by,
 });
 const neutral = (tick: number, by = ['S1']): CaptureObservation => ({
-  pointId: 'cp-outpost',
+  pointId: 'cp-forward',
   stage: 'neutral',
   tick,
   by,
@@ -64,7 +64,7 @@ describe('capture truth fold ([D2], [D3], [D9])', () => {
       ['neutral', 2400, 1],
       ['ours', 2700, 1],
     ]);
-    expect(r.changes).toEqual([{ pointId: 'cp-outpost', before: null, after: 2700 }]);
+    expect(r.changes).toEqual([{ pointId: 'cp-forward', before: null, after: 2700 }]);
   });
 
   it('a capture inside an observed window that is not re-observed is removed ("Point lost")', () => {
@@ -74,7 +74,7 @@ describe('capture truth fold ([D2], [D3], [D9])', () => {
     ).captures;
     const r = applyCaptureObservation(truth, obs(2, 0, 2800, []));
     expect(r.captures).toEqual([]);
-    expect(r.changes).toEqual([{ pointId: 'cp-outpost', before: 2700, after: null }]);
+    expect(r.changes).toEqual([{ pointId: 'cp-forward', before: 2700, after: null }]);
   });
 
   it('captures outside the window are kept ([D3]: only simulated time changes)', () => {
@@ -101,7 +101,7 @@ describe('capture truth fold ([D2], [D3], [D9])', () => {
       ['neutral', 1800, ['S4']],
       ['ours', 2100, ['S4']],
     ]);
-    expect(r.changes).toEqual([{ pointId: 'cp-outpost', before: 2700, after: 2100 }]);
+    expect(r.changes).toEqual([{ pointId: 'cp-forward', before: 2700, after: 2100 }]);
   });
 
   it('missing captures on an observation count as none observed', () => {
@@ -114,7 +114,7 @@ describe('capture truth fold ([D2], [D3], [D9])', () => {
     const t = (tick: number): CaptureTruth => ({ ...ours(tick), observedInAttempt: 1 });
     expect(captureChanges([t(10)], [t(10)])).toEqual([]);
     expect(captureChanges([t(10)], [t(12)])).toEqual([
-      { pointId: 'cp-outpost', before: 10, after: 12 },
+      { pointId: 'cp-forward', before: 10, after: 12 },
     ]);
   });
 });
@@ -123,36 +123,38 @@ describe('spawn options with forward points ([D7], [D8])', () => {
   const truth: CaptureTruth[] = [{ ...ours(2700), observedInAttempt: 1 }];
 
   it('a forward point is offered only while ours, opening at its capture tick', () => {
-    expect(deriveSpawnOptions(MISSION_02, [], [], RULES)).toEqual([
-      { kind: 'new', spawnPointId: 'road', entryTick: 0 },
-      { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
+    expect(deriveSpawnOptions(MISSION_03, [], [], RULES)).toEqual([
+      { kind: 'new', spawnPointId: 'west', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'centre', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'east', entryTick: 0 },
     ]);
-    const opts = deriveSpawnOptions(MISSION_02, [rec('S1', 'road', 0)], [], RULES, truth);
+    const opts = deriveSpawnOptions(MISSION_03, [rec('S1', 'west', 0)], [], RULES, truth);
     expect(opts).toEqual([
-      { kind: 'new', spawnPointId: 'road', entryTick: 120 },
-      { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
-      { kind: 'new', spawnPointId: 'outpost', entryTick: 2700 },
+      { kind: 'new', spawnPointId: 'west', entryTick: 120 },
+      { kind: 'new', spawnPointId: 'centre', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'east', entryTick: 0 },
+      { kind: 'new', spawnPointId: 'forward', entryTick: 2700 },
     ]);
-    expect(spawnPointOpenTick(MISSION_02, 'outpost', [])).toBeNull();
+    expect(spawnPointOpenTick(MISSION_03, 'forward', [])).toBeNull();
   });
 
   it('each forward point has its own slot clock', () => {
-    const soldiers = [rec('S1', 'road', 0), rec('S2', 'outpost', 2700), rec('S3', 'outpost', 2820)];
-    const o = deriveSpawnOptions(MISSION_02, soldiers, [], RULES, truth);
-    expect(o.find((x) => x.kind === 'new' && x.spawnPointId === 'outpost')).toEqual({
+    const soldiers = [rec('S1', 'west', 0), rec('S2', 'forward', 2700), rec('S3', 'forward', 2820)];
+    const o = deriveSpawnOptions(MISSION_03, soldiers, [], RULES, truth);
+    expect(o.find((x) => x.kind === 'new' && x.spawnPointId === 'forward')).toEqual({
       kind: 'new',
-      spawnPointId: 'outpost',
+      spawnPointId: 'forward',
       entryTick: 2940,
     });
-    expect(o.find((x) => x.kind === 'new' && x.spawnPointId === 'road')).toMatchObject({
+    expect(o.find((x) => x.kind === 'new' && x.spawnPointId === 'west')).toMatchObject({
       entryTick: 120,
     });
   });
 
   it('slots never collide when the capture tick moves', () => {
     // Captured later than before: the soldier at 2700 doesn't count (never spawns now).
-    expect(nextEntryTick(2800, 'outpost', [rec('S2', 'outpost', 2700)], RULES)).toBe(2800);
+    expect(nextEntryTick(2800, 'forward', [rec('S2', 'forward', 2700)], RULES)).toBe(2800);
     // Captured earlier: next slot is after the latest soldier there, not on top of it.
-    expect(nextEntryTick(2650, 'outpost', [rec('S2', 'outpost', 2700)], RULES)).toBe(2820);
+    expect(nextEntryTick(2650, 'forward', [rec('S2', 'forward', 2700)], RULES)).toBe(2820);
   });
 });
