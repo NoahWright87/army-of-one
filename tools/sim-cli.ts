@@ -3,11 +3,15 @@
  *   npm run sim -- --ticks 3600                              # test-range, walk in a square
  *   npm run sim -- --map mission-01 --script road-naive      # scripted scenario, prints events
  *   npm run sim -- --map mission-01 --list                   # list scenarios
+ *   npm run sim -- --map mission-03 --script breach-naive    # (06-a) Breach, the default mission
  *   npm run sim -- --scenario rescue|chain|bench             # PHASE03-a echoes (sim-echoes.ts)
+ *   npm run sim -- --scenario breach-rescue                  # (06-a) rescue chain on mission-03
  * Flags: --quiet (no per-event lines), --all-events (include every shot/damage event).
  */
 import { DEFAULT_TUNING } from '../src/content/tuning';
 import { MISSION_01 } from '../src/content/maps/mission-01';
+import { MISSION_02 } from '../src/content/maps/mission-02';
+import { MISSION_03 } from '../src/content/maps/mission-03';
 import { TEST_RANGE } from '../src/content/maps/test-range';
 import { hashState } from '../src/sim/core/hash';
 import { formatBattleTime } from '../src/sim/core/time';
@@ -16,6 +20,7 @@ import type { SoldierInput } from '../src/sim/entities/soldier';
 import type { SimEvent } from '../src/sim/events';
 import { runScenario } from '../src/sim/scenarios/driver';
 import { MISSION_01_SCENARIOS } from '../src/sim/scenarios/mission-01';
+import { MISSION_03_SCENARIOS } from '../src/sim/scenarios/mission-03';
 import type { MapDef } from '../src/sim/world/map';
 import { runEchoScenario } from './sim-echoes';
 
@@ -33,11 +38,16 @@ if (process.argv.includes('--scenario')) {
   process.exit(0);
 }
 
-const MAPS: Record<string, MapDef> = { 'test-range': TEST_RANGE, 'mission-01': MISSION_01 };
-const SCENARIOS = { 'mission-01': MISSION_01_SCENARIOS } as Record<
-  string,
-  typeof MISSION_01_SCENARIOS
->;
+const MAPS: Record<string, MapDef> = {
+  'test-range': TEST_RANGE,
+  'mission-01': MISSION_01,
+  'mission-02': MISSION_02,
+  'mission-03': MISSION_03,
+};
+const SCENARIOS = {
+  'mission-01': MISSION_01_SCENARIOS,
+  'mission-03': MISSION_03_SCENARIOS,
+} as Record<string, typeof MISSION_01_SCENARIOS>;
 
 const mapId = arg('map', 'test-range');
 const map = MAPS[mapId];

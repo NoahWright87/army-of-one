@@ -21,8 +21,7 @@
 import { writeFileSync } from 'node:fs';
 import { serialize } from 'node:v8';
 import { gzipSync } from 'node:zlib';
-import { MISSION_01 } from '../src/content/maps/mission-01';
-import { TEST_RANGE } from '../src/content/maps/test-range';
+import { findMap } from '../src/content/maps';
 import { DEFAULT_TUNING } from '../src/content/tuning';
 import type { MissionState, SoldierRecord } from '../src/contracts/mission';
 import { MissionSaver } from '../src/persistence/mission-store';
@@ -44,10 +43,9 @@ function arg(name: string, fallback: string): string {
 const flag = (name: string) => process.argv.includes(`--${name}`);
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 
-const MAPS: Record<string, MapDef> = { 'mission-01': MISSION_01, 'test-range': TEST_RANGE };
-const map = MAPS[arg('map', 'mission-01')];
+const map: MapDef | undefined = findMap(arg('map', 'mission-01'));
 if (!map) {
-  console.error(`Unknown map. Maps: ${Object.keys(MAPS).join(', ')}`);
+  console.error('Unknown map. Maps: mission-01, mission-02, mission-03, test-range');
   process.exit(1);
 }
 const checkpoints = arg('echoes', '25,50,100,200,400')
@@ -76,7 +74,8 @@ const aliveEchoes = (a: Attempt) =>
 
 /** A new bot deployed among the army the way the game deploys a player. */
 function liveAttempt(records: SoldierRecord[], snapshots: SnapshotStore, attemptNo: number) {
-  const point = map!.spawnPoints[attemptNo % map!.spawnPoints.length]!;
+  const initial = map!.spawnPoints.filter((s) => s.kind === 'initial');
+  const point = initial[attemptNo % initial.length]!;
   const used = records.filter((r) => r.spawnPointId === point.id).length;
   const entryTick = used * secondsToTicks(tuning.spawn.intervalSeconds);
   const leadIn = Math.max(0, entryTick - secondsToTicks(tuning.spawn.leadInSeconds));

@@ -33,6 +33,10 @@ export interface DisplaySettings {
   echoLabelRadius: number;
   /** (05-b) Perf: don't draw soldiers outside the camera view (no visible change). */
   cullOffscreen: boolean;
+  /** (06-a) Camera look-ahead: off / up / aim / upAim (see render/camera-look-ahead.ts). */
+  cameraLookAhead: string;
+  /** (06-a) How far ahead the camera looks, in world units. */
+  cameraLookAheadDistance: number;
 }
 
 export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
@@ -57,6 +61,8 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   dimEchoesLevel: 'display.dimEchoesLevel',
   echoLabelRadius: 'display.echoLabelRadius',
   cullOffscreen: 'debug.cullOffscreen',
+  cameraLookAhead: 'display.cameraLookAhead',
+  cameraLookAheadDistance: 'display.cameraLookAheadDistance',
 };
 
 const showOptions = [
@@ -185,6 +191,29 @@ export function displaySettingDefs(): SettingDef[] {
       min: 0.4,
       max: 2.5,
       step: 0.05,
+    },
+    {
+      id: id.cameraLookAhead,
+      group: C,
+      label: str('settings.cameraLookAhead'),
+      type: 'choice',
+      default: 'upAim',
+      options: [
+        { value: 'off', label: str('settings.cameraLookAhead.off') },
+        { value: 'up', label: str('settings.cameraLookAhead.up') },
+        { value: 'aim', label: str('settings.cameraLookAhead.aim') },
+        { value: 'upAim', label: str('settings.cameraLookAhead.upAim') },
+      ],
+    },
+    {
+      id: id.cameraLookAheadDistance,
+      group: C,
+      label: str('settings.cameraLookAheadDistance'),
+      type: 'number',
+      default: 280,
+      min: 0,
+      max: 400,
+      step: 10,
     },
     {
       id: id.screenShake,

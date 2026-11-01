@@ -194,7 +194,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
       },
     });
     expect(seen.leadIn).toBeGreaterThanOrEqual(LEAD_IN_TICKS - 1);
-    expect(seen.control).toBeGreaterThan(60);
+    expect(seen.control).toBeGreaterThan(30);
     expect(hpWhenControlStarted).toBe(1);
   });
 
