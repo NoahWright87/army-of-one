@@ -1,9 +1,10 @@
 /**
  * Respawn-screen fixtures for the dev page (`?screen=respawn&fixture=<name>`) and tests. Each is
  * built by running the real truth model (`applyObservation`, `deriveSpawnOptions`) over
- * hand-written attempt observations on mission-01, so what you see is what the game will show.
+ * hand-written attempt observations on mission-03 "Breach" (the only mission, [D31]), so what
+ * you see is what the game will show.
  */
-import { MISSION_01 } from '../../../content/maps/mission-01';
+import { MISSION_03 } from '../../../content/maps/mission-03';
 import type {
   AttemptObservation,
   LaneChange,
@@ -22,7 +23,7 @@ import { applyObservation } from '../../../timeline/truth';
 import { DEFAULT_TUNING } from '../../../content/tuning';
 import { deriveSpawnOptions, spawnRules, type SpawnRules } from '../../../timeline/spawn-options';
 import type { RespawnProps, RespawnUpdate } from '../respawn-model';
-import { mapMission01, mapOutpost, mapStrip } from './map-fixtures';
+import { mapBreach, mapForward, mapStrip } from './map-fixtures';
 
 /** The default spawn rules from tuning ([D7] 2 s interval, [D5] 5 s lead-in). */
 export const FIXTURE_RULES: SpawnRules = spawnRules(DEFAULT_TUNING);
@@ -61,7 +62,7 @@ export class Story {
   reached: Tick | null = null;
   complete = false;
 
-  constructor(readonly map: MapDef = MISSION_01) {}
+  constructor(readonly map: MapDef = MISSION_03) {}
 
   options() {
     return deriveSpawnOptions(this.map, this.soldiers, this.lanes, FIXTURE_RULES);
@@ -280,7 +281,7 @@ function defaultFate(l: LaneTruth, spawn: Tick, fromTick: Tick, toTick: Tick): L
 
 function firstDeath(): RespawnFixture {
   const s = new Story();
-  s.newLife('road', 41, 'turret', {}, [
+  s.newLife('west', 41, 'turret', {}, [
     ['damaged', 38],
     ['damaged', 40],
   ]);
@@ -293,11 +294,11 @@ function firstDeath(): RespawnFixture {
 
 function rescueStory(): Story {
   const s = new Story();
-  s.newLife('road', 58, 'turret', {}, [
+  s.newLife('west', 58, 'turret', {}, [
     ['interact', 12],
     ['damaged', 55],
   ]);
-  s.newLife('beach', 70, 'mine', { rescue: ['S1'] }, [
+  s.newLife('east', 70, 'mine', { rescue: ['S1'] }, [
     ['kill', 14],
     ['interact', 22],
     ['hazardDestroyed', 50],
@@ -316,7 +317,7 @@ function rescue(): RespawnFixture {
 
 function oIgnored(): RespawnFixture {
   const s = rescueStory();
-  s.newLife('road', 83, 'turret', {}, [
+  s.newLife('west', 83, 'turret', {}, [
     ['kill', 30],
     ['damaged', 80],
   ]);
@@ -336,7 +337,7 @@ function worse(): RespawnFixture {
   // S3 sets off a mine that kills S2 at 0:24, before S2 destroys the turret, so S1 dies at
   // 0:58 again. Both lanes keep their old extent as a dashed "no longer happens" remainder.
   s.newLife(
-    'beach',
+    'east',
     63,
     'turret',
     {
@@ -356,11 +357,11 @@ function worse(): RespawnFixture {
 
 function interruption(): RespawnFixture {
   const s = new Story();
-  s.newLife('road', 80, 'turret', {}, [
+  s.newLife('west', 80, 'turret', {}, [
     ['interact', 30],
     ['kill', 62],
   ]);
-  s.newLife('road', 58, 'traffic', { interrupt: [['S1', 29]] }, [['interact', 23]]);
+  s.newLife('west', 58, 'traffic', { interrupt: [['S1', 29]] }, [['interact', 23]]);
   return {
     name: 'interruption',
     about: 'S2 closes the gate before S1 reaches it: S1 freezes at 0:29 (!), frozen remainder.',
@@ -370,32 +371,31 @@ function interruption(): RespawnFixture {
 
 function twelve(): RespawnFixture {
   const s = new Story();
-  s.newLife('road', 41, 'turret', {}, [['damaged', 39]]);
-  s.newLife('beach', 52, 'mine', { rescue: ['S1'] }, [['hazardDestroyed', 30]]);
-  s.newLife('road', 35, 'traffic');
-  s.newLife('beach', 18, 'mine', {}, [['damaged', 17]]);
-  s.newLife('road', 95, 'turret', {}, [
+  s.newLife('west', 41, 'turret', {}, [['damaged', 39]]);
+  s.newLife('east', 52, 'mine', { rescue: ['S1'] }, [['hazardDestroyed', 30]]);
+  s.newLife('west', 35, 'traffic');
+  s.newLife('east', 18, 'mine', {}, [['damaged', 17]]);
+  s.newLife('west', 95, 'turret', {}, [
     ['kill', 30],
     ['interact', 50],
     ['hazardDestroyed', 70],
   ]);
-  s.newLife('beach', 75, 'turret', { rescue: ['S4', 'S3'] }, [
+  s.newLife('east', 75, 'turret', { rescue: ['S4', 'S3'] }, [
     ['interact', 20],
     ['kill', 44],
   ]);
-  s.newLife('road', 30, 'traffic', { kill: [['S5', 28]] });
-  s.newLife('beach', 88, 'mine', { interrupt: [['S6', 40]] }, [['interact', 36]]);
-  s.newLife('road', 40, 'traffic', { alive: ['S5'] }, [['kill', 20]]);
-  s.newLife('beach', 60, 'mine', {}, [['damaged', 58]]);
-  s.newLife('road', 70, 'turret', {}, [
+  s.newLife('west', 30, 'traffic', { kill: [['S5', 28]] });
+  s.newLife('east', 88, 'mine', { interrupt: [['S6', 40]] }, [['interact', 36]]);
+  s.newLife('west', 40, 'traffic', { alive: ['S5'] }, [['kill', 20]]);
+  s.newLife('east', 60, 'mine', {}, [['damaged', 58]]);
+  s.newLife('west', 70, 'turret', {}, [
     ['kill', 25],
     ['kill', 48],
   ]);
-  s.newLife('beach', 45, 'mine', { rescue: ['S9'] });
+  s.newLife('east', 45, 'mine', { rescue: ['S9'] });
   return {
     name: 'twelve',
-    about:
-      '12 soldiers across Road and Beach: rescues, a dashed loss, an interruption, unresolved.',
+    about: '12 soldiers across West and East: rescues, a dashed loss, an interruption, unresolved.',
     props: s.props(),
   };
 }
@@ -403,7 +403,7 @@ function twelve(): RespawnFixture {
 function dense(): RespawnFixture {
   const s = new Story();
   const rng = createRng(4040);
-  const points = ['road', 'beach'];
+  const points = ['west', 'east'];
   while (s.soldiers.length < 40) {
     const roll = nextFloat(rng);
     const opens = s.lanes.filter((l) => l.end.kind === 'open');
@@ -453,14 +453,14 @@ function randomMarkers(rng: ReturnType<typeof createRng>): MarkerSpec[] {
 /** Scrubber: after S5 dies at 0:40, the rest of the battle is re-resolved progressively. */
 function scrubber(): RespawnFixture {
   const s = new Story();
-  const s1 = s.newLife('road', 58, 'turret', {}, [['damaged', 55]]); // X 0:58
+  const s1 = s.newLife('west', 58, 'turret', {}, [['damaged', 55]]); // X 0:58
   // S2 saves S1 (O at 0:58) and dies at 1:10.
-  const s2 = s.newLife('beach', 70, 'mine', { rescue: [s1] }, [['hazardDestroyed', 50]]);
+  const s2 = s.newLife('east', 70, 'mine', { rescue: [s1] }, [['hazardDestroyed', 50]]);
   s.resume(s1, 32, 'turret', {}, [['kill', 20]]); // S1 X 1:30
   // S3 saves S1 again (O at 1:30) and dies at 1:45.
-  const s3 = s.newLife('beach', 103, 'turret', { rescue: [s1] }, [['hazardDestroyed', 75]]);
-  const s4 = s.newLifeAt('outpost', sec(95), 45, 'mine', {}, [['capture', 5]]); // captured point
-  s.newLife('road', 38, 'traffic', {}, [['interact', 20]]); // S5 dies at 0:40: window [0, 0:40]
+  const s3 = s.newLife('east', 103, 'turret', { rescue: [s1] }, [['hazardDestroyed', 75]]);
+  const s4 = s.newLifeAt('forward', sec(95), 45, 'mine', {}, [['capture', 5]]); // captured point
+  s.newLife('west', 38, 'traffic', {}, [['interact', 20]]); // S5 dies at 0:40: window [0, 0:40]
   const base = s.props();
   const from = (s.reached ?? 0) + 1;
 
@@ -477,7 +477,7 @@ function scrubber(): RespawnFixture {
       [s2]: k >= s2End ? { kind: 'static', tick: s2End } : { kind: 'alive' },
       [s3]: k >= s3End ? { kind: 'died', tick: s3End, cause: 'turret' } : { kind: 'alive' },
     };
-    // Without S1 the outpost is never captured, so S4 never spawns there ([D26]).
+    // Without S1 the Forward Post is never captured, so S4 never spawns there ([D26]).
     if (k >= s4Spawn) fates[s4] = { kind: 'neverSpawned', reason: 'captureLost' };
     s.resolve(from, k, fates, [marker(s1, sec(71), 'damaged'), marker(s1, sec(72), 'death')]);
     stream.push({
@@ -498,7 +498,7 @@ function scrubber(): RespawnFixture {
 
 function complete(): RespawnFixture {
   const s = rescueStory();
-  s.newLife('road', 88, 'complete', {}, [
+  s.newLife('west', 88, 'complete', {}, [
     ['kill', 30],
     ['objective', 80],
     ['objective', 86],
@@ -529,13 +529,13 @@ const BUILDERS: Record<string, () => RespawnFixture> = {
   // (06-b) Revealed map, from real recordings (map-fixtures.ts).
   map: () => ({
     name: 'map',
-    about: 'Mission 1 from real recordings: X at the turret and in the mines, S1 rescued → O',
-    props: mapMission01(),
+    about: 'Breach from real recordings: X at the turret line and in the mines, S1 rescued → O',
+    props: mapBreach(),
   }),
-  'map-outpost': () => ({
-    name: 'map-outpost',
-    about: 'Mission 2 from real recordings: the Outpost captured (forward spawn on the map)',
-    props: mapOutpost(),
+  'map-forward': () => ({
+    name: 'map-forward',
+    about: 'Breach from real recordings: the Forward Post captured (forward spawn on the map)',
+    props: mapForward(),
   }),
   'map-tall': () => ({
     name: 'map-tall',

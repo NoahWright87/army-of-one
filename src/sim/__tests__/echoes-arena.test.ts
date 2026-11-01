@@ -1,9 +1,9 @@
 /**
  * PHASE03-a echo behaviour in small arenas: detours, interruption, never early, crowds, static
- * figures vs. turrets, action tolerance, plus the 20-attempt chain benchmark on mission-01.
+ * figures vs. turrets, action tolerance, plus the 20-attempt chain benchmark on mission-03.
  */
 import { describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../../content/maps/mission-01';
+import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import type { SoldierRecord } from '../../contracts/mission';
 import { Attempt } from '../attempt/attempt';
@@ -349,7 +349,7 @@ describe('static figures, actions', () => {
   });
 });
 
-describe('chain of 20 attempts (mission-01)', () => {
+describe('chain of 20 attempts (mission-03)', () => {
   // The timeout is only a coarse guard against pathological slowdowns: it runs alongside the
   // whole suite in parallel, so a tight wall-clock limit flakes. Measure real speed with
   // `npm run sim -- --scenario chain`, which prints ticks/sec.
@@ -361,7 +361,7 @@ describe('chain of 20 attempts (mission-01)', () => {
     expect(records).toHaveLength(20);
     // Everyone replayed to their O in the last attempt's history.
     const last = new Attempt({
-      map: MISSION_01,
+      map: MISSION_03,
       tuning: T,
       soldiers: records,
       attempt: 21,

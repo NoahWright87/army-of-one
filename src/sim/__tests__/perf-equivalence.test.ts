@@ -4,7 +4,7 @@
  * observations and the world hash of a full replay tick for tick.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../../content/maps/mission-01';
+import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { Attempt } from '../attempt/attempt';
 import { SnapshotStore } from '../attempt/snapshots';
@@ -26,7 +26,7 @@ afterEach(() => {
 function buildAndReplay(flags: Readonly<SimPerfFlags>, lives: number) {
   restore = setSimPerf(flags);
   const army = new ArmyBuilder({
-    map: MISSION_01,
+    map: MISSION_03,
     tuning: DEFAULT_TUNING,
     seed: 7,
     mix: MIX,
@@ -34,7 +34,7 @@ function buildAndReplay(flags: Readonly<SimPerfFlags>, lives: number) {
   });
   army.growTo(lives);
   const replay = new Attempt({
-    map: MISSION_01,
+    map: MISSION_03,
     tuning: DEFAULT_TUNING,
     soldiers: army.records,
     attempt: lives + 1,
@@ -76,10 +76,10 @@ describe('PHASE05-b optimizations are bit-exact', () => {
   it('a 40-soldier pile-up on one spot separates identically', () => {
     const run = (flags: Readonly<SimPerfFlags>) => {
       restore = setSimPerf(flags);
-      const w = createWorld(MISSION_01, DEFAULT_TUNING);
+      const w = createWorld(MISSION_03, DEFAULT_TUNING);
       const ids: string[] = [];
       for (let i = 0; i < 40; i++) {
-        ids.push(spawnSoldier(w, 'road', { position: { x: 400 + (i % 3), y: 1500 } }));
+        ids.push(spawnSoldier(w, 'west', { position: { x: 800 + (i % 3), y: 5300 } }));
       }
       const out: string[] = [];
       for (let t = 0; t < 240; t++) {
@@ -105,22 +105,27 @@ describe('PHASE05-b optimizations are bit-exact', () => {
   });
 
   it('A* with reused buffers returns the same paths', () => {
-    const w = createWorld(MISSION_01, DEFAULT_TUNING);
+    const w = createWorld(MISSION_03, DEFAULT_TUNING);
+    // Gate open and drawbridge down, so the long queries have real paths.
+    w.state.gates[0]!.open = true;
+    w.state.bridges[0]!.state = 'down';
+    w.state.bridges[0]!.progressTicks = 0;
     const queries: [{ x: number; y: number }, { x: number; y: number }][] = [
-      [MISSION_01.spawnPoints[0]!.position, { x: 5900, y: 400 }],
-      [MISSION_01.spawnPoints[1]!.position, { x: 1990, y: 1440 }],
+      [MISSION_03.spawnPoints[0]!.position, { x: 800, y: 900 }],
+      [MISSION_03.spawnPoints[2]!.position, { x: 800, y: 2510 }],
       [
-        { x: 2600, y: 1000 },
-        { x: 4200, y: 1300 },
+        { x: 200, y: 2600 },
+        { x: 1400, y: 1300 },
       ],
       [
         { x: 300, y: 300 },
-        { x: 300, y: 4000 },
+        { x: 300, y: 5000 },
       ],
     ];
     const run = (flags: Readonly<SimPerfFlags>) => {
       restore = setSimPerf(flags);
       const out = queries.map(([a, b]) => JSON.stringify(findPath(w, a, b)));
+      expect(out.every((p) => p !== 'null')).toBe(true);
       out.push(JSON.stringify(findPath(w, queries[0]![0], queries[0]![1], { maxLength: 900 })));
       restore();
       restore = null;
@@ -132,17 +137,17 @@ describe('PHASE05-b optimizations are bit-exact', () => {
   it('bots are deterministic given a seed', () => {
     const plan = (seed: number) =>
       planBot({
-        map: MISSION_01,
+        map: MISSION_03,
         tuning: DEFAULT_TUNING,
         kind: 'route',
         seed,
-        spawnPointId: 'road',
+        spawnPointId: 'west',
       });
     expect(plan(3)).toEqual(plan(3));
     expect(plan(3)).not.toEqual(plan(4));
     const drive = () => {
-      const w = createWorld(MISSION_01, DEFAULT_TUNING);
-      const id = spawnSoldier(w, 'road');
+      const w = createWorld(MISSION_03, DEFAULT_TUNING);
+      const id = spawnSoldier(w, 'west');
       const d = createBotDriver(plan(3));
       for (let t = 0; t < 600; t++) {
         const me = getSoldier(w, id)!;
