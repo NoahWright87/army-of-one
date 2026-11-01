@@ -4,6 +4,8 @@ import { detonateMine } from '../combat/damage';
 import type { World } from '../state';
 import type { MineDef } from '../world/map';
 import { isEligible } from './soldier';
+import { simPerf } from '../perf';
+import { postActionGrid, type PointGrid } from '../world/soldier-grid';
 
 export type MineMode = 'idle' | 'armed' | 'detonated';
 
@@ -35,6 +37,11 @@ export function stepMines(world: World): void {
   const mt = world.tuning.mine;
   const defs = world.map.mines ?? [];
   const trigger2 = mt.triggerRadius * mt.triggerRadius;
+  const soldiers = world.state.soldiers;
+  // (05-b) Spatial hash of soldiers (eligibility is re-checked at query time, since a blast
+  // earlier in this loop may kill some). `some` is order-independent: same answer as a scan.
+  let grid: PointGrid | null = null;
+  const useGrid = simPerf.soldierGrid && soldiers.length > 24;
   world.state.mines.forEach((m, i) => {
     if (m.state === 'detonated') return;
     if (m.state === 'armed') {
@@ -43,7 +50,17 @@ export function stepMines(world: World): void {
       return;
     }
     const pos = defs[i]!.position;
-    if (world.state.soldiers.some((s) => isEligible(s) && distanceSq(s, pos) <= trigger2)) {
+    let near: boolean;
+    if (useGrid) {
+      grid ??= postActionGrid(world);
+      const r = mt.triggerRadius;
+      near = grid
+        .query(pos.x - r, pos.y - r, pos.x + r, pos.y + r)
+        .some((k) => isEligible(soldiers[k]!) && distanceSq(soldiers[k]!, pos) <= trigger2);
+    } else {
+      near = soldiers.some((s) => isEligible(s) && distanceSq(s, pos) <= trigger2);
+    }
+    if (near) {
       armMine(m, secondsToTicks(mt.fuseSeconds));
     }
   });

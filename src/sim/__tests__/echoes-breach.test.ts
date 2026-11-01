@@ -1,9 +1,10 @@
 /**
- * PHASE03-a scenario tests on mission-01: exact replay, rescue → O, resume, ignore O, history
- * made worse, interruption at the gate, resolve passes, snapshot equivalence.
+ * PHASE03-a scenario tests, on mission-03 "Breach" ([D31]; they ran on the removed mission-01):
+ * exact replay, rescue → O, resume, ignore O, history made worse, interruption at the gate,
+ * resolve passes, snapshot equivalence.
  */
 import { describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../../content/maps/mission-01';
+import { M3, MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import type { AttemptObservation, SoldierRecord } from '../../contracts/mission';
 import { Attempt } from '../attempt/attempt';
@@ -18,16 +19,34 @@ import { buildSchedule, poseAt, validateRecord } from '../recording/schedule';
 import { recordedTo } from '../recording/records';
 import type { ScriptStep } from '../scenarios/driver';
 import { playLife, type LifeParams } from '../scenarios/lives';
-import { findScenario, ROAD_TO_HIGHWAY, turretDestroyed } from '../scenarios/mission-01';
-import { LEAD_IN_TICKS, runRescueChain, S2_SNIPE_AND_HOLD } from '../scenarios/rescue';
+import {
+  BREACH_CAPTURE,
+  BREACH_MINES,
+  BREACH_MINE_WALKER,
+  BREACH_OPEN_GATE,
+  BREACH_RESCUER,
+  BREACH_ROAD,
+  BREACH_SNIPE_T1,
+  breachGateShut,
+  breachMineUnder,
+  findBreachScenario,
+  LEAD_IN_TICKS,
+  m3GateOpen,
+  m3TurretDown,
+  MINE_WEAVE,
+  runBreachRescueChain,
+} from '../scenarios/mission-03';
 import { getSoldier, getView, type World } from '../sim';
 
 const T = DEFAULT_TUNING;
-const base = { map: MISSION_01, tuning: T };
+const base = { map: MISSION_03, tuning: T };
 const soldier = (w: World, id: string) => getSoldier(w, id)!;
+const LEVER_S = MISSION_03.levers![0]!.position;
 
 // The rescue chain is deterministic; run it once and share it.
-const chain = runRescueChain(T);
+// 1. S1 (West, 0:00) dawdles, walks past T1 toward the gate: X. 2. S2 (West, 0:02) snipes T1
+// first and holds: S1 → O. 3. S1 resumes, opens the gate and weaves through the mine strip.
+const chain = runBreachRescueChain(T);
 const [a1, a2, a3] = chain.lives as [
   (typeof chain.lives)[0],
   (typeof chain.lives)[0],
@@ -43,12 +62,12 @@ function life(p: Omit<LifeParams, 'map' | 'tuning'>) {
 
 describe('exact replay', () => {
   it('an unchanged history replays bit-exactly, tick for tick (idle live soldier far away)', () => {
-    const naive = findScenario('road-naive')!;
+    const naive = findBreachScenario('breach-naive')!;
     const hashes1: string[] = [];
     const first = life({
       records: [],
       attempt: 1,
-      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'road', entryTick: 0 },
+      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'centre', entryTick: 0 },
       steps: naive.steps,
       onTick: (a) => hashes1.push(outcomeHash(a.world.state)),
     });
@@ -60,8 +79,8 @@ describe('exact replay', () => {
     const second = life({
       records: first.records,
       attempt: 2,
-      // S2 idles at the beach: far from the turret, the mines and S1.
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'beach', entryTick: 0 },
+      // S2 idles at the East spawn: out of every turret's range and away from S1.
+      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'east', entryTick: 0 },
       steps: [{ kind: 'wait', ticks: deathTick + 30 }],
       onTick: (a) => hashes2.push(outcomeHash(a.world.state, ['S2'])),
     });
@@ -102,7 +121,7 @@ describe('exact replay', () => {
 });
 
 describe('rescue chain: X → rescue → O → resume', () => {
-  it('attempt 1: S1 walks into the turret and dies (X)', () => {
+  it('attempt 1: S1 walks into T1 and dies (X)', () => {
     expect(a1.observation.lanes).toEqual({ S1: { kind: 'died', tick: s1End, cause: 'turret' } });
     expect(a1.liveSegment).toMatchObject({ startTick: 0, endTick: s1End, endReason: 'death' });
     const kinds = a1.observation.markers.map((m) => m.kind);
@@ -112,10 +131,10 @@ describe('rescue chain: X → rescue → O → resume', () => {
     expect(a1.observation.markers.find((m) => m.kind === 'death')!.stringKey).toBe('marker.death');
   });
 
-  it('attempt 2: S2 kills the turret first; S1 reaches its recording end alive → static (O)', () => {
+  it('attempt 2: S2 kills T1 first; S1 reaches its recording end alive → static (O)', () => {
     const o = a2.observation;
     const kill = o.markers.find((m) => m.kind === 'kill')!;
-    expect(kill).toMatchObject({ soldierId: 'S2', refId: 'turret-1', stringKey: 'marker.kill' });
+    expect(kill).toMatchObject({ soldierId: 'S2', refId: 't1', stringKey: 'marker.kill' });
     expect(kill.tick).toBeLessThan(s1End);
     expect(o.lanes['S1']).toEqual({ kind: 'static', tick: s1End });
     expect(o.markers).toContainEqual(
@@ -132,7 +151,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
     expect([s1.x, s1.y]).toEqual([last.x, last.y]);
   });
 
-  it('attempt 3: resume S1 — lead-in follows the recording with HP floored, then obeys input', () => {
+  it('attempt 3: resume S1 — lead-in follows the recording, then it obeys input', () => {
     const o = a3.observation;
     expect(o.live).toEqual({ soldierId: 'S1', mode: 'resume', controlFromTick: s1End + 1 });
     expect(o.fromTick).toBeLessThanOrEqual(s1End + 1 - LEAD_IN_TICKS);
@@ -141,10 +160,14 @@ describe('rescue chain: X → rescue → O → resume', () => {
     const s1 = chain.records.find((r) => r.id === 'S1')!;
     expect(s1.segments).toHaveLength(2);
     expect(() => validateRecord(s1)).not.toThrow();
-    // After the lead-in S1 followed the script: it walked into the compound and took the depot.
-    expect(o.missionComplete).toEqual({ tick: o.toTick, bySoldierId: 'S1' });
+    // After the lead-in S1 followed the script: opened the gate and got through the mines.
+    expect(o.markers).toContainEqual(
+      expect.objectContaining({ soldierId: 'S1', kind: 'interact', refId: 'm3-lever-gate-s' }),
+    );
+    expect(a3.attempt.world.state.gates[0]!.open).toBe(true);
+    expect(soldier(a3.attempt.world, 'S1').y).toBeLessThan(M3.mineRowsY[2]);
     expect(o.lanes['S1']).toEqual({ kind: 'alive' });
-    expect(a3.liveSegment!.endReason).toBe('missionComplete');
+    expect(a3.liveSegment!.endReason).toBe('suspended');
   });
 
   it('during the lead-in the resumed soldier is on schedule, unkillable and shown as live', () => {
@@ -153,8 +176,8 @@ describe('rescue chain: X → rescue → O → resume', () => {
     life({
       records: recordsAfter1,
       attempt: 2,
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'road', entryTick: secondsToTicks(2) },
-      steps: S2_SNIPE_AND_HOLD,
+      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'west', entryTick: secondsToTicks(2) },
+      steps: BREACH_RESCUER,
       snapshots,
     });
     const sched = buildSchedule(recordsAfter2.find((r) => r.id === 'S1')!);
@@ -164,7 +187,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
       records: recordsAfter2,
       attempt: 3,
       live: { mode: 'resume', soldierId: 'S1', controlFromTick: s1End + 1 },
-      steps: [{ kind: 'walkStraight', to: { x: 4600, y: 1500 } }],
+      steps: [{ kind: 'walkStraight', to: { x: LEVER_S.x + 10, y: LEVER_S.y + 20 } }],
       fromTick: s1End + 1 - LEAD_IN_TICKS,
       snapshots,
       maxTick: s1End + 120,
@@ -194,7 +217,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
       },
     });
     expect(seen.leadIn).toBeGreaterThanOrEqual(LEAD_IN_TICKS - 1);
-    expect(seen.control).toBeGreaterThan(60);
+    expect(seen.control).toBeGreaterThan(30);
     expect(hpWhenControlStarted).toBe(1);
   });
 
@@ -228,7 +251,7 @@ describe('ignore the O / make history worse', () => {
     const res = life({
       records: recordsAfter2,
       attempt: 3,
-      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'road', entryTick: secondsToTicks(4) },
+      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'east', entryTick: 0 },
       steps: [{ kind: 'wait', ticks: s1End + 60 }],
       onTick: (a) => {
         if (a.tick !== s1End + 30) return;
@@ -243,62 +266,41 @@ describe('ignore the O / make history worse', () => {
     expect(res.observation.lanes['S3']).toEqual({ kind: 'alive' });
   });
 
-  it('history made worse: S3 blows the bridge under S1, who dies earlier than its recording end', () => {
-    const s1Rec = recordsAfter2.find((r) => r.id === 'S1')!;
-    const onBridge = (w: World) => {
-      const s = getSoldier(w, 'S1');
-      return !!s && s.alive && s.x > 3215 && s.x < 3300 && s.y > 1200 && s.y < 1400;
-    };
-    const bridgeGone = (w: World) => w.state.bridges[0]!.state === 'destroyed';
-    const steps: ScriptStep[] = [
-      ...ROAD_TO_HIGHWAY,
-      { kind: 'moveTo', to: { x: 2900, y: 1260 }, label: 'west of the chasm' },
-      { kind: 'waitUntil', until: onBridge, label: 'wait for S1 on the bridge' },
-      { kind: 'shoot', at: MISSION_01.bridges![0]!.charge!, until: bridgeGone, label: 'blow it' },
-      { kind: 'wait', ticks: 60 },
-    ];
+  it('history made worse: S3 sets off a mine next to the resumed S1, who dies earlier', () => {
+    // After attempt 3, S1's recording runs on through the gate and the mine strip.
+    const s1Rec = chain.records.find((r) => r.id === 'S1')!;
     const res = life({
-      records: recordsAfter2,
-      attempt: 3,
-      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'road', entryTick: secondsToTicks(4) },
-      steps,
+      records: chain.records,
+      attempt: 4,
+      live: { mode: 'new', soldierId: 'S3', spawnPointId: 'centre', entryTick: 0 },
+      steps: breachMineUnder('S1'),
     });
     const fate = res.observation.lanes['S1']!;
-    expect(fate).toMatchObject({ kind: 'died', cause: 'bridgeCollapse' });
+    expect(fate).toMatchObject({ kind: 'died', cause: 'mine' });
+    expect((fate as { tick: number }).tick).toBeGreaterThan(s1End);
     expect((fate as { tick: number }).tick).toBeLessThan(recordedTo(s1Rec));
     expect(res.observation.markers).toContainEqual(
-      expect.objectContaining({ soldierId: 'S3', kind: 'hazardDestroyed', refId: 'bridge-road' }),
+      expect.objectContaining({ soldierId: 'S3', kind: 'hazardDestroyed', refId: MINE_WEAVE }),
     );
   });
 });
 
-describe('interruption at the gate (mission-01)', () => {
-  const gateOpen = (w: World) => w.state.gates[0]!.open;
-  // S1 opens the gate, lingers by the lever, then walks through it.
-  const S1_GATE: ScriptStep[] = [
-    ...ROAD_TO_HIGHWAY,
-    { kind: 'moveTo', to: { x: 3500, y: 380 }, label: 'to the gate lever' },
-    { kind: 'interact', label: 'open the gate' },
-    { kind: 'wait', ticks: secondsToTicks(12), label: 'linger' },
-    { kind: 'moveTo', to: { x: 4200, y: 400 }, label: 'through the gate' },
-  ];
+describe('interruption at the gate', () => {
+  // S1 snipes T1, opens the gate, lingers by the lever, then walks through it into the mines.
   const s1Life = life({
     records: [],
     attempt: 1,
-    live: { mode: 'new', soldierId: 'S1', spawnPointId: 'road', entryTick: 0 },
-    steps: S1_GATE,
+    live: { mode: 'new', soldierId: 'S1', spawnPointId: 'west', entryTick: 0 },
+    steps: BREACH_MINE_WALKER,
   });
 
   it('S2 shuts the gate before S1 walks through: S1 freezes (interrupted), stays frozen, stays killable', () => {
-    expect(s1Life.observation.lanes['S1']).toEqual({ kind: 'alive' });
+    expect(s1Life.observation.lanes['S1']).toMatchObject({ kind: 'died', cause: 'mine' });
     let frozenAt: { x: number; y: number; tick: number } | null = null;
     let reopened = -1;
     let checkedFrozen = false;
     const S2: ScriptStep[] = [
-      ...ROAD_TO_HIGHWAY,
-      { kind: 'moveTo', to: { x: 3520, y: 420 }, label: 'next to the lever' },
-      { kind: 'waitUntil', until: gateOpen, label: 'S1 opens it' },
-      { kind: 'interact', label: 'shut it' },
+      ...breachGateShut(),
       {
         kind: 'waitUntil',
         until: (w) => getSoldier(w, 'S1')!.viewRole === 'interrupted',
@@ -310,13 +312,13 @@ describe('interruption at the gate (mission-01)', () => {
     const res = life({
       records: s1Life.records,
       attempt: 2,
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'road', entryTick: secondsToTicks(2) },
+      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'west', entryTick: secondsToTicks(2) },
       steps: S2,
       onTick: (a) => {
         const s1 = soldier(a.world, 'S1');
         const echo = a.echoes.echo('S1')!;
         if (echo.mode === 'interrupted' && !frozenAt) frozenAt = { x: s1.x, y: s1.y, tick: a.tick };
-        if (frozenAt && gateOpen(a.world) && reopened < 0) reopened = a.tick;
+        if (frozenAt && m3GateOpen(a.world) && reopened < 0) reopened = a.tick;
         if (frozenAt && s1.alive) {
           // Permanent for the attempt: the gate reopening doesn't revive the schedule ([D24]).
           expect([s1.x, s1.y]).toEqual([frozenAt.x, frozenAt.y]);
@@ -331,7 +333,7 @@ describe('interruption at the gate (mission-01)', () => {
       },
     });
     expect(frozenAt).not.toBeNull();
-    expect(frozenAt!.x).toBeLessThan(3600); // never got through the gate
+    expect(frozenAt!.y).toBeGreaterThan(M3.gateWallY); // never got through the gate
     expect(checkedFrozen).toBe(true);
     const o = res.observation;
     expect(o.markers).toContainEqual(
@@ -346,41 +348,36 @@ describe('interruption at the gate (mission-01)', () => {
   });
 
   it('without the kill, the observation reports the lane as interrupted', () => {
-    const S2: ScriptStep[] = [
-      ...ROAD_TO_HIGHWAY,
-      { kind: 'moveTo', to: { x: 3520, y: 420 } },
-      { kind: 'waitUntil', until: gateOpen },
-      { kind: 'interact' },
-      { kind: 'wait', ticks: secondsToTicks(20) },
-    ];
     const res = life({
       records: s1Life.records,
       attempt: 2,
-      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'road', entryTick: secondsToTicks(2) },
-      steps: S2,
+      live: { mode: 'new', soldierId: 'S2', spawnPointId: 'west', entryTick: secondsToTicks(2) },
+      steps: [...breachGateShut(), { kind: 'wait', ticks: secondsToTicks(10) }],
     });
     expect(res.observation.lanes['S1']).toMatchObject({ kind: 'interrupted' });
   });
 });
 
 describe('resolve pass', () => {
-  // S2 kills the turret, then dies (scripted lethal hit) well before S1's recording ends.
+  // S2 kills T1, then dies (scripted lethal hit) well before S1's recording ends.
   const snapshots = new SnapshotStore();
   let s2Dead = -1;
   const att = life({
     records: recordsAfter1,
     attempt: 2,
-    live: { mode: 'new', soldierId: 'S2', spawnPointId: 'road', entryTick: secondsToTicks(2) },
-    steps: [...S2_SNIPE_AND_HOLD.slice(0, -1), { kind: 'wait', ticks: 600 }],
+    live: { mode: 'new', soldierId: 'S2', spawnPointId: 'west', entryTick: secondsToTicks(2) },
+    steps: [...BREACH_SNIPE_T1, { kind: 'wait', ticks: 600 }],
     snapshots,
     onTick: (a) => {
-      if (s2Dead < 0 && turretDestroyed(a.world)) {
+      if (s2Dead < 0 && m3TurretDown('t1')(a.world)) {
         s2Dead = a.tick + 30;
       }
       if (a.tick === s2Dead)
         damageSoldier(a.world, soldier(a.world, 'S2'), 1000, undefined, 'test');
     },
   });
+  // Report progress every 20 ticks: the pass only covers a few seconds of Breach.
+  const progressTuning = { ...T, attempt: { ...T.attempt, resolveProgressIntervalTicks: 20 } };
 
   it('the attempt itself only knows S1 is alive at its end ([D3])', () => {
     expect(att.observation.toTick).toBe(s2Dead);
@@ -393,6 +390,7 @@ describe('resolve pass', () => {
     const progress: AttemptObservation[] = [];
     const r = startResolve({
       ...base,
+      tuning: progressTuning,
       soldiers: att.records,
       attempt: 2,
       from: { kind: 'snapshot', snapshot: snapshots.nearestValidSnapshot(att.observation.toTick)! },
@@ -401,7 +399,7 @@ describe('resolve pass', () => {
     });
     expect(r.targetTick).toBe(s1End);
     let guard = 0;
-    while (!r.done && guard++ < 1000) r.advance(97);
+    while (!r.done && guard++ < 1000) r.advance(17);
     const o = r.observation();
     expect(o).toMatchObject({ kind: 'resolve', attempt: 2, fromTick: s2Dead, toTick: s1End });
     expect(o.live).toBeUndefined();
@@ -438,13 +436,26 @@ describe('resolve pass', () => {
 
 describe('snapshots', () => {
   it('running from a snapshot at s gives the same hashes at s+k as running from tick 0', () => {
-    const records: SoldierRecord[] = recordsAfter2;
-    const s = secondsToTicks(30);
-    const k = secondsToTicks(15);
+    // One long life (T1, gate, mines, road, capture) plus the rescue chain's echoes.
+    const runner = life({
+      records: [],
+      attempt: 1,
+      live: { mode: 'new', soldierId: 'S1', spawnPointId: 'west', entryTick: 0 },
+      steps: [
+        ...BREACH_SNIPE_T1,
+        ...BREACH_OPEN_GATE,
+        ...BREACH_MINES,
+        ...BREACH_ROAD,
+        ...BREACH_CAPTURE,
+      ],
+    });
+    const records: SoldierRecord[] = runner.records;
+    const s = secondsToTicks(4);
+    const k = secondsToTicks(10);
     const full = new Attempt({
       ...base,
       soldiers: records,
-      attempt: 3,
+      attempt: 2,
       from: { kind: 'start' },
       live: null,
     });
@@ -452,19 +463,19 @@ describe('snapshots', () => {
     let snap = null as ReturnType<Attempt['takeSnapshot']> | null;
     while (full.tick < s + k) {
       full.step();
-      // Knock S2 off its schedule just before the snapshot, so it holds a planned path.
-      if (full.tick === s - 5) soldier(full.world, 'S2').y += 30;
+      // Knock S1 off its schedule just before the snapshot, so it holds a planned path.
+      if (full.tick === s - 5) soldier(full.world, 'S1').x += 30;
       if (full.tick === s) {
         snap = full.takeSnapshot();
-        expect(full.echoes.echo('S2')!.mode).toBe('offSchedule');
-        expect(snap.echoes.echoes.find((e) => e.id === 'S2')!.path).not.toBeNull();
+        expect(full.echoes.echo('S1')!.mode).toBe('offSchedule');
+        expect(snap.echoes.echoes.find((e) => e.id === 'S1')!.path).not.toBeNull();
       }
       if (full.tick >= s) fullHashes.set(full.tick, outcomeHash(full.world.state));
     }
     const resumed = new Attempt({
       ...base,
       soldiers: records,
-      attempt: 3,
+      attempt: 2,
       from: { kind: 'snapshot', snapshot: structuredClone(snap!) },
       live: null,
     });
@@ -475,7 +486,7 @@ describe('snapshots', () => {
         fullHashes.get(resumed.tick),
       );
     }
-    expect(resumed.echoes.echo('S2')!.mode).toBe('following'); // it rejoined
+    expect(resumed.echoes.echo('S1')!.mode).toBe('following'); // it rejoined
   });
 
   it('attempts stage snapshots every interval and commit them on finish', () => {

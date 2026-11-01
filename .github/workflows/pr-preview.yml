@@ -162,7 +162,7 @@ jobs:
             body="${marker}
           🚀 **Preview:** ${PAGE}
 
-          Built from ${short}. Handy links: [play](${PAGE}) · [autoplay the rescue story](${PAGE}?dev=1&autoplay=road-slow,road-snipe-die,resume&fast=1) · [entity gallery](${PAGE}?scene=gallery) · [respawn screen](${PAGE}?screen=respawn&fixture=scrubber)"
+          Built from ${short}. Handy links: [play](${PAGE}) · [autoplay the Breach story](${PAGE}?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1) · [entity gallery](${PAGE}?scene=gallery) · [respawn screen](${PAGE}?screen=respawn&fixture=scrubber)"
           else
             body="${marker}
           ⏳ Preview for ${short} was published to the \`gh-pages\` branch but isn't being served yet: ${PAGE}

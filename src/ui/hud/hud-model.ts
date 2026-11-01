@@ -1,7 +1,7 @@
 /** Pure HUD logic: turns a WorldView into the strings/numbers the HUD shows. */
-import { str } from '../../content/strings';
+import { str, strDynamic } from '../../content/strings';
 import { formatBattleTime } from '../../sim/core/time';
-import type { ObjectiveView, SoldierView, WorldView } from '../../sim/view';
+import type { CapturePointView, ObjectiveView, SoldierView, WorldView } from '../../sim/view';
 
 export type HudStatus = 'alive' | 'leadIn' | 'dead' | 'none';
 
@@ -29,8 +29,22 @@ export function soldierLabel(ordinal: number): string {
   return str('hud.soldier', { n: ordinal });
 }
 
-export function objectiveText(objectives: readonly ObjectiveView[], complete: boolean): string {
+export function objectiveText(
+  objectives: readonly ObjectiveView[],
+  complete: boolean,
+  capturePoints: readonly CapturePointView[] = [],
+): string {
   if (complete) return str('mission.complete');
+  // (05-a) Flag objectives ([D17]).
+  const flags = capturePoints.filter((c) => c.objective);
+  if (flags.length > 0) {
+    if (objectives.length === 0 && flags.length === 1) {
+      return str('objective.capture', { name: strDynamic(flags[0]!.nameKey) });
+    }
+    const done =
+      objectives.filter((o) => o.destroyed).length + flags.filter((c) => c.stage === 'ours').length;
+    return str('objective.mixed', { done, total: objectives.length + flags.length });
+  }
   if (objectives.length === 0) return str('objective.none');
   if (objectives.length === 1) return str('objective.destroy');
   const done = objectives.filter((o) => o.destroyed).length;
@@ -52,7 +66,7 @@ export function buildHudModel(view: WorldView, liveId: string | null): HudModel 
     hpText: s ? (s.alive ? formatHp(s.hp, s.maxHp) : str('hud.kia')) : '',
     hpFraction: s && s.alive ? hpFraction(s.hp, s.maxHp) : 0,
     status: soldierStatus(s),
-    objective: objectiveText(view.objectives, complete),
+    objective: objectiveText(view.objectives, complete, view.capturePoints),
     missionComplete: complete,
   };
 }

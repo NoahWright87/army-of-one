@@ -27,11 +27,12 @@ import { distance, type Vec2 } from '../core/vec';
 import { interact, isLeverOn } from '../entities/lever';
 import type { SoldierState } from '../entities/soldier';
 import { emit, type World } from '../state';
-import { getSoldier, spawnSoldier, type StepHooks } from '../sim';
+import { getSoldier, soldierIndex, spawnSoldier, type StepHooks } from '../sim';
 import { moveCircle } from '../world/collision';
 import type { Rect } from '../world/map';
 import { findPath, pathLength } from '../world/nav';
 import { isSpawnPointOpen } from '../world/spawn-points';
+import { simPerf } from '../perf';
 import { buildSchedule, poseAt, type Schedule } from './schedule';
 
 export type EchoMode =
@@ -206,9 +207,10 @@ export class EchoController {
 
   /** After a step: echoes the world killed become dead. */
   syncDeaths(world: World): void {
+    const find = soldierLookup(world);
     for (const e of this.state.echoes) {
       if (e.mode === 'pending' || e.mode === 'neverSpawned' || e.mode === 'dead') continue;
-      const s = getSoldier(world, e.id);
+      const s = find(e.id);
       if (s && !s.alive) {
         e.mode = 'dead';
         e.fateTick = s.deathTick;
@@ -223,11 +225,13 @@ export class EchoController {
    */
   finishEnded(world: World): void {
     const t = world.state.tick;
+    let find: ((id: SoldierId) => SoldierState | undefined) | null = null;
     for (const e of this.state.echoes) {
       if (e.mode !== 'following' && e.mode !== 'offSchedule') continue;
       const sched = this.schedules.get(e.id)!;
       if (t < sched.endTick) continue;
-      const s = getSoldier(world, e.id);
+      find ??= soldierLookup(world);
+      const s = find(e.id);
       if (s?.alive) this.becomeStatic(e, s, sched.endTick);
     }
   }
@@ -236,9 +240,10 @@ export class EchoController {
 
   private move(world: World, solids: readonly Rect[]): void {
     const t = world.state.tick;
+    const find = soldierLookup(world);
     for (const e of this.state.echoes) {
       if (e.mode !== 'following' && e.mode !== 'offSchedule') continue;
-      const s = getSoldier(world, e.id);
+      const s = find(e.id);
       if (!s || !s.alive) continue;
       const sched = this.schedules.get(e.id)!;
       if (t > sched.endTick) {
@@ -406,6 +411,16 @@ export class EchoController {
       }
     }
   }
+}
+
+/**
+ * (05-b) Id → soldier lookup for a loop over many echoes: a map built once (O(n)) instead of a
+ * linear `getSoldier` per echo (O(n²)). Same answers either way.
+ */
+function soldierLookup(world: World): (id: SoldierId) => SoldierState | undefined {
+  if (!simPerf.soldierIndex) return (id) => world.state.soldiers.find((s) => s.id === id);
+  const byId = soldierIndex(world.state.soldiers);
+  return (id) => byId.get(id);
 }
 
 /** Sets a soldier's sim flags for an echo mode. */

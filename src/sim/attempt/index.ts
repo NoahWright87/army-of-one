@@ -12,7 +12,13 @@ export {
 export { MARKER_STRING_KEYS } from './observation';
 export { outcomeHash } from './outcome-hash';
 export { Resolve, startResolve, type ResolveParams, type ResolveProgress } from './resolve';
-export { SnapshotStore, type SnapshotWindow, type WorldSnapshot } from './snapshots';
+export {
+  SnapshotStore,
+  snapshotThinning,
+  type SnapshotThinning,
+  type SnapshotWindow,
+  type WorldSnapshot,
+} from './snapshots';
 export {
   EchoController,
   type EchoControllerState,

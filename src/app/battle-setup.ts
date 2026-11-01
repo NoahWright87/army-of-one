@@ -1,11 +1,11 @@
-import { MISSION_01 } from '../content/maps/mission-01';
+import { MISSION_03 } from '../content/maps/mission-03';
 import type { Tuning } from '../content/tuning';
 import { createWorld, spawnSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
 import type { BattleSession } from '../render/phaser/services';
 
 /** The map the default battle runs on. */
-export const BATTLE_MAP: MapDef = MISSION_01;
+export const BATTLE_MAP: MapDef = MISSION_03;
 
 /** Default sandbox session: fresh world, one live soldier at the first spawn point. */
 export function createDefaultSession(

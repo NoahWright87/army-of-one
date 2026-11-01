@@ -10,6 +10,7 @@ import type { SimEvent } from '../../../sim/events';
 import { borderWalls, type MapDef } from '../../../sim/world/map';
 import type {
   BridgeView,
+  CapturePointView,
   MineView,
   ObjectiveView,
   SoldierView,
@@ -85,6 +86,10 @@ export const GALLERY_CAPTIONS: Caption[] = [
   { x: col(1), y: ROW[4] + 62, text: 'objective (damaged)' },
   { x: col(2), y: ROW[4] + 62, text: 'objective destroyed' },
   { x: col(5), y: ROW[4] + 80, text: 'crowd: find the live soldier' },
+  { x: col(6), y: ROW[3] + 72, text: 'capture: enemy (lowering)' },
+  { x: col(7) - 20, y: ROW[3] + 72, text: 'capture: neutral (raising)' },
+  { x: col(7) - 20, y: ROW[4] + 72, text: 'flag objective: ours' },
+  { x: col(6), y: ROW[4] + 72, text: 'capture: decaying' },
 ];
 
 function soldier(
@@ -144,6 +149,10 @@ function soldiers(tick: Tick): SoldierView[] {
     const role = i % 4 === 3 ? 'static' : 'echo';
     list.push(soldier(`S${10 + i}`, 10 + i, cx + dx, cy + dy, role, { facing: -2.4 + i * 0.3 }));
   });
+  // Capture contributors (highlighted by the capture point they stand in).
+  list.push(soldier('S30', 30, col(6) + 18, ROW[3] - 10, 'echo', { facing: 2 }));
+  list.push(soldier('S31', 31, col(7) - 34, ROW[3] + 14, 'echo', { facing: 0.4 }));
+  list.push(soldier('S32', 32, col(7) - 4, ROW[3] - 18, 'echo', { facing: 2.6 }));
   return list.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
 }
 
@@ -232,6 +241,48 @@ function objectives(): ObjectiveView[] {
   ];
 }
 
+function capturePoints(tick: Tick): CapturePointView[] {
+  const cycle = (tick % 240) / 240;
+  const base = {
+    kind: 'capturePoint' as const,
+    radius: 55,
+    objective: false,
+    spawnPointIds: [],
+    nameKey: 'capture.gallery.name',
+  };
+  return [
+    {
+      ...base,
+      id: 'C1',
+      x: col(6),
+      y: ROW[3],
+      stage: 'enemy',
+      progress: 0.2 + cycle * 0.7,
+      contributors: ['S30'],
+    },
+    {
+      ...base,
+      id: 'C2',
+      x: col(7) - 20,
+      y: ROW[3],
+      stage: 'neutral',
+      progress: cycle,
+      contributors: ['S31', 'S32'],
+    },
+    { ...base, id: 'C3', x: col(6), y: ROW[4], stage: 'neutral', progress: 0.55, contributors: [] },
+    {
+      ...base,
+      id: 'C4',
+      x: col(7) - 20,
+      y: ROW[4],
+      stage: 'ours',
+      progress: 0,
+      contributors: [],
+      objective: true,
+    },
+  ];
+}
+
 /** A loop of events (period 120 ticks) so every effect shows up regularly. */
 export function galleryEvents(tick: Tick): SimEvent[] {
   const t = tick % 120;
@@ -287,6 +338,15 @@ export function galleryEvents(tick: Tick): SimEvent[] {
     out.push({ kind: 'mineDetonated', tick, id: 'M3', x: col(6), y: ROW[1], radius: 60 });
   if (t === 100) out.push({ kind: 'hazardDestroyed', tick, id: 'T4' });
   if (t === 110) out.push({ kind: 'damaged', tick, target: 'O2', amount: 20, by: 'S2' });
+  if (t === 90) {
+    out.push({
+      kind: 'captureStageChanged',
+      tick,
+      id: 'C2',
+      stage: 'neutral',
+      contributors: ['S31', 'S32'],
+    });
+  }
   return out;
 }
 
@@ -308,6 +368,7 @@ export function galleryView(tick: Tick): WorldView {
     ],
     bridges: bridges(tick),
     objectives: objectives(),
+    capturePoints: capturePoints(tick),
     events: galleryEvents(tick),
     missionComplete: null,
   };
