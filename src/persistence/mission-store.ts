@@ -223,6 +223,7 @@ async function loadInProgress(
       attempt: r.attempt,
       attemptFromTick: r.attemptFromTick,
       segmentSoFar: decodeSegment(r.segmentSoFar),
+      ...(typeof r.spawnPointId === 'string' ? { spawnPointId: r.spawnPointId } : {}),
     };
   } catch {
     return undefined;

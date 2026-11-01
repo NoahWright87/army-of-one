@@ -177,3 +177,7 @@ _(append additive changes here, with the PR that made them)_
   'restoreState'` ([Q8]); 03-c's JSON action encoding carries it unchanged. `quantize.ts` is
   unchanged. Tick convention: a new soldier's first waypoint (t = spawnTick = entryTick) is its
   spawn pose, and input acts from entryTick+1. A resume continues at recordedTo+1.
+- **PHASE04:** `InProgressLife` gained optional `spawnPointId?: SpawnPointId`, the spawn point of
+  a life in mode `'new'` (its `SoldierRecord` doesn't exist yet, so reload recovery needs it to
+  rebuild the record). 03-c's `loadInProgress` carries it; older saves without it fall back to
+  the spawn point nearest the segment's first waypoint.

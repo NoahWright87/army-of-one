@@ -166,3 +166,17 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   hit the lead-in absorbed can kill the echo in a later attempt. Currently: no floor for echoes
   (damage is always simulated, [E3]). Alternative: echoes keep `minHp = 1` over their recorded
   lead-in windows.
+- **[Q10] Can a background resolve finish the mission (PHASE04)?** If the scrubber ([D23])
+  replays an echo destroying the objective, the lane shows ✓ and the respawn header says the
+  objective is destroyed, but the mission does **not** complete: it completes only when a live
+  attempt sees it happen ("you have to live long enough to see it through", [D3]). Any deploy
+  that doesn't interfere will then reach it. Alternative: end the mission as soon as the truth
+  says the objective falls.
+- **[Q11] Death beat style (PHASE04).** Currently a freeze on the last frame plus a big "KIA"
+  caption for `tuning.deathBeatSeconds` (1 s), while the scrubber already runs. Alternative: a
+  slow-motion second (the battle keeps simulating after the death, which would also extend
+  what the attempt "saw").
+- **[Q12] Reload mid-life skips the title (PHASE04).** [D6] says reloading resumes that soldier;
+  with setting `game.resumeOnReload` on (default) a reload with a life in progress goes straight
+  into its resume lead-in, without the title screen. Off: the title shows first and Continue
+  starts the lead-in. (Browsers block sound until the first click either way.)

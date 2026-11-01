@@ -1,6 +1,7 @@
+import type { Tuning } from '../content/tuning';
 import type { LaneTruth, SoldierRecord, SpawnOption } from '../contracts/mission';
 import { compareIds } from '../sim/core/ids';
-import type { Tick } from '../sim/core/time';
+import { secondsToTicks, type Tick } from '../sim/core/time';
 import type { MapDef } from '../sim/world/map';
 
 export interface SpawnRules {
@@ -8,6 +9,14 @@ export interface SpawnRules {
   spawnIntervalTicks: Tick;
   /** Lead-in before control ([D5], [D25]). */
   leadInTicks: Tick;
+}
+
+/** The spawn rules a mission is played with, from `tuning.spawn` (PHASE04). */
+export function spawnRules(tuning: Pick<Tuning, 'spawn'>): SpawnRules {
+  return {
+    spawnIntervalTicks: secondsToTicks(tuning.spawn.intervalSeconds),
+    leadInTicks: secondsToTicks(tuning.spawn.leadInSeconds),
+  };
 }
 
 /**

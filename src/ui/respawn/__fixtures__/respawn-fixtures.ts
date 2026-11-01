@@ -19,14 +19,12 @@ import { createRng, nextFloat, nextInt } from '../../../sim/core/rng';
 import { secondsToTicks, type Tick } from '../../../sim/core/time';
 import type { MapDef } from '../../../sim/world/map';
 import { applyObservation } from '../../../timeline/truth';
-import { deriveSpawnOptions, type SpawnRules } from '../../../timeline/spawn-options';
+import { DEFAULT_TUNING } from '../../../content/tuning';
+import { deriveSpawnOptions, spawnRules, type SpawnRules } from '../../../timeline/spawn-options';
 import type { RespawnProps, RespawnUpdate } from '../respawn-model';
 
-/** [D7] 2s spawn interval, [D5] 5s lead-in. PHASE04 passes the real values from tuning. */
-export const FIXTURE_RULES: SpawnRules = {
-  spawnIntervalTicks: secondsToTicks(2),
-  leadInTicks: secondsToTicks(5),
-};
+/** The default spawn rules from tuning ([D7] 2 s interval, [D5] 5 s lead-in). */
+export const FIXTURE_RULES: SpawnRules = spawnRules(DEFAULT_TUNING);
 
 export interface RespawnFixture {
   name: string;
