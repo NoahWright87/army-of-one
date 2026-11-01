@@ -18,7 +18,6 @@ export interface InputSource {
   destroy(): void;
   /** (07-b) The scene hands every new view to the source (auto-aim and touch read it). */
   observe?(view: WorldView): void;
-  /** (07-b) Auto-aim: the current target (the renderer marks it), and the reach ring. */
+  /** (07-b) Auto-aim: the current target (present only on auto-aim sources). */
   aimTarget?(): Vec2 | null;
-  aimRange?(): number | null;
 }

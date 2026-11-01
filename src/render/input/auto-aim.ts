@@ -108,6 +108,9 @@ export function pickTarget(
 
 export type AutoFireMode = 'auto' | 'hold';
 
+/** The reticle stops this far short of an auto-aim target (world units). */
+export const RETICLE_SHORT_OF_TARGET = 36;
+
 export interface AutoAimOptions {
   map: MapDef;
   tuning: Tuning;
@@ -124,7 +127,7 @@ export interface AutoAimOptions {
 export class AutoAimInput implements InputSource {
   private target: AimTarget | null = null;
   private view: WorldView | null = null;
-  private range: number | null = null;
+  private lastPos: Vec2 | null = null;
 
   constructor(
     private readonly base: InputSource,
@@ -138,15 +141,14 @@ export class AutoAimInput implements InputSource {
 
   read(soldierPos: Vec2): SoldierInput {
     const input = this.base.read(soldierPos);
+    this.lastPos = soldierPos;
     const view = this.view;
     const me = view?.soldiers.find((s) => s.id === this.opts.liveId);
     if (!view || !me || !me.alive) {
       this.target = null;
-      this.range = null;
       return input;
     }
     const range = autoAimRange(this.opts.tuning, me.roleId);
-    this.range = range;
     this.target = pickTarget(view, this.opts.map, me, range, this.target?.id ?? null);
     if (!this.target) return input;
     const aim = Math.atan2(this.target.y - me.y, this.target.x - me.x);
@@ -157,8 +159,18 @@ export class AutoAimInput implements InputSource {
     return { ...input, aim, aimDistance, fire };
   }
 
+  /**
+   * The reticle ([D43]): with a target, along the line to it, stopping just short of it, so the
+   * one reticle shows who's targeted. Otherwise wherever the base source puts it.
+   */
   pointerWorld(): Vec2 | null {
-    if (this.target) return { x: this.target.x, y: this.target.y };
+    const t = this.target;
+    const p = this.lastPos;
+    if (t && p) {
+      const d = Math.hypot(t.x - p.x, t.y - p.y);
+      const k = d > 0 ? Math.max(0, d - RETICLE_SHORT_OF_TARGET) / d : 0;
+      return { x: p.x + (t.x - p.x) * k, y: p.y + (t.y - p.y) * k };
+    }
     return this.base.pointerWorld();
   }
 
@@ -169,10 +181,6 @@ export class AutoAimInput implements InputSource {
 
   aimTarget(): Vec2 | null {
     return this.target;
-  }
-
-  aimRange(): number | null {
-    return this.range;
   }
 
   destroy(): void {

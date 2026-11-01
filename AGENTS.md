@@ -131,7 +131,7 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–3). The Grenadier holds fire to wind up and
   releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
-  reticle circle is the current cone. The Machine Gunner mounts by standing still at cover.
+  reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
 - Controls (PHASE07-b): touch devices get on-screen sticks + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire. Emulate a phone in Playwright with `devices['iPhone 13']`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene

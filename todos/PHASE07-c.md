@@ -89,8 +89,8 @@ Second slice (owner follow-up):
   `recoil` state; turret `recoil` (optional field). Live fire rolls within the cone with a hash;
   echoes fire the recorded angle with their own gun (`fireGun`). At the default timings turret
   recoil recovers fully between shots, so turrets are still exact unless tuned.
-- [x] **Reticle = cone** ([D39]): `SoldierView.aimSpread` (live soldier only); the renderer draws a
-  circle at the cursor sized `distance × tan(spread)`.
+- [x] **Reticle = cone** ([D39], [D43]): `SoldierView.aimSpread` (live soldier only); the reticle
+  image scales to `distance × tan(spread)` (no separate circle).
 - [x] **Machine Gunner** ([D40]): role `gunner`, `tuning.mg`, mount (`mountTicks`, `braceId` on the
   soldier; `SoldierView.mount/mounted`), ring around the reticle while mounting, cyan reticle when
   the bonus applies (mounted + aiming across the braced cover, `mg.braceReach`).

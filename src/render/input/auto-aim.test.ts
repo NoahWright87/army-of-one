@@ -5,7 +5,13 @@ import { arena } from '../../sim/__tests__/helpers';
 import { createWorld, getView, spawnSoldier } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import { knobOffset, looksLikeTouch, stickVector } from '../../ui/touch/stick-math';
-import { AutoAimInput, autoAimRange, pickTarget, rankTargets } from './auto-aim';
+import {
+  AutoAimInput,
+  autoAimRange,
+  pickTarget,
+  rankTargets,
+  RETICLE_SHORT_OF_TARGET,
+} from './auto-aim';
 import type { InputSource } from './input-source';
 
 const T = DEFAULT_TUNING;
@@ -84,6 +90,10 @@ describe('auto-aim picker ([D41])', () => {
     const hold = new AutoAimInput(base, { map, tuning: T, liveId: 'S1', fireMode: () => 'hold' });
     hold.observe(view);
     expect(hold.read({ x: 100, y: 500 }).fire).toBe(false);
+    // The reticle sits on the line to the target, just short of it.
+    const r = a.pointerWorld()!;
+    expect(r.y).toBeCloseTo(500);
+    expect(r.x).toBeCloseTo(300 - RETICLE_SHORT_OF_TARGET);
     const empty = viewWith((v) => v.turrets.forEach((t) => (t.state = 'destroyed')));
     empty.view.objectives.forEach((o) => (o.destroyed = true));
     a.observe(empty.view);

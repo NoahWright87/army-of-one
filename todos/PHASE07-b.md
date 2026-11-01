@@ -47,14 +47,15 @@ layout tweaks in `src/ui/**`, the input/control settings group.
 ## Notes from implementation
 
 Built (2026-11, in the same branch as 07-c, owner request):
-- Auto-aim: `src/render/input/auto-aim.ts` (pure picker + `AutoAimInput` decorator; target
-  brackets and a reach ring in the renderer). Range follows the role (rifle, MG, grenade max
+- Auto-aim: `src/render/input/auto-aim.ts` (pure picker + `AutoAimInput` decorator). Owner
+  follow-up ([D43]): no brackets or reach ring; the reticle stops just short of the target, and
+  the battle camera's look-ahead eases toward the aim under auto-aim (`LOOK_AIM_EASE_MS`). Range follows the role (rifle, MG, grenade max
   range). The Grenadier auto-throws: wind up to full, release. Partial cover doesn't block the
   picker (shots roll against it); walls and closed gates do.
 - Touch: `src/ui/touch/` (controls overlay + pure stick math) and `src/render/input/touch-input.ts`.
   The reticle sits along the aim at the aim distance, so the [D39] cone still shows.
-- `InputSource` grew optional `observe(view)`, `aimTarget()`, `aimRange()`; the battle scene
-  feeds every new view to the source.
+- `InputSource` grew optional `observe(view)` and `aimTarget()`; the battle scene feeds every
+  new view to the source.
 - Settings: Controls group (`input.mode`, `input.autoAim`, `input.autoFire`). The quick-redeploy
   hint is tappable everywhere and big on touch; minimap moves to the top right in touch mode.
 - Checked with Playwright iPhone 13 emulation (move stick, auto-aim kills a turret, death,

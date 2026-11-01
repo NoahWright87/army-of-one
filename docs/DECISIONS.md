@@ -158,8 +158,8 @@ revise with justification in a PR).
   it recovers over time, so tapping stays accurate and holding the trigger sprays. Everything
   gets recoil (rifle, MG, turrets), all tunable (`tuning.rifle`, `tuning.mg`, `tuning.turret`).
   The MG's recoil is much larger than the rifle's, except when mounted. **The reticle is the
-  cone:** its circle fits the current spread at the cursor's distance, so it grows when you aim
-  further away, when you move, and during sustained fire.
+  cone:** the reticle itself grows to fit the current spread at its distance, so it grows when
+  you aim further away, when you move, and during sustained fire ([D43]).
 - **[D40] Machine Gunner.** A third role with an MG: fast fire, big spread and recoil. Standing
   still right next to non-solid cover mounts it: a ring fills around the reticle (0.6 s), then
   the spread and recoil drop sharply and the reticle turns cyan. The bonus only applies when
@@ -172,6 +172,12 @@ revise with justification in a PR).
   button. Auto-aim picks a target in weapon range with a clear line (a turret winding up on you
   first, then the nearest), sticks with it, and fires by itself or while you hold fire
   (setting). What's recorded is still the actual shot ([E1]).
+- **[D43] One aim indicator, a calm camera.** The reticle is the only aim indicator: no range
+  ring around the soldier, no separate spread circle, no target brackets. It grows with the
+  spread ([D39]). With auto-aim it slides out along the line to the target and stops just short
+  of it, which shows who's targeted. The MG mount ring and cyan tint stay ([D40]). Under
+  auto-aim the camera's look-ahead eases toward the aim (~0.6 s) instead of snapping when the
+  target changes.
 - **[D42] Results screen with the whole mission replaying (PHASE07-a).** When a mission is won,
   the stats, a play-style radar and personal bests show over a replay of the whole battle with
   every life at once. The camera frames every soldier in action and zooms with the group. Play/

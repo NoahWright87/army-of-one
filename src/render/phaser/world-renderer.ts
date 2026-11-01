@@ -35,9 +35,6 @@ export interface RenderFrame {
   nowMs: number;
   liveId: string | null;
   pointer: Vec2 | null;
-  /** (07-b) Auto-aim: the target to mark, and the reach ring around the live soldier. */
-  aimTarget?: Vec2 | null;
-  aimRange?: number | null;
 }
 
 interface Effect {
@@ -58,8 +55,9 @@ interface Tracer {
 }
 
 const TRACER_MS = 110;
-/** (07-c) Smallest aim circle drawn (an exact shot still shows a small ring). */
-const RETICLE_MIN_R = 5;
+/** (07-c) The reticle's ring radius when exact (world units), and how big it may grow. */
+const RETICLE_BASE_R = 8;
+const RETICLE_MAX_R = 90;
 /** (06-c) Lever → target links: dash and gap length (world units), as the old dashed Graphics. */
 const DASH = 12;
 const DASH_TEXTURE = 'aoo_dash';
@@ -401,7 +399,6 @@ export class WorldRenderer {
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
     this.drawReticle(f.pointer, f.liveId);
-    this.drawAutoAim(f);
     this.updateLoops();
   }
 
@@ -974,66 +971,49 @@ export class WorldRenderer {
   }
 
   /**
-   * (07-c) The reticle shows the current aim cone ([D39]): a circle that just fits the spread at
-   * the cursor's distance, so it grows with distance, movement and sustained fire. A Machine
-   * Gunner mounting on cover gets a ring filling around it, and the reticle turns cyan once the
-   * mounted bonus applies ([D40]).
+   * The reticle ([D39], [D43]): the only aim indicator. It grows to fit the current spread cone
+   * at its distance (aiming further, moving and sustained fire all grow it). A Machine Gunner
+   * mounting on cover gets a ring filling around it, and it turns cyan once the mounted bonus
+   * applies ([D40]). With auto-aim, the input source puts it just short of the target.
    */
   private drawReticle(pointer: Vec2 | null, liveId: string | null): void {
     const g = this.reticleGfx;
     g.clear();
-    if (!pointer) {
-      this.reticle.setVisible(false);
-      return;
-    }
+    // Drawn as thin vector lines (the same ring + four ticks as the `reticle` image), so it can
+    // grow without getting blurry or heavy.
+    this.reticle.setVisible(false);
+    if (!pointer) return;
     const live = liveId ? this.cur.soldiers.find((x) => x.id === liveId) : undefined;
     const mounted = !!live?.mounted;
-    this.reticle
-      .setVisible(true)
-      .setPosition(pointer.x, pointer.y)
-      .setTint(mounted ? 0x4dd8ff : 0xffffff);
     const pos = this.livePos;
-    if (!live || !live.alive || !pos || live.aimSpread === undefined) return;
-    const d = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
-    const r = Math.max(RETICLE_MIN_R, d * Math.tan(Math.min(live.aimSpread, 1.2)));
+    let r = RETICLE_BASE_R;
+    if (live && live.alive && pos && live.aimSpread !== undefined) {
+      const d = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
+      r = Math.max(
+        RETICLE_BASE_R,
+        Math.min(RETICLE_MAX_R, d * Math.tan(Math.min(live.aimSpread, 1.2))),
+      );
+    }
     const color = mounted ? 0x4dd8ff : 0xffffff;
-    g.lineStyle(3, 0x000000, 0.35);
-    g.strokeCircle(pointer.x, pointer.y, r);
-    g.lineStyle(1.5, color, 0.85);
-    g.strokeCircle(pointer.x, pointer.y, r);
-    if (live.mount !== undefined && live.mount < 1) {
-      const mr = r + 6;
+    const { x, y } = pointer;
+    const tick = 7;
+    const stroke = (w: number, c: number, a: number) => {
+      g.lineStyle(w, c, a);
+      g.strokeCircle(x, y, r);
+      g.lineBetween(x, y - r - tick, x, y - r + 3);
+      g.lineBetween(x, y + r - 3, x, y + r + tick);
+      g.lineBetween(x - r - tick, y, x - r + 3, y);
+      g.lineBetween(x + r - 3, y, x + r + tick, y);
+    };
+    stroke(4, 0x000000, 0.45);
+    stroke(2, color, 0.95);
+    g.fillStyle(color, 0.9);
+    g.fillCircle(x, y, 1.5);
+    if (live?.mount !== undefined && live.mount < 1) {
       g.lineStyle(3, 0x4dd8ff, 0.9);
       g.beginPath();
-      g.arc(pointer.x, pointer.y, mr, -Math.PI / 2, -Math.PI / 2 + live.mount * 2 * Math.PI, false);
+      g.arc(x, y, r + tick + 5, -Math.PI / 2, -Math.PI / 2 + live.mount * 2 * Math.PI, false);
       g.strokePath();
-    }
-  }
-
-  /** (07-b) Auto-aim: a faint reach ring around the live soldier and brackets on the target. */
-  private drawAutoAim(f: RenderFrame): void {
-    const g = this.reticleGfx;
-    const pos = this.livePos;
-    if (!pos) return;
-    if (f.aimRange) {
-      g.lineStyle(1, 0xffffff, 0.12);
-      g.strokeCircle(pos.x, pos.y, f.aimRange);
-    }
-    const t = f.aimTarget;
-    if (!t) return;
-    const r = 30;
-    const k = 10;
-    g.lineStyle(3, 0xff5a3c, 0.95);
-    for (const [sx, sy] of [
-      [-1, -1],
-      [1, -1],
-      [-1, 1],
-      [1, 1],
-    ] as const) {
-      const cx = t.x + sx * r;
-      const cy = t.y + sy * r;
-      g.lineBetween(cx, cy, cx - sx * k, cy);
-      g.lineBetween(cx, cy, cx, cy - sy * k);
     }
   }
 
