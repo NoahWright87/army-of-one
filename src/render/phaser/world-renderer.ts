@@ -439,10 +439,6 @@ export class WorldRenderer {
       g.beginPath();
       g.arc(tx, ty, ringR, -Math.PI / 2, -Math.PI / 2 + live.windup * 2 * Math.PI, false);
       g.strokePath();
-      // Where it would land if released now.
-      const d = live.windupAim * live.windup;
-      g.fillStyle(0xffd34d, 0.9);
-      g.fillCircle(pos.x + Math.cos(live.facing) * d, pos.y + Math.sin(live.facing) * d, 3);
     }
   }
 

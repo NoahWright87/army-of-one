@@ -129,8 +129,10 @@ revise with justification in a PR).
   are 100 % / 100 %. A bullet that crosses a cover piece is stopped with that probability. Cover
   is directional by nature: only shots that actually cross it are affected. Cover blocks movement
   like a wall. Breach's sandbags are 50 %.
-- **[D33] Cover also hides you.** Crossing cover cuts the remaining sight past it: after cover
-  of value c at distance d, sight reaches `d + (range − d) × (1 − c)`. So a turret can still shoot
+- **[D33] Cover also hides you.** Cover blocks the same share of vision as of bullets: you see
+  clearly up to the cover, and the rest of your sight range past it is cut by its value. After
+  cover of value c at distance d, sight reaches `d + (range − d) × (1 − c)`. Example: 50 m sight,
+  50 % cover at 30 m → the last 20 m become 10 m, so you see 10 m past the cover. So a turret can still shoot
   at a soldier hugging the far side of half cover, but won't spot one standing well back from it.
 - **[D34] Cover indicator: arcs.** The soldier you control shows an arc toward each nearby piece
   of cover (or wall), darker and thicker for better cover: a solid wall to the east is a hard `)`,
@@ -274,10 +276,6 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   turrets) whose centre is within `cover.fireOverDistance` (30, about a soldier's width) of a
   piece below `cover.fireOverBelow` (1 = anything not solid) ignores it, for their shots and
   sight. Set `fireOverBelow` to 0.9 for the "≤ 90 %" variant. Grenade fragments never fire over.
-- **[Q19] Sight past cover (PHASE07-c).** [D33] is implemented as "the sight *remaining* after
-  the cover is multiplied by (1 − c)" (`cover.obscuresSight`, off = cover is see-through). The
-  alternative reading, "you see range × (1 − c) past the cover", lets a turret see anyone hugging
-  cover. Only turrets use sight today; the player sees the whole screen.
 - **[Q20] Grenade details (PHASE07-c).** Implemented: the Grenadier carries only grenades
   (unlimited, a 0.6 s cooldown, no rifle); the throw lands at the cursor (clamped to 60–420
   units); releasing early throws the wound-up share of that distance; the fuse runs from the throw

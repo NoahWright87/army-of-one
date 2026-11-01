@@ -88,5 +88,5 @@ Not done / next:
   manifest assets yet; the role badge too. They should move to `assets.ts` entries when art is made.
 - No autoplay lives or headless scenario scripts for the Grenadier/Compound yet (the script
   driver has a `throw` step for them).
-- Open questions [Q18]–[Q21] in DECISIONS.md.
+- Open questions [Q18], [Q20], [Q21] in DECISIONS.md ([Q19] became part of [D33]).
 - Then: MG (steadied on cover), MG nest, mortar ([D38]).
