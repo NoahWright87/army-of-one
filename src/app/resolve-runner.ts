@@ -7,8 +7,7 @@
  * Both report progressive observations plus the snapshots produced since the last report; the
  * controller stages and commits those into the mission's SnapshotStore itself.
  */
-import { MISSION_01 } from '../content/maps/mission-01';
-import { TEST_RANGE } from '../content/maps/test-range';
+import { findMap } from '../content/maps';
 import type { Tuning } from '../content/tuning';
 import type { AttemptObservation, SoldierRecord } from '../contracts/mission';
 import { SnapshotStore, startResolve, type WorldSnapshot } from '../sim/attempt';
@@ -56,10 +55,8 @@ export interface ResolveRunner {
   start(req: ResolveRequest, cb: ResolveCallbacks): ResolveJob;
 }
 
-const MAPS: Record<string, MapDef> = { [MISSION_01.id]: MISSION_01, [TEST_RANGE.id]: TEST_RANGE };
-
 export function mapById(id: string): MapDef {
-  const m = MAPS[id];
+  const m = findMap(id);
   if (!m) throw new Error(`Unknown map ${id}`);
   return m;
 }
@@ -125,7 +122,7 @@ export const timeoutScheduler: SliceSchedulerFactory = (delayMs) => (run) => {
 
 /**
  * Time-sliced resolve on the calling thread. Each slice runs `ticksPerSlice` ticks (≈ a few ms
- * at mission-01 speeds), then yields through `schedule`.
+ * as measured on the old, bigger mission-01), then yields through `schedule`.
  */
 export function createInlineResolveRunner(
   scheduler: SliceSchedulerFactory = timeoutScheduler,

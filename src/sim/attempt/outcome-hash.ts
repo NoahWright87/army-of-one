@@ -35,6 +35,10 @@ export function outcomeHash(st: WorldState, exclude: readonly SoldierId[] = []):
     gates: st.gates,
     bridges: st.bridges,
     objectives: st.objectives,
+    capturePoints: st.capturePoints.map((c) => ({
+      ...c,
+      contributors: c.contributors.filter((id) => !skip.has(id)),
+    })),
     events: st.events.filter((e) => !aboutSkipped(e)),
     missionComplete: st.missionComplete,
   });

@@ -1,5 +1,6 @@
 import type { Tick } from './core/time';
 import type { SoldierId } from './entities/soldier';
+import type { CaptureStage } from './world/map';
 
 /**
  * Everything notable that happened during a tick, in order. Renderers turn these into effects
@@ -36,6 +37,27 @@ export type SimEvent =
   | { kind: 'gateChanged'; tick: Tick; id: string; open: boolean }
   | { kind: 'bridgeChanged'; tick: Tick; id: string; state: BridgeState }
   | { kind: 'objectiveDestroyed'; tick: Tick; id: string; by?: string }
+  /**
+   * (05-a) A capture point's contributor count changed (someone stepped in or out, or died):
+   * capture started, sped up, slowed or stopped. Not emitted every tick; the view has progress.
+   */
+  | {
+      kind: 'captureProgress';
+      tick: Tick;
+      id: string;
+      stage: CaptureStage;
+      /** 0..1 within the stage. */
+      progress: number;
+      contributors: number;
+    }
+  /** (05-a) A capture point reached a new stage ([D11]); `contributors` did it (id-sorted). */
+  | {
+      kind: 'captureStageChanged';
+      tick: Tick;
+      id: string;
+      stage: CaptureStage;
+      contributors: SoldierId[];
+    }
   /**
    * (03-a) Debug: an echo skipped a recorded action because it was more than
    * `tuning.echo.actionTolerance` from the recorded origin (or an interact target was out of reach).

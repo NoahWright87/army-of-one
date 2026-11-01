@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MISSION_01 } from '../../../content/maps/mission-01';
+import { MISSION_03 } from '../../../content/maps/mission-03';
 import type { LaneSpan, SpawnOption } from '../../../contracts/mission';
 import { secondsToTicks } from '../../../sim/core/time';
 import { MemoryStorage, SettingsStore } from '../../settings/registry';
@@ -223,7 +223,7 @@ describe('captions, header, rows', () => {
     const rows = laneRows([...p.lanes].reverse(), p.soldiers, p.map);
     expect(rows.map((r) => r.ordinal)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     expect(rows[0]!.label).toBe('Soldier 1');
-    expect(rows[0]!.spawnName).toBe('Road');
+    expect(rows[0]!.spawnName).toBe('West');
   });
 });
 
@@ -251,31 +251,31 @@ describe('domain and scrubber dimming', () => {
 
 describe('options and selection', () => {
   const options: SpawnOption[] = [
-    { kind: 'new', spawnPointId: 'road', entryTick: s(6) },
-    { kind: 'new', spawnPointId: 'beach', entryTick: 0 },
+    { kind: 'new', spawnPointId: 'west', entryTick: s(6) },
+    { kind: 'new', spawnPointId: 'east', entryTick: 0 },
     { kind: 'resume', soldierId: 'S1', resumeTick: s(48), leadInFromTick: s(43) },
   ];
 
   it('labels: name + entry time, resume time', () => {
-    const p = { map: MISSION_01, soldiers: [], resolvedUntil: null };
-    expect(optionLabel(options[0]!, p).title).toBe('Road: enters at 0:06');
+    const p = { map: MISSION_03, soldiers: [], resolvedUntil: null };
+    expect(optionLabel(options[0]!, p).title).toBe('West: enters at 0:06');
     expect(optionLabel(options[2]!, p).title).toBe('Resume Soldier 1 at 0:48');
     expect(optionLabel(options[2]!, { ...p, resolvedUntil: s(40) }).unconfirmed).toBe(true);
   });
 
   it('keys are unique and stable', () => {
-    expect(options.map(optionKey)).toEqual(['new:road', 'new:beach', 'resume:S1']);
+    expect(options.map(optionKey)).toEqual(['new:west', 'new:east', 'resume:S1']);
   });
 
   it('arrows/Tab cycle and wrap; deploying returns the exact option object', () => {
     let k = defaultSelection(options);
-    expect(k).toBe('new:road');
+    expect(k).toBe('new:west');
     k = cycleSelection(options, k, 1);
-    expect(k).toBe('new:beach');
+    expect(k).toBe('new:east');
     k = cycleSelection(options, k, 1);
     expect(findOption(options, k)).toBe(options[2]);
-    expect(cycleSelection(options, k, 1)).toBe('new:road');
-    expect(cycleSelection(options, 'new:road', -1)).toBe('resume:S1');
+    expect(cycleSelection(options, k, 1)).toBe('new:west');
+    expect(cycleSelection(options, 'new:west', -1)).toBe('resume:S1');
     expect(cycleSelection(options, null, -1)).toBe('resume:S1');
     expect(cycleSelection([], null, 1)).toBeNull();
   });
@@ -303,11 +303,9 @@ describe('options and selection', () => {
 
   it('a fixture deploy picks the real derived option', () => {
     const p = buildFixture('rescue')!.props;
-    const k = cycleSelection(
-      p.options,
-      cycleSelection(p.options, defaultSelection(p.options), 1),
-      1,
-    );
+    // West → Centre → East → Resume S1.
+    let k = defaultSelection(p.options);
+    for (let i = 0; i < 3; i++) k = cycleSelection(p.options, k, 1);
     expect(findOption(p.options, k)).toEqual({
       kind: 'resume',
       soldierId: 'S1',
@@ -319,11 +317,11 @@ describe('options and selection', () => {
 
 describe('map thumbnail', () => {
   it('draws walls, water and marks the chosen point', () => {
-    const svg = mapThumbSvg(MISSION_01, { pointId: 'beach', width: 84, height: 58 });
-    expect(svg.match(/class="th-wall"/g)?.length).toBe(MISSION_01.walls.length);
-    expect(svg.match(/class="th-water"/g)?.length).toBe(MISSION_01.water.length);
+    const svg = mapThumbSvg(MISSION_03, { pointId: 'east', width: 84, height: 58 });
+    expect(svg.match(/class="th-wall"/g)?.length).toBe(MISSION_03.walls.length);
+    expect(svg.match(/class="th-water"/g)?.length).toBe(MISSION_03.water.length);
     expect(svg.match(/th-pt on/g)?.length).toBe(1);
-    expect(svg).toContain('cx="2700" cy="4200"');
+    expect(svg).toContain('cx="1140" cy="5250"');
   });
 });
 

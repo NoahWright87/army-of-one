@@ -6,6 +6,26 @@ directories and share only what earlier phases (or a contract doc) already defin
 
 Read `AGENTS.md` and `docs/DECISIONS.md` before starting any phase.
 
+## Start here (for a fresh session)
+
+**Status (2026-10-31):** phases 01–06 are built, plus the single-mission change ([D31]). They sit
+in a stack of PRs on GitHub, each based on the previous one and each with a GitHub Pages preview
+(`.github/workflows/pr-preview.yml`):
+
+#1 docs → #9 preview workflow (to `main`) → #2 01 → #3 02-a → #4 02-b → #5 03-c → #6 03-a →
+#7 03-b → #8 04 → #10 05-a → #11 05-b → #12 06 plan → #13 06-a → #14 06-b → #15 06-c →
+#16 single mission → #17 this plan.
+
+**Next:** PHASE07 ([overview](PHASE07.md)). Run 07-a and 07-b in parallel. Hold the 07-c decision
+session with the owner before building any of it. Base new work on the top of the stack (or on
+`main` once the stack is merged).
+
+How work has gone so far: parallel agents per letter part, each verified (lint, purity check,
+tests, build, plus a Playwright browser check against a Pages-style sub-path build), then
+stacked as PRs for the owner to review in batches. The owner's working rules: when unsure about an
+option, make it a setting; don't invent gameplay rules (ask, or flag them in Open questions);
+minimal dependencies.
+
 ## The goal of phases 01–04
 
 The design doc's first milestone, verbatim:
@@ -28,12 +48,20 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [03-b](PHASE03-b.md) | Timeline truth model & respawn screen | 03 contract | 03-a, 03-c | Full |
 | [03-c](PHASE03-c.md) | Persistence & autosave | 03 contract | 03-a, 03-b | Full |
 | [04](PHASE04.md) | **The loop**: die → echo → rescue → O → resume | 03-* | — | Full |
-| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Medium |
-| [05-b](PHASE05-b.md) | Army-scale stress harness & performance | 04 | 05-a | Medium |
-| [06-a](PHASE06-a.md) | Lazy outcome-tested recording simplification | 05-b | 06-b | Sketch |
-| [06-b](PHASE06-b.md) | Auto-aim & touch controls | 04 | 06-a | Sketch |
-| [07](PHASE07.md) | Multiplayer snapshot experiment | 06 | — | Sketch |
-| [08](PHASE08.md) | Mission variety, scoring, content | 05 | — | Sketch |
+| [05-a](PHASE05-a.md) | Capture points & forward spawns | 04 | 05-b | Full |
+| [05-b](PHASE05-b.md) | Army-scale stress harness & performance | 04 | 05-a | Full |
+| [06 plan](PHASE06.md) | **Streamline** (playtest feedback): overview + shared rules | 05 | — | Full |
+| [06-a](PHASE06-a.md) | Linear "straight shot" mission + fast pacing | 05 | 06-b, 06-c | Full |
+| [06-b](PHASE06-b.md) | Revealed map: respawn-screen map + in-game minimap | 05 | 06-a, 06-c | Full |
+| [06-c](PHASE06-c.md) | Snappy flow + frame-rate pass | 05 | 06-a, 06-b | Full |
+| [06 single mission](../docs/DECISIONS.md) | Breach is the only mission ([D31]) | 06 | — | Done (PR #16) |
+| [07 plan](PHASE07.md) | **Replayable & playable anywhere**: overview | 06 | — | Full |
+| [07-a](PHASE07-a.md) | Results screen + full-mission after-action replay | 06 | 07-b | Full |
+| [07-b](PHASE07-b.md) | Auto-aim + touch controls (phone-playable) | 06 | 07-a | Full |
+| [07-c](PHASE07-c.md) | Variety: soldier roles, enemy types, vehicles (⛔ owner picks first) | 06 | 07-a, 07-b | Full |
+| [08](PHASE08.md) | Multiplayer snapshot experiment | 07, 09 | — | **Deferred** |
+| [09](PHASE09.md) | More missions, art pass, 3D spike | 07 | — | Sketch |
+| [10](PHASE10.md) | Lazy outcome-tested recording simplification | 07 | — | **Deferred** |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

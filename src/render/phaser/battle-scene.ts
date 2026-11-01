@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { advance, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
+import { advance, catchUpCap, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
 import { hashState } from '../../sim/core/hash';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
 import { IDLE_INPUT, type SoldierInput } from '../../sim/entities/soldier';
@@ -7,6 +7,7 @@ import { getView, step, type World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import { entityCounts, ema } from '../../ui/hud/debug-model';
 import { buildHudModel } from '../../ui/hud/hud-model';
+import { capLookAhead, lookAheadOffset } from '../camera-look-ahead';
 import type { Cue } from '../event-cues';
 import type { InputSource } from '../input/input-source';
 import { smoothFollow } from '../interp';
@@ -33,12 +34,26 @@ export class BattleScene extends Phaser.Scene {
   private worldRenderer!: WorldRenderer;
   private sounds!: SoundBank;
   private cam = { x: 0, y: 0 };
+  /** (06-a) Facing used for the look-ahead before the live soldier appears. */
+  private homeFacing = -Math.PI / 2;
   private countdownTicks: number | null = null;
   private stepMs: number | null = null;
+  private simFrameMs: number | null = null;
+  private renderMs: number | null = null;
   private frame = 0;
   private hash = '';
   private lastInput: SoldierInput = IDLE_INPUT;
   private ghost!: Phaser.GameObjects.Graphics;
+  /** (06-c) The first update after create: its delta covers scene creation, not play. */
+  private firstFrame = true;
+  /** (06-c) The view the HUD last showed (it only changes when the sim steps). */
+  private hudView: WorldView | null = null;
+  private ghostDrawn = false;
+  private frameMs: number | null = null;
+  private frameMax = 0;
+  private frameMaxWindow = 0;
+  private frameMaxShown = 0;
+  private updateMs: number | null = null;
 
   constructor(private readonly services: SceneServices) {
     super('battle');
@@ -57,7 +72,9 @@ export class BattleScene extends Phaser.Scene {
     const driver = this.session.driver;
     this.view = driver ? driver.view() : getView(this.world);
     this.prevView = this.view;
-    this.lastInput = IDLE_INPUT;
+    // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
+    const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
+    this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
     this.sounds = new SoundBank(this, display);
     this.worldRenderer = new WorldRenderer(this, this.world.map, this.view, display, this.sounds, {
       spriteRadius: this.world.tuning.soldier.spriteRadius,
@@ -67,12 +84,20 @@ export class BattleScene extends Phaser.Scene {
     const map = this.world.map;
     this.cameras.main.setBounds(0, 0, map.width, map.height);
     const live = this.view.soldiers.find((s) => s.id === this.liveId);
-    this.cam = live
+    const home = live
       ? { x: live.x, y: live.y }
       : driver
         ? { ...driver.cameraHome }
         : { x: map.width / 2, y: map.height / 2 };
+    // (06-a) Start already looking ahead (the spawn's facing; up on Breach, [D27]).
+    this.homeFacing =
+      map.spawnPoints.find((sp) => sp.position.x === home.x && sp.position.y === home.y)?.facing ??
+      -Math.PI / 2;
+    this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
     this.ghost = this.add.graphics().setDepth(1000);
+    this.firstFrame = true;
+    this.hudView = null;
+    this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
 
@@ -101,12 +126,24 @@ export class BattleScene extends Phaser.Scene {
   }
 
   override update(time: number): void {
+    const u0 = performance.now();
     const { display, hud, countdown, debug } = this.services;
     // Raw (unsmoothed) frame time: Phaser clamps its smoothed delta when the page lacks focus,
-    // which would slow battle time. The fixed stepper does its own capping.
-    const deltaMs = this.game.loop.rawDelta;
-    const { steps, alpha } = advance(this.stepper, deltaMs, Number(display.timeScale) || 1);
+    // which would slow battle time. The fixed stepper does its own capping. (06-c) The first
+    // frame's delta is the scene's creation time: don't replay it as a burst of steps.
+    const rawDelta = this.game.loop.rawDelta;
+    const deltaMs = this.firstFrame ? 0 : rawDelta;
+    if (!this.firstFrame) this.trackFrame(rawDelta);
+    this.firstFrame = false;
+    const speed = Number(display.timeScale) || 1;
+    const { steps, alpha } = advance(
+      this.stepper,
+      deltaMs,
+      speed,
+      catchUpCap(display.maxCatchUpSteps, speed),
+    );
     const driver = this.session.driver;
+    let simThisFrame = 0;
     for (let i = 0; i < steps; i++) {
       if (driver?.ended) break;
       const live = this.view.soldiers.find((s) => s.id === this.liveId);
@@ -123,26 +160,48 @@ export class BattleScene extends Phaser.Scene {
         step(this.world, new Map([[this.liveId, input]]));
         this.view = getView(this.world);
       }
-      this.stepMs = ema(this.stepMs, performance.now() - t0, 0.05);
+      const dt = performance.now() - t0;
+      simThisFrame += dt;
+      this.stepMs = ema(this.stepMs, dt, 0.05);
       this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
       if (this.countdownTicks !== null) this.countdownTicks--;
     }
 
     const cam = this.cameras.main;
-    if (cam.zoom !== display.cameraZoom) cam.setZoom(display.cameraZoom);
+    // (06-c) A lower render scale draws a smaller canvas the browser stretches: zoom by the same
+    // factor so the framing stays the same.
+    const zoom = display.cameraZoom * (this.services.renderScale?.() ?? 1);
+    if (cam.zoom !== zoom) cam.setZoom(zoom);
     // Camera first (so the reticle's world position uses this frame's camera), then draw.
-    const target = this.worldRenderer.soldierRenderPos(this.liveId, alpha);
-    if (target) this.cam = smoothFollow(this.cam, target, display.cameraSmoothing, deltaMs);
+    // (06-a) During the frozen pre-battle hold there's no soldier yet: look ahead from home.
+    const target =
+      this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? driver?.cameraHome ?? null;
+    if (target) {
+      // During the countdown the pointer is still wherever Deploy was clicked, so look the way
+      // the soldier faces (forward) instead of toward the reticle.
+      const counting = (driver?.countdown() ?? 0) > 0;
+      const facing =
+        this.view.soldiers.find((s) => s.id === this.liveId)?.facing ?? this.homeFacing;
+      const goal = this.lookAhead(target, counting ? facing : this.lastInput.aim);
+      this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
+    }
     cam.centerOn(this.cam.x, this.cam.y);
+    this.simFrameMs = ema(this.simFrameMs, simThisFrame, 0.05);
     const frozen = driver?.ended ?? false;
+    const r0 = performance.now();
     this.worldRenderer.render({
       alpha: frozen ? 1 : alpha,
       nowMs: time,
       liveId: this.liveId,
       pointer: frozen ? null : this.source.pointerWorld(),
     });
+    this.renderMs = ema(this.renderMs, performance.now() - r0, 0.05);
 
-    hud.update(buildHudModel(this.view, this.liveId));
+    // (06-c) The HUD only changes when the sim steps (the view object is replaced then).
+    if (this.view !== this.hudView) {
+      this.hudView = this.view;
+      hud.update(buildHudModel(this.view, this.liveId));
+    }
     if (driver) {
       const left = driver.countdown();
       if (this.countdownTicks !== null) countdown.update(this.countdownTicks);
@@ -155,7 +214,8 @@ export class BattleScene extends Phaser.Scene {
     }
     if (this.countdownTicks !== null && this.countdownTicks <= 0) this.countdownTicks = null;
 
-    if (debug.visible) {
+    // (06-c) A few refreshes a second is plenty for a readout (each one lays out text).
+    if (debug.visible && this.frame % 6 === 0) {
       if (this.frame % HASH_EVERY_FRAMES === 0) this.hash = hashState(this.world.state);
       debug.update({
         fps: this.game.loop.actualFps,
@@ -163,18 +223,73 @@ export class BattleScene extends Phaser.Scene {
         counts: entityCounts(this.view),
         hash: this.hash,
         stepMs: this.stepMs ?? 0,
+        simFrameMs: this.simFrameMs ?? 0,
+        renderMs: this.renderMs ?? 0,
+        sprites: this.worldRenderer.drawnObjectCount,
+        culled: this.worldRenderer.culledSoldiers,
+        frameMs: this.frameMs ?? 0,
+        frameMaxMs: this.frameMaxShown,
+        updateMs: this.updateMs ?? 0,
+        renderScale: this.services.renderScale?.() ?? 1,
       });
     }
     this.frame++;
+    // (05-b) Perf readout for browser checks (stress mode, Playwright). (06-c) A few times a
+    // second, not every frame: it allocates.
+    if (this.frame % 15 === 1) {
+      this.services.perf = {
+        fps: this.game.loop.actualFps,
+        stepMs: this.stepMs ?? 0,
+        simFrameMs: this.simFrameMs ?? 0,
+        renderMs: this.renderMs ?? 0,
+        sprites: this.worldRenderer.drawnObjectCount,
+        culled: this.worldRenderer.culledSoldiers,
+        counts: entityCounts(this.view),
+        frameMs: this.frameMs ?? 0,
+        updateMs: this.updateMs ?? 0,
+      };
+    }
+    this.updateMs = ema(this.updateMs, performance.now() - u0, 0.05);
+  }
+
+  /** (06-c) Frame interval readout: EMA plus the worst frame of the last ~second. */
+  private trackFrame(ms: number): void {
+    this.frameMs = ema(this.frameMs, ms, 0.05);
+    this.frameMax = Math.max(this.frameMax, ms);
+    this.frameMaxWindow += ms;
+    if (this.frameMaxWindow >= 1000) {
+      this.frameMaxShown = this.frameMax;
+      this.frameMax = 0;
+      this.frameMaxWindow = 0;
+    }
+  }
+
+  /** (06-a) Camera goal for a soldier at `pos` aiming at `aim`: look-ahead, capped on screen. */
+  private lookAhead(pos: { x: number; y: number }, aim: number): { x: number; y: number } {
+    const { display } = this.services;
+    const cam = this.cameras.main;
+    const zoom = display.cameraZoom || 1;
+    const ahead = capLookAhead(
+      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance, aim),
+      cam.width / 2 / zoom,
+      cam.height / 2 / zoom,
+    );
+    return { x: pos.x + ahead.x, y: pos.y + ahead.y };
   }
 
   /** Lead-in preview: a ghost arrow for the movement being held ([D5]). */
   private drawGhost(on: boolean, alpha: number): void {
     const g = this.ghost;
-    g.clear();
     const m = this.lastInput.move;
     const len = Math.hypot(m.x, m.y);
-    if (!on || len < 0.1) return;
+    if (!on || len < 0.1) {
+      // (06-c) Clear once, not every frame.
+      if (this.ghostDrawn) g.clear();
+      this.ghostDrawn = false;
+      return;
+    }
+    g.clear();
+    this.ghostDrawn = true;
     const from = this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? this.cam;
     const dx = m.x / len;
     const dy = m.y / len;

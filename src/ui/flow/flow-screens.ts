@@ -22,6 +22,8 @@ const CSS = `
   background: #ffd34d; border: 0; border-radius: 6px; cursor: pointer; padding: 0 18px; }
 .aoo-screen button.secondary { background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; }
 .aoo-screen button:disabled { opacity: .35; cursor: default; }
+.aoo-screen .mission-pick select { font: 600 15px system-ui, sans-serif; margin-left: 6px; padding: 4px 6px;
+  background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; }
 .aoo-screen button.confirm { background: #ff6b5a; color: #fff; }
 .aoo-screen dl { display: grid; grid-template-columns: auto auto; gap: 6px 28px; margin: 4px 0 10px; text-align: left; }
 .aoo-screen dt { color: #8a96a3; text-transform: uppercase; font-size: 12px; letter-spacing: .06em; align-self: center; }
@@ -30,7 +32,8 @@ const CSS = `
   pointer-events: none; }
 .aoo-caption[hidden] { display: none; }
 .aoo-caption span { font: 900 120px/1 system-ui, sans-serif; color: #ff4b3a; letter-spacing: .08em;
-  text-shadow: 0 5px 0 #000, 0 0 30px rgba(255,40,30,.6); animation: aoo-cap-in .25s ease-out; }
+  text-shadow: 0 5px 0 #000, 0 0 30px rgba(255,40,30,.6); animation: aoo-cap-in var(--aoo-transition, .15s) ease-out;
+  will-change: transform, opacity; }
 .aoo-caption.complete span { color: #ffd34d; font-size: 72px; text-shadow: 0 4px 0 #000, 0 0 30px rgba(255,211,77,.6); }
 .aoo-caption.kia { background: radial-gradient(ellipse at center, rgba(60,0,0,0) 30%, rgba(60,0,0,.55)); }
 @keyframes aoo-cap-in { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -38,6 +41,9 @@ const CSS = `
   gap: 10px; align-items: center; background: rgba(10,13,16,.9); border: 1px solid #39424c; border-radius: 6px;
   padding: 12px 18px; color: #e6e9ec; font: 600 15px system-ui, sans-serif; }
 .aoo-busy[hidden] { display: none; }
+.aoo-busy { opacity: 0; animation: aoo-busy-in 1ms var(--aoo-busy-delay, 150ms) forwards; will-change: opacity; }
+.aoo-busy.now { animation: none; opacity: 1; }
+@keyframes aoo-busy-in { to { opacity: 1; } }
 .aoo-busy i { width: 18px; height: 18px; border: 3px solid #3c4650; border-top-color: #ffd34d; border-radius: 50%;
   animation: aoo-spin .8s linear infinite; }
 @keyframes aoo-spin { to { transform: rotate(360deg); } }
@@ -48,6 +54,14 @@ const CSS = `
 .aoo-leadin-hint { position: fixed; left: 50%; top: calc(11vh + 136px); transform: translateX(-50%); z-index: 20;
   pointer-events: none; color: #c8f4ff; font: 600 15px system-ui, sans-serif; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
 .aoo-leadin-hint[hidden] { display: none; }
+.aoo-quick-hint { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 27;
+  pointer-events: none; background: rgba(10,13,16,.88); border: 1px solid #ffd34d; border-radius: 6px;
+  padding: 8px 16px; color: #ffe9a8; font: 700 16px system-ui, sans-serif; white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,.6); }
+.aoo-quick-hint[hidden] { display: none; }
+.aoo-quick-hint.docked { position: static; transform: none; z-index: auto; font-size: 13px; padding: 5px 10px;
+  text-align: center; white-space: normal; box-shadow: none; }
+.aoo-quick-hint kbd { font: inherit; color: #ffd34d; }
 .aoo-devbar { position: fixed; right: 96px; top: 4px; z-index: 29; display: flex; gap: 6px; align-items: center;
   background: rgba(16,20,24,.9); border: 1px solid #39424c; border-radius: 4px; padding: 4px 6px;
   font: 12px system-ui, sans-serif; color: #c8d0d8; }
@@ -75,6 +89,12 @@ export interface TitleProps {
   missionNameKey: string;
   onNew(): void;
   onContinue(): void;
+  /** (05-a) Mission picker: every playable mission (id + name key) and the switch action. */
+  missions?: readonly { id: string; nameKey: string }[];
+  currentMissionId?: string;
+  onPickMission?(id: string): void;
+  /** (06-c) Label of the start button when there's no save (default 'title.new'). */
+  freshLabelKey?: 'title.new' | 'title.deploy';
 }
 
 export class TitleScreen {
@@ -90,7 +110,12 @@ export class TitleScreen {
     const cont = el('button', '', str('title.continue'));
     cont.disabled = !p.canContinue;
     cont.onclick = () => p.onContinue();
-    const fresh = el('button', p.canContinue ? 'secondary' : '', str('title.new'));
+    // (06-c) No save: one click deploys (the empty respawn screen is skipped).
+    const fresh = el(
+      'button',
+      p.canContinue ? 'secondary' : '',
+      str(p.canContinue ? 'title.new' : (p.freshLabelKey ?? 'title.new')),
+    );
     let armed = false;
     fresh.onclick = () => {
       // Starting over wipes the save: ask once.
@@ -105,7 +130,9 @@ export class TitleScreen {
     card.append(
       el('h1', '', str('title.name')),
       el('p', 'sub', str('title.tagline')),
-      el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) })),
+      ...(p.missions && p.missions.length > 1 && p.onPickMission
+        ? [missionPicker(p.missions, p.currentMissionId ?? '', p.onPickMission)]
+        : [el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) }))]),
       ...(p.canContinue ? [cont, fresh] : [fresh]),
     );
     root.hidden = false;
@@ -115,6 +142,24 @@ export class TitleScreen {
   hide(): void {
     this.s.root.hidden = true;
   }
+}
+
+function missionPicker(
+  missions: readonly { id: string; nameKey: string }[],
+  current: string,
+  pick: (id: string) => void,
+): HTMLElement {
+  const wrap = el('label', 'sub mission-pick', `${str('title.pickMission')} `);
+  const sel = el('select');
+  for (const m of missions) {
+    const o = el('option', '', strDynamic(m.nameKey));
+    o.value = m.id;
+    o.selected = m.id === current;
+    sel.append(o);
+  }
+  sel.onchange = () => pick(sel.value);
+  wrap.append(sel);
+  return wrap;
 }
 
 export interface CompleteStats {
@@ -180,19 +225,85 @@ export class Caption {
   }
 }
 
+/**
+ * "Preparing…" spinner. (06-c) It fades in only after `delayMs` (a compositor animation, so it
+ * still appears while the main thread is busy): short work never flashes it.
+ */
 export class Busy {
   private readonly root = el('div', 'aoo-busy');
+  private readonly label = el('span', '', str('busy.preparing'));
 
   constructor(parent: HTMLElement) {
     injectStyle('aoo-flow-css', CSS);
     this.root.hidden = true;
-    this.root.append(el('i'), el('span', '', str('busy.preparing')));
+    this.root.append(el('i'), this.label);
     parent.append(this.root);
   }
 
-  set(on: boolean): void {
-    this.root.hidden = !on;
+  setDelay(ms: number): void {
+    this.root.style.setProperty('--aoo-busy-delay', `${Math.max(0, ms)}ms`);
   }
+
+  /** `text` replaces "Preparing…" while shown (e.g. stress-mode progress, shown at once). */
+  set(on: boolean, text?: string): void {
+    if (on && this.root.hidden) this.root.classList.toggle('now', text !== undefined);
+    this.root.hidden = !on;
+    setText(this.label, text ?? str('busy.preparing'));
+  }
+
+  get visible(): boolean {
+    return !this.root.hidden;
+  }
+}
+
+/**
+ * (06-c) "R / Space: redeploy at Road (0:04)" on the death beat (bottom centre) and the respawn
+ * screen (docked into a host element there, e.g. under the Deploy button, so it covers nothing).
+ */
+export class QuickRedeployHint {
+  private readonly root = el('div', 'aoo-quick-hint');
+  private host: HTMLElement | null = null;
+
+  constructor(private readonly parent: HTMLElement) {
+    injectStyle('aoo-flow-css', CSS);
+    this.root.hidden = true;
+    this.root.setAttribute('role', 'status');
+    parent.append(this.root);
+  }
+
+  /** `text` null hides it. */
+  set(text: string | null): void {
+    if (text === null) {
+      if (!this.root.hidden) this.root.hidden = true;
+      return;
+    }
+    this.place();
+    setText(this.root, text);
+    if (this.root.hidden) this.root.hidden = false;
+  }
+
+  /** Shows the hint inside `host` (null: floating at the bottom of the screen). */
+  dock(host: HTMLElement | null): void {
+    this.host = host;
+    this.place();
+  }
+
+  private place(): void {
+    // A host that left the page (its screen closed) means floating again.
+    if (this.host && !this.host.isConnected) this.host = null;
+    const target = this.host ?? this.parent;
+    if (this.root.parentElement !== target) target.append(this.root);
+    this.root.classList.toggle('docked', this.host !== null);
+  }
+
+  get visible(): boolean {
+    return !this.root.hidden;
+  }
+}
+
+/** (06-c) Length of screen transitions / caption pop-ins (CSS variable on the document). */
+export function setTransitionMs(ms: number): void {
+  document.documentElement.style.setProperty('--aoo-transition', `${Math.max(0, ms)}ms`);
 }
 
 /** A short toast ("History shifted"); hides by itself. */

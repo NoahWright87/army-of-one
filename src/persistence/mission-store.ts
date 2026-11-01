@@ -7,7 +7,14 @@ import type {
 } from '../contracts/mission';
 import { decodeSegment, encodeSegment } from './codec/segment-codec';
 import { migrate } from './migrations';
-import { isLanes, isMeta, isStoredSoldier, type MetaV1, type StoredSoldierV1 } from './schema';
+import {
+  isCaptureTruth,
+  isLanes,
+  isMeta,
+  isStoredSoldier,
+  type MetaV1,
+  type StoredSoldierV1,
+} from './schema';
 import type { KeyValueStore, StoreResult } from './storage';
 
 /**
@@ -16,7 +23,8 @@ import type { KeyValueStore, StoreResult } from './storage';
  *   aoo:v1:<missionId>:lanes         LaneTruth[]
  *   aoo:v1:<missionId>:soldier:<id>  one SoldierRecord (segments encoded), written only on change
  *   aoo:v1:<missionId>:inprogress    the current life's partial segment
- *   …:meta:backup / …:lanes:backup   last known-good copies
+ *   aoo:v1:<missionId>:captures      (05-a) CaptureTruth[]; absent in older saves (= [])
+ *   …:meta:backup / …:lanes:backup / …:captures:backup   last known-good copies
  */
 export const missionKeys = (missionId: MissionId) => {
   const base = `aoo:v1:${missionId}:`;
@@ -28,6 +36,8 @@ export const missionKeys = (missionId: MissionId) => {
     lanesBackup: `${base}lanes:backup`,
     soldier: (id: string) => `${base}soldier:${id}`,
     inProgress: `${base}inprogress`,
+    captures: `${base}captures`,
+    capturesBackup: `${base}captures:backup`,
   };
 };
 
@@ -69,6 +79,14 @@ export class MissionSaver {
       this.keys.lanesBackup,
     );
     if (!lanes.ok) return lanes;
+    if (state.captureTruth !== undefined) {
+      const caps = await this.write(
+        this.keys.captures,
+        JSON.stringify(state.captureTruth),
+        this.keys.capturesBackup,
+      );
+      if (!caps.ok) return caps;
+    }
     const metaResult = await this.write(this.keys.meta, JSON.stringify(meta), this.keys.metaBackup);
     if (!metaResult.ok) return metaResult;
     if (state.inProgress) return this.saveInProgress(state.inProgress);
@@ -195,6 +213,10 @@ export async function loadMission(store: KeyValueStore, missionId: MissionId): P
     lanes,
     ...(meta.completed ? { completed: meta.completed } : {}),
   };
+  // (05-a) Older saves have no capture truth; an unreadable one is dropped, not fatal (Continue
+  // re-resolves the battle from tick 0, which observes every capture again).
+  const captures = await loadValidated(store, keys.captures, keys.capturesBackup, isCaptureTruth);
+  if (captures) state.captureTruth = captures;
   const inProgress = await loadInProgress(store, missionId);
   if (inProgress) state.inProgress = inProgress;
   return { ok: true, state };
