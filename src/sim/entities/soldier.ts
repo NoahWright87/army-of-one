@@ -4,6 +4,7 @@ import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { MapDef, Rect, SpawnPointId } from '../world/map';
 import type { RoleId } from '../../contracts/mission';
+import type { AiState } from '../ai/brain';
 
 export type SoldierId = string;
 
@@ -52,6 +53,10 @@ export interface SoldierState {
   kinematic: boolean;
   /** (07-c) Role ([D36]); absent = 'rifleman'. */
   roleId?: RoleId;
+  /** (07-d) Absent = 'player' (ours: live, echoes, statics). 'enemy' = AI-driven ([D44]). */
+  team?: 'enemy';
+  /** (07-d) AI state of an enemy soldier ([D44]). */
+  ai?: AiState;
   /** (07-c) Grenadier: ticks the throw has been wound up (0 = not winding up). */
   windupTicks: number;
   /** (07-c) Grenadier: aimed distance during the current wind-up (for the view's ring). */
@@ -86,6 +91,8 @@ export interface SoldierState {
 export interface SoldierFlags {
   /** (07-c) Set at spawn only. */
   roleId?: RoleId;
+  /** (07-d) Set at spawn only. Default 'player'. */
+  team?: SoldierTeam;
   controllable?: boolean;
   interactive?: boolean;
   minHp?: number;
@@ -115,6 +122,7 @@ export function createSoldier(
     minHp: flags.minHp ?? 0,
     kinematic: flags.kinematic ?? false,
     ...(flags.roleId && flags.roleId !== 'rifleman' ? { roleId: flags.roleId } : {}),
+    ...(flags.team === 'enemy' ? { team: 'enemy' as const } : {}),
     windupTicks: 0,
     windupAim: 0,
     recoil: 0,
@@ -126,6 +134,18 @@ export function createSoldier(
     deathTick: null,
     deathCause: null,
   };
+}
+
+export type SoldierTeam = 'player' | 'enemy';
+
+/** (07-d) A soldier's team ([D44]). */
+export function teamOf(s: SoldierState): SoldierTeam {
+  return s.team ?? 'player';
+}
+
+/** (07-d) One of ours (the player's side), alive and interactive. */
+export function isOurEligible(s: SoldierState): boolean {
+  return s.alive && s.interactive && s.team === undefined;
 }
 
 /** Alive and interactive: can be hit, triggers mines, is targeted by turrets, collides. */

@@ -5,6 +5,7 @@ import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
 import { soldierAttack } from './combat/weapons';
 import { stepGrenades } from './entities/grenade';
+import { spawnSquads, stepAi } from './ai/brain';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
   CAPTURE_FULL,
@@ -75,6 +76,17 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
     },
   };
   initialVehicles(world);
+  // (07-d) Enemy squads ([D44]): AI soldiers on the enemy team, in map order.
+  spawnSquads(world, ({ id, squad, role, position, facing }) => {
+    const s = createSoldier(id, Number(id.slice(1)), squad.id, position, facing, tuning, {
+      roleId: role,
+      team: 'enemy',
+    });
+    quantizeSoldier(s);
+    world.state.soldiers.push(s);
+    return s;
+  });
+  world.state.soldiers.sort((a, b) => compareIds(a.id, b.id));
   return world;
 }
 
@@ -199,9 +211,10 @@ export interface StepHooks {
  */
 export function step(
   world: World,
-  inputs: ReadonlyMap<SoldierId, SoldierInput>,
+  liveInputs: ReadonlyMap<SoldierId, SoldierInput>,
   hooks: StepHooks = {},
 ): SimEvent[] {
+  let inputs = liveInputs;
   const st = world.state;
   const t = world.tuning;
   world.stepping = true;
@@ -209,6 +222,14 @@ export function step(
   st.events = st.queuedEvents;
   st.queuedEvents = [];
 
+  // (07-d) AI soldiers decide on the world as it stood at the end of the last tick, then move
+  // and act through exactly the same code as the live soldier ([D44]).
+  const ai = stepAi(world);
+  if (ai.size > 0) {
+    const merged = new Map(inputs);
+    for (const [id, input] of ai) if (!merged.has(id)) merged.set(id, input);
+    inputs = merged;
+  }
   let solids = currentSolids(world);
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
@@ -277,7 +298,10 @@ export function getView(world: World): WorldView {
       hp: s.hp,
       maxHp: tuning.soldier.maxHp,
       alive: s.alive,
-      role: s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static'),
+      role:
+        s.team === 'enemy'
+          ? 'enemy'
+          : (s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static')),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
@@ -414,7 +438,10 @@ function aimView(
   world: World,
   s: SoldierState,
 ): { aimSpread?: number; mount?: number; mounted?: boolean } {
-  const live = s.alive && (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined));
+  const live =
+    s.alive &&
+    s.team === undefined &&
+    (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined));
   if (!live) return {};
   const out: { aimSpread?: number; mount?: number; mounted?: boolean } = {
     aimSpread: currentSpread(world, s, s.facing),
@@ -429,7 +456,10 @@ function aimView(
 /** (07-c) Cover arcs around the live soldier ([D34]): partial cover, walls and closed gates. */
 function liveCoverArcs(world: World): CoverArc[] {
   const live = world.state.soldiers.find(
-    (s) => s.alive && (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined)),
+    (s) =>
+      s.alive &&
+      s.team === undefined &&
+      (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined)),
   );
   if (!live) return [];
   const r = world.tuning.cover.indicatorRadius;

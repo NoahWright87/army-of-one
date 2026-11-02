@@ -5,7 +5,7 @@ import { angleBetween, distanceSq, wrapAngle } from '../core/vec';
 import { fireShot, hasLineOfSight } from '../combat/shots';
 import { emit, type World } from '../state';
 import type { TurretDef } from '../world/map';
-import { isEligible, type SoldierState } from './soldier';
+import { isOurEligible, type SoldierState } from './soldier';
 import { simPerf } from '../perf';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { seesThroughCover } from '../world/cover';
@@ -47,7 +47,7 @@ function canEngage(
   s: SoldierState,
   blockers?: readonly Blocker[],
 ): boolean {
-  if (!isEligible(s)) return false;
+  if (!isOurEligible(s)) return false; // (07-d) turrets are on the enemy side
   const r = world.tuning.turret.range;
   if (distanceSq(def.position, s) > r * r) return false;
   // (07-c) Partial cover cuts how far the turret sees past it ([D33]).

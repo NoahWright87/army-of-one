@@ -1,4 +1,5 @@
 import type { Vec2 } from '../core/vec';
+import type { RoleId } from '../../contracts/mission';
 
 /** Axis-aligned rectangle; (x, y) is the top-left corner. */
 export interface Rect {
@@ -137,6 +138,21 @@ export interface CoverDef {
 
 export type CoverMaterial = 'fence' | 'sandbags' | 'halfWall' | 'window' | 'bunkerWindow' | 'crate';
 
+/**
+ * (07-d) A squad of enemy soldiers ([D44]): same roles and stats as ours, AI-driven. No
+ * respawns. `order` is what it does when it isn't fighting; it chases within each member's
+ * role leash of its post, falls back to `fallback` when beaten, and retakes `capturePointId`.
+ */
+export interface SquadDef {
+  id: string;
+  members: { role?: RoleId; position: Vec2; facing?: number }[];
+  order: { kind: 'guard' } | { kind: 'patrol'; route: Vec2[] };
+  /** Retreat / regroup point (default: where the squad starts). */
+  fallback?: Vec2;
+  /** Hold (and retake) this capture point. */
+  capturePointId?: string;
+}
+
 export interface MapDef {
   id: string;
   nameKey: string;
@@ -159,6 +175,8 @@ export interface MapDef {
   objectives?: ObjectiveDef[];
   /** (05-a) Capture points ([D10]–[D12]); flag objectives ([D17]). */
   capturePoints?: CapturePointDef[];
+  /** (07-d) Enemy soldiers ([D44]). */
+  squads?: SquadDef[];
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */
@@ -174,11 +192,12 @@ export function validateMap(map: MapDef): void {
     ...(map.objectives ?? []),
     ...(map.capturePoints ?? []),
     ...(map.cover ?? []),
+    ...(map.squads ?? []),
   ];
   for (const e of all) {
     if (ids.has(e.id)) throw new Error(`${map.id}: duplicate entity id ${e.id}`);
-    // Soldier ("S…"), vehicle ("V…") and grenade ("G…") ids are allocated at runtime.
-    if (/^[SVG]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
+    // Soldier ("S…"), enemy ("E…"), vehicle ("V…") and grenade ("G…") ids are runtime ids.
+    if (/^[SEVG]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
     ids.add(e.id);
   }
   for (const l of map.trafficLanes ?? []) {

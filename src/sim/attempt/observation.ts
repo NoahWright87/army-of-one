@@ -80,18 +80,32 @@ export class ObservationBuilder {
       if (!simPerf.soldierIndex) return world.state.soldiers.some((s) => s.id === id);
       return soldierIndex(world.state.soldiers).has(id);
     };
+    /** (07-d) One of ours (a recorded/live soldier), not an enemy soldier. */
+    const isOurs = (id: string | undefined): id is string => {
+      if (!isSoldier(id)) return false;
+      const s = simPerf.soldierIndex
+        ? soldierIndex(world.state.soldiers).get(id)
+        : world.state.soldiers.find((x) => x.id === id);
+      return !!s && s.team === undefined;
+    };
     let damagedThisTick: Set<string> | null = null;
     for (const e of events) {
       switch (e.kind) {
         case 'soldierSpawned':
+          if (!isOurs(e.id)) break;
           this.existed.add(e.id);
           this.mark(e.id, e.tick, 'spawn');
           break;
         case 'soldierDied':
+          // (07-d) An enemy soldier killed by one of ours is that soldier's kill.
+          if (!isOurs(e.id)) {
+            if (isOurs(e.by)) this.mark(e.by, e.tick, 'kill', e.id);
+            break;
+          }
           this.mark(e.id, e.tick, 'death', e.by ?? e.cause);
           break;
         case 'damaged':
-          if (isSoldier(e.target)) {
+          if (isOurs(e.target)) {
             damagedThisTick ??= new Set();
             if (!damagedThisTick.has(e.target)) {
               damagedThisTick.add(e.target);
@@ -100,22 +114,23 @@ export class ObservationBuilder {
           }
           break;
         case 'hazardDestroyed':
-          if (isSoldier(e.by)) {
+          if (isOurs(e.by)) {
             const isTurret = (world.map.turrets ?? []).some((t) => t.id === e.id);
             this.mark(e.by, e.tick, isTurret ? 'kill' : 'hazardDestroyed', e.id);
           }
           break;
         case 'mineDetonated':
-          if (isSoldier(e.by)) this.mark(e.by, e.tick, 'hazardDestroyed', e.id);
+          if (isOurs(e.by)) this.mark(e.by, e.tick, 'hazardDestroyed', e.id);
           break;
         case 'interacted':
-          this.mark(e.by, e.tick, 'interact', e.targetId);
+          if (isOurs(e.by)) this.mark(e.by, e.tick, 'interact', e.targetId);
           break;
         case 'objectiveDestroyed':
-          if (isSoldier(e.by)) this.mark(e.by, e.tick, 'objective', e.id);
+          if (isOurs(e.by)) this.mark(e.by, e.tick, 'objective', e.id);
           break;
         case 'captureStageChanged':
-          if (e.stage === 'enemy') break;
+          // (07-d) Losses to enemy soldiers aren't part of the capture truth yet ([Q25]).
+          if (e.stage === 'enemy' || e.lost) break;
           this.captures.push({
             pointId: e.id,
             stage: e.stage,

@@ -1,6 +1,6 @@
 import { distance, fromAngle, type Vec2 } from '../core/vec';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, type SoldierState } from '../entities/soldier';
+import { isEligible, teamOf, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
@@ -131,9 +131,11 @@ export function castRay(
       consider(t, { kind: 'charge', id: def.id, index });
     });
   }
-  if (team !== 'player' && !opts.ignoreSoldiers) {
+  if (!opts.ignoreSoldiers) {
+    // (07-d) Soldiers of the other team ([D44]); neutral rays (fragments) hit everyone.
     st.soldiers.forEach((s, index) => {
       if (!isEligible(s) || s.id === opts.ignoreId) return;
+      if (team !== 'neutral' && teamOf(s) === team) return;
       const t = rayCircle(from, dir, s, tuning.soldier.hitboxRadius);
       consider(t, { kind: 'soldier', id: s.id, index });
     });

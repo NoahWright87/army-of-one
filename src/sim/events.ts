@@ -80,6 +80,8 @@ export type SimEvent =
       id: string;
       stage: CaptureStage;
       contributors: SoldierId[];
+      /** (07-d) Enemy soldiers took it back a stage ([D45]). */
+      lost?: true;
     }
   /**
    * (03-a) Debug: an echo skipped a recorded action because it was more than

@@ -121,6 +121,38 @@ export interface Tuning {
     fragmentRange: number;
     fragmentDamage: number;
   };
+  /** (07-d) Enemy soldier AI ([D44]–[D47]). Role personalities live in roles.ts (`ai`). */
+  ai: {
+    /** Spawn the maps' enemy squads (tests of older stories turn this off). */
+    enabled: boolean;
+    /** A dormant enemy wakes when one of our soldiers comes this close… */
+    wakeRadius: number;
+    /** …and goes dormant again (back at its post) once none is within this. */
+    sleepRadius: number;
+    /** How often an awake soldier re-decides (staggered per soldier). */
+    thinkSeconds: number;
+    /** Max distance it can spot one of ours (cover cuts it further, [D33]). */
+    sightRange: number;
+    /** Remembers a target's last seen position this long. */
+    memorySeconds: number;
+    /** Delay between first seeing a target and firing at it. */
+    reactionSeconds: number;
+    /** ± aim error (radians) on top of the gun's own spread; re-rolled each decision. */
+    aimError: number;
+    /** Sticks with a behaviour at least this long unless something urgent comes up. */
+    commitSeconds: number;
+    /** Looks for cover this far away. */
+    coverSearchRadius: number;
+    /** Scatters from a grenade this close. */
+    evadeRadius: number;
+    /** Enemies of ours within this count toward its danger; allies within `allyRadius`. */
+    dangerRadius: number;
+    allyRadius: number;
+    /** Checks at most this many nearest candidates for line of sight per decision. */
+    maxCandidates: number;
+    /** Re-plans a path at most this often. */
+    replanSeconds: number;
+  };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
     /** Fraction of the blocker overlap resolved per tick (0..1). */
@@ -397,6 +429,23 @@ export const DEFAULT_TUNING: Tuning = {
     fragments: 14, // TUNE
     fragmentRange: 170, // TUNE
     fragmentDamage: 30, // TUNE
+  },
+  ai: {
+    enabled: true,
+    wakeRadius: 900, // TUNE: about a screen and a half
+    sleepRadius: 1300, // TUNE
+    thinkSeconds: 0.25, // TUNE
+    sightRange: 600, // TUNE
+    memorySeconds: 4, // TUNE
+    reactionSeconds: 0.45, // TUNE: [D47] beatable on purpose
+    aimError: 0.05, // TUNE: about ±3°
+    commitSeconds: 0.8, // TUNE
+    coverSearchRadius: 260, // TUNE
+    evadeRadius: 140, // TUNE
+    dangerRadius: 500, // TUNE
+    allyRadius: 260, // TUNE
+    maxCandidates: 6, // TUNE
+    replanSeconds: 1, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE

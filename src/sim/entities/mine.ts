@@ -3,7 +3,7 @@ import { distanceSq } from '../core/vec';
 import { detonateMine } from '../combat/damage';
 import type { World } from '../state';
 import type { MineDef } from '../world/map';
-import { isEligible } from './soldier';
+import { isOurEligible } from './soldier';
 import { simPerf } from '../perf';
 import { postActionGrid, type PointGrid } from '../world/soldier-grid';
 
@@ -56,9 +56,10 @@ export function stepMines(world: World): void {
       const r = mt.triggerRadius;
       near = grid
         .query(pos.x - r, pos.y - r, pos.x + r, pos.y + r)
-        .some((k) => isEligible(soldiers[k]!) && distanceSq(soldiers[k]!, pos) <= trigger2);
+        .some((k) => isOurEligible(soldiers[k]!) && distanceSq(soldiers[k]!, pos) <= trigger2);
     } else {
-      near = soldiers.some((s) => isEligible(s) && distanceSq(s, pos) <= trigger2);
+      // (07-d) Enemy soldiers know where their mines are: only ours set them off.
+      near = soldiers.some((s) => isOurEligible(s) && distanceSq(s, pos) <= trigger2);
     }
     if (near) {
       armMine(m, secondsToTicks(mt.fuseSeconds));

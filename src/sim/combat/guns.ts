@@ -16,7 +16,13 @@ import { roleDef } from '../../content/roles';
 import { hash01 } from '../core/hash';
 import { DT, secondsToTicks } from '../core/time';
 import { fromAngle, type Vec2 } from '../core/vec';
-import { isEligible, type SoldierInput, type SoldierState } from '../entities/soldier';
+import {
+  isEligible,
+  teamOf,
+  type SoldierInput,
+  type SoldierState,
+  type SoldierTeam,
+} from '../entities/soldier';
 import type { World } from '../state';
 import { rayRect } from '../world/collision';
 import { canFireOver, distanceToRect, type CoverPiece } from '../world/cover';
@@ -132,11 +138,12 @@ export function fireGun(
   from: Vec2,
   angle: number,
   gun: GunKind = 'rifle',
+  team: SoldierTeam = 'player',
 ): ShotResult {
   const g = gunTuning(world.tuning, gun);
   return fireShot(world, {
     by: shooterId,
-    team: 'player',
+    team,
     from: { x: from.x, y: from.y },
     angle,
     range: g.range,
@@ -162,7 +169,7 @@ export function trySoldierFire(world: World, s: SoldierState, aim: number): Shot
   const angle = aim + spreadOffset(`${s.id}@${world.state.tick}:aim`, spread);
   s.nextFireTick = world.state.tick + gunCooldownTicks(world.tuning, gun);
   s.recoil = Math.min(stats.maxRecoil, s.recoil + stats.kick);
-  return fireGun(world, s.id, s, angle, gun);
+  return fireGun(world, s.id, s, angle, gun, teamOf(s));
 }
 
 /** One live tick of a gun-carrying soldier: recoil recovery, MG mount, then fire if held. */

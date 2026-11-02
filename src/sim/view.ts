@@ -11,7 +11,8 @@ import type { CaptureStage } from './world/map';
 import type { CoverArc } from './world/cover';
 import type { RoleId } from '../contracts/mission';
 
-export type SoldierRole = 'live' | 'echo' | 'static' | 'interrupted';
+/** (07-d) 'enemy': an AI-driven soldier of the other team ([D44]). */
+export type SoldierRole = 'live' | 'echo' | 'static' | 'interrupted' | 'enemy';
 
 export interface SoldierView {
   kind: 'soldier';

@@ -106,6 +106,15 @@ export const IMAGE_ASSETS = {
       'cool blue-grey and slightly ghostly. Drawn translucent in game, so keep it simple.',
     44,
   ),
+  soldier_enemy: img(
+    'soldier_enemy',
+    64,
+    64,
+    '(07-d) An enemy soldier: the same soldier, on the other team, driven by AI ([D44]).',
+    `${TOPDOWN}. Same soldier silhouette as soldier_live, ${SOLDIER_FRAME}, in hostile red/maroon ` +
+      'uniform with a dark helmet; must read as "enemy" instantly next to blue-grey echoes.',
+    44,
+  ),
   soldier_static: img(
     'soldier_static',
     64,

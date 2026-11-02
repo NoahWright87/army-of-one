@@ -241,6 +241,8 @@ export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
     soldier(r, { body: '#ffc928', helmet: '#d98c00', gun: '#2b2b2b', outline: OUT, ow: 3.5 }),
   soldier_echo: (r) =>
     soldier(r, { body: '#8ea4b8', helmet: '#6b8196', gun: '#4a5560', outline: '#26303a', ow: 2.5 }),
+  soldier_enemy: (r) =>
+    soldier(r, { body: '#c2413a', helmet: '#5a1714', gun: '#2b2b2b', outline: '#2a0c0a', ow: 3 }),
   soldier_static: (r) => {
     soldier(r, { body: '#dfe5ea', helmet: '#b9c2ca', gun: '#8a949c', outline: '#5c6670', ow: 2.5 });
     const body = circle(32, 32, 20);

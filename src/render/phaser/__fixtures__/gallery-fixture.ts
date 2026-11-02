@@ -152,6 +152,8 @@ function soldiers(tick: Tick): SoldierView[] {
       windupAim: 160,
     }),
   );
+  // (07-d) An enemy soldier ([D44]).
+  list.push(soldier('E1', 1, col(7), ROW[3] - 10, 'enemy', { facing: Math.PI, roleId: 'gunner' }));
   // (07-c) A Grenadier echo by the cover row.
   list.push(soldier('S40', 40, col(6), ROW[3] - 10, 'echo', { roleId: 'grenadier', facing: -1 }));
   const ring = [

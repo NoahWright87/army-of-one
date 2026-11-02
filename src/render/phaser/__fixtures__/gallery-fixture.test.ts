@@ -5,10 +5,13 @@ import type { MineState, SoldierRole, TurretState, WorldView } from '../../../si
 import { GALLERY_LIVE_ID, galleryEvents, galleryView } from './gallery-fixture';
 
 /** Every value of each state union. `satisfies Record<…>` breaks the build if a union grows. */
-const ROLES = Object.keys({ live: 1, echo: 1, static: 1, interrupted: 1 } satisfies Record<
-  SoldierRole,
-  1
->);
+const ROLES = Object.keys({
+  live: 1,
+  echo: 1,
+  static: 1,
+  interrupted: 1,
+  enemy: 1,
+} satisfies Record<SoldierRole, 1>);
 const TURRET = Object.keys({ idle: 1, tracking: 1, windup: 1, destroyed: 1 } satisfies Record<
   TurretState,
   1
