@@ -199,7 +199,7 @@ export const STRINGS = {
   // (07-a) Results screen + replay ([D42])
   'results.deaths': 'Deaths',
   'results.captures': 'Points captured',
-  'results.kills': 'Hazards destroyed',
+  'results.kills': 'Kills (soldiers + hazards)',
   'results.shots': 'Shots fired',
   'results.longestLife': 'Longest life',
   'results.mvp': 'MVP',

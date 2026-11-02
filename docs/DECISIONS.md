@@ -183,6 +183,23 @@ revise with justification in a PR).
   every life at once. The camera frames every soldier in action and zooms with the group. Play/
   pause, 1×/2×/4×, a scrub bar marked with deaths, captures, kills and the win, skip to end,
   Watch again, Play again. Quiet stretches fast-forward (setting).
+- **[D44] Enemy soldiers are our soldiers, AI-driven (PHASE07-d).** Same roles, same stats,
+  same code: an enemy soldier is a soldier on the other team whose input comes from an AI brain
+  instead of a player (ready for human opponents later). **No respawns**: that's what makes the
+  player different. You are vastly outnumbered: lots of enemies to slog through. Enemies far from
+  any of our soldiers are dormant (cheap), so maps can hold a lot of them.
+- **[D45] Enemy soldiers retake capture points.** Alone on a point, they take it back a stage at a
+  time at the same rate we capture; anyone of both sides present contests it.
+- **[D46] AI behaviour, by role.** One brain, a personality per role (`roles.ts` → `ai`): cover
+  preference, preferred range, aggression, bravery (danger tolerance), retreat HP, **chase
+  leash** (per role), burst discipline, and the threat it poses. It paths through the level,
+  scatters from grenades, retreats/regroups when badly hurt or outnumbered, takes nearby cover
+  (or keeps fighting if cover is far), stops to steady its aim in range, approaches targets out
+  of range within its leash. Threat values make overwhelming danger (e.g. tanks later) scary.
+- **[D47] Deliberately imperfect AI, tunable.** A reaction delay before firing at a new target
+  and a small aim error on top of the gun's own spread (`tuning.ai`).
+- **[D48] Traffic is a finite loop.** Each lane has a fixed pool of cars driving a big hidden
+  loop (same rhythm as before); a destroyed car never comes back.
 - **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
   fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
   an armored slit. A separate playable mission (more missions are coming); Breach stays the
@@ -325,6 +342,19 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   recording (echoes); soldiers who already ended alive (O statics) aren't framed, so it follows
   the action. Deaths, captures and the win stay in frame for 1.5 s; the objective joins the
   framing in the last 3 s. A seek is a cut (no glide).
+- **[Q25] Lost capture points in the timeline (PHASE07-d).** Enemy soldiers retake points in
+  the sim ([D45]): the forward spawn closes then, and recorded soldiers due to spawn there after
+  the loss never spawn ([D26]). The capture truth and the respawn screen don't show losses yet
+  (they assume a captured point stays captured), so a forward spawn may still be offered after
+  the point would be lost; deploying there bounces with "History shifted". Wanted: a "point
+  lost at t" entry that closes the forward option from that tick.
+- **[Q26] Dormancy is by distance, not camera (PHASE07-d).** "Inactive when far off camera" is
+  implemented as "no soldier of ours (live or echo) within `ai.wakeRadius` (900)", sleeping
+  again beyond `ai.sleepRadius` (1300). The camera isn't part of the sim, and background resolves
+  (which have no camera) must agree with what you saw. Echoes far ahead wake enemies there too.
+- **[Q27] Scripted dev stories and enemies.** The Breach autoplay stories and the older scripted
+  tests were written before enemies; they run with `ai.enabled: false` (`&enemies=1` keeps the
+  squads in autoplay). New stories with enemies would need new scripts.
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

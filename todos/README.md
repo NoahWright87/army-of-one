@@ -18,7 +18,8 @@ in a stack of PRs on GitHub, each based on the previous one and each with a GitH
 
 **Next:** PHASE07 ([overview](PHASE07.md)) is built in one branch: 07-c (cover, Grenadier,
 Machine Gunner, recoil, Compound), 07-b (touch + auto-aim) and 07-a (results + replay); see each
-doc's notes. Open questions [Q18]–[Q24] wait for the owner. Base new work on the top of the stack (or on
+doc's notes. 07-d added enemy soldiers with AI ([D44]–[D48]). Open questions [Q18]–[Q27] wait
+for the owner. Base new work on the top of the stack (or on
 `main` once the stack is merged).
 
 How work has gone so far: parallel agents per letter part, each verified (lint, purity check,
@@ -60,6 +61,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [07-a](PHASE07-a.md) | Results screen + full-mission after-action replay | 06 | 07-b | Built |
 | [07-b](PHASE07-b.md) | Auto-aim + touch controls (phone-playable) | 06 | 07-a | Built |
 | [07-c](PHASE07-c.md) | Variety: cover, roles (Grenadier), indoor mission; MG/mortar next | 06 | 07-a, 07-b | First slice built |
+| [07-d](PHASE07-d.md) | Enemy soldiers: same soldiers, AI-driven; finite traffic | 07-c | — | Built |
 | [08](PHASE08.md) | Multiplayer snapshot experiment | 07, 09 | — | **Deferred** |
 | [09](PHASE09.md) | More missions, art pass, 3D spike | 07 | — | Sketch |
 | [10](PHASE10.md) | Lazy outcome-tested recording simplification | 07 | — | **Deferred** |
