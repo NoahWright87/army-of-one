@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../../content/maps/mission-03';
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import type { SoldierRecord } from '../../contracts/mission';
 import { Attempt } from '../attempt/attempt';
 import { secondsToTicks } from '../core/time';

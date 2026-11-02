@@ -8,7 +8,7 @@
  * exactly like any other (`echo.autoAimReplay: 'recorded'`, [Q22]).
  *
  * Picker rules (pure, tested):
- * - Candidates: live turrets, then live objectives, in weapon range, with a clear line past solid
+ * - Candidates: live turrets and enemy soldiers, then live objectives, in weapon range, with a clear line past solid
  *   walls and closed gates (partial cover doesn't block: shots roll against it).
  * - Priority: a turret winding up on you > a turret tracking you > any other turret > objective;
  *   within a tier, the nearest (ties by id).
@@ -85,6 +85,8 @@ export function rankTargets(
     const onMe = t.targetId === me.id;
     consider(t.id, t.x, t.y, onMe && t.state === 'windup' ? 0 : onMe ? 1 : 2);
   }
+  // (07-d) Enemy soldiers are threats like turrets ([D44]).
+  for (const s of view.soldiers) if (s.alive && s.role === 'enemy') consider(s.id, s.x, s.y, 2);
   for (const o of view.objectives) if (!o.destroyed) consider(o.id, o.x, o.y, 3);
   out.sort((a, b) => a.tier - b.tier || a.d - b.d || (a.id < b.id ? -1 : 1));
   return out;

@@ -62,6 +62,13 @@ describe('auto-aim picker ([D41])', () => {
     expect(pickTarget(view, map, me, 520, 'far')?.id).toBe('near');
   });
 
+  it('enemy soldiers are targets too ([D44])', () => {
+    const { view, me } = viewWith((v) => {
+      v.soldiers.push({ ...v.soldiers[0]!, id: 'E1', role: 'enemy', x: 180, y: 500 });
+    });
+    expect(pickTarget(view, map, me, 520, null)?.id).toBe('E1');
+  });
+
   it('nothing in range → null', () => {
     const { view, me } = viewWith();
     expect(pickTarget(view, map, me, 50, null)).toBeNull();

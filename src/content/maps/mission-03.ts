@@ -1,4 +1,5 @@
-import { borderWalls, type CoverDef, type MapDef } from '../../sim/world/map';
+import type { RoleId } from '../../contracts/mission';
+import { borderWalls, type CoverDef, type MapDef, type SquadDef } from '../../sim/world/map';
 
 /**
  * Mission 03: "Breach" (PHASE06-a). The default mission: a straight shot north ([D27], [D28]).
@@ -227,4 +228,69 @@ export const MISSION_03: MapDef = {
     },
   ],
   objectives: [{ id: 'm3-command', position: { x: CX, y: M3.objectiveY }, radius: 56, maxHp: 400 }],
+  // (07-d) Enemy soldiers ([D44]): you're vastly outnumbered, and they don't respawn.
+  squads: [
+    // Behind the first turret line.
+    squad('m3-sq-line', M3.turretLineY - 110, [300, 520, 800, 1080, 1300], ['gunner', 'rifleman']),
+    // Inside the gate.
+    squad('m3-sq-gate', M3.gateWallY - 140, [560, 700, 900, 1040], ['grenadier', 'rifleman']),
+    // Patrolling the far end of the mine strip.
+    {
+      id: 'm3-sq-mines',
+      members: [
+        { position: { x: 600, y: M3.rockY[0] - 90 } },
+        { position: { x: 660, y: M3.rockY[0] - 120 } },
+        { position: { x: 720, y: M3.rockY[0] - 90 } },
+      ],
+      order: {
+        kind: 'patrol',
+        route: [
+          { x: 520, y: M3.rockY[0] - 110 },
+          { x: 1080, y: M3.rockY[0] - 110 },
+        ],
+      },
+    },
+    // Holding the Forward Post (they retake it, [D45]).
+    {
+      ...squad('m3-sq-post', M3.captureY - 110, [520, 680, 800, 920, 1080], ['gunner', 'rifleman']),
+      capturePointId: 'cp-forward',
+    },
+    // Along the canal.
+    squad('m3-sq-canal', M3.canalY[0] - 90, [300, 520, 1080, 1300], ['grenadier', 'rifleman']),
+    // The nest: dug in behind its sandbags.
+    squad(
+      'm3-sq-nest',
+      M3.nestCoverY - 50,
+      [480, 630, 800, 970, 1120],
+      ['gunner', 'rifleman', 'gunner'],
+    ),
+    squad('m3-sq-nest2', M3.nestY - 110, [360, 600, 1000, 1240], ['rifleman', 'grenadier']),
+    // Inside the bunker, around the Command Post.
+    {
+      ...squad(
+        'm3-sq-bunker',
+        M3.objectiveY + 140,
+        [300, 520, 680, 920, 1080, 1300],
+        ['rifleman', 'gunner', 'rifleman', 'grenadier'],
+      ),
+      fallback: { x: CX, y: M3.objectiveY - 160 },
+    },
+  ],
 };
+
+/**
+ * (07-d) A guard squad in a row at `y`, facing down the map (toward us), roles cycling through
+ * `roles`. Falls back further up the map.
+ */
+function squad(id: string, y: number, xs: number[], roles: RoleId[]): SquadDef {
+  return {
+    id,
+    members: xs.map((x, i) => ({
+      role: roles[i % roles.length]!,
+      position: { x, y },
+      facing: Math.PI / 2,
+    })),
+    order: { kind: 'guard' },
+    fallback: { x: M3_W / 2, y: Math.max(200, y - 300) },
+  };
+}

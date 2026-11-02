@@ -4,7 +4,7 @@ import { str, strDynamic } from '../content/strings';
 import type { SpawnOption } from '../contracts/mission';
 import { formatBattleTime } from '../sim/core/time';
 import { resolveRenderScale } from '../render/render-scale';
-import { DEFAULT_TUNING } from '../content/tuning';
+import { DEFAULT_TUNING, withTuning } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
@@ -138,6 +138,17 @@ settings.register(gameSettingDefs());
 settings.register(inputSettingDefs()); // (07-b)
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
 const display = bindDisplaySettings(settings);
+/**
+ * (07-d) The tuning a battle runs with. Enemy squads ([D44]) are on, except for dev autoplay
+ * stories (scripted lives can't fight them): add `&enemies=1` to keep them, `&enemies=0` to
+ * turn them off anywhere.
+ */
+function gameTuning() {
+  const t = effectiveTuning(settings, DEFAULT_TUNING);
+  const flag = params.get('enemies');
+  const off = flag === '0' || (params.has('autoplay') && flag !== '1');
+  return off ? withTuning(t, { ai: { enabled: false } }) : t;
+}
 
 // DOM overlays.
 const uiRoot = document.getElementById('ui-root') ?? document.body;
@@ -224,7 +235,7 @@ const services: SceneServices = {
   leadInPreview: () => settings.getBool(GAME_SETTING_IDS.ghostArrow),
   renderScale: () => renderScale,
   createSession: () => {
-    const tuning = effectiveTuning(settings, DEFAULT_TUNING);
+    const tuning = gameTuning();
     const session = createDefaultSession(tuning, () => {
       throw new Error('replaced below');
     });
@@ -545,7 +556,7 @@ async function startGame(): Promise<void> {
   let diedAt = -Infinity;
   const controller = new GameController({
     map: MISSION,
-    tuning: () => effectiveTuning(settings, DEFAULT_TUNING),
+    tuning: () => gameTuning(),
     store,
     ui,
     battle,
@@ -671,7 +682,7 @@ async function startGame(): Promise<void> {
     busy.set(true, str('busy.stress', { done: 0, total: stress }));
     const gen = await generateStressMission(
       MISSION,
-      effectiveTuning(settings, DEFAULT_TUNING),
+      gameTuning(),
       stress,
       Number(params.get('stressSeed') ?? 1),
       (done, total) => busy.set(true, str('busy.stress', { done, total })),

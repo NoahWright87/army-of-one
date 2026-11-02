@@ -34,6 +34,11 @@ export interface WorldState {
   gates: GateEntity[];
   bridges: BridgeEntity[];
   objectives: ObjectiveEntity[];
+  /**
+   * (07-d) Per traffic lane: cars out on the hidden return loop, waiting to re-enter ([D48]).
+   * Optional for snapshots from before 07-d.
+   */
+  trafficPool?: number[];
   /** (07-c) Grenades in flight, sorted by id. Optional for snapshots from before 07-c. */
   grenades?: GrenadeEntity[];
   /** (05-a) Parallel to `map.capturePoints`. */

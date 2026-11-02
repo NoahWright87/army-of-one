@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MISSION, findMap, MISSIONS, missionOrDefault } from '../../content/maps';
 import { M3, MISSION_03 } from '../../content/maps/mission-03';
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import { outcomeHash } from '../attempt/outcome-hash';
 import { SnapshotStore } from '../attempt/snapshots';
 import { ArmyBuilder } from '../bots/army';

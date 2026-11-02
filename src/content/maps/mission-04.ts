@@ -1,4 +1,11 @@
-import { borderWalls, type CoverDef, type MapDef, type Rect } from '../../sim/world/map';
+import type { RoleId } from '../../contracts/mission';
+import {
+  borderWalls,
+  type CoverDef,
+  type MapDef,
+  type Rect,
+  type SquadDef,
+} from '../../sim/world/map';
 
 /**
  * Mission 04: "Compound" (07-c). A proof of concept for the cover system ([D32]) indoors: fences,
@@ -192,4 +199,41 @@ export const MISSION_04: MapDef = {
     { id: 'cp-office', nameKey: 'capture.mission04.office', position: { x: CX, y: M4.officeY } },
   ],
   objectives: [{ id: 'm4-command', position: { x: 560, y: 590 }, radius: 44, maxHp: 300 }],
+  // (07-d) Enemy soldiers ([D44]), using the cover the way you would.
+  squads: [
+    guardSquad('m4-sq-yard', [
+      ['rifleman', 300, M4.bagsY - 50],
+      ['gunner', CX - 180, M4.bagsY - 40],
+      ['rifleman', CX + 180, M4.bagsY - 40],
+      ['rifleman', M4_W - 300, M4.bagsY - 50],
+      ['grenadier', CX, M4.yardTurretY + 40],
+    ]),
+    guardSquad('m4-sq-office', [
+      ['rifleman', 260, M4.deskY + 30],
+      ['gunner', CX - 60, M4.deskY - 30],
+      ['rifleman', CX + 60, M4.deskY - 30],
+      ['rifleman', M4_W - 260, M4.deskY + 30],
+      ['grenadier', CX, M4.backWallY + 70],
+    ]),
+    guardSquad('m4-sq-court', [
+      ['rifleman', 320, M4.courtyardY - 40],
+      ['gunner', CX, M4.courtyardY + 90],
+      ['rifleman', M4_W - 320, M4.courtyardY - 40],
+      ['rifleman', 1050, M4.bunkerFrontY + 120],
+    ]),
+    guardSquad('m4-sq-bunker', [
+      ['rifleman', 800, 560],
+      ['grenadier', 620, 680],
+      ['rifleman', 1020, 720],
+    ]),
+  ],
 };
+
+/** (07-d) A guard squad of [role, x, y] members, facing down the map (toward us). */
+function guardSquad(id: string, members: [RoleId, number, number][]): SquadDef {
+  return {
+    id,
+    members: members.map(([role, x, y]) => ({ role, position: { x, y }, facing: Math.PI / 2 })),
+    order: { kind: 'guard' },
+  };
+}

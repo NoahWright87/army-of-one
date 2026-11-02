@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../../content/maps/mission-03';
-import { DEFAULT_TUNING, withTuning } from '../../content/tuning';
+import { withTuning } from '../../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import { SnapshotStore } from '../attempt/snapshots';
 import { outcomeHash } from '../attempt/outcome-hash';
 import { secondsToTicks } from '../core/time';

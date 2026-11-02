@@ -38,6 +38,7 @@ import type { World } from '../state';
 import { seesThroughCover } from '../world/cover';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
+import { soldierIndex } from '../soldier-index';
 
 export type Behavior = 'hold' | 'patrol' | 'approach' | 'engage' | 'cover' | 'retreat' | 'evade';
 
@@ -72,6 +73,10 @@ export interface AiState {
 }
 
 const BEHAVIOR_ARRIVE = 10;
+/** (perf) A destination has to move this far to be worth a new path. */
+const REPLAN_MOVE = 64;
+/** (perf) Paths longer than this aren't searched (the chase leash is shorter anyway). */
+const PATH_MAX_LENGTH = 1100;
 /** After being overwhelmed, keeps regrouping this long before re-engaging. */
 const SHAKEN_SECONDS = 4;
 
@@ -421,19 +426,26 @@ function setDest(world: World, s: SoldierState, ai: AiState, dest: Vec2 | null):
     ai.path = null;
     return;
   }
-  const moved = !ai.dest || distance(ai.dest, dest) > 24;
-  const stale = tick - ai.planTick >= secondsToTicks(world.tuning.ai.replanSeconds);
+  const prev = ai.dest;
   ai.dest = { x: dest.x, y: dest.y };
   if (ai.behavior === 'evade') {
     ai.path = [{ x: s.x, y: s.y }, ai.dest];
     ai.pathIdx = 1;
     return;
   }
-  if (moved || stale || !ai.path) {
-    ai.path = findPath(world, s, ai.dest, { maxLength: 1500 }) ?? null;
-    ai.pathIdx = 1;
-    ai.planTick = tick;
+  // (perf) Re-plan only when the destination really moved or the plan is stale; a failed search
+  // (unreachable) also waits out the re-plan interval before trying again.
+  const since = tick - ai.planTick;
+  const minGap = secondsToTicks(world.tuning.ai.replanSeconds);
+  const moved = !prev || distance(prev, dest) > REPLAN_MOVE;
+  if (since < minGap && (!moved || since < minGap / 4)) {
+    if (ai.path) ai.path[ai.path.length - 1] = ai.dest;
+    return;
   }
+  if (!moved && since < minGap * 3 && ai.path) return;
+  ai.path = findPath(world, s, ai.dest, { maxLength: PATH_MAX_LENGTH }) ?? null;
+  ai.pathIdx = 1;
+  ai.planTick = tick;
 }
 
 /**
@@ -474,7 +486,7 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
 
 function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const tick = world.state.tick;
-  const target = ai.targetId ? world.state.soldiers.find((o) => o.id === ai.targetId) : undefined;
+  const target = ai.targetId ? soldierIndex(world.state.soldiers).get(ai.targetId) : undefined;
   const live = target && isOurEligible(target) ? target : undefined;
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;
   let move = { x: 0, y: 0 };
