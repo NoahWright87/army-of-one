@@ -38,6 +38,11 @@ export interface Tuning {
     blockerRadius: number;
     /** Radius used against walls and other static geometry. */
     wallRadius: number;
+    /**
+     * (07-e) Sprint ([D49]): speed × this while sprint is held and the soldier moves. Can't fire
+     * or throw while sprinting.
+     */
+    sprintMultiplier: number;
   };
   /** The soldier's hitscan rifle. (07-c) Spread and recoil: see `GunSpread` ([D39]). */
   rifle: {
@@ -152,6 +157,13 @@ export interface Tuning {
     maxCandidates: number;
     /** Re-plans a path at most this often. */
     replanSeconds: number;
+    /**
+     * (07-e) Extra ± aim error (radians) against a moving target, × how fast it moves (1 = a
+     * walk, sprinting is more) ([D50]). Re-rolled every tick, so moving targets get missed.
+     */
+    movingTargetError: number;
+    /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
+    sprints: boolean;
   };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
@@ -363,6 +375,7 @@ export const DEFAULT_TUNING: Tuning = {
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
     wallRadius: 10, // TUNE
+    sprintMultiplier: 1.6, // TUNE
   },
   rifle: {
     damage: 25, // TUNE
@@ -446,6 +459,8 @@ export const DEFAULT_TUNING: Tuning = {
     allyRadius: 260, // TUNE
     maxCandidates: 6, // TUNE
     replanSeconds: 1, // TUNE
+    movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
+    sprints: true, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE

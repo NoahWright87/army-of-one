@@ -50,6 +50,7 @@ export class TouchInput implements InputSource {
       aimDistance: this.aimDistance,
       fire: c.fireHeld || aLen >= AIM_FIRE,
       interact: c.interactLatch.consume(),
+      ...(c.sprintHeld ? { sprint: true } : {}),
     };
   }
 

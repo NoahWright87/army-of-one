@@ -33,6 +33,8 @@ const CSS = `
 .aoo-touch .interact { right: 120px; bottom: 44px; width: 64px; height: 64px; background: rgba(120,220,140,0.85); }
 /* Touch mode: the minimap moves up out of the fire button's way. */
 body.aoo-touch-mode .aoo-minimap { bottom: auto; top: 64px; }
+.aoo-touch .sprint { right: 32px; bottom: 124px; width: 64px; height: 64px; background: rgba(120,190,255,0.8); }
+.aoo-touch .sprint.held { background: rgba(170,215,255,0.95); }
 .aoo-touch .gear { left: 10px; top: 64px; width: 40px; height: 40px; background: rgba(255,255,255,0.25);
   color: #fff; font-size: 20px; }
 `;
@@ -51,11 +53,14 @@ export class TouchControls {
   /** Aim stick output while touched, else null. */
   aim: Vec2 | null = null;
   fireHeld = false;
+  /** (07-e) Sprint button held ([D49]). */
+  sprintHeld = false;
   readonly interactLatch = new PressLatch();
   private left: Active | null = null;
   private right: Active | null = null;
   private readonly fireBtn = el('button', 'fire', str('touch.fire'));
   private readonly interactBtn = el('button', 'interact', str('touch.interact'));
+  private readonly sprintBtn = el('button', 'sprint', str('touch.sprint'));
   private aimStickOn = true;
 
   constructor(parent: HTMLElement, onSettings: () => void) {
@@ -85,9 +90,21 @@ export class TouchControls {
       this.interactLatch.press();
     });
     this.interactBtn.hidden = true;
+    this.sprintBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.sprintHeld = true;
+      this.sprintBtn.classList.add('held');
+      this.sprintBtn.setPointerCapture?.(e.pointerId);
+    });
+    const stopSprint = () => {
+      this.sprintHeld = false;
+      this.sprintBtn.classList.remove('held');
+    };
+    this.sprintBtn.addEventListener('pointerup', stopSprint);
+    this.sprintBtn.addEventListener('pointercancel', stopSprint);
     this.bindStick(leftZone, 'left');
     this.bindStick(rightZone, 'right');
-    this.root.append(leftZone, rightZone, this.interactBtn, this.fireBtn, gear);
+    this.root.append(leftZone, rightZone, this.interactBtn, this.fireBtn, this.sprintBtn, gear);
     this.root.hidden = true;
     // No scrolling, pinch-zoom or pull-to-refresh while the controls are up.
     this.root.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
@@ -123,6 +140,8 @@ export class TouchControls {
     this.endStick('right');
     this.fireHeld = false;
     this.fireBtn.classList.remove('held');
+    this.sprintHeld = false;
+    this.sprintBtn.classList.remove('held');
   }
 
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {

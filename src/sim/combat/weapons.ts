@@ -38,6 +38,8 @@ export function windupProgress(world: World, s: SoldierState, aimDistance?: numb
 
 /** Applies one tick of a live soldier's fire input. */
 export function soldierAttack(world: World, s: SoldierState, input: SoldierInput): void {
+  // (07-e) Sprinting: no firing, and a wind-up just holds ([D49]).
+  if (s.sprinting) input = { ...input, fire: s.windupTicks > 0 };
   const gun = gunOf(s);
   if (gun) {
     stepGunner(world, s, input, gun);

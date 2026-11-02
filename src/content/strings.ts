@@ -222,6 +222,7 @@ export const STRINGS = {
   'settings.results.skipQuiet': 'Replay: fast-forward quiet stretches',
   'touch.fire': 'FIRE',
   'touch.interact': 'USE',
+  'touch.sprint': 'RUN',
   'touch.settings': 'Settings',
   'touch.redeploy': 'Tap to redeploy',
   'touch.redeployAt': 'Tap to redeploy at {spawn} ({time})',

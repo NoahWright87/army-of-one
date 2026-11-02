@@ -135,6 +135,7 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role
   personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
   `&enemies=0` turns them off anywhere. Scripted tests use `CLASSIC_TUNING` (no enemies).
+  Shift sprints (touch: RUN); no firing while sprinting ([D49]).
 - Controls (PHASE07-b): touch devices get on-screen sticks + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire. Emulate a phone in Playwright with `devices['iPhone 13']`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene

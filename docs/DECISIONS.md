@@ -200,6 +200,12 @@ revise with justification in a PR).
   and a small aim error on top of the gun's own spread (`tuning.ai`).
 - **[D48] Traffic is a finite loop.** Each lane has a fixed pool of cars driving a big hidden
   loop (same rhythm as before); a destroyed car never comes back.
+- **[D49] Sprint (PHASE07-e).** Hold Shift (touch: the RUN button) to move 1.6× faster. While
+  sprinting you can't fire or throw, and your reticle blooms. Enemy soldiers sprint too (same
+  rules): to cover while under fire, away from grenades, and on a retreat.
+- **[D50] AI aim suffers against moving targets.** On top of its base aim error, an AI soldier's
+  aim jitters by `ai.movingTargetError` × how fast its target moves (a walk = 1, a sprint more).
+  Sprinting to cover, or sprinting across an MG's view to draw its fire, are real options.
 - **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
   fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
   an armored slit. A separate playable mission (more missions are coming); Breach stays the
@@ -355,6 +361,11 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q27] Scripted dev stories and enemies.** The Breach autoplay stories and the older scripted
   tests were written before enemies; they run with `ai.enabled: false` (`&enemies=1` keeps the
   squads in autoplay). New stories with enemies would need new scripts.
+- **[Q28] Sprint limits (PHASE07-e).** Sprint is unlimited for now. Options: stamina (a few
+  seconds, then recover), a slower turn rate while sprinting, or louder (wakes enemies further).
+- **[Q29] Turrets vs moving targets (PHASE07-e).** Only AI soldiers get the moving-target penalty
+  ([D50]); turrets still track and hit perfectly (their telegraph is the counterplay). Should
+  turrets miss moving targets too?
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

@@ -507,6 +507,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   let aimDistance: number | undefined;
   if (aimAt) {
     aim = Math.atan2(aimAt.y - s.y, aimAt.x - s.x) + ai.aimErr;
+    // (07-e) Moving targets are harder to hit ([D50]): jitter that grows with their speed.
+    if (live && live.moveFrac > 0) {
+      const jitter = hash01(`${s.id}@${tick}:moving`) * 2 - 1;
+      aim += jitter * world.tuning.ai.movingTargetError * live.moveFrac;
+    }
     aimDistance = distance(s, aimAt);
   } else if (move.x !== 0 || move.y !== 0) {
     aim = Math.atan2(move.y, move.x);
@@ -535,11 +540,21 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   }
   // Holding still steadies the aim: engaging soldiers stand; others move.
   if (ai.behavior === 'engage') move = { x: 0, y: 0 };
+  // (07-e) Sprint ([D49]) away from grenades, on a retreat, or to cover while under fire.
+  const underFire = tick - ai.hurtTick < secondsToTicks(1.5);
+  const sprint =
+    world.tuning.ai.sprints &&
+    (move.x !== 0 || move.y !== 0) &&
+    (ai.behavior === 'evade' ||
+      ai.behavior === 'retreat' ||
+      (ai.behavior === 'cover' && underFire));
+  if (sprint) fire = false;
   return {
     move,
     aim,
     fire,
     interact: false,
+    ...(sprint ? { sprint: true } : {}),
     ...(aimDistance !== undefined ? { aimDistance } : {}),
   };
 }

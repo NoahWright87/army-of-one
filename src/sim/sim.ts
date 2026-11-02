@@ -215,11 +215,26 @@ export function step(
     inputs = merged;
   }
   let solids = currentSolids(world);
+  // (07-e) Where uncontrolled soldiers (echoes) start the tick, to know how fast they move.
+  const n = st.soldiers.length;
+  const prevX = new Float64Array(n);
+  const prevY = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    prevX[i] = st.soldiers[i]!.x;
+    prevY[i] = st.soldiers[i]!.y;
+  }
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
     stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
   }
   hooks.moveUncontrolled?.(world, solids);
+  const walk = t.soldier.speed / 60;
+  for (let i = 0; i < n; i++) {
+    const s = st.soldiers[i]!;
+    if (!s.alive || s.controllable) continue;
+    const moved = Math.hypot(s.x - prevX[i]!, s.y - prevY[i]!);
+    s.moveFrac = Math.min(t.soldier.sprintMultiplier, moved / walk);
+  }
   separateSoldiers(st.soldiers, solids, t);
   for (const s of st.soldiers) if (s.alive) quantizeSoldier(s);
   hooks.afterMovement?.(world);

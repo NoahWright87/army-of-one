@@ -25,6 +25,15 @@ controller).
 - [x] Auto-aim targets enemy soldiers.
 - [x] Placeholder sprite `soldier_enemy`.
 
+## Follow-up (07-e, owner request)
+- [x] Sprint ([D49]): `SoldierInput.sprint`, `tuning.soldier.sprintMultiplier`; no fire/throw
+  while sprinting; Shift / touch RUN button; AI sprints to cover under fire, from grenades, on
+  retreat (`ai.sprints`). Echo catch-up speed allows for sprinting recordings.
+- [x] Moving-target penalty for AI aim ([D50], `ai.movingTargetError`). Every soldier's
+  `moveFrac` (echoes too) is now measured each tick from its actual movement.
+- Tests: `sprint.test.ts` (speed, no fire, a sprinting life replays exactly, AI hit rate still >
+  walking > sprinting).
+
 ## Notes from implementation
 - Determinism: the brain runs inside the sim on the previous tick's world, in id order, with
   hashed rolls. Enemies are not recorded; they're re-simulated every attempt, so history changes

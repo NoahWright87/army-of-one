@@ -298,7 +298,9 @@ export class EchoController {
   ): void {
     const t = world.state.tick;
     const et = this.tuning.echo;
-    const maxStep = this.tuning.soldier.speed * DT * et.catchUpFactor;
+    // (07-e) Recordings may sprint ([D49]): catch up at up to sprint speed.
+    const maxStep =
+      this.tuning.soldier.speed * this.tuning.soldier.sprintMultiplier * DT * et.catchUpFactor;
     const lateTolerance = secondsToTicks(et.lateToleranceSeconds);
     s.facing = target.facing;
 

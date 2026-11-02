@@ -21,6 +21,8 @@ export interface SoldierInput {
    * ([D37]). Absent: a mid-range throw.
    */
   aimDistance?: number;
+  /** (07-e) Sprint held ([D49]): faster, but no firing or throwing while it moves you. */
+  sprint?: boolean;
 }
 
 export const IDLE_INPUT: SoldierInput = Object.freeze({
@@ -74,6 +76,8 @@ export interface SoldierState {
    * (0..1). Live shots spread more the higher it is ([D35]).
    */
   moveFrac: number;
+  /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
+  sprinting?: boolean;
   /** Interact was held last tick (interact is edge-triggered). */
   interactHeld: boolean;
   deathTick: Tick | null;
@@ -167,14 +171,19 @@ export function stepSoldierMovement(
 ): void {
   if (!s.alive) return;
   const dir = clampLength(input.move, 1);
-  const step = tuning.soldier.speed * DT;
+  const walk = tuning.soldier.speed * DT;
+  const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
+  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk;
   const next = moveCircle(
     { x: s.x, y: s.y },
     { x: dir.x * step, y: dir.y * step },
     tuning.soldier.wallRadius,
     solids,
   );
-  s.moveFrac = step > 0 ? Math.min(1, Math.hypot(next.x - s.x, next.y - s.y) / step) : 0;
+  // (07-e) Relative to a walk: a sprint is above 1 (more spread, harder to hit, [D49], [D50]).
+  const moved = Math.hypot(next.x - s.x, next.y - s.y);
+  s.moveFrac = walk > 0 ? Math.min(tuning.soldier.sprintMultiplier, moved / walk) : 0;
+  s.sprinting = sprinting && moved > 0;
   s.x = next.x;
   s.y = next.y;
   s.facing = input.aim;
