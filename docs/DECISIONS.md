@@ -212,6 +212,44 @@ revise with justification in a PR).
   default and the template. Machine guns (steadied on cover), mortars and enemy soldiers come
   after cover.
 
+## Economy, vehicles, generation, sharing (owner session 2026-11)
+
+- **[D51] Money lives on the timeline.** Every level has a starting amount and a base income per
+  second of battle time (both may come from campaign progress, [D57]). Capturing a point raises
+  the income rate for as long as the point is ours in the current truth. Spending happens at a
+  soldier's spawn tick. So the balance at battle time t is: start + income up to t + bounties up
+  to t − spending up to t, in the latest truth ([D2]). Example: $100 start, $1/s, one spawn
+  every 2 s; a $50 Machine Gunner as soldier #10 (18 s) leaves $68; a point captured at 60 s
+  worth $2/s means $110 at 60 s and $3/s from then on. Free Riflemen keep [D18] intact: you can
+  always throw another soldier in.
+- **[D52] Income is pure battle time.** It doesn't depend on anyone of ours being alive. What
+  earns money is capturing objectives and taking out enemies, not survival.
+- **[D53] Bounties: every enemy death counts, once, at its tick.** An enemy soldier or structure
+  that dies pays a one-time bounty at that point on the timeline, whatever killed it: our shot,
+  an echo's grenade, or an enemy stepping on its own mine. It pays once in the truth, not once
+  per attempt. If a later attempt changes when (or whether) it dies, the bounty moves (or goes)
+  with it. Cheap early enemies and an early capture point should make players feel they're
+  getting somewhere, and the money that piles up by later capture points is what pays for heavy
+  units there.
+- **[D54] Debt, not un-spawning.** A soldier you bought stays bought. If history changes and
+  takes money away (a capture no longer happens, a bounty disappears), the balance may go
+  negative; you can't buy anything that would need the missing money until it recovers.
+  Soldiers never vanish for lack of money.
+- **[D55] Vehicles are big units you drive.** A vehicle (a tank, say) may look like a crew, but
+  it's just you driving it as the player: one live unit with its own controls, a bigger body,
+  far more HP and firepower. Very expensive, very powerful. It records and replays like any
+  soldier ([E1]).
+- **[D56] Seeded generation of levels and the world map.** Generation builds both the levels
+  and the meta/world map that connects them, from a seed, deterministically. There may be a
+  hand-made campaign first (tutorial through to a final boss); after it, endless generated
+  campaigns and missions. Same seed, same campaign, for everyone.
+- **[D57] Campaign progress raises your income.** Between levels in a campaign, your income
+  (and possibly starting money) goes up.
+- **[D58] Sharing without multiplayer.** Seeds make runs comparable: a **weekly campaign** (one
+  seed per week), leaderboards, high scores and watching each other's replays. Beyond that,
+  **asynchronous co-op**: playing alongside another player's lives as echoes, which affect your
+  playthrough like your own echoes do.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -254,6 +292,11 @@ revise with justification in a PR).
   the same cover gets the same answer in every replay, however much else in history changed;
   a shared PRNG stream would reshuffle every later roll after any change. Recordings store the
   final shot angle and throw (angle + distance), so spread is never re-rolled for echoes ([E1]).
+- **[E11] Seeds carry a version (PHASE13/15).** A seed fixes the map, but a recording replays
+  correctly only on the same generator, sim and tuning. Every seed, save and shared recording
+  stores a content version (generator + sim + tuning). A weekly challenge is locked to the
+  version it shipped with; old generator versions stay runnable (or old builds stay hosted) so
+  last week's recordings still replay.
 
 ---
 
@@ -366,6 +409,22 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q29] Turrets vs moving targets (PHASE07-e).** Only AI soldiers get the moving-target penalty
   ([D50]); turrets still track and hit perfectly (their telegraph is the counterplay). Should
   turrets miss moving targets too?
+- **[Q30] What can you spend at time t (PHASE11)?** Proposed: the **lowest balance from t to
+  the end of the mission**, not the balance at t. With a forward point, purchases aren't in
+  time order: buy a $100 tank at 60 s, then a new beach soldier at 26 s sees $126 at that
+  moment, but spending $50 there would leave the tank unpaid. So the respawn screen shows
+  "$76 available" while the line reads $126. (Debt, [D54], still covers money lost to history
+  changes.)
+- **[Q31] Who pays for a soldier who never spawns (PHASE11)?** Proposed: you're only charged
+  for soldiers who actually spawn in the current truth. A soldier from a lost capture point
+  ([D26]) is refunded automatically, and charged again if the point is retaken in time.
+- **[Q32] Money in the score (PHASE11/14).** Economy is part of scoring ([Q23]'s Economy axis),
+  but how (money spent, left over, soldiers used) is still open. Owner: discuss later.
+- **[Q33] Weekly challenge fairness (PHASE15).** Campaign progress raises income ([D57]), so two
+  players on the same weekly seed aren't equal. Proposed: the weekly challenge has a fixed
+  starting state that is part of the seed.
+- **[Q34] Another player's echoes and your money (PHASE15).** In async co-op ([D58]), do their
+  bounties and captures fund you? Do their purchases spend from your pool, or come free?
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

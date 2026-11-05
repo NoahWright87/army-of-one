@@ -22,6 +22,12 @@ doc's notes. 07-d added enemy soldiers with AI ([D44]–[D48]). Open questions [
 for the owner. Base new work on the top of the stack (or on
 `main` once the stack is merged).
 
+**Then (owner session 2026-11):** the owner set the next direction ([D51]–[D58]): an economy
+on the timeline (PHASE11, next to build), vehicles (12), seeded generation of levels and the
+world map (13), campaign and progression (14), and sharing: weekly seed, leaderboards,
+replays, async co-op (15). PHASE09's missions/art/3D tracks still stand; generated missions
+(13) may replace most hand-made ones.
+
 How work has gone so far: parallel agents per letter part, each verified (lint, purity check,
 tests, build, plus a Playwright browser check against a Pages-style sub-path build), then
 stacked as PRs for the owner to review in batches. The owner's working rules: when unsure about an
@@ -65,6 +71,11 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [08](PHASE08.md) | Multiplayer snapshot experiment | 07, 09 | — | **Deferred** |
 | [09](PHASE09.md) | More missions, art pass, 3D spike | 07 | — | Sketch |
 | [10](PHASE10.md) | Lazy outcome-tested recording simplification | 07 | — | **Deferred** |
+| [11](PHASE11.md) | **Economy**: money on the timeline, income, bounties, costs | 07 | — | Full |
+| [12](PHASE12.md) | Vehicles and heavy units | 11 | 13 | Sketch |
+| [13](PHASE13.md) | Seeded generation: levels + world map | 11 | 12 | Sketch |
+| [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
+| [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".
