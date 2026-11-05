@@ -16,6 +16,7 @@ import type { Tuning } from '../../content/tuning';
 import type {
   AttemptObservation,
   RecordingSegment,
+  RoleId,
   SegmentEndReason,
   SoldierId,
   SoldierRecord,
@@ -52,6 +53,8 @@ export type LiveSpec =
       entryTick: Tick;
       /** Default: the id's number. */
       ordinal?: number;
+      /** (07-c) Default 'rifleman' ([D36]). */
+      roleId?: RoleId;
     }
   | { mode: 'resume'; soldierId: SoldierId; controlFromTick: Tick };
 
@@ -364,6 +367,7 @@ export class Attempt {
         spawnSoldier(w, live.spawnPointId, {
           id: live.soldierId,
           ordinal: live.ordinal ?? ordinalOf(live.soldierId, 1),
+          ...(live.roleId ? { roleId: live.roleId } : {}),
         });
         this.controlling = true;
         this.recorder = new Recorder(live.soldierId);

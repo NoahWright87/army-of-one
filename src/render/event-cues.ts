@@ -8,7 +8,7 @@ import type { WorldView } from '../sim/view';
 import { rectViewCenter } from './geometry';
 import { pointSegmentDistance } from './interp';
 
-export type TracerStyle = 'live' | 'friendly' | 'hostile' | 'incoming';
+export type TracerStyle = 'live' | 'friendly' | 'hostile' | 'incoming' | 'fragment';
 
 export type Cue =
   | {
@@ -132,6 +132,23 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         const p = ctx.positionOf(e.id);
         sound('sfx_death', p, e.id === ctx.liveId ? 1 : 0.6);
         if (e.id === ctx.liveId) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
+        break;
+      }
+      // (07-c) Frag grenade: a small blast plus fragment tracers ([D37]).
+      case 'grenadeExploded': {
+        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.6 });
+        for (const f of e.fragments) {
+          out.push({
+            type: 'tracer',
+            fromX: e.x,
+            fromY: e.y,
+            toX: f.hitX,
+            toY: f.hitY,
+            style: 'fragment',
+          });
+        }
+        sound('sfx_explosion', e, 0.9);
+        if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
         break;
       }
       case 'mineDetonated': {

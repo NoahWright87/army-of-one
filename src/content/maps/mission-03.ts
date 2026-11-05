@@ -1,4 +1,5 @@
-import { borderWalls, type MapDef, type Rect } from '../../sim/world/map';
+import type { RoleId } from '../../contracts/mission';
+import { borderWalls, type CoverDef, type MapDef, type SquadDef } from '../../sim/world/map';
 
 /**
  * Mission 03: "Breach" (PHASE06-a). The default mission: a straight shot north ([D27], [D28]).
@@ -25,7 +26,7 @@ import { borderWalls, type MapDef, type Rect } from '../../sim/world/map';
  *
  * Story beats (each a problem that past echoes help with):
  * 1. Turret line, ~2 s of walking from every spawn. A naive first soldier dies here. Snipe a
- *    turret from just out of its range (rifle 520 > turret 420), or peek round the sandbags.
+ *    turret from just out of its range (rifle 520 > turret 420), or fire over the sandbags.
  *    Every route north passes within range of one of them, so at least one has to go.
  * 2. The gate: closed, a lever on each side. Shutting it again strands echoes ([D16]).
  * 3. Mine strip: weave between the staggered rows, or shoot a path open.
@@ -65,8 +66,12 @@ const BRIDGE_X: [number, number] = [CX - 60, CX + 60];
 const BUNKER_GAP: [number, number] = [CX - 170, CX + 170];
 const CHANNEL_X: [number, number] = [400, 1200];
 
-/** A sandbag line (a thin wall): blocks movement and shots. */
-const bags = (cx: number, y: number, w: number): Rect => ({ x: cx - w / 2, y, w, h: 28 });
+/** A sandbag line: blocks movement, half cover against shots ([D32]). */
+const bags = (id: string, cx: number, y: number, w: number): CoverDef => ({
+  id,
+  rect: { x: cx - w / 2, y, w, h: 28 },
+  material: 'sandbags',
+});
 
 const mineRow = (y: number, xs: number[], row: number) =>
   xs.map((x, i) => ({ id: `m3-mine-${row}-${i + 1}`, position: { x, y } }));
@@ -83,15 +88,6 @@ export const MISSION_03: MapDef = {
     // Bunker wall around the Command Post, opening in the middle.
     { x: 0, y: M3.bunkerWallY, w: BUNKER_GAP[0], h: 40 },
     { x: BUNKER_GAP[1], y: M3.bunkerWallY, w: M3_W - BUNKER_GAP[1], h: 40 },
-    // Cover inside the bunker (either side of the objective).
-    bags(380, 420, 160),
-    bags(1220, 420, 160),
-    // Nest sandbags (inside range: duck behind them, peek out to shoot).
-    bags(CX - 170, M3.nestCoverY, 160),
-    bags(CX + 170, M3.nestCoverY, 160),
-    // Cover around the Forward Post.
-    bags(470, M3.captureY - 40, 160),
-    bags(1130, M3.captureY - 40, 160),
     // Mine strip rocks: the channel is x 400–1200.
     { x: 0, y: M3.rockY[0], w: CHANNEL_X[0], h: M3.rockY[1] - M3.rockY[0] },
     { x: CHANNEL_X[1], y: M3.rockY[0], w: M3_W - CHANNEL_X[1], h: M3.rockY[1] - M3.rockY[0] },
@@ -101,9 +97,22 @@ export const MISSION_03: MapDef = {
     // First turret line flanks: no sneaking past along the side walls out of range.
     { x: 0, y: M3.turretLineY - 120, w: 200, h: 240 },
     { x: M3_W - 200, y: M3.turretLineY - 120, w: 200, h: 240 },
-    // First turret line: sandbags inside range (duck behind them, peek out to shoot).
-    bags(CX - 180, M3.lineCoverY, 160),
-    bags(CX + 180, M3.lineCoverY, 160),
+  ],
+  // (07-c) Sandbags are half cover ([D32]): they stop half the bullets, you can fire over them
+  // from close up, and they cut a turret's sight past them.
+  cover: [
+    // Cover inside the bunker (either side of the objective).
+    bags('m3-bags-bunker-w', 380, 420, 160),
+    bags('m3-bags-bunker-e', 1220, 420, 160),
+    // Nest sandbags (inside range: duck behind them, fire over them).
+    bags('m3-bags-nest-w', CX - 170, M3.nestCoverY, 160),
+    bags('m3-bags-nest-e', CX + 170, M3.nestCoverY, 160),
+    // Cover around the Forward Post.
+    bags('m3-bags-post-w', 470, M3.captureY - 40, 160),
+    bags('m3-bags-post-e', 1130, M3.captureY - 40, 160),
+    // First turret line: sandbags inside range (duck behind them, fire over them).
+    bags('m3-bags-line-w', CX - 180, M3.lineCoverY, 160),
+    bags('m3-bags-line-e', CX + 180, M3.lineCoverY, 160),
   ],
   water: [
     // Canal below the nest; the drawbridge spans the gap.
@@ -219,4 +228,69 @@ export const MISSION_03: MapDef = {
     },
   ],
   objectives: [{ id: 'm3-command', position: { x: CX, y: M3.objectiveY }, radius: 56, maxHp: 400 }],
+  // (07-d) Enemy soldiers ([D44]): you're vastly outnumbered, and they don't respawn.
+  squads: [
+    // Behind the first turret line.
+    squad('m3-sq-line', M3.turretLineY - 110, [300, 520, 800, 1080, 1300], ['gunner', 'rifleman']),
+    // Inside the gate.
+    squad('m3-sq-gate', M3.gateWallY - 140, [560, 700, 900, 1040], ['grenadier', 'rifleman']),
+    // Patrolling the far end of the mine strip.
+    {
+      id: 'm3-sq-mines',
+      members: [
+        { position: { x: 600, y: M3.rockY[0] - 90 } },
+        { position: { x: 660, y: M3.rockY[0] - 120 } },
+        { position: { x: 720, y: M3.rockY[0] - 90 } },
+      ],
+      order: {
+        kind: 'patrol',
+        route: [
+          { x: 520, y: M3.rockY[0] - 110 },
+          { x: 1080, y: M3.rockY[0] - 110 },
+        ],
+      },
+    },
+    // Holding the Forward Post (they retake it, [D45]).
+    {
+      ...squad('m3-sq-post', M3.captureY - 110, [520, 680, 800, 920, 1080], ['gunner', 'rifleman']),
+      capturePointId: 'cp-forward',
+    },
+    // Along the canal.
+    squad('m3-sq-canal', M3.canalY[0] - 90, [300, 520, 1080, 1300], ['grenadier', 'rifleman']),
+    // The nest: dug in behind its sandbags.
+    squad(
+      'm3-sq-nest',
+      M3.nestCoverY - 50,
+      [480, 630, 800, 970, 1120],
+      ['gunner', 'rifleman', 'gunner'],
+    ),
+    squad('m3-sq-nest2', M3.nestY - 110, [360, 600, 1000, 1240], ['rifleman', 'grenadier']),
+    // Inside the bunker, around the Command Post.
+    {
+      ...squad(
+        'm3-sq-bunker',
+        M3.objectiveY + 140,
+        [300, 520, 680, 920, 1080, 1300],
+        ['rifleman', 'gunner', 'rifleman', 'grenadier'],
+      ),
+      fallback: { x: CX, y: M3.objectiveY - 160 },
+    },
+  ],
 };
+
+/**
+ * (07-d) A guard squad in a row at `y`, facing down the map (toward us), roles cycling through
+ * `roles`. Falls back further up the map.
+ */
+function squad(id: string, y: number, xs: number[], roles: RoleId[]): SquadDef {
+  return {
+    id,
+    members: xs.map((x, i) => ({
+      role: roles[i % roles.length]!,
+      position: { x, y },
+      facing: Math.PI / 2,
+    })),
+    order: { kind: 'guard' },
+    fallback: { x: M3_W / 2, y: Math.max(200, y - 300) },
+  };
+}

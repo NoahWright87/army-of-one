@@ -163,6 +163,32 @@ describe('event cues', () => {
     ],
   });
   const ctx = cueContextFromView(v, 'S1');
+
+  it('(07-c) a frag grenade explodes with one fragment tracer per fragment, always drawn', () => {
+    const cues = eventCues(
+      [
+        {
+          kind: 'grenadeExploded',
+          tick: 1,
+          id: 'G1',
+          by: 'S1',
+          x: 100,
+          y: 100,
+          radius: 40,
+          fragments: [
+            { angle: 0, hitX: 200, hitY: 100 },
+            { angle: Math.PI, hitX: 0, hitY: 100 },
+          ],
+        },
+      ],
+      ctx,
+    );
+    expect(cues.filter((c) => c.type === 'explosion')).toHaveLength(1);
+    const tracers = cues.filter((c) => c.type === 'tracer');
+    expect(tracers).toHaveLength(2);
+    expect(tracers.every((c) => c.type === 'tracer' && c.style === 'fragment')).toBe(true);
+  });
+
   const shot = (p: Partial<Extract<SimEvent, { kind: 'shotFired' }>>): SimEvent => ({
     kind: 'shotFired',
     tick: 1,

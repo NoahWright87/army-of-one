@@ -27,7 +27,73 @@ export const GAME_SETTING_IDS = {
   spinnerThresholdMs: 'flow.spinnerThresholdMs',
   /** (06-c) Length of screen transitions / caption pop-ins. */
   transitionMs: 'flow.transitionMs',
+  /** (07-a) Results screen: show the play-style radar ([D18], provisional axes). */
+  resultsRadar: 'results.radar',
+  /** (07-a) After-action replay: fast-forward stretches with no shots or deaths. */
+  replaySkipQuiet: 'results.skipQuiet',
 } as const;
+
+/** (07-b) Controls ([D41]). 'auto' follows the device: touch → touch + auto-aim. */
+export const INPUT_SETTING_IDS = {
+  /** 'auto' | 'touch' | 'mouse' */
+  mode: 'input.mode',
+  /** 'auto' (on with touch, off with mouse) | 'on' | 'off' */
+  autoAim: 'input.autoAim',
+  /** Auto-aim fires by itself ('auto') or only while you hold fire ('hold'). */
+  autoFire: 'input.autoFire',
+} as const;
+
+export function inputSettingDefs(): SettingDef[] {
+  const G = 'settings.group.input';
+  return [
+    {
+      id: INPUT_SETTING_IDS.mode,
+      group: G,
+      label: str('settings.input.mode'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.auto') },
+        { value: 'touch', label: str('settings.input.mode.touch') },
+        { value: 'mouse', label: str('settings.input.mode.mouse') },
+      ],
+    },
+    {
+      id: INPUT_SETTING_IDS.autoAim,
+      group: G,
+      label: str('settings.input.autoAim'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.autoAim.auto') },
+        { value: 'on', label: str('settings.input.on') },
+        { value: 'off', label: str('settings.input.off') },
+      ],
+    },
+    {
+      id: INPUT_SETTING_IDS.autoFire,
+      group: G,
+      label: str('settings.input.autoFire'),
+      type: 'choice',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: str('settings.input.autoFire.auto') },
+        { value: 'hold', label: str('settings.input.autoFire.hold') },
+      ],
+    },
+  ];
+}
+
+/** (07-b) Resolved control scheme for this device and these settings ([D41]). */
+export function controlScheme(
+  mode: string,
+  autoAim: string,
+  touchDevice: boolean,
+): { touch: boolean; autoAim: boolean } {
+  const touch = mode === 'touch' || (mode === 'auto' && touchDevice);
+  const aim = autoAim === 'on' || (autoAim === 'auto' && touch);
+  return { touch, autoAim: aim };
+}
 
 const SPEEDS = ['fit', 'max', '40', '20', '10', '5'];
 /** (06-c) 'fit': the scrubber sweeps whatever is left in about this long. */
@@ -101,6 +167,20 @@ export function gameSettingDefs(): SettingDef[] {
       min: 0,
       max: 2000,
       step: 50,
+    },
+    {
+      id: GAME_SETTING_IDS.resultsRadar,
+      group: G,
+      label: str('settings.results.radar'),
+      type: 'boolean',
+      default: true,
+    },
+    {
+      id: GAME_SETTING_IDS.replaySkipQuiet,
+      group: G,
+      label: str('settings.results.skipQuiet'),
+      type: 'boolean',
+      default: true,
     },
     {
       id: GAME_SETTING_IDS.transitionMs,

@@ -19,7 +19,7 @@ import type { Tuning } from '../../content/tuning';
 import { TICKS_PER_SECOND } from '../core/time';
 import { emit, type World } from '../state';
 import type { CapturePointDef, CaptureStage } from '../world/map';
-import { isEligible } from './soldier';
+import { isEligible, isOurEligible } from './soldier';
 
 /** Progress units per stage (progress is an integer in [0, CAPTURE_FULL)). */
 export const CAPTURE_FULL = 1_000_000;
@@ -35,6 +35,8 @@ export interface CapturePointEntity {
   contributors: string[];
   /** Tick the point became ours, if it has. */
   capturedTick: number | null;
+  /** (07-d) Enemy soldiers' progress taking the point back a stage ([D45]). */
+  enemyProgress?: number;
 }
 
 export function createCapturePoints(defs: readonly CapturePointDef[]): CapturePointEntity[] {
@@ -86,14 +88,45 @@ export function stepCapturePoints(world: World): void {
     const r = captureRadius(def, t);
     const r2 = r * r;
     const ids: string[] = [];
+    let foes = 0;
     for (const s of st.soldiers) {
       if (!isEligible(s)) continue;
       const dx = s.x - def.position.x;
       const dy = s.y - def.position.y;
-      if (dx * dx + dy * dy <= r2) ids.push(s.id);
+      if (dx * dx + dy * dy > r2) continue;
+      if (isOurEligible(s)) ids.push(s.id);
+      else foes++;
     }
     const changed = ids.length !== cp.contributors.length;
     cp.contributors = ids;
+    // (07-d) Enemy soldiers ([D45]): any present contest the point (nobody makes progress);
+    // alone, they take it back one stage at a time at the same rate we capture.
+    if (foes > 0 && ids.length > 0) {
+      cp.emptyTicks = 0;
+      continue;
+    }
+    if (foes > 0) {
+      cp.emptyTicks += 1;
+      cp.progress = Math.max(0, cp.progress - decayPerTick(cp.emptyTicks, t));
+      if (cp.stage === 'enemy') continue;
+      cp.enemyProgress = (cp.enemyProgress ?? 0) + captureRatePerTick(foes, t);
+      if (cp.enemyProgress >= CAPTURE_FULL) {
+        cp.enemyProgress = 0;
+        cp.progress = 0;
+        cp.stage = cp.stage === 'ours' ? 'neutral' : 'enemy';
+        cp.capturedTick = null;
+        emit(world, {
+          kind: 'captureStageChanged',
+          tick: st.tick,
+          id: cp.id,
+          stage: cp.stage,
+          contributors: [],
+          lost: true,
+        });
+      }
+      continue;
+    }
+    if (cp.enemyProgress) cp.enemyProgress = 0;
     const next = NEXT[cp.stage];
     if (next === null) {
       cp.progress = 0;
@@ -151,7 +184,10 @@ export function allObjectivesDone(world: World): boolean {
 function completeIfAllObjectivesDone(world: World, contributors: readonly string[]): void {
   const st = world.state;
   if (st.missionComplete || !allObjectivesDone(world)) return;
-  const live = contributors.find((id) => st.soldiers.find((s) => s.id === id)?.controllable);
+  const live = contributors.find((id) => {
+    const s = st.soldiers.find((x) => x.id === id);
+    return !!s && s.controllable && s.team === undefined;
+  });
   const by = live ?? contributors[0];
   st.missionComplete = { tick: st.tick, ...(by ? { by } : {}) };
 }

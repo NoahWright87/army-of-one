@@ -5,10 +5,13 @@ import type { MineState, SoldierRole, TurretState, WorldView } from '../../../si
 import { GALLERY_LIVE_ID, galleryEvents, galleryView } from './gallery-fixture';
 
 /** Every value of each state union. `satisfies Record<…>` breaks the build if a union grows. */
-const ROLES = Object.keys({ live: 1, echo: 1, static: 1, interrupted: 1 } satisfies Record<
-  SoldierRole,
-  1
->);
+const ROLES = Object.keys({
+  live: 1,
+  echo: 1,
+  static: 1,
+  interrupted: 1,
+  enemy: 1,
+} satisfies Record<SoldierRole, 1>);
 const TURRET = Object.keys({ idle: 1, tracking: 1, windup: 1, destroyed: 1 } satisfies Record<
   TurretState,
   1
@@ -32,6 +35,8 @@ const ENTITY_LISTS = Object.keys({
   bridges: 1,
   objectives: 1,
   capturePoints: 1,
+  grenades: 1,
+  coverArcs: 1,
 } satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete'>, 1>);
 
 describe('gallery fixture', () => {
@@ -92,7 +97,7 @@ describe('gallery fixture', () => {
   });
 
   it('ids are unique and the live id exists', () => {
-    const ids = ENTITY_LISTS.flatMap((k) =>
+    const ids = ENTITY_LISTS.filter((k) => k !== 'coverArcs').flatMap((k) =>
       (v[k as keyof WorldView] as { id: string }[]).map((e) => e.id),
     );
     expect(new Set(ids).size).toBe(ids.length);
@@ -106,6 +111,7 @@ describe('gallery fixture', () => {
       'shotFired',
       'damaged',
       'mineDetonated',
+      'grenadeExploded',
       'hazardDestroyed',
       'turretWindup',
       'captureStageChanged',

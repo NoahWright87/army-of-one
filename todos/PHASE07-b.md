@@ -8,7 +8,7 @@ also covers players who'd rather think than aim (design doc §05).
 layout tweaks in `src/ui/**`, the input/control settings group.
 
 ## Tasks
-- [ ] **Auto-aim** as an `InputSource` decorator (works with keyboard or touch):
+- [x] **Auto-aim** as an `InputSource` decorator (works with keyboard or touch):
   - Picks the best target in range with line of sight: closest threat first, prefer the one
     aiming at you (a turret in wind-up), stick with the current target until it dies or leaves
     range (no flicker).
@@ -20,17 +20,17 @@ layout tweaks in `src/ui/**`, the input/control settings group.
     currently valid enemies instead of replaying recorded shots? Build only the recorded
     behaviour, behind `echo.autoAimReplay: 'recorded'` (the only value for now), and add it to
     Open questions in `docs/DECISIONS.md`.
-- [ ] **Touch controls:**
+- [x] **Touch controls:**
   - A floating virtual stick for movement (left half of the screen).
   - Right side: an optional aim stick (when auto-aim is off), an interact button (shown only when
     near a lever), and fire.
   - Respawn-screen actions are thumb-reachable.
   - Quick redeploy gets a big tap target on the death beat.
   - Prevent page scroll, zoom and pull-to-refresh during play ([D20] still saves if it happens).
-- [ ] **Auto-detect:** touch devices default to touch + auto-aim; desktop to keyboard/mouse +
+- [x] **Auto-detect:** touch devices default to touch + auto-aim; desktop to keyboard/mouse +
   manual aim. Both are switchable in settings. The settings panel (F2) needs a touch-reachable
   open button.
-- [ ] **Mobile layout pass:** HUD, countdown, minimap and respawn screen at phone sizes in
+- [x] **Mobile layout pass:** HUD, countdown, minimap and respawn screen at phone sizes in
   portrait (Breach is a tall map, so portrait may be natural). Check landscape too.
 - [ ] Performance on phones: default `display.renderScale` to auto-lower on small/high-DPR
   screens if needed.
@@ -45,4 +45,20 @@ layout tweaks in `src/ui/**`, the input/control settings group.
   with touch + auto-aim, die, quick-redeploy, use the respawn screen, and finish.
 
 ## Notes from implementation
-_(append here)_
+
+Built (2026-11, in the same branch as 07-c, owner request):
+- Auto-aim: `src/render/input/auto-aim.ts` (pure picker + `AutoAimInput` decorator). Owner
+  follow-up ([D43]): no brackets or reach ring; the reticle stops just short of the target, and
+  the battle camera's look-ahead eases toward the aim under auto-aim (`LOOK_AIM_EASE_MS`). Range follows the role (rifle, MG, grenade max
+  range). The Grenadier auto-throws: wind up to full, release. Partial cover doesn't block the
+  picker (shots roll against it); walls and closed gates do.
+- Touch: `src/ui/touch/` (controls overlay + pure stick math) and `src/render/input/touch-input.ts`.
+  The reticle sits along the aim at the aim distance, so the [D39] cone still shows.
+- `InputSource` grew optional `observe(view)` and `aimTarget()`; the battle scene feeds every
+  new view to the source.
+- Settings: Controls group (`input.mode`, `input.autoAim`, `input.autoFire`). The quick-redeploy
+  hint is tappable everywhere and big on touch; minimap moves to the top right in touch mode.
+- Checked with Playwright iPhone 13 emulation (move stick, auto-aim kills a turret, death,
+  respawn screen, results). A real-device pass by the owner is still to do.
+- Not done: landscape-specific layout tweaks, auto-lowering renderScale on phones.
+- Open: [Q22].

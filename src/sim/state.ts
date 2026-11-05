@@ -4,6 +4,7 @@ import type { Tick } from './core/time';
 import type { BridgeEntity } from './entities/bridge';
 import type { CapturePointEntity } from './entities/capture-point';
 import type { GateEntity } from './entities/gate';
+import type { GrenadeEntity } from './entities/grenade';
 import type { MineEntity } from './entities/mine';
 import type { ObjectiveEntity } from './entities/objective';
 import type { SoldierState } from './entities/soldier';
@@ -13,6 +14,7 @@ import type { SimEvent } from './events';
 import type { EventLog } from './event-log';
 import type { MapDef, Rect } from './world/map';
 import type { NavGrid } from './world/nav';
+import type { CoverPiece } from './world/cover';
 
 /**
  * Everything that changes during a battle, as plain structured-clone-safe data. Snapshots are
@@ -32,6 +34,13 @@ export interface WorldState {
   gates: GateEntity[];
   bridges: BridgeEntity[];
   objectives: ObjectiveEntity[];
+  /**
+   * (07-d) Per traffic lane: cars out on the hidden return loop, waiting to re-enter ([D48]).
+   * Optional for snapshots from before 07-d.
+   */
+  trafficPool?: number[];
+  /** (07-c) Grenades in flight, sorted by id. Optional for snapshots from before 07-c. */
+  grenades?: GrenadeEntity[];
   /** (05-a) Parallel to `map.capturePoints`. */
   capturePoints: CapturePointEntity[];
   /** Events emitted during the most recent tick. */
@@ -47,6 +56,8 @@ export interface World {
   readonly tuning: Tuning;
   /** Static geometry that blocks movement (walls + water). Derived, cached. */
   readonly solids: readonly Rect[];
+  /** (07-c) Partial cover with its numbers resolved from the tuning ([D32]). Derived, cached. */
+  readonly cover: readonly CoverPiece[];
   /** Walkability grid for pathfinding. Derived from map + state; synced lazily. */
   readonly nav: NavGrid;
   /** Ring buffer of recent events across ticks. A log, not part of the sim's state. */

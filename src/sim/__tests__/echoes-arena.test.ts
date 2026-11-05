@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../../content/maps/mission-03';
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import type { SoldierRecord } from '../../contracts/mission';
 import { Attempt } from '../attempt/attempt';
 import { secondsToTicks } from '../core/time';
@@ -312,7 +312,8 @@ describe('static figures, actions', () => {
       steps: shoot,
     });
     const shots = first.liveSegment!.actions.filter((x) => x.kind === 'shot');
-    expect(shots.length).toBe(T.turret.maxHp / T.rifle.damage);
+    // (07-c) Held fire blooms with recoil ([D39]), so a few shots may miss.
+    expect(shots.length).toBeGreaterThanOrEqual(T.turret.maxHp / T.rifle.damage);
     // Replay with the echo shoved 30 units away right before its 3rd shot: that one is skipped.
     const third = shots[2]!;
     const a = new Attempt({

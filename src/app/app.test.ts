@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TUNING } from '../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from '../sim/__tests__/helpers';
 import { getView } from '../sim/sim';
 import { hotkeyAction } from './hotkeys';
 import { BATTLE_MAP, createDefaultSession } from './battle-setup';

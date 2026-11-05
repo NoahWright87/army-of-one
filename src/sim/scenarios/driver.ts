@@ -11,6 +11,7 @@ import type { SimEvent } from '../events';
 import { createWorld, getSoldier, spawnSoldier, step, type World } from '../sim';
 import type { MapDef, SpawnPointId } from '../world/map';
 import { findPath } from '../world/nav';
+import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 
 export type ScriptStep =
   /** Walk to a point, routing around walls with the nav grid. */
@@ -23,7 +24,12 @@ export type ScriptStep =
   /** Press interact once (edge-triggered). */
   | { kind: 'interact'; label?: string }
   /** Hold fire aimed at a point until the predicate holds. */
-  | { kind: 'shoot'; at: Vec2; until: (world: World) => boolean; label?: string };
+  | { kind: 'shoot'; at: Vec2; until: (world: World) => boolean; label?: string }
+  /**
+   * (07-c) Grenadier: hold fire aimed at a point until the wind-up ring is full (or for
+   * `holdTicks`), then release to throw ([D37]).
+   */
+  | { kind: 'throw'; at: Vec2; holdTicks?: number; label?: string };
 
 export interface Scenario {
   name: string;
@@ -78,6 +84,7 @@ export function createScriptDriver(steps: readonly ScriptStep[], name = 'script'
   let path: Vec2[] | null = null;
   let waypoint = 0;
   let stepTicks = 0;
+  let released = false;
 
   const input = (world: World, me: SoldierState): SoldierInput | null => {
     for (;;) {
@@ -119,6 +126,24 @@ export function createScriptDriver(steps: readonly ScriptStep[], name = 'script'
           done = st.until(world);
           if (!done) out = { ...out, aim: angleBetween(me, st.at), fire: true };
           break;
+        case 'throw': {
+          const aimed = { ...out, aim: angleBetween(me, st.at), aimDistance: distance(me, st.at) };
+          if (released) {
+            done = true;
+            released = false;
+            break;
+          }
+          const need = windupTicksFor(world, aimedThrowDistance(world, aimed));
+          const full =
+            st.holdTicks !== undefined ? stepTicks >= st.holdTicks : me.windupTicks >= need;
+          if (full && stepTicks > 0) {
+            out = aimed; // release: throws this tick
+            released = true;
+          } else {
+            out = { ...aimed, fire: true };
+          }
+          break;
+        }
       }
 
       if (done) {

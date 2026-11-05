@@ -122,11 +122,24 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   for another army). It replaces the saved mission. The debug overlay shows sim/render ms,
   sprite count and soldiers by role; `__aoo.services.perf` has the same numbers. See
   `docs/perf.md`.
-- Missions: mission-03 "Breach" (PHASE06-a) is the **only** mission ([D31]) and the template
-  for new ones: mostly vertical, one direction, contact within seconds. mission-01/02 were
-  removed; `?mission=` with any other id (or an old remembered pick) falls back to Breach, and
-  old saves for removed missions are ignored. The title-screen picker only shows with more than
-  one mission. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
+- Missions: mission-03 "Breach" (PHASE06-a) is the default mission ([D31]) and the template
+  for new ones: mostly vertical, one direction, contact within seconds. mission-04 "Compound"
+  (PHASE07-c, `?mission=mission-04`) is the indoor cover proof of concept ([D38]).
+  mission-01/02 were removed; `?mission=` with any other id (or an old remembered pick) falls
+  back to Breach, and old saves for removed missions are ignored. The title-screen picker only
+  shows with more than one mission.
+- Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
+  roles are picked on the respawn screen (keys 1–3). The Grenadier holds fire to wind up and
+  releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
+  reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
+- Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role
+  personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
+  `&enemies=0` turns them off anywhere. Scripted tests use `CLASSIC_TUNING` (no enemies).
+  Shift sprints (touch: RUN); no firing while sprinting ([D49]).
+- Controls (PHASE07-b): touch devices get on-screen sticks + auto-aim by default; F2 → Controls
+  switches scheme/auto-aim/auto-fire. Emulate a phone in Playwright with `devices['iPhone 13']`.
+- Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
+  `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one
   life); `breach-capture&fast=1` captures the Forward Post, then deploy at it yourself. More
   stories (gate interruption, mines, make it worse) are listed in `src/app/autoplay-lives.ts`.

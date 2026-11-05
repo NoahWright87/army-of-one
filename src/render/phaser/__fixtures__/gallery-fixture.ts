@@ -17,6 +17,7 @@ import type {
   TurretView,
   VehicleView,
   WorldView,
+  GrenadeView,
 } from '../../../sim/view';
 
 export const GALLERY_W = 1520;
@@ -33,6 +34,14 @@ export const GALLERY_MAP: MapDef = {
   walls: [...borderWalls(GALLERY_W, GALLERY_H), { x: 1440, y: 60, w: 30, h: 160 }],
   // Water under the bridges row.
   water: [{ x: 20, y: ROW[3] - 50, w: col(4) + 80, h: 100 }],
+  // (07-c) One piece of each cover material ([D32]), right of the water.
+  cover: (['fence', 'sandbags', 'halfWall', 'window', 'bunkerWindow', 'crate'] as const).map(
+    (material, i) => ({
+      id: `cv-${material}`,
+      rect: { x: col(5) - 60 + i * 64, y: ROW[3] + 28, w: 44, h: 18 },
+      material,
+    }),
+  ),
   spawnPoints: [
     {
       id: 'west',
@@ -132,7 +141,21 @@ function soldiers(tick: Tick): SoldierView[] {
   // Crowd: live soldier among echoes and statics.
   const cx = col(5);
   const cy = ROW[4];
-  list.push(soldier(GALLERY_LIVE_ID, 1, cx, cy, 'live', { facing: -2.4, hp: 62 }));
+  // (07-c) The live soldier winds up a grenade throw (ring fills and restarts).
+  const wind = ((tick % 90) + 1) / 90;
+  list.push(
+    soldier(GALLERY_LIVE_ID, 1, cx, cy, 'live', {
+      facing: -2.4,
+      hp: 62,
+      roleId: 'grenadier',
+      windup: wind,
+      windupAim: 160,
+    }),
+  );
+  // (07-d) An enemy soldier ([D44]).
+  list.push(soldier('E1', 1, col(7), ROW[3] - 10, 'enemy', { facing: Math.PI, roleId: 'gunner' }));
+  // (07-c) A Grenadier echo by the cover row.
+  list.push(soldier('S40', 40, col(6), ROW[3] - 10, 'echo', { roleId: 'grenadier', facing: -1 }));
   const ring = [
     [-34, -10],
     [-14, -32],
@@ -338,6 +361,24 @@ export function galleryEvents(tick: Tick): SimEvent[] {
     out.push({ kind: 'mineDetonated', tick, id: 'M3', x: col(6), y: ROW[1], radius: 60 });
   if (t === 100) out.push({ kind: 'hazardDestroyed', tick, id: 'T4' });
   if (t === 110) out.push({ kind: 'damaged', tick, target: 'O2', amount: 20, by: 'S2' });
+  if (t === 119) {
+    // (07-c) Frag grenade going off at the end of G1's roll.
+    const x = col(6) + 140;
+    const y = ROW[2] + 60;
+    out.push({
+      kind: 'grenadeExploded',
+      tick,
+      id: 'GR1',
+      by: 'S40',
+      x,
+      y,
+      radius: 40,
+      fragments: Array.from({ length: 14 }, (_, i) => {
+        const angle = (i * 2 * Math.PI) / 14;
+        return { angle, hitX: x + Math.cos(angle) * 150, hitY: y + Math.sin(angle) * 150 };
+      }),
+    });
+  }
   if (t === 90) {
     out.push({
       kind: 'captureStageChanged',
@@ -369,7 +410,30 @@ export function galleryView(tick: Tick): WorldView {
     bridges: bridges(tick),
     objectives: objectives(),
     capturePoints: capturePoints(tick),
+    grenades: grenades(tick),
+    // (07-c) Cover arcs around the live soldier: a faint fence east, solid wall north-west.
+    coverArcs: [
+      { angle: 0, halfWidth: 0.6, value: 0.1 },
+      { angle: -Math.PI / 2, halfWidth: 0.5, value: 0.5 },
+      { angle: (-3 * Math.PI) / 4, halfWidth: 0.4, value: 1 },
+    ],
     events: galleryEvents(tick),
     missionComplete: null,
   };
+}
+
+/** (07-c) Two grenades: one bouncing in an arc, one rolling with the fuse running out. */
+function grenades(tick: Tick): GrenadeView[] {
+  const t = (tick % 120) / 120;
+  return [
+    {
+      kind: 'grenade',
+      id: 'GR1',
+      x: col(6) + t * 140,
+      y: ROW[2] + 60,
+      z: Math.abs(Math.sin(t * Math.PI * 2)) * 60 * (1 - t),
+      fuse: t,
+    },
+    { kind: 'grenade', id: 'GR2', x: col(7), y: ROW[2] + 60, z: 0, fuse: 0.9 },
+  ];
 }

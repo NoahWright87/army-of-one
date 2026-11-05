@@ -78,6 +78,7 @@ export function playLife(p: LifeParams): LifeResult {
           {
             soldierId: p.live.soldierId,
             ...(p.live.mode === 'new' ? { spawnPointId: p.live.spawnPointId } : {}),
+            ...(p.live.mode === 'new' && p.live.roleId ? { roleId: p.live.roleId } : {}),
           },
           res.liveSegment,
         )

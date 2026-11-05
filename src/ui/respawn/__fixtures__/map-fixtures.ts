@@ -12,7 +12,10 @@
  * (`map` and `map-outpost` were on the removed mission-01/02 until [D31].)
  */
 import { MISSION_03 } from '../../../content/maps/mission-03';
-import { DEFAULT_TUNING } from '../../../content/tuning';
+import { DEFAULT_TUNING, withTuning } from '../../../content/tuning';
+
+/** (07-d) The scripted fixture lives play without the enemy squads. */
+const FIXTURE_TUNING = withTuning(DEFAULT_TUNING, { ai: { enabled: false } });
 import type {
   AttemptObservation,
   CaptureTruth,
@@ -75,7 +78,7 @@ class RealStory {
     this.attempts++;
     const r = playLife({
       map: this.map,
-      tuning: DEFAULT_TUNING,
+      tuning: FIXTURE_TUNING,
       records: this.records,
       attempt: this.attempts,
       live,
@@ -93,7 +96,7 @@ class RealStory {
     const to = Math.max(...this.records.map((r) => r.segments[r.segments.length - 1]!.endTick));
     const r = playLife({
       map: this.map,
-      tuning: DEFAULT_TUNING,
+      tuning: FIXTURE_TUNING,
       records: this.records,
       attempt: this.attempts,
       live: null,

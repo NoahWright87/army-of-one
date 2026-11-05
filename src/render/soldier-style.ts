@@ -113,6 +113,12 @@ function baseVisual(
       return v;
     case 'echo':
       return v;
+    case 'enemy':
+      // (07-d) Enemy soldiers: solid, no ordinal label ([D44]).
+      v.texture = 'soldier_enemy';
+      v.alpha = 1;
+      v.label = null;
+      return v;
     case 'interrupted':
       v.depth = DEPTH.interrupted;
       v.interruptedIcon = true;

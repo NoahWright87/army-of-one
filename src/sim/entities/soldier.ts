@@ -3,6 +3,8 @@ import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { MapDef, Rect, SpawnPointId } from '../world/map';
+import type { RoleId } from '../../contracts/mission';
+import type { AiState } from '../ai/brain';
 
 export type SoldierId = string;
 
@@ -14,6 +16,13 @@ export interface SoldierInput {
   aim: number;
   fire: boolean;
   interact: boolean;
+  /**
+   * (07-c) Distance from the soldier to the aim point (the cursor). The Grenadier throws this far
+   * ([D37]). Absent: a mid-range throw.
+   */
+  aimDistance?: number;
+  /** (07-e) Sprint held ([D49]): faster, but no firing or throwing while it moves you. */
+  sprint?: boolean;
 }
 
 export const IDLE_INPUT: SoldierInput = Object.freeze({
@@ -44,8 +53,31 @@ export interface SoldierState {
    * Walls and closing gates still push it.
    */
   kinematic: boolean;
+  /** (07-c) Role ([D36]); absent = 'rifleman'. */
+  roleId?: RoleId;
+  /** (07-d) Absent = 'player' (ours: live, echoes, statics). 'enemy' = AI-driven ([D44]). */
+  team?: 'enemy';
+  /** (07-d) AI state of an enemy soldier ([D44]). */
+  ai?: AiState;
+  /** (07-c) Grenadier: ticks the throw has been wound up (0 = not winding up). */
+  windupTicks: number;
+  /** (07-c) Grenadier: aimed distance during the current wind-up (for the view's ring). */
+  windupAim: number;
+  /** (07-c) Gun recoil, radians of extra spread; recovers every tick ([D39]). */
+  recoil: number;
+  /** (07-c) Machine Gunner: ticks spent mounting on `braceId` ([D40]). */
+  mountTicks: number;
+  /** (07-c) Machine Gunner: the cover piece being mounted on, or null. */
+  braceId: string | null;
   /** Earliest tick the rifle may fire again. */
   nextFireTick: Tick;
+  /**
+   * (07-c) How far the soldier moved last movement step, as a fraction of a full-speed step
+   * (0..1). Live shots spread more the higher it is ([D35]).
+   */
+  moveFrac: number;
+  /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
+  sprinting?: boolean;
   /** Interact was held last tick (interact is edge-triggered). */
   interactHeld: boolean;
   deathTick: Tick | null;
@@ -61,6 +93,10 @@ export interface SoldierState {
 
 /** Optional flags for a new soldier. Defaults: a live, interactive, killable soldier. */
 export interface SoldierFlags {
+  /** (07-c) Set at spawn only. */
+  roleId?: RoleId;
+  /** (07-d) Set at spawn only. Default 'player'. */
+  team?: SoldierTeam;
   controllable?: boolean;
   interactive?: boolean;
   minHp?: number;
@@ -89,11 +125,31 @@ export function createSoldier(
     interactive: flags.interactive ?? true,
     minHp: flags.minHp ?? 0,
     kinematic: flags.kinematic ?? false,
+    ...(flags.roleId && flags.roleId !== 'rifleman' ? { roleId: flags.roleId } : {}),
+    ...(flags.team === 'enemy' ? { team: 'enemy' as const } : {}),
+    windupTicks: 0,
+    windupAim: 0,
+    recoil: 0,
+    mountTicks: 0,
+    braceId: null,
     nextFireTick: 0,
+    moveFrac: 0,
     interactHeld: false,
     deathTick: null,
     deathCause: null,
   };
+}
+
+export type SoldierTeam = 'player' | 'enemy';
+
+/** (07-d) A soldier's team ([D44]). */
+export function teamOf(s: SoldierState): SoldierTeam {
+  return s.team ?? 'player';
+}
+
+/** (07-d) One of ours (the player's side), alive and interactive. */
+export function isOurEligible(s: SoldierState): boolean {
+  return s.alive && s.interactive && s.team === undefined;
 }
 
 /** Alive and interactive: can be hit, triggers mines, is targeted by turrets, collides. */
@@ -103,7 +159,7 @@ export function isEligible(s: SoldierState): boolean {
 
 /** Static geometry that blocks soldier movement. */
 export function movementSolids(map: MapDef): Rect[] {
-  return [...map.walls, ...map.water];
+  return [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
 }
 
 /** Applies one tick of movement + facing from input. Mutates `s`. */
@@ -115,13 +171,19 @@ export function stepSoldierMovement(
 ): void {
   if (!s.alive) return;
   const dir = clampLength(input.move, 1);
-  const step = tuning.soldier.speed * DT;
+  const walk = tuning.soldier.speed * DT;
+  const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
+  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk;
   const next = moveCircle(
     { x: s.x, y: s.y },
     { x: dir.x * step, y: dir.y * step },
     tuning.soldier.wallRadius,
     solids,
   );
+  // (07-e) Relative to a walk: a sprint is above 1 (more spread, harder to hit, [D49], [D50]).
+  const moved = Math.hypot(next.x - s.x, next.y - s.y);
+  s.moveFrac = walk > 0 ? Math.min(tuning.soldier.sprintMultiplier, moved / walk) : 0;
+  s.sprinting = sprinting && moved > 0;
   s.x = next.x;
   s.y = next.y;
   s.facing = input.aim;

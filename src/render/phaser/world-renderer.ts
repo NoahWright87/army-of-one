@@ -55,6 +55,9 @@ interface Tracer {
 }
 
 const TRACER_MS = 110;
+/** (07-c) The reticle's ring radius when exact (world units), and how big it may grow. */
+const RETICLE_BASE_R = 8;
+const RETICLE_MAX_R = 90;
 /** (06-c) Lever → target links: dash and gap length (world units), as the old dashed Graphics. */
 const DASH = 12;
 const DASH_TEXTURE = 'aoo_dash';
@@ -64,6 +67,7 @@ const TRACER_STYLE: Record<TracerStyle, { color: number; width: number; alpha: n
   friendly: { color: 0xcfe0ee, width: 1.5, alpha: 0.5 },
   hostile: { color: 0xff8a3d, width: 2, alpha: 0.85 },
   incoming: { color: 0xff2020, width: 4, alpha: 1 },
+  fragment: { color: 0xffb060, width: 1.5, alpha: 0.85 }, // (07-c) always drawn
 };
 
 type Img = Phaser.GameObjects.Image;
@@ -71,7 +75,31 @@ type Txt = Phaser.GameObjects.Text;
 type Tile = Phaser.GameObjects.TileSprite;
 type MutableVec2 = { x: number; y: number };
 
+/**
+ * (07-c) PLACEHOLDER cover look per material ([D32]): plain Graphics fills until real art exists.
+ * `hatch` draws a diagonal mesh (chain link). Replace with tile assets via the manifest later.
+ */
+const COVER_STYLE: Record<string, { fill: number; alpha: number; line: number; hatch?: boolean }> =
+  {
+    fence: { fill: 0x9aa4ad, alpha: 0.18, line: 0xc8d0d8, hatch: true },
+    sandbags: { fill: 0xb59a64, alpha: 1, line: 0x6e5a33 },
+    halfWall: { fill: 0x8d8f92, alpha: 1, line: 0x4b4d50 },
+    window: { fill: 0x7fb7d9, alpha: 0.45, line: 0xd5ecfa },
+    bunkerWindow: { fill: 0x3e4a55, alpha: 1, line: 0x9fb2c2 },
+    crate: { fill: 0x8a5a2e, alpha: 1, line: 0x4a2e14 },
+  };
+const COVER_STYLE_DEFAULT: { fill: number; alpha: number; line: number; hatch?: boolean } = {
+  fill: 0x999999,
+  alpha: 1,
+  line: 0x444444,
+};
+
 export class WorldRenderer {
+  /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
+  private coverGfx!: Phaser.GameObjects.Graphics;
+  private grenadeGfx!: Phaser.GameObjects.Graphics;
+  /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
+  private reticleGfx!: Phaser.GameObjects.Graphics;
   private cur: WorldView;
   private now = 0;
   /**
@@ -206,6 +234,9 @@ export class WorldRenderer {
     ];
     this.effectImages = new FreeList(img(DEPTH.effects));
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
+    this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
+    this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
+    this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
     this.hpGfx = scene.add.graphics().setDepth(DEPTH.hpBars);
     this.reticle = scene.add.image(0, 0, 'reticle').setDepth(DEPTH.reticle).setVisible(false);
@@ -233,6 +264,40 @@ export class WorldRenderer {
     for (const w of map.walls) outline.strokeRect(w.x, w.y, w.w, w.h);
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
+    // (07-c) Partial cover ([D32]), by material.
+    const cover = scene.add.graphics().setDepth(DEPTH.walls);
+    for (const c of map.cover ?? []) {
+      const st = COVER_STYLE[c.material] ?? COVER_STYLE_DEFAULT;
+      const { x, y, w, h } = c.rect;
+      if (st.alpha >= 1) {
+        shadow.fillRect(x + 3, y + 3, w, h);
+      }
+      cover.fillStyle(st.fill, st.alpha);
+      cover.fillRect(x, y, w, h);
+      cover.lineStyle(st.hatch ? 1 : 2, st.line, st.hatch ? 0.8 : 1);
+      if (st.hatch) {
+        // Chain link: a diagonal mesh clipped to the rect (good enough for a thin fence).
+        const step = 8;
+        for (let d = -h; d < w; d += step) {
+          const x0 = x + Math.max(0, d);
+          const y0 = y + Math.max(0, -d);
+          const len = Math.min(w - Math.max(0, d), h - Math.max(0, -d));
+          if (len > 0) cover.lineBetween(x0, y0, x0 + len, y0 + len);
+        }
+        cover.strokeRect(x, y, w, h);
+      } else {
+        cover.strokeRect(x, y, w, h);
+        if (c.material === 'sandbags') {
+          // Bag seams.
+          const along = w >= h;
+          const n = Math.max(1, Math.round((along ? w : h) / 20));
+          for (let i = 1; i < n; i++) {
+            if (along) cover.lineBetween(x + (i * w) / n, y, x + (i * w) / n, y + h);
+            else cover.lineBetween(x, y + (i * h) / n, x + w, y + (i * h) / n);
+          }
+        }
+      }
+    }
     for (const sp of map.spawnPoints) {
       // Forward (capture) spawn markers are drawn with their capture point, only while ours.
       if (sp.kind === 'capture') continue;
@@ -328,11 +393,89 @@ export class WorldRenderer {
     this.drawVehicles(a);
     this.drawTurrets(a, f);
     this.drawSoldiers(a, f);
+    this.drawCoverAndThrows(f);
+    this.drawGrenades(a, f.nowMs);
 
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
-    this.drawReticle(f.pointer);
+    this.drawReticle(f.pointer, f.liveId);
     this.updateLoops();
+  }
+
+  /**
+   * (07-c) The live soldier's cover arcs ([D34]): one arc per nearby cover piece or wall, pointing
+   * at it, thicker and darker for better cover. Plus the Grenadier's wind-up ring at the aimed
+   * landing point, filling up as the throw winds up ([D37]).
+   */
+  private drawCoverAndThrows(f: RenderFrame): void {
+    const g = this.coverGfx;
+    g.clear();
+    // The view's arcs belong to its live soldier.
+    const live = f.liveId
+      ? this.cur.soldiers.find((x) => x.id === f.liveId)
+      : this.cur.soldiers.find((x) => x.role === 'live' && x.alive);
+    const pos = this.livePos;
+    if (!live || !live.alive || !pos) return;
+    const r = this.opts.spriteRadius + 7;
+    for (const arc of this.cur.coverArcs ?? []) {
+      const v = Math.max(0, Math.min(1, arc.value));
+      g.lineStyle(2.5 + v * 3.5, 0x101418, 0.5 + v * 0.45);
+      g.beginPath();
+      g.arc(pos.x, pos.y, r, arc.angle - arc.halfWidth, arc.angle + arc.halfWidth, false);
+      g.strokePath();
+      g.lineStyle(1.5, 0xffffff, 0.35 + v * 0.45);
+      g.beginPath();
+      g.arc(
+        pos.x,
+        pos.y,
+        r + 3 + v * 2,
+        arc.angle - arc.halfWidth,
+        arc.angle + arc.halfWidth,
+        false,
+      );
+      g.strokePath();
+    }
+    if (live.windup !== undefined && live.windupAim !== undefined) {
+      const tx = pos.x + Math.cos(live.facing) * live.windupAim;
+      const ty = pos.y + Math.sin(live.facing) * live.windupAim;
+      const ringR = 18;
+      g.lineStyle(2, 0xffffff, 0.35);
+      g.strokeCircle(tx, ty, ringR);
+      g.lineStyle(4, 0xffd34d, 0.95);
+      g.beginPath();
+      g.arc(tx, ty, ringR, -Math.PI / 2, -Math.PI / 2 + live.windup * 2 * Math.PI, false);
+      g.strokePath();
+    }
+  }
+
+  /** (07-c) Grenades in flight: a shadow on the ground and the grenade raised by its height. */
+  private drawGrenades(a: number, nowMs: number): void {
+    const g = this.grenadeGfx;
+    g.clear();
+    // PLACEHOLDER role badges ([D36]): a small square, grenade green for Grenadiers, rust for
+    // Machine Gunners.
+    for (const s of this.cur.soldiers) {
+      if (!s.alive || !s.roleId || s.roleId === 'rifleman') continue;
+      const p = s.role === 'live' && this.livePos ? this.livePos : s;
+      g.fillStyle(s.roleId === 'grenadier' ? 0x6b8f3a : 0xb0532a, 1);
+      g.fillRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
+      g.lineStyle(1, 0x111111, 1);
+      g.strokeRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
+    }
+    const prev = this.prev.grenades ?? [];
+    for (const gr of this.cur.grenades ?? []) {
+      const p = prev.find((x) => x.id === gr.id);
+      const x = p ? lerp(p.x, gr.x, a) : gr.x;
+      const y = p ? lerp(p.y, gr.y, a) : gr.y;
+      const z = p ? lerp(p.z, gr.z, a) : gr.z;
+      g.fillStyle(0x000000, 0.35);
+      g.fillEllipse(x + z * 0.15, y + z * 0.15, 9, 6);
+      const blink = gr.fuse > 0.7 && Math.floor(nowMs / 90) % 2 === 0;
+      g.fillStyle(blink ? 0xff5040 : 0x3f5a2a, 1);
+      g.fillCircle(x, y - z * 0.6, 4 + z * 0.03);
+      g.lineStyle(1, 0x111111, 1);
+      g.strokeCircle(x, y - z * 0.6, 4 + z * 0.03);
+    }
   }
 
   // ---- cues ---------------------------------------------------------------------------------
@@ -345,7 +488,7 @@ export class WorldRenderer {
     for (const c of cues) {
       switch (c.type) {
         case 'tracer':
-          if (this.settings.tracers || c.style === 'incoming') {
+          if (this.settings.tracers || c.style === 'incoming' || c.style === 'fragment') {
             this.tracers.push({ ...c, startMs: nowMs });
           }
           break;
@@ -827,12 +970,51 @@ export class WorldRenderer {
     }
   }
 
-  private drawReticle(pointer: Vec2 | null): void {
-    if (!pointer) {
-      this.reticle.setVisible(false);
-      return;
+  /**
+   * The reticle ([D39], [D43]): the only aim indicator. It grows to fit the current spread cone
+   * at its distance (aiming further, moving and sustained fire all grow it). A Machine Gunner
+   * mounting on cover gets a ring filling around it, and it turns cyan once the mounted bonus
+   * applies ([D40]). With auto-aim, the input source puts it just short of the target.
+   */
+  private drawReticle(pointer: Vec2 | null, liveId: string | null): void {
+    const g = this.reticleGfx;
+    g.clear();
+    // Drawn as thin vector lines (the same ring + four ticks as the `reticle` image), so it can
+    // grow without getting blurry or heavy.
+    this.reticle.setVisible(false);
+    if (!pointer) return;
+    const live = liveId ? this.cur.soldiers.find((x) => x.id === liveId) : undefined;
+    const mounted = !!live?.mounted;
+    const pos = this.livePos;
+    let r = RETICLE_BASE_R;
+    if (live && live.alive && pos && live.aimSpread !== undefined) {
+      const d = Math.hypot(pointer.x - pos.x, pointer.y - pos.y);
+      r = Math.max(
+        RETICLE_BASE_R,
+        Math.min(RETICLE_MAX_R, d * Math.tan(Math.min(live.aimSpread, 1.2))),
+      );
     }
-    this.reticle.setVisible(true).setPosition(pointer.x, pointer.y);
+    const color = mounted ? 0x4dd8ff : 0xffffff;
+    const { x, y } = pointer;
+    const tick = 7;
+    const stroke = (w: number, c: number, a: number) => {
+      g.lineStyle(w, c, a);
+      g.strokeCircle(x, y, r);
+      g.lineBetween(x, y - r - tick, x, y - r + 3);
+      g.lineBetween(x, y + r - 3, x, y + r + tick);
+      g.lineBetween(x - r - tick, y, x - r + 3, y);
+      g.lineBetween(x + r - 3, y, x + r + tick, y);
+    };
+    stroke(4, 0x000000, 0.45);
+    stroke(2, color, 0.95);
+    g.fillStyle(color, 0.9);
+    g.fillCircle(x, y, 1.5);
+    if (live?.mount !== undefined && live.mount < 1) {
+      g.lineStyle(3, 0x4dd8ff, 0.9);
+      g.beginPath();
+      g.arc(x, y, r + tick + 5, -Math.PI / 2, -Math.PI / 2 + live.mount * 2 * Math.PI, false);
+      g.strokePath();
+    }
   }
 
   /** Loops follow the nearest source: vehicle engines, static hum. */

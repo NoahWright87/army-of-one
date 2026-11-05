@@ -3,7 +3,7 @@
  * inline resolve, scripted lives). Shared by the flow tests; also handy in a Node REPL.
  */
 import { MISSION_03 } from '../content/maps/mission-03';
-import { DEFAULT_TUNING, type Tuning } from '../content/tuning';
+import { DEFAULT_TUNING, withTuning, type Tuning } from '../content/tuning';
 import type { SpawnOption } from '../contracts/mission';
 import type { MapDef } from '../sim/world/map';
 import { MemoryStore } from '../persistence/storage';
@@ -61,7 +61,8 @@ export function createHarness(o: HarnessOptions = {}): Harness {
   const battle = o.battle ? o.battle(clock, input) : new HeadlessBattleHost(clock, input);
   const game = new GameController({
     map: o.map ?? MISSION_03,
-    tuning: () => o.tuning ?? DEFAULT_TUNING,
+    // (07-d) The scripted Breach stories run without the enemy squads.
+    tuning: () => o.tuning ?? withTuning(DEFAULT_TUNING, { ai: { enabled: false } }),
     store,
     ui,
     battle,

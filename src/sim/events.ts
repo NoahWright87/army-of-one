@@ -32,6 +32,29 @@ export type SimEvent =
       /** (03-a) Who set it off: a shooter's id, another mine's id, or its own id (proximity). */
       by?: string;
     }
+  /** (07-c) A grenade left a soldier's hand ([D37]). Recorders turn this into a `throw` action. */
+  | {
+      kind: 'grenadeThrown';
+      tick: Tick;
+      id: string;
+      by: SoldierId;
+      fromX: number;
+      fromY: number;
+      angle: number;
+      distance: number;
+    }
+  | { kind: 'grenadeBounced'; tick: Tick; id: string; x: number; y: number }
+  /** (07-c) Blast + fragments; `fragments` are the rays' end points, for the renderer. */
+  | {
+      kind: 'grenadeExploded';
+      tick: Tick;
+      id: string;
+      by: string;
+      x: number;
+      y: number;
+      radius: number;
+      fragments: { angle: number; hitX: number; hitY: number }[];
+    }
   | { kind: 'turretWindup'; tick: Tick; id: string; targetId: string }
   | { kind: 'interacted'; tick: Tick; by: SoldierId; targetId: string }
   | { kind: 'gateChanged'; tick: Tick; id: string; open: boolean }
@@ -57,6 +80,8 @@ export type SimEvent =
       id: string;
       stage: CaptureStage;
       contributors: SoldierId[];
+      /** (07-d) Enemy soldiers took it back a stage ([D45]). */
+      lost?: true;
     }
   /**
    * (03-a) Debug: an echo skipped a recorded action because it was more than
@@ -66,7 +91,7 @@ export type SimEvent =
       kind: 'echoDivergence';
       tick: Tick;
       id: SoldierId;
-      action: 'shot' | 'interact';
+      action: 'shot' | 'interact' | 'throw';
       distance: number;
     };
 

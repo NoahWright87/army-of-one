@@ -144,6 +144,7 @@ export const RESPAWN_CSS = `
 .thumb { border-radius: 3px; display: block; background: #1a2119; }
 .th-bg { fill: #2c3829; }
 .th-wall { fill: #707a86; }
+.th-cover { fill: #8c7a58; }
 .th-water { fill: #2f6390; }
 .th-pt { fill: #c8d0d8; opacity: .55; }
 .th-pt.on { fill: #ffd34d; opacity: 1; }
@@ -155,6 +156,15 @@ export const RESPAWN_CSS = `
 .rs-deploy:hover:not(:disabled) { background: #ffe07a; }
 .rs-deploy:disabled { background: #3a3f45; color: #8a96a3; cursor: default; }
 .rs-keys { font-size: 11px; color: #6f7b88; text-align: center; }
+/* (07-c) Role picker. */
+.rs-roles-label { font-size: 11px; color: #8a96a3; margin-bottom: 4px; }
+.rs-roles-row { display: flex; gap: 6px; }
+.rs-role { flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: #1d242b; color: #d8e0e8; border: 1px solid #3a444e; border-radius: 6px; cursor: pointer;
+  font: 600 14px system-ui, sans-serif; padding: 0 8px; }
+.rs-role .k { font-size: 11px; color: #6f7b88; }
+.rs-role.sel { border-color: #ffd34d; background: #2c2a1c; color: #ffe07a; }
+.rs-role:disabled { cursor: default; opacity: 0.7; }
 
 @media (max-width: 760px) {
   .aoo-respawn { padding: 8px 16px 12px; gap: 8px; }
@@ -171,6 +181,10 @@ export const RESPAWN_CSS = `
   .rs-opt-icon { flex-basis: 64px; }
   .rs-opt-icon .thumb { width: 64px; height: 44px; }
   .rs-deploy-bar { padding: 8px 10px 10px; }
+  /* (07-c/b) Role picker fits a phone: no key numbers, smaller, wraps if it must. */
+  .rs-roles-row { flex-wrap: wrap; gap: 4px; }
+  .rs-role { min-height: 34px; font-size: 13px; padding: 0 6px; }
+  .rs-role .k { display: none; }
   .rs-legend { gap: 0 10px; font-size: 11px; padding: 4px 10px; }
 }
 
@@ -206,6 +220,7 @@ export const RESPAWN_CSS = `
 .mp-ground { fill: #3d4f38; }
 .mp-water { fill: #3a76a8; }
 .mp-wall { fill: #b4bdc7; }
+.mp-cover { fill: #c9ad7a; }
 .mp-hit { fill: transparent; cursor: default; }
 .mp-hit[data-select] { cursor: pointer; }
 .mp-spawn { fill: #12313d; stroke: #4fd1ff; }

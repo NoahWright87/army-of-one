@@ -1,5 +1,6 @@
 import type { Vec2 } from '../../sim/core/vec';
 import type { SoldierInput } from '../../sim/entities/soldier';
+import type { WorldView } from '../../sim/view';
 
 /**
  * Source of per-tick soldier input: keyboard/mouse today; touch, gamepad and auto-aim later
@@ -15,4 +16,8 @@ export interface InputSource {
   /** Cursor position in world space (for the reticle), if this source has one. */
   pointerWorld(): Vec2 | null;
   destroy(): void;
+  /** (07-b) The scene hands every new view to the source (auto-aim and touch read it). */
+  observe?(view: WorldView): void;
+  /** (07-b) Auto-aim: the current target (present only on auto-aim sources). */
+  aimTarget?(): Vec2 | null;
 }

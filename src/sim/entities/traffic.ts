@@ -102,6 +102,7 @@ function isScheduled(info: LaneInfo, t: Tick, prewarm: boolean): boolean {
 export function initialVehicles(world: World): void {
   const st = world.state;
   const prewarm = world.tuning.vehicle.prewarm;
+  st.trafficPool = [];
   (world.map.trafficLanes ?? []).forEach((def, lane) => {
     const info = laneInfo(def, world.tuning);
     const times: Tick[] = [];
@@ -119,7 +120,18 @@ export function initialVehicles(world: World): void {
     for (let k = times.length - 1; k >= 0; k--) {
       placeVehicle(st, lane, info, -times[k]! * info.stepPerTick, world.tuning);
     }
+    // (07-d) The rest of the lane's fixed pool is out on the hidden return loop ([D48]).
+    st.trafficPool![lane] = Math.max(0, lanePoolSize(info) - times.length);
   });
+}
+
+/**
+ * (07-d) Cars per lane ([D48]): just enough that, with none destroyed, a car is back on the
+ * hidden loop for every slot of the old endless schedule (same rhythm as before).
+ */
+export function lanePoolSize(info: LaneInfo): number {
+  const onRoadTicks = Math.ceil(info.length / info.stepPerTick);
+  return Math.ceil(onRoadTicks / info.intervalTicks) + 1;
 }
 
 /** Moves vehicles, stops them behind blockers, removes ones past the lane end, spawns new ones. */
@@ -150,17 +162,28 @@ export function stepTraffic(world: World): void {
     v.x += info.dir.x * move;
     v.y += info.dir.y * move;
   }
-  st.vehicles = st.vehicles.filter((v) => along(v, lanes[v.lane]!) <= lanes[v.lane]!.length);
+  // (07-d) Off the end: onto the hidden return loop ([D48]).
+  const pool = (st.trafficPool ??= lanes.map((info) => lanePoolSize(info)));
+  st.vehicles = st.vehicles.filter((v) => {
+    if (along(v, lanes[v.lane]!) <= lanes[v.lane]!.length) return true;
+    pool[v.lane] = (pool[v.lane] ?? 0) + 1;
+    return false;
+  });
 
-  // Spawn on schedule, unless a halted vehicle is sitting on the spawn spot.
+  // Re-enter on schedule if a car is back from the loop, unless a halted vehicle is sitting on
+  // the spawn spot. Destroyed cars never come back, so the gaps they leave stay.
   lanes.forEach((info, lane) => {
     if (!isScheduled(info, st.tick, vt.prewarm)) return;
+    if ((pool[lane] ?? 0) <= 0) return;
     const spawnRect = vehicleRect(info.from, info);
     const blocked = st.vehicles.some(
       (o) =>
         o.lane === lane && o.state !== 'moving' && rectsOverlap(vehicleRect(o, info), spawnRect),
     );
-    if (!blocked) placeVehicle(st, lane, info, 0, world.tuning);
+    if (!blocked) {
+      pool[lane] = pool[lane]! - 1;
+      placeVehicle(st, lane, info, 0, world.tuning);
+    }
   });
 
   // Moving vehicles kill on contact.

@@ -3,7 +3,9 @@ import { quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
-import { trySoldierFire } from './combat/shots';
+import { soldierAttack } from './combat/weapons';
+import { stepGrenades } from './entities/grenade';
+import { spawnSquads, stepAi } from './ai/brain';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
   CAPTURE_FULL,
@@ -36,6 +38,10 @@ import { moveCircle } from './world/collision';
 import { validateMap, type MapDef, type Rect, type SpawnPointId } from './world/map';
 import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
+import { coverArcs, resolveCover, type CoverArc } from './world/cover';
+import { dynamicBlockers } from './world/blockers';
+import { windupProgress } from './combat/weapons';
+import { currentSpread, mountBonus, mountTicksNeeded } from './combat/guns';
 import { simPerf } from './perf';
 import type { WorldView } from './view';
 
@@ -48,6 +54,7 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
     map,
     tuning,
     solids,
+    cover: resolveCover(map, tuning),
     nav: createNavGrid(map.width, map.height, solids, tuning),
     eventLog: createEventLog(tuning.eventLogCapacity),
     stepping: false,
@@ -62,12 +69,24 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       bridges: createBridges(map.bridges ?? [], tuning),
       objectives: createObjectives(map.objectives ?? [], tuning),
       capturePoints: createCapturePoints(map.capturePoints ?? []),
+      grenades: [],
       events: [],
       queuedEvents: [],
       missionComplete: null,
     },
   };
   initialVehicles(world);
+  // (07-d) Enemy squads ([D44]): AI soldiers on the enemy team, in map order.
+  spawnSquads(world, ({ id, squad, role, position, facing }) => {
+    const s = createSoldier(id, Number(id.slice(1)), squad.id, position, facing, tuning, {
+      roleId: role,
+      team: 'enemy',
+    });
+    quantizeSoldier(s);
+    world.state.soldiers.push(s);
+    return s;
+  });
+  world.state.soldiers.sort((a, b) => compareIds(a.id, b.id));
   return world;
 }
 
@@ -138,24 +157,8 @@ export function getSoldier(world: World, id: SoldierId): SoldierState | undefine
   return world.state.soldiers.find((s) => s.id === id);
 }
 
-/**
- * (05-b) Cached id → soldier map per soldiers array. Soldiers are only ever appended (spawns)
- * and mutated in place, and a restored snapshot brings a new array, so (array, length) is a
- * safe cache key.
- */
-const soldierIndexCache = new WeakMap<
-  readonly SoldierState[],
-  { len: number; byId: Map<SoldierId, SoldierState> }
->();
-
-export function soldierIndex(soldiers: readonly SoldierState[]): Map<SoldierId, SoldierState> {
-  const hit = soldierIndexCache.get(soldiers);
-  if (hit && hit.len === soldiers.length) return hit.byId;
-  const byId = new Map<SoldierId, SoldierState>();
-  for (const s of soldiers) byId.set(s.id, s);
-  soldierIndexCache.set(soldiers, { len: soldiers.length, byId });
-  return byId;
-}
+import { soldierIndex } from './soldier-index';
+export { soldierIndex };
 
 /** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */
 export function setSoldierFlags(world: World, id: SoldierId, flags: SoldierFlags): void {
@@ -192,9 +195,10 @@ export interface StepHooks {
  */
 export function step(
   world: World,
-  inputs: ReadonlyMap<SoldierId, SoldierInput>,
+  liveInputs: ReadonlyMap<SoldierId, SoldierInput>,
   hooks: StepHooks = {},
 ): SimEvent[] {
+  let inputs = liveInputs;
   const st = world.state;
   const t = world.tuning;
   world.stepping = true;
@@ -202,12 +206,35 @@ export function step(
   st.events = st.queuedEvents;
   st.queuedEvents = [];
 
+  // (07-d) AI soldiers decide on the world as it stood at the end of the last tick, then move
+  // and act through exactly the same code as the live soldier ([D44]).
+  const ai = stepAi(world);
+  if (ai.size > 0) {
+    const merged = new Map(inputs);
+    for (const [id, input] of ai) if (!merged.has(id)) merged.set(id, input);
+    inputs = merged;
+  }
   let solids = currentSolids(world);
+  // (07-e) Where uncontrolled soldiers (echoes) start the tick, to know how fast they move.
+  const n = st.soldiers.length;
+  const prevX = new Float64Array(n);
+  const prevY = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    prevX[i] = st.soldiers[i]!.x;
+    prevY[i] = st.soldiers[i]!.y;
+  }
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
     stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
   }
   hooks.moveUncontrolled?.(world, solids);
+  const walk = t.soldier.speed / 60;
+  for (let i = 0; i < n; i++) {
+    const s = st.soldiers[i]!;
+    if (!s.alive || s.controllable) continue;
+    const moved = Math.hypot(s.x - prevX[i]!, s.y - prevY[i]!);
+    s.moveFrac = Math.min(t.soldier.sprintMultiplier, moved / walk);
+  }
   separateSoldiers(st.soldiers, solids, t);
   for (const s of st.soldiers) if (s.alive) quantizeSoldier(s);
   hooks.afterMovement?.(world);
@@ -221,11 +248,12 @@ export function step(
     const input = inputs.get(s.id) ?? IDLE_INPUT;
     if (input.interact && !s.interactHeld) interact(world, s);
     s.interactHeld = input.interact;
-    if (input.fire) trySoldierFire(world, s, input.aim);
+    soldierAttack(world, s, input);
   }
 
   stepTurrets(world);
   stepMines(world);
+  stepGrenades(world);
   stepTraffic(world);
   stepBridges(world);
 
@@ -256,6 +284,7 @@ export function getView(world: World): WorldView {
   const { map, state: st, tuning } = world;
   const lanes = (map.trafficLanes ?? []).map((d) => laneInfo(d, tuning));
   const windupTotal = Math.max(1, secondsToTicks(tuning.turret.windupSeconds));
+  const grenadeFuseTotal = Math.max(1, secondsToTicks(tuning.grenade.fuseSeconds));
   return {
     tick: st.tick,
     soldiers: st.soldiers.map((s) => ({
@@ -268,10 +297,25 @@ export function getView(world: World): WorldView {
       hp: s.hp,
       maxHp: tuning.soldier.maxHp,
       alive: s.alive,
-      role: s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static'),
+      role:
+        s.team === 'enemy'
+          ? 'enemy'
+          : (s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static')),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
+      ...(s.roleId ? { roleId: s.roleId } : {}),
+      ...(s.windupTicks > 0 ? { windup: windupProgress(world, s), windupAim: s.windupAim } : {}),
+      ...aimView(world, s),
     })),
+    grenades: (st.grenades ?? []).map((g) => ({
+      kind: 'grenade',
+      id: g.id,
+      x: g.x,
+      y: g.y,
+      z: g.z,
+      fuse: 1 - g.fuseTicks / grenadeFuseTotal,
+    })),
+    coverArcs: liveCoverArcs(world),
     turrets: (map.turrets ?? []).map((def, i) => {
       const tu = st.turrets[i]!;
       return {
@@ -388,8 +432,49 @@ export function getView(world: World): WorldView {
   };
 }
 
+/** (07-c) Aim feedback for the live soldier only ([D39], [D40]): spread, mount progress. */
+function aimView(
+  world: World,
+  s: SoldierState,
+): { aimSpread?: number; mount?: number; mounted?: boolean } {
+  const live =
+    s.alive &&
+    s.team === undefined &&
+    (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined));
+  if (!live) return {};
+  const out: { aimSpread?: number; mount?: number; mounted?: boolean } = {
+    aimSpread: currentSpread(world, s, s.facing),
+  };
+  if (s.braceId !== null && s.mountTicks > 0) {
+    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning));
+    out.mounted = mountBonus(world, s, s.facing);
+  }
+  return out;
+}
+
+/** (07-c) Cover arcs around the live soldier ([D34]): partial cover, walls and closed gates. */
+function liveCoverArcs(world: World): CoverArc[] {
+  const live = world.state.soldiers.find(
+    (s) =>
+      s.alive &&
+      s.team === undefined &&
+      (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined)),
+  );
+  if (!live) return [];
+  const r = world.tuning.cover.indicatorRadius;
+  const pieces: { rect: Rect; value: number }[] = [
+    ...world.cover.map((c) => ({ rect: c.rect, value: c.bullet })),
+    ...world.map.walls.map((rect) => ({ rect, value: 1 })),
+    ...dynamicBlockers(world)
+      .filter((b) => b.blocksShots)
+      .map((b) => ({ rect: b.rect, value: 1 })),
+  ];
+  return coverArcs(live, pieces, r);
+}
+
 export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';
-export { fireRifle, trySoldierFire, castRay, hasLineOfSight } from './combat/shots';
+export { fireRifle, castRay, hasLineOfSight } from './combat/shots';
+export { fireGun, trySoldierFire } from './combat/guns';
 export { interact } from './entities/lever';
 export { isSpawnPointOpen } from './world/spawn-points';
 export { findPath, isWalkable, isSegmentWalkable, pathLength, syncNav } from './world/nav';

@@ -3,7 +3,7 @@
  * waypoints, plus its actions indexed by tick. Derived from a `SoldierRecord`, immutable, never
  * part of world state (snapshots don't need it: it's rebuilt from the records).
  */
-import type { RecordedAction, SoldierRecord, Waypoint } from '../../contracts/mission';
+import type { RecordedAction, RoleId, SoldierRecord, Waypoint } from '../../contracts/mission';
 import { quantizeFacing, quantizePosition } from '../../contracts/quantize';
 import type { Tick } from '../core/time';
 import { wrapAngle } from '../core/vec';
@@ -12,6 +12,8 @@ export interface Schedule {
   readonly id: string;
   readonly ordinal: number;
   readonly spawnPointId: string;
+  /** (07-c) The soldier's role ([D36]). */
+  readonly roleId?: RoleId;
   /** First recorded tick: the soldier's first pose (spawn pose for a new soldier). */
   readonly spawnTick: Tick;
   /** Last recorded tick (inclusive). After it, an alive echo turns static ([D4]). */
@@ -64,6 +66,7 @@ export function buildSchedule(rec: SoldierRecord): Schedule {
     id: rec.id,
     ordinal: rec.ordinal,
     spawnPointId: rec.spawnPointId,
+    ...(rec.roleId ? { roleId: rec.roleId } : {}),
     spawnTick,
     endTick,
     waypoints,

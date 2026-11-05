@@ -119,6 +119,99 @@ revise with justification in a PR).
   direction ([D27]), with contact within seconds ([D28]). mission-01 and mission-02 were removed
   because they were too big and slow. Old saves for them are ignored.
 
+## Cover, roles and weapons (PHASE07-c, owner session 2026-11)
+
+- **[D32] Real-time cover with two numbers.** Every cover piece has the share of **straight shots**
+  (bullets, fragments) it stops and the share of **lobbed** objects (grenades) it stops, 0–100 %.
+  Most things are 100 % or 50 %. Materials set both: chain-link fence 10 % / 50 %, sandbags
+  50 % / 15 %, half wall 60 % / 15 %, window 30 % / 40 %, crate 75 % / 30 %, bunker window
+  90 % / 70 % (`tuning.cover.materials`; a map may override either number per piece). Solid walls
+  are 100 % / 100 %. A bullet that crosses a cover piece is stopped with that probability. Cover
+  is directional by nature: only shots that actually cross it are affected. Cover blocks movement
+  like a wall. Breach's sandbags are 50 %.
+- **[D33] Cover also hides you.** Cover blocks the same share of vision as of bullets: you see
+  clearly up to the cover, and the rest of your sight range past it is cut by its value. After
+  cover of value c at distance d, sight reaches `d + (range − d) × (1 − c)`. Example: 50 m sight,
+  50 % cover at 30 m → the last 20 m become 10 m, so you see 10 m past the cover. So a turret can still shoot
+  at a soldier hugging the far side of half cover, but won't spot one standing well back from it.
+- **[D34] Cover indicator: arcs.** The soldier you control shows an arc toward each nearby piece
+  of cover (or wall), darker and thicker for better cover: a solid wall to the east is a hard `)`,
+  a fence to the west a faint `(`. Echoes don't show it.
+- **[D35] Firing over cover, and accuracy.** A shooter standing right next to cover that isn't
+  solid (below 100 %) fires over it: that piece doesn't stop their shots or their sight. There's
+  no per-piece "can fire over" property. All soldiers are less accurate while moving (spread
+  grows with speed; standing still is exact).
+- **[D36] Roles.** Picked per new soldier on the respawn screen, no limits on how many of each.
+  Each role has a spawn cost: the Rifleman is free, the others will cost something, but every cost
+  is 0 for now and nothing spends them yet. A resumed soldier keeps their role; quick redeploy
+  reuses the last role picked. **No Medic** (too easy to exploit). First roles: Rifleman and
+  Grenadier.
+- **[D37] Grenadier: frag grenades.** Hold fire to wind up (a ring fills); the further you aim,
+  the longer the wind-up, and releasing early throws shorter. Throws scatter more while moving.
+  Grenades have a simulated height: they arc, bounce off the ground and off cover (with speed
+  carried from before the bounce), roll, and explode on a fuse. Explosions are a small central
+  blast plus fragments that fly like bullets. **Grenades hurt your own soldiers too**, echoes
+  included (an exception to [D13]: that's the risk/reward). Cover stops airborne grenades by its
+  lobbed number; you can miss the window.
+- **[D39] Spread and recoil for every gun.** Each shot goes out at a random angle within the
+  gun's current cone: resting spread + a movement penalty + recoil. Every shot adds recoil and
+  it recovers over time, so tapping stays accurate and holding the trigger sprays. Everything
+  gets recoil (rifle, MG, turrets), all tunable (`tuning.rifle`, `tuning.mg`, `tuning.turret`).
+  The MG's recoil is much larger than the rifle's, except when mounted. **The reticle is the
+  cone:** the reticle itself grows to fit the current spread at its distance, so it grows when
+  you aim further away, when you move, and during sustained fire ([D43]).
+- **[D40] Machine Gunner.** A third role with an MG: fast fire, big spread and recoil. Standing
+  still right next to non-solid cover mounts it: a ring fills around the reticle (0.6 s), then
+  the spread and recoil drop sharply and the reticle turns cyan. The bonus only applies when
+  firing **across** the cover you're braced on. Moving unmounts at once. No ammo or reloading
+  yet (they come later, for every gun).
+- **[D41] Phone controls and auto-aim (PHASE07-b).** Touch devices default to touch controls
+  plus auto-aim; desktop to keyboard/mouse with manual aim. Both are settings (Controls group).
+  Touch: a floating move stick on the left, an aim stick on the right when auto-aim is off
+  (pushed far, it fires), a fire button, an interact button only near a lever, a settings
+  button. Auto-aim picks a target in weapon range with a clear line (a turret winding up on you
+  first, then the nearest), sticks with it, and fires by itself or while you hold fire
+  (setting). What's recorded is still the actual shot ([E1]).
+- **[D43] One aim indicator, a calm camera.** The reticle is the only aim indicator: no range
+  ring around the soldier, no separate spread circle, no target brackets. It grows with the
+  spread ([D39]). With auto-aim it slides out along the line to the target and stops just short
+  of it, which shows who's targeted. The MG mount ring and cyan tint stay ([D40]). Under
+  auto-aim the camera's look-ahead eases toward the aim (~0.6 s) instead of snapping when the
+  target changes.
+- **[D42] Results screen with the whole mission replaying (PHASE07-a).** When a mission is won,
+  the stats, a play-style radar and personal bests show over a replay of the whole battle with
+  every life at once. The camera frames every soldier in action and zooms with the group. Play/
+  pause, 1×/2×/4×, a scrub bar marked with deaths, captures, kills and the win, skip to end,
+  Watch again, Play again. Quiet stretches fast-forward (setting).
+- **[D44] Enemy soldiers are our soldiers, AI-driven (PHASE07-d).** Same roles, same stats,
+  same code: an enemy soldier is a soldier on the other team whose input comes from an AI brain
+  instead of a player (ready for human opponents later). **No respawns**: that's what makes the
+  player different. You are vastly outnumbered: lots of enemies to slog through. Enemies far from
+  any of our soldiers are dormant (cheap), so maps can hold a lot of them.
+- **[D45] Enemy soldiers retake capture points.** Alone on a point, they take it back a stage at a
+  time at the same rate we capture; anyone of both sides present contests it.
+- **[D46] AI behaviour, by role.** One brain, a personality per role (`roles.ts` → `ai`): cover
+  preference, preferred range, aggression, bravery (danger tolerance), retreat HP, **chase
+  leash** (per role), burst discipline, and the threat it poses. It paths through the level,
+  scatters from grenades, retreats/regroups when badly hurt or outnumbered, takes nearby cover
+  (or keeps fighting if cover is far), stops to steady its aim in range, approaches targets out
+  of range within its leash. Threat values make overwhelming danger (e.g. tanks later) scary.
+- **[D47] Deliberately imperfect AI, tunable.** A reaction delay before firing at a new target
+  and a small aim error on top of the gun's own spread (`tuning.ai`).
+- **[D48] Traffic is a finite loop.** Each lane has a fixed pool of cars driving a big hidden
+  loop (same rhythm as before); a destroyed car never comes back.
+- **[D49] Sprint (PHASE07-e).** Hold Shift (touch: the RUN button) to move 1.6× faster. While
+  sprinting you can't fire or throw, and your reticle blooms. Enemy soldiers sprint too (same
+  rules): to cover while under fire, away from grenades, and on a retreat.
+- **[D50] AI aim suffers against moving targets.** On top of its base aim error, an AI soldier's
+  aim jitters by `ai.movingTargetError` × how fast its target moves (a walk = 1, a sprint more).
+  Sprinting to cover, or sprinting across an MG's view to draw its fire, are real options.
+- **[D38] An indoor mission as a cover proof of concept.** mission-04 "Compound": a yard with a
+  fence, crates and sandbags, a building with windows, a door and half walls, and a bunker with
+  an armored slit. A separate playable mission (more missions are coming); Breach stays the
+  default and the template. Machine guns (steadied on cover), mortars and enemy soldiers come
+  after cover.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -156,6 +249,11 @@ revise with justification in a PR).
   via soft separation.
 - **[E9] Storage may move to IndexedDB** if a large army's recordings outgrow localStorage. Same
   intent as [D20].
+- **[E10] Outcome rolls are hashes, not a random stream (PHASE07-c).** Each cover roll, moving
+  spread and fragment ring rotation is `hash(shooter, tick, cover id …)`. The same shot through
+  the same cover gets the same answer in every replay, however much else in history changed;
+  a shared PRNG stream would reshuffle every later roll after any change. Recordings store the
+  final shot angle and throw (angle + distance), so spread is never re-rolled for echoes ([E1]).
 
 ---
 
@@ -227,3 +325,48 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   remembered while the page is open). Tall maps (a vertical strip) fit beside the spawn list, so
   they're always shown. Alternatives: default to the map on phones, or a smaller always-visible
   map that shrinks the timeline. Desktop shows all three. (`respawn.showMap` hides the map.)
+- **[Q18] Fire over cover: who and how close (PHASE07-c)?** Implemented: anyone (soldiers and
+  turrets) whose centre is within `cover.fireOverDistance` (30, about a soldier's width) of a
+  piece below `cover.fireOverBelow` (1 = anything not solid) ignores it, for their shots and
+  sight. Set `fireOverBelow` to 0.9 for the "≤ 90 %" variant. Grenade fragments never fire over.
+- **[Q20] Grenade details (PHASE07-c).** Implemented: the Grenadier carries only grenades
+  (unlimited, a 0.6 s cooldown, no rifle); the throw lands at the cursor (clamped to 60–420
+  units); releasing early throws the wound-up share of that distance; the fuse runs from the throw
+  (2.2 s); a **rolling** grenade is always stopped by cover (only airborne grenades get the lobbed
+  roll); a grenade thrown from right next to cover clears it like a shot fires over it.
+  Questions: a sidearm or limited grenades? Fuse from the throw or from landing ("cook" it by
+  holding)? Should grenades set off when they hit a soldier?
+- **[Q22] Auto-aim echoes (PHASE07-b).** An auto-aimed life replays its recorded shots like any
+  echo (`echo.autoAimReplay: 'recorded'`, the only value). Design doc §05 floats the
+  alternative: auto-aim echoes re-target whatever is valid now. Not built.
+- **[Q23] Radar axes (PHASE07-a, [D18]).** Provisional, each 0–1: Speed (1 at ≤ 60 s battle
+  time, 0 at ≥ 6 min), Economy (1 soldier → 1, 40+ → 0), Teamwork (rescues per soldier, 1 at ≥
+  0.5), Aggression (hazards destroyed per life, 1 at ≥ 2), Survival (average life, 1 at ≥ 60 s),
+  Tactics (captures + lever uses per life, 1 at ≥ 1). All in `src/ui/results/results-model.ts`;
+  the radar can be turned off (`results.radar`). Redefine as you like.
+- **[Q24] Replay framing (PHASE07-a).** The camera frames soldiers still following their
+  recording (echoes); soldiers who already ended alive (O statics) aren't framed, so it follows
+  the action. Deaths, captures and the win stay in frame for 1.5 s; the objective joins the
+  framing in the last 3 s. A seek is a cut (no glide).
+- **[Q25] Lost capture points in the timeline (PHASE07-d).** Enemy soldiers retake points in
+  the sim ([D45]): the forward spawn closes then, and recorded soldiers due to spawn there after
+  the loss never spawn ([D26]). The capture truth and the respawn screen don't show losses yet
+  (they assume a captured point stays captured), so a forward spawn may still be offered after
+  the point would be lost; deploying there bounces with "History shifted". Wanted: a "point
+  lost at t" entry that closes the forward option from that tick.
+- **[Q26] Dormancy is by distance, not camera (PHASE07-d).** "Inactive when far off camera" is
+  implemented as "no soldier of ours (live or echo) within `ai.wakeRadius` (900)", sleeping
+  again beyond `ai.sleepRadius` (1300). The camera isn't part of the sim, and background resolves
+  (which have no camera) must agree with what you saw. Echoes far ahead wake enemies there too.
+- **[Q27] Scripted dev stories and enemies.** The Breach autoplay stories and the older scripted
+  tests were written before enemies; they run with `ai.enabled: false` (`&enemies=1` keeps the
+  squads in autoplay). New stories with enemies would need new scripts.
+- **[Q28] Sprint limits (PHASE07-e).** Sprint is unlimited for now. Options: stamina (a few
+  seconds, then recover), a slower turn rate while sprinting, or louder (wakes enemies further).
+- **[Q29] Turrets vs moving targets (PHASE07-e).** Only AI soldiers get the moving-target penalty
+  ([D50]); turrets still track and hit perfectly (their telegraph is the counterplay). Should
+  turrets miss moving targets too?
+- **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
+  soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
+  Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
+  sandbag positions if so.

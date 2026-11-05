@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MISSION, findMap, MISSIONS, missionOrDefault } from '../../content/maps';
 import { M3, MISSION_03 } from '../../content/maps/mission-03';
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import { outcomeHash } from '../attempt/outcome-hash';
 import { SnapshotStore } from '../attempt/snapshots';
 import { ArmyBuilder } from '../bots/army';
@@ -58,9 +58,9 @@ const forwardTick = (w: World) =>
   w.state.capturePoints.find((c) => c.id === 'cp-forward')!.capturedTick;
 
 describe('mission-03 layout', () => {
-  it('is the only mission ([D31]); anything else falls back to it', () => {
+  it('is the default mission ([D31]); anything unknown falls back to it', () => {
     expect(DEFAULT_MISSION.id).toBe('mission-03');
-    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03']);
+    expect(MISSIONS.map((m) => m.id)).toEqual(['mission-03', 'mission-04']);
     expect(missionOrDefault(null).id).toBe('mission-03');
     expect(missionOrDefault('nonsense').id).toBe('mission-03');
     // Removed missions (a remembered pick, an old link) fall back too.

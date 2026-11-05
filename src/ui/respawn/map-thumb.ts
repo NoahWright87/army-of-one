@@ -44,6 +44,10 @@ export function mapThumbSvg(map: MapDef, o: ThumbOptions): string {
     `<rect class="th-bg" x="0" y="0" width="${W}" height="${H}"/>` +
     rects(map.water, 'th-water') +
     rects(map.walls, 'th-wall') +
+    rects(
+      (map.cover ?? []).map((c) => c.rect),
+      'th-cover',
+    ) +
     points +
     `</svg>`
   );

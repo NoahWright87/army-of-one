@@ -1,5 +1,6 @@
 import type {
   RecordingSegment,
+  RoleId,
   SoldierId,
   SoldierRecord,
   SpawnPointId,
@@ -19,7 +20,7 @@ export function recordedTo(rec: SoldierRecord): Tick {
  */
 export function addSegment(
   records: readonly SoldierRecord[],
-  live: { soldierId: SoldierId; spawnPointId?: SpawnPointId; ordinal?: number },
+  live: { soldierId: SoldierId; spawnPointId?: SpawnPointId; ordinal?: number; roleId?: RoleId },
   segment: RecordingSegment,
 ): SoldierRecord[] {
   const existing = records.find((r) => r.id === live.soldierId);
@@ -39,6 +40,7 @@ export function addSegment(
       ordinal: live.ordinal ?? ordinalOf(live.soldierId, records.length + 1),
       spawnPointId: live.spawnPointId,
       spawnTick: segment.startTick,
+      ...(live.roleId && live.roleId !== 'rifleman' ? { roleId: live.roleId } : {}),
       segments: [segment],
     };
   }

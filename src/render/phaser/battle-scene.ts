@@ -10,7 +10,7 @@ import { buildHudModel } from '../../ui/hud/hud-model';
 import { capLookAhead, lookAheadOffset } from '../camera-look-ahead';
 import type { Cue } from '../event-cues';
 import type { InputSource } from '../input/input-source';
-import { smoothFollow } from '../interp';
+import { lerpAngle, smoothFollow } from '../interp';
 import type { BattleSession, SceneServices } from './services';
 import { SoundBank } from './sound-bank';
 import { WorldRenderer } from './world-renderer';
@@ -18,6 +18,8 @@ import { WorldRenderer } from './world-renderer';
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
 const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
 const HASH_EVERY_FRAMES = 30;
+/** (07-b) Time constant of the look-ahead easing under auto-aim. */
+const LOOK_AIM_EASE_MS = 600;
 
 /**
  * Runs one battle: fixed-step sim (60 Hz, [E6]) + interpolated rendering + HUD.
@@ -43,6 +45,8 @@ export class BattleScene extends Phaser.Scene {
   private frame = 0;
   private hash = '';
   private lastInput: SoldierInput = IDLE_INPUT;
+  /** (07-b) The aim the camera looks ahead along (eased under auto-aim). */
+  private lookAim: number | null = null;
   private ghost!: Phaser.GameObjects.Graphics;
   /** (06-c) The first update after create: its delta covers scene creation, not play. */
   private firstFrame = true;
@@ -72,6 +76,7 @@ export class BattleScene extends Phaser.Scene {
     const driver = this.session.driver;
     this.view = driver ? driver.view() : getView(this.world);
     this.prevView = this.view;
+    this.source.observe?.(this.view);
     // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
     const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
     this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
@@ -96,6 +101,7 @@ export class BattleScene extends Phaser.Scene {
     this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
     this.ghost = this.add.graphics().setDepth(1000);
     this.firstFrame = true;
+    this.lookAim = null;
     this.hudView = null;
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
@@ -164,6 +170,7 @@ export class BattleScene extends Phaser.Scene {
       simThisFrame += dt;
       this.stepMs = ema(this.stepMs, dt, 0.05);
       this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
+      this.source.observe?.(this.view);
       if (this.countdownTicks !== null) this.countdownTicks--;
     }
 
@@ -182,7 +189,16 @@ export class BattleScene extends Phaser.Scene {
       const counting = (driver?.countdown() ?? 0) > 0;
       const facing =
         this.view.soldiers.find((s) => s.id === this.liveId)?.facing ?? this.homeFacing;
-      const goal = this.lookAhead(target, counting ? facing : this.lastInput.aim);
+      // (07-b) Auto-aim jumps between targets: ease the look-ahead toward the aim instead of
+      // snapping the view ([D43]). Mouse aim follows the hand, so it stays direct.
+      const aim = counting ? facing : this.lastInput.aim;
+      if (this.source.aimTarget) {
+        const k = 1 - Math.exp(-deltaMs / LOOK_AIM_EASE_MS);
+        this.lookAim = this.lookAim === null ? aim : lerpAngle(this.lookAim, aim, k);
+      } else {
+        this.lookAim = aim;
+      }
+      const goal = this.lookAhead(target, this.lookAim);
       this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
     }
     cam.centerOn(this.cam.x, this.cam.y);

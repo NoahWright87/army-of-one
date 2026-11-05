@@ -3,6 +3,11 @@ import type { Tick } from '../sim/core/time';
 export type SoldierId = string; // "S1", "S2", ... allocated in spawn order
 export type SpawnPointId = string;
 export type MissionId = string;
+/**
+ * (07-c) A soldier's role, picked per new soldier on the respawn screen ([D36]). A resumed
+ * soldier keeps theirs. Absent on a record means 'rifleman' (records from before 07-c).
+ */
+export type RoleId = 'rifleman' | 'grenadier' | 'gunner';
 
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 
@@ -17,6 +22,8 @@ export interface Waypoint {
 /** Discrete recorded actions. Outcomes (hits, damage, deaths) are NOT recorded: they're re-simulated [E3]. */
 export type RecordedAction =
   | { kind: 'shot'; t: Tick; x: number; y: number; angle: number }
+  /** (07-c) A grenade throw: where it left from, its final angle and throw distance ([D37]). */
+  | { kind: 'throw'; t: Tick; x: number; y: number; angle: number; distance: number }
   | {
       kind: 'interact';
       t: Tick;
@@ -42,6 +49,8 @@ export interface SoldierRecord {
   ordinal: number; // 1-based, for "Soldier 3"
   spawnPointId: SpawnPointId;
   spawnTick: Tick; // === segments[0].startTick
+  /** (07-c, additive) Absent = 'rifleman'. */
+  roleId?: RoleId;
   segments: RecordingSegment[]; // contiguous: segments[i+1].startTick === segments[i].endTick + 1
 }
 
@@ -166,6 +175,8 @@ export interface InProgressLife {
   segmentSoFar: RecordingSegment; // endReason 'suspended'
   /** (PHASE04, additive) Spawn point of a 'new' life: its record doesn't exist yet. */
   spawnPointId?: SpawnPointId;
+  /** (07-c, additive) Role of a 'new' life ([D36]). Absent = rifleman. */
+  roleId?: RoleId;
 }
 
 export interface MissionState {

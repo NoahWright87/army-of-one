@@ -5,12 +5,13 @@ import { aimAngle, moveFromKeys, PressLatch } from './input-math';
 import type { InputSource } from './input-source';
 
 /**
- * Keyboard + mouse: WASD/arrows move, mouse aims, LMB/Space fire (hold for auto), E interact.
+ * Keyboard + mouse: WASD/arrows move, mouse aims, LMB/Space fire (hold for auto), E interact,
+ * Shift sprint (07-e).
  * Presses shorter than a tick are latched so they still register once.
  */
 export class KeyboardMouseInput implements InputSource {
   private readonly keys: Record<
-    'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'e' | 'space',
+    'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'e' | 'space' | 'shift',
     Phaser.Input.Keyboard.Key
   >;
   private readonly interactLatch = new PressLatch();
@@ -34,6 +35,7 @@ export class KeyboardMouseInput implements InputSource {
         d: K.D,
         e: K.E,
         space: K.SPACE,
+        shift: K.SHIFT,
       },
       true,
     ) as KeyboardMouseInput['keys'];
@@ -60,12 +62,16 @@ export class KeyboardMouseInput implements InputSource {
     });
     const tapped = this.fireLatch.consume();
     const held = this.scene.input.activePointer.leftButtonDown() || k.space.isDown;
+    const pointer = this.pointerWorld();
     return {
       move,
-      aim: aimAngle(soldierPos, this.pointerWorld()),
+      aim: aimAngle(soldierPos, pointer),
+      // (07-c) The Grenadier throws to the cursor ([D37]).
+      aimDistance: Math.hypot(pointer.x - soldierPos.x, pointer.y - soldierPos.y),
       fire: held || tapped,
       // Interact is edge-triggered in the sim: true on exactly one tick per press.
       interact: this.interactLatch.consume(),
+      ...(k.shift.isDown ? { sprint: true } : {}),
     };
   }
 

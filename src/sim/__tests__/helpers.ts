@@ -5,6 +5,12 @@ import type { SimEvent } from '../events';
 import { createWorld, spawnSoldier, step, type SpawnOptions, type World } from '../sim';
 import { borderWalls, type MapDef } from '../world/map';
 
+/**
+ * (07-d) The pre-enemy rules: the maps' enemy squads stay home. The scripted Breach stories
+ * (echo mechanics, captures, timelines) are about history, not about fighting soldiers.
+ */
+export const CLASSIC_TUNING: Tuning = withTuning(DEFAULT_TUNING, { ai: { enabled: false } });
+
 /** A 1000×1000 walled arena with one spawn point; pass entities/walls to add. */
 export function arena(extra: Partial<MapDef> = {}): MapDef {
   return {

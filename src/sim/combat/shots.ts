@@ -1,11 +1,12 @@
-import { secondsToTicks } from '../core/time';
 import { distance, fromAngle, type Vec2 } from '../core/vec';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, type SoldierState } from '../entities/soldier';
+import { isEligible, teamOf, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
+import { coverCrossings, coverStops } from '../world/cover';
+import { hash01 } from '../core/hash';
 import {
   damageCharge,
   damageObjective,
@@ -20,7 +21,8 @@ import {
  * own side ([D13]: no friendly fire), so player shots never touch soldiers and turret shots never
  * touch turrets, mines or charges.
  */
-export type Team = 'player' | 'enemy';
+export type Team = 'player' | 'enemy' | 'neutral';
+/* (07-c) 'neutral' shots (grenade fragments) hit everyone: soldiers and enemy targets alike. */
 
 /** What a ray stopped on. `index` points into the matching `world.state` array. */
 export type RayTarget =
@@ -48,6 +50,14 @@ export interface RayOptions {
    * since it computed them (e.g. within one turret step). Default: computed here.
    */
   blockers?: readonly Blocker[];
+  /**
+   * (07-c) Roll partial cover ([D32]) with this key (e.g. "S3@512"): each cover piece crossed
+   * stops the ray with probability `bullet`. Without a key, partial cover is see-through
+   * (sight past cover is `seesThroughCover`'s job).
+   */
+  coverKey?: string;
+  /** (07-c) Default true: ignore cover the origin can fire over. Fragments pass false. */
+  fireOver?: boolean;
 }
 
 /**
@@ -74,6 +84,15 @@ export function castRay(
   };
 
   for (const w of map.walls) consider(rayRect(from, dir, w), { kind: 'wall' });
+  if (opts.coverKey !== undefined) {
+    for (const c of coverCrossings(world.cover, from, dir, best, tuning, 'bullet', opts.fireOver)) {
+      if (c.distance >= best) break;
+      if (coverStops(opts.coverKey, c.piece.id, c.piece.bullet)) {
+        consider(c.distance, { kind: 'cover', id: c.piece.id });
+        break;
+      }
+    }
+  }
   for (const b of opts.blockers ?? dynamicBlockers(world)) {
     if (b.blocksShots && b.id !== opts.ignoreId) {
       consider(rayRect(from, dir, b.rect), { kind: 'cover', id: b.id });
@@ -95,7 +114,7 @@ export function castRay(
     consider(rayCircle(from, dir, def.position, r), { kind: 'objective', id: def.id, index });
   });
 
-  if (team === 'player') {
+  if (team !== 'enemy') {
     (map.turrets ?? []).forEach((def, index) => {
       if (st.turrets[index]!.mode === 'destroyed' || def.id === opts.ignoreId) return;
       const t = rayCircle(from, dir, def.position, tuning.turret.radius);
@@ -111,9 +130,12 @@ export function castRay(
       const t = rayCircle(from, dir, def.charge, tuning.bridge.chargeRadius);
       consider(t, { kind: 'charge', id: def.id, index });
     });
-  } else if (!opts.ignoreSoldiers) {
+  }
+  if (!opts.ignoreSoldiers) {
+    // (07-d) Soldiers of the other team ([D44]); neutral rays (fragments) hit everyone.
     st.soldiers.forEach((s, index) => {
       if (!isEligible(s) || s.id === opts.ignoreId) return;
+      if (team !== 'neutral' && teamOf(s) === team) return;
       const t = rayCircle(from, dir, s, tuning.soldier.hitboxRadius);
       consider(t, { kind: 'soldier', id: s.id, index });
     });
@@ -143,6 +165,8 @@ export function hasLineOfSight(
 
 export interface ShotParams {
   by: string;
+  /** (07-c) Entity the ray starts inside and passes (default `by`, the shooter). */
+  ignoreId?: string;
   team: Team;
   from: Vec2;
   angle: number;
@@ -150,6 +174,12 @@ export interface ShotParams {
   damage: number;
   /** Death cause if this shot kills a soldier. */
   cause: string;
+  /** (07-c) Cover roll key; default `${by}@${tick}`. Must be unique per shot within a tick. */
+  coverKey?: string;
+  /** (07-c) Default true: the shooter fires over cover right next to it. */
+  fireOver?: boolean;
+  /** (07-c) Don't emit `shotFired` (fragments emit their own event). */
+  silent?: boolean;
 }
 
 export interface ShotResult {
@@ -160,29 +190,33 @@ export interface ShotResult {
 
 /** Resolves one hitscan shot: ray cast, `shotFired` event, then damage to an opposing target. */
 export function fireShot(world: World, p: ShotParams): ShotResult {
-  const hit = castRay(world, p.from, p.angle, p.range, p.team, { ignoreId: p.by });
+  const hit = castRay(world, p.from, p.angle, p.range, p.team, {
+    ignoreId: p.ignoreId ?? p.by,
+    coverKey: p.coverKey ?? `${p.by}@${world.state.tick}`,
+    ...(p.fireOver === false ? { fireOver: false } : {}),
+  });
   const end = fromAngle(p.angle, hit.distance);
   const tgt = hit.target as RayTarget | null;
   const hitId = tgt && 'id' in tgt ? tgt.id : undefined;
   const result: ShotResult = { hitX: p.from.x + end.x, hitY: p.from.y + end.y, hitId };
-  emit(world, {
-    kind: 'shotFired',
-    tick: world.state.tick,
-    by: p.by,
-    fromX: p.from.x,
-    fromY: p.from.y,
-    angle: p.angle,
-    hitX: result.hitX,
-    hitY: result.hitY,
-    ...(hitId !== undefined ? { hitId } : {}),
-  });
+  if (!p.silent)
+    emit(world, {
+      kind: 'shotFired',
+      tick: world.state.tick,
+      by: p.by,
+      fromX: p.from.x,
+      fromY: p.from.y,
+      angle: p.angle,
+      hitX: result.hitX,
+      hitY: result.hitY,
+      ...(hitId !== undefined ? { hitId } : {}),
+    });
   if (!tgt || tgt.kind === 'wall' || tgt.kind === 'cover') return result;
-  if (p.team === 'enemy') {
-    if (tgt.kind === 'soldier') {
-      damageSoldier(world, world.state.soldiers[tgt.index]!, p.damage, p.by, p.cause);
-    }
+  if (tgt.kind === 'soldier') {
+    damageSoldier(world, world.state.soldiers[tgt.index]!, p.damage, p.by, p.cause);
     return result;
   }
+  if (p.team === 'enemy') return result;
   switch (tgt.kind) {
     case 'turret':
       damageTurret(world, tgt.index, p.damage, p.by);
@@ -206,7 +240,7 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
 /**
  * Fires the rifle from (x, y) at angle θ. This is THE way soldier shots enter the sim: the live
  * soldier's fire input calls it with its current position and aim, and echoes call it with a
- * recorded angle ([E1]). No cooldown check here (see `trySoldierFire`).
+ * recorded angle ([E1]). No cooldown check here. (07-c) Same as `fireGun(…, 'rifle')`.
  */
 export function fireRifle(world: World, shooterId: string, from: Vec2, angle: number): ShotResult {
   const rt = world.tuning.rifle;
@@ -221,10 +255,17 @@ export function fireRifle(world: World, shooterId: string, from: Vec2, angle: nu
   });
 }
 
-/** Live-fire wrapper: fires from the soldier's position if its rifle is off cooldown. */
-export function trySoldierFire(world: World, s: SoldierState, angle: number): ShotResult | null {
-  if (!isEligible(s) || world.state.tick < s.nextFireTick) return null;
-  s.nextFireTick =
-    world.state.tick + Math.max(1, secondsToTicks(world.tuning.rifle.cooldownSeconds));
-  return fireRifle(world, s.id, s, angle);
+/**
+ * (07-c) A deterministic offset within ± (fullSpread × how much the soldier moved) ([D35]):
+ * used for the Grenadier's throw scatter. Guns use `guns.ts` (spread + recoil).
+ */
+export function movingAimOffset(
+  world: World,
+  s: SoldierState,
+  salt: string,
+  fullSpread: number,
+): number {
+  const spread = fullSpread * s.moveFrac;
+  if (spread <= 0) return 0;
+  return (hash01(`${s.id}@${world.state.tick}:${salt}`) * 2 - 1) * spread;
 }

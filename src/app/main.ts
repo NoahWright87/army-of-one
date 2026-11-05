@@ -4,7 +4,7 @@ import { str, strDynamic } from '../content/strings';
 import type { SpawnOption } from '../contracts/mission';
 import { formatBattleTime } from '../sim/core/time';
 import { resolveRenderScale } from '../render/render-scale';
-import { DEFAULT_TUNING } from '../content/tuning';
+import { DEFAULT_TUNING, withTuning } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
@@ -48,8 +48,39 @@ import { effectiveTuning, tuningSettingDefs } from '../ui/settings/tuning-settin
 import { Autopilot } from './autoplay';
 import { AUTO_LIVES, parseAutoplay } from './autoplay-lives';
 import { createDefaultSession } from './battle-setup';
-import { GameController, type BattleHost, type GameUi, type RespawnHandle } from './game';
-import { cycleSpeed, GAME_SETTING_IDS, gameSettingDefs, resolvePace } from './game-settings';
+import {
+  GameController,
+  type BattleHost,
+  type CompleteResults,
+  type GameUi,
+  type RespawnHandle,
+} from './game';
+import { REPLAY_VERSION, ReplayPlayer } from './replay/replay-player';
+import { ReplayScene, type ReplayControls } from '../render/phaser/replay-scene';
+import { ResultsScreen } from '../ui/results/results-screen';
+import {
+  parseBests,
+  radarAxes,
+  resultStats,
+  scrubMarks,
+  updateBests,
+} from '../ui/results/results-model';
+import {
+  controlScheme,
+  cycleSpeed,
+  GAME_SETTING_IDS,
+  gameSettingDefs,
+  INPUT_SETTING_IDS,
+  inputSettingDefs,
+  resolvePace,
+} from './game-settings';
+import { AutoAimInput, type AutoFireMode } from '../render/input/auto-aim';
+import type { InputSource } from '../render/input/input-source';
+import { TouchInput } from '../render/input/touch-input';
+import { TouchControls } from '../ui/touch/touch-controls';
+import { looksLikeTouch } from '../ui/touch/stick-math';
+import type { MapDef } from '../sim/world/map';
+import type { Tuning } from '../content/tuning';
 import { HeadlessBattleHost } from './headless';
 import { installHotkeys } from './hotkeys';
 import type { LiveRun } from './live-run';
@@ -104,8 +135,20 @@ settings.register(displaySettingDefs());
 settings.register(minimapSettingDefs()); // (06-b)
 settings.register(respawnSettingDefs());
 settings.register(gameSettingDefs());
+settings.register(inputSettingDefs()); // (07-b)
 settings.register(tuningSettingDefs(DEFAULT_TUNING));
 const display = bindDisplaySettings(settings);
+/**
+ * (07-d) The tuning a battle runs with. Enemy squads ([D44]) are on, except for dev autoplay
+ * stories (scripted lives can't fight them): add `&enemies=1` to keep them, `&enemies=0` to
+ * turn them off anywhere.
+ */
+function gameTuning() {
+  const t = effectiveTuning(settings, DEFAULT_TUNING);
+  const flag = params.get('enemies');
+  const off = flag === '0' || (params.has('autoplay') && flag !== '1');
+  return off ? withTuning(t, { ai: { enabled: false } }) : t;
+}
 
 // DOM overlays.
 const uiRoot = document.getElementById('ui-root') ?? document.body;
@@ -118,8 +161,49 @@ const busy = new Busy(uiRoot);
 const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 const complete = new CompleteScreen(uiRoot);
+const results = new ResultsScreen(uiRoot); // (07-a)
 const quickHint = new QuickRedeployHint(uiRoot);
 const panel = new SettingsPanel(uiRoot, settings);
+// (07-b) Touch controls and auto-aim ([D41]).
+const touchDevice = looksLikeTouch({
+  coarse: window.matchMedia?.('(pointer: coarse)').matches ?? false,
+  fine: window.matchMedia?.('(any-pointer: fine)').matches ?? false,
+  maxTouchPoints: navigator.maxTouchPoints ?? 0,
+});
+const touchControls = new TouchControls(uiRoot, () => panel.toggle());
+const scheme = () =>
+  controlScheme(
+    settings.getString(INPUT_SETTING_IDS.mode),
+    settings.getString(INPUT_SETTING_IDS.autoAim),
+    touchDevice,
+  );
+quickHint.setBig(scheme().touch);
+settings.subscribe((id) => {
+  if (id === INPUT_SETTING_IDS.mode || id === INPUT_SETTING_IDS.autoAim) {
+    quickHint.setBig(scheme().touch);
+  }
+});
+/** (07-b) The live soldier's input: keyboard/mouse or touch, optionally wrapped in auto-aim. */
+function makeControls(
+  scene: Phaser.Scene,
+  map: MapDef,
+  tuning: Tuning,
+  liveId: string,
+): InputSource {
+  const sc = scheme();
+  touchControls.setAimStick(!sc.autoAim);
+  touchControls.setVisible(sc.touch);
+  const base: InputSource = sc.touch
+    ? new TouchInput(touchControls, { tuning })
+    : new KeyboardMouseInput(scene);
+  if (!sc.autoAim) return base;
+  return new AutoAimInput(base, {
+    map,
+    tuning,
+    liveId,
+    fireMode: () => settings.getString(INPUT_SETTING_IDS.autoFire) as AutoFireMode,
+  });
+}
 // (06-b) In-game minimap ([D29]).
 const minimap = new Minimap(uiRoot);
 minimap.setSettings(readMinimapSettings(settings));
@@ -150,11 +234,17 @@ const services: SceneServices = {
   leadInHint,
   leadInPreview: () => settings.getBool(GAME_SETTING_IDS.ghostArrow),
   renderScale: () => renderScale,
-  createSession: () =>
-    createDefaultSession(
-      effectiveTuning(settings, DEFAULT_TUNING),
-      (scene) => new KeyboardMouseInput(scene),
-    ),
+  createSession: () => {
+    const tuning = gameTuning();
+    const session = createDefaultSession(tuning, () => {
+      throw new Error('replaced below');
+    });
+    return {
+      ...session,
+      makeInput: (scene: Phaser.Scene) =>
+        makeControls(scene, session.world.map, tuning, session.liveId),
+    };
+  },
 };
 
 // (06-c) The game flow starts at once (title, save loading) while Phaser boots and loads assets
@@ -175,6 +265,7 @@ const game = new Phaser.Game({
     ),
     new BattleScene(services),
     new GalleryScene(services),
+    new ReplayScene(services),
   ],
 });
 
@@ -276,17 +367,24 @@ async function startGame(): Promise<void> {
         },
       };
     },
-    showComplete: (stats, onPlayAgain) => complete.show(stats, onPlayAgain),
+    showComplete: (stats, onPlayAgain, extra) => {
+      if (!extra) {
+        complete.show(stats, onPlayAgain);
+        return;
+      }
+      showResults(extra, onPlayAgain);
+    },
     hideScreens: () => {
       title.hide();
       complete.hide();
+      stopReplay();
     },
     // The HUD already shows "Mission complete" over the field; the caption is for KIA.
     showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
       const on = option && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
-      quickHint.set(on ? quickHintText(option) : null);
+      quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
 
@@ -318,13 +416,77 @@ async function startGame(): Promise<void> {
     if (sleepTimer) clearTimeout(sleepTimer);
     sleepTimer = setTimeout(() => {
       sleepTimer = null;
-      if (!pendingRun && !game.scene.isActive('battle')) game.loop.sleep();
+      if (!pendingRun && !game.scene.isActive('battle') && !game.scene.isActive('replay')) {
+        game.loop.sleep();
+      }
     }, 200);
   };
   // Asleep on the title screen too, once the assets are in.
   void assetsReady.then(() => {
     if (!pendingRun && !game.scene.isActive('battle')) sleepLoopSoon();
   });
+  // (07-a) Results screen over the after-action replay ([D42]).
+  const stopReplay = () => {
+    results.hide();
+    if (game.scene.isActive('replay') || game.scene.isPaused('replay')) game.scene.stop('replay');
+    sleepLoopSoon();
+  };
+  const showResults = (r: CompleteResults, onPlayAgain: () => void) => {
+    const m = r.mission;
+    const endTick = (m.completed?.tick ?? 0) + 2 * 60;
+    const stats = resultStats(m, r.rescues, m.completed?.tick ?? 0);
+    const key = `aoo:bests:${m.missionId}`;
+    let prev = parseBests(null);
+    try {
+      prev = parseBests(window.localStorage.getItem(key));
+    } catch {
+      // No storage (private mode): bests just don't persist.
+    }
+    const upd = updateBests(prev, stats);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(upd.bests));
+    } catch {
+      // ignore
+    }
+    const player = new ReplayPlayer(r.map, r.tuning, {
+      version: REPLAY_VERSION,
+      missionId: m.missionId,
+      soldiers: m.soldiers,
+      endTick,
+      ...(m.completed ? { winnerId: m.completed.bySoldierId } : {}),
+    });
+    let controls: ReplayControls | null = null;
+    results.show(
+      {
+        stats,
+        radar: settings.getBool(GAME_SETTING_IDS.resultsRadar) ? radarAxes(stats, m) : null,
+        bests: upd.bests,
+        improved: upd.improved,
+        marks: scrubMarks(m),
+      },
+      {
+        onWatchAgain: () => controls?.restart(),
+        onPlayAgain: () => {
+          stopReplay();
+          onPlayAgain();
+        },
+      },
+    );
+    void assetsReady.then(() => {
+      if (!results.visible) return;
+      wakeLoop();
+      game.scene.start('replay', {
+        player,
+        objectives: (r.map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
+        insets: () => results.insets(),
+        onReady: (c: ReplayControls) => {
+          controls = c;
+          c.setSkipQuiet(settings.getBool(GAME_SETTING_IDS.replaySkipQuiet));
+          results.attach(c);
+        },
+      });
+    });
+  };
   const startScene = (run: LiveRun) => {
     wakeLoop();
     hud.setVisible(true);
@@ -334,7 +496,8 @@ async function startGame(): Promise<void> {
         liveId: run.liveId,
         driver: run,
         makeInput: (scene: Phaser.Scene) =>
-          autopilot.inputFor(run) ?? new KeyboardMouseInput(scene),
+          autopilot.inputFor(run) ??
+          makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
       },
     });
   };
@@ -351,6 +514,7 @@ async function startGame(): Promise<void> {
     stop: () => {
       pendingRun = null;
       if (game.scene.isActive('battle') || game.scene.isPaused('battle')) game.scene.stop('battle');
+      touchControls.setVisible(false);
       hud.setVisible(false);
       countdown.update(null);
       leadInHint.set(false);
@@ -392,7 +556,7 @@ async function startGame(): Promise<void> {
   let diedAt = -Infinity;
   const controller = new GameController({
     map: MISSION,
-    tuning: () => effectiveTuning(settings, DEFAULT_TUNING),
+    tuning: () => gameTuning(),
     store,
     ui,
     battle,
@@ -414,6 +578,14 @@ async function startGame(): Promise<void> {
     log: (m) => console.warn(`[game] ${m}`),
   });
   autopilot.attach(controller);
+  // (07-b) Tapping the quick-redeploy hint redeploys (the touch death beat's big button).
+  quickHint.onTap = () => {
+    if (!quickHint.visible) return;
+    if (performance.now() - diedAt < settings.getNumber(GAME_SETTING_IDS.quickRedeployGuardMs)) {
+      return;
+    }
+    void controller.quickRedeploy();
+  };
 
   // (06-c) Quick redeploy: R / Space on the death beat or the respawn screen. Capture phase, so a
   // focused button doesn't take the Space first. Held keys (auto-fire on Space) repeat and are
@@ -510,7 +682,7 @@ async function startGame(): Promise<void> {
     busy.set(true, str('busy.stress', { done: 0, total: stress }));
     const gen = await generateStressMission(
       MISSION,
-      effectiveTuning(settings, DEFAULT_TUNING),
+      gameTuning(),
       stress,
       Number(params.get('stressSeed') ?? 1),
       (done, total) => busy.set(true, str('busy.stress', { done, total })),
@@ -525,10 +697,10 @@ async function startGame(): Promise<void> {
 }
 
 /** (06-c) "R / Space: redeploy at Road (0:04)". */
-function quickHintText(option: SpawnOption): string {
-  if (option.kind !== 'new') return str('quick.hintAny');
+function quickHintText(option: SpawnOption, touch = false): string {
+  if (option.kind !== 'new') return touch ? str('touch.redeploy') : str('quick.hintAny');
   const sp = MISSION.spawnPoints.find((p) => p.id === option.spawnPointId);
-  return str('quick.hint', {
+  return str(touch ? 'touch.redeployAt' : 'quick.hint', {
     spawn: sp ? strDynamic(sp.nameKey) : option.spawnPointId,
     time: formatBattleTime(option.entryTick),
   });
