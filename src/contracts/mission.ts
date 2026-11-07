@@ -99,6 +99,40 @@ export interface AttemptObservation {
    * Absent = none observed (same as []).
    */
   captures?: CaptureObservation[];
+  /** (PHASE11) Enemy soldiers/structures lost inside the window, whatever caused it ([D53]). */
+  enemyLosses?: EnemyLossObservation[];
+  /** (PHASE11) Capture points that stopped being ours inside the window ([D45], [Q25]). */
+  pointLosses?: PointLossObservation[];
+}
+
+/** (PHASE11) The world-level fields of an observation (what capture and loss folds read). */
+export type WorldObservation = Pick<
+  AttemptObservation,
+  'attempt' | 'fromTick' | 'toTick' | 'captures' | 'enemyLosses' | 'pointLosses'
+>;
+
+/** (PHASE11) What kind of enemy loss earns a bounty ([D53]). */
+export type EnemyLossKind = 'soldier' | 'turret' | 'vehicle' | 'mine';
+
+/** (PHASE11) An enemy soldier died, or an enemy structure was destroyed, at `tick`. */
+export interface EnemyLossObservation {
+  refId: string;
+  kind: EnemyLossKind;
+  /** Enemy soldiers: their role (bounties may differ by role). */
+  roleId?: RoleId;
+  tick: Tick;
+}
+
+/** (PHASE11) A capture point went from ours back to neutral (enemy soldiers retook it). */
+export interface PointLossObservation {
+  pointId: string;
+  tick: Tick;
+}
+
+/** (PHASE11) World-level loss truth, folded like `CaptureTruth`. */
+export interface LossTruth {
+  enemies: (EnemyLossObservation & { observedInAttempt: number })[];
+  points: (PointLossObservation & { observedInAttempt: number })[];
 }
 
 /** (05-a) A capture point reached `stage` at `tick`; `by` = the soldiers in the circle then. */
@@ -189,4 +223,6 @@ export interface MissionState {
   inProgress?: InProgressLife;
   /** (05-a) Capture truth; absent in older saves and on maps without capture points (= []). */
   captureTruth?: CaptureTruth[];
+  /** (PHASE11) Enemy losses and lost points; absent in older saves (= nothing known yet). */
+  lossTruth?: LossTruth;
 }

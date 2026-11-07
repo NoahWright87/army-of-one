@@ -35,6 +35,8 @@ export class LiveRun {
   private goTicks = 0;
   private killRequested = false;
   private cached: WorldView | null = null;
+  /** (PHASE11) The money at the current tick, for the HUD; null/absent = economy off. */
+  money?: () => { balance: number; rate: number } | null;
 
   constructor(
     readonly attempt: Attempt,

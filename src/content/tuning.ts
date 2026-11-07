@@ -365,6 +365,29 @@ export interface Tuning {
     /** Recordings are sampled every this many ticks (gaps are interpolated). */
     sampleTicks: number;
   };
+  /**
+   * (PHASE11) Money on the timeline ([D51]–[D54]). UI and flow only: the sim never reads it.
+   * Maps may override the start and base income (`map.economy`) and each capture point's
+   * income (`capturePoint.income`). Role prices are `cost` in roles.ts.
+   */
+  economy: {
+    /** Off: every role is free and no money is shown. */
+    enabled: boolean;
+    startMoney: number;
+    /** Income per second of battle time, whatever happens ([D52]). */
+    baseIncomePerSecond: number;
+    /** Extra income per second while a capture point is ours. */
+    captureIncomePerSecond: number;
+    /** One-time bounty per enemy loss ([D53]). */
+    bounty: {
+      rifleman: number;
+      grenadier: number;
+      gunner: number;
+      turret: number;
+      vehicle: number;
+      mine: number;
+    };
+  };
 }
 
 export const DEFAULT_TUNING: Tuning = {
@@ -560,6 +583,20 @@ export const DEFAULT_TUNING: Tuning = {
     cellSize: 64, // TUNE
     occludeByWalls: false, // TUNE
     sampleTicks: 30, // TUNE: 0.5 s; the gaps between samples are interpolated
+  },
+  economy: {
+    enabled: true,
+    startMoney: 100, // TUNE [D51] (owner's example)
+    baseIncomePerSecond: 1, // TUNE [D51]
+    captureIncomePerSecond: 2, // TUNE [D51]
+    bounty: {
+      rifleman: 5, // TUNE
+      grenadier: 8, // TUNE
+      gunner: 10, // TUNE
+      turret: 20, // TUNE
+      vehicle: 5, // TUNE
+      mine: 2, // TUNE
+    },
   },
 };
 

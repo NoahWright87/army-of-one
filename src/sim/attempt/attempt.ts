@@ -41,6 +41,7 @@ import { EchoController, applyFlags } from '../recording/echo-controller';
 import { Recorder } from '../recording/recorder';
 import { ordinalOf, recordedTo } from '../recording/records';
 import { ObservationBuilder } from './observation';
+import type { WorldObservation } from '../../contracts/mission';
 import { SnapshotStore, type WorldSnapshot } from './snapshots';
 
 export type AttemptFrom = { kind: 'start' } | { kind: 'snapshot'; snapshot: WorldSnapshot };
@@ -198,6 +199,11 @@ export class Attempt {
 
   get tick(): Tick {
     return this.world.state.tick;
+  }
+
+  /** (PHASE11) Captures and losses this attempt has seen so far (live HUD money). */
+  worldSoFar(): WorldObservation {
+    return this.obs.worldSoFar(this.tick);
   }
 
   /** The live soldier's id (also during its lead-in, before it exists). */

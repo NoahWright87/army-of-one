@@ -396,7 +396,9 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   the loss never spawn ([D26]). The capture truth and the respawn screen don't show losses yet
   (they assume a captured point stays captured), so a forward spawn may still be offered after
   the point would be lost; deploying there bounces with "History shifted". Wanted: a "point
-  lost at t" entry that closes the forward option from that tick.
+  lost at t" entry that closes the forward option from that tick. *(PHASE11: built; a forward
+  spawn and its income now end when the point is lost. A point retaken later doesn't reopen
+  yet.)*
 - **[Q26] Dormancy is by distance, not camera (PHASE07-d).** "Inactive when far off camera" is
   implemented as "no soldier of ours (live or echo) within `ai.wakeRadius` (900)", sleeping
   again beyond `ai.sleepRadius` (1300). The camera isn't part of the sim, and background resolves
@@ -409,13 +411,13 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q29] Turrets vs moving targets (PHASE07-e).** Only AI soldiers get the moving-target penalty
   ([D50]); turrets still track and hit perfectly (their telegraph is the counterplay). Should
   turrets miss moving targets too?
-- **[Q30] What can you spend at time t (PHASE11)?** Proposed: the **lowest balance from t to
+- **[Q30] What can you spend at time t (PHASE11)?** Built as proposed: the **lowest balance from t to
   the end of the mission**, not the balance at t. With a forward point, purchases aren't in
   time order: buy a $100 tank at 60 s, then a new beach soldier at 26 s sees $126 at that
   moment, but spending $50 there would leave the tank unpaid. So the respawn screen shows
   "$76 available" while the line reads $126. (Debt, [D54], still covers money lost to history
   changes.)
-- **[Q31] Who pays for a soldier who never spawns (PHASE11)?** Proposed: you're only charged
+- **[Q31] Who pays for a soldier who never spawns (PHASE11)?** Built as proposed: you're only charged
   for soldiers who actually spawn in the current truth. A soldier from a lost capture point
   ([D26]) is refunded automatically, and charged again if the point is retaken in time.
 - **[Q32] Money in the score (PHASE11/14).** Economy is part of scoring ([Q23]'s Economy axis),

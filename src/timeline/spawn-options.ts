@@ -1,5 +1,12 @@
 import type { Tuning } from '../content/tuning';
-import type { CaptureTruth, LaneTruth, SoldierRecord, SpawnOption } from '../contracts/mission';
+import type {
+  CaptureTruth,
+  LaneTruth,
+  LossTruth,
+  SoldierRecord,
+  SpawnOption,
+} from '../contracts/mission';
+import { pointLostAfter } from './losses';
 import { oursTicks } from './captures';
 import { compareIds } from '../sim/core/ids';
 import { secondsToTicks, type Tick } from '../sim/core/time';
@@ -71,16 +78,19 @@ export function deriveSpawnOptions(
   lanes: readonly LaneTruth[],
   rules: SpawnRules,
   captures: readonly CaptureTruth[] = [],
+  losses?: LossTruth,
 ): SpawnOption[] {
   const options: SpawnOption[] = [];
   for (const p of map.spawnPoints) {
     const openTick = spawnPointOpenTick(map, p.id, captures);
     if (openTick === null) continue;
-    options.push({
-      kind: 'new',
-      spawnPointId: p.id,
-      entryTick: nextEntryTick(openTick, p.id, soldiers, rules),
-    });
+    const entryTick = nextEntryTick(openTick, p.id, soldiers, rules);
+    // (PHASE11, [Q25]) A forward point lost to enemy soldiers closes from that tick on.
+    if (p.kind === 'capture' && p.capturePointId !== undefined) {
+      const lost = pointLostAfter(losses, p.capturePointId, openTick);
+      if (lost !== null && entryTick >= lost) continue;
+    }
+    options.push({ kind: 'new', spawnPointId: p.id, entryTick });
   }
 
   const resumable = lanes

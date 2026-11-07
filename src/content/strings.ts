@@ -15,6 +15,22 @@ export const STRINGS = {
   'hud.kia': 'KIA',
   'hud.leadIn': 'Shielded',
   'hud.clockLabel': 'Battle time',
+  'hud.moneyLabel': 'Money (spent when a soldier spawns)',
+
+  // Economy (PHASE11, [D51]–[D54])
+  'money.amount': '${n}',
+  'money.debt': '−${n}',
+  'money.rate': '+${n}/s',
+  'money.available': '{money} to spend',
+  'money.availableDebt': 'In debt ({money}): only free roles',
+  'money.resumePaid': 'Already paid for',
+  'money.cost': '${n}',
+  'money.free': 'Free',
+  'money.cantAfford': 'Not enough money at {time} (needs {cost}, {money} to spend)',
+  'money.title': 'Money',
+  'money.lineTip': '{money} at {time} ({rate})',
+  'money.bountyTip': 'Bounty {money}',
+  'money.purchaseTip': '{role} for {money}',
 
   // Objectives / mission
   'objective.destroy': 'Destroy the objective',

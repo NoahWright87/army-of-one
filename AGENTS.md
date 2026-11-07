@@ -94,6 +94,7 @@ npm run gen:placeholders  # regenerate placeholder PNG/WAV + assets/ASSETS.md fr
 npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
+npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the money (--lives a,b --enemies)
 npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
@@ -136,6 +137,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
   `&enemies=0` turns them off anywhere. Scripted tests use `CLASSIC_TUNING` (no enemies).
   Shift sprints (touch: RUN); no firing while sprinting ([D49]).
+- Economy (PHASE11): money is a function of battle time (`src/timeline/economy.ts`,
+  `tuning.economy`, role `cost` in `roles.ts`). The respawn screen shows a money strip and what
+  each spawn can spend; the HUD shows the balance. F2 → Sim tuning → `economy.enabled` turns it
+  off.
 - Controls (PHASE07-b): touch devices get on-screen sticks + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire. Emulate a phone in Playwright with `devices['iPhone 13']`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene

@@ -54,7 +54,13 @@ import {
   type OptionKey,
   type RespawnProps,
   type RespawnUpdate,
+  cantAffordText,
+  moneyTip,
+  optionMoney,
+  roleMoney,
+  shownEconomy,
 } from './respawn-model';
+import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
 import { DEFAULT_RESPAWN_SETTINGS, type RespawnViewSettings } from './respawn-settings';
 import { RESPAWN_CSS } from './respawn-style';
 import {
@@ -64,6 +70,7 @@ import {
   panBy,
   pinchFactor,
   tickToX,
+  xToTick,
   wheelZoomFactor,
   zoomAt,
   axisTicks,
@@ -81,6 +88,8 @@ const FLASH_MS = 1400;
 const APPEAR_MS = 700;
 const LEAVE_MS = 600;
 const AXIS_H = 40;
+/** (PHASE11) Height of the money strip under the lanes. */
+const MONEY_H = 46;
 const DRAG_SLOP_PX = 6;
 
 /** (06-b) Phone, wide map: the top area shows the map instead of the timeline (remembered). */
@@ -132,6 +141,8 @@ export class RespawnScreen {
   private readonly rowsWrap = el('div', 'rs-rows');
   private readonly emptyEl = el('div', 'rs-empty', str('respawn.timeline.empty'));
   private readonly legendEl = el('div', 'rs-legend');
+  /** (PHASE11) The money line under the lanes ([D51]). */
+  private readonly moneyEl = el('div', 'rs-money');
   private readonly tip = el('div', 'rs-tip');
   private readonly optsEl = el('div', 'rs-opts');
   private readonly deployBtn = el('button', 'rs-deploy');
@@ -308,7 +319,7 @@ export class RespawnScreen {
     bar.append(tools);
     this.scroller.append(this.axisWrap, this.rowsWrap);
     this.frame.append(this.scroller, this.emptyEl, this.tip);
-    tl.append(bar, this.captionsEl, this.frame, this.legendEl);
+    tl.append(bar, this.captionsEl, this.frame, this.moneyEl, this.legendEl);
 
     const spawn = el('aside', 'rs-spawn');
     spawn.append(el('h2', '', str('respawn.spawn.title')), this.optsEl);
@@ -383,6 +394,20 @@ export class RespawnScreen {
     };
     window.addEventListener('keydown', onRoleKey);
     this.cleanups.push(() => window.removeEventListener('keydown', onRoleKey));
+
+    // (PHASE11) Money strip: hover (or tap) for the balance at that battle time.
+    const moneyTipAt = (e: PointerEvent) => {
+      const l = shownEconomy(this.props);
+      if (!l || !this.view) return;
+      const hit = (e.target as Element | null)?.closest('[data-tip]')?.getAttribute('data-tip');
+      const px = e.clientX - this.moneyEl.getBoundingClientRect().left - this.labelWidth();
+      if (!hit && px < 0) return this.hideTip();
+      const tick = Math.max(0, Math.round(xToTick(this.view, px)));
+      this.showTip(hit ?? moneyTip(l, tick), e.clientX, e.clientY);
+    };
+    on(this.moneyEl, 'pointermove', moneyTipAt);
+    on(this.moneyEl, 'pointerdown', moneyTipAt);
+    on(this.moneyEl, 'pointerleave', () => this.hideTip());
 
     // Option list clicks.
     on(this.optsEl, 'click', (e) => {
@@ -718,6 +743,7 @@ export class RespawnScreen {
     const items: string[] = [];
     const row = (o: SpawnOption, cls: string, delay: number | null) => {
       const lab = optionLabel(o, p);
+      const money = optionMoney(o, p);
       const sel = lab.key === this.selected;
       const icon =
         o.kind === 'new'
@@ -731,6 +757,7 @@ export class RespawnScreen {
         `<span class="rs-opt-text"><span class="t">${esc(lab.title)}</span>` +
         `<span class="d">${esc(lab.detail)}</span>` +
         (lab.capturedBy ? `<span class="c">${esc(lab.capturedBy)}</span>` : '') +
+        (money ? `<span class="m${money.debt ? ' debt' : ''}">${esc(money.text)}</span>` : '') +
         (lab.unconfirmed ? `<span class="u">${esc(str('respawn.spawn.unconfirmed'))}</span>` : '') +
         `</span></button>`
       );
@@ -771,16 +798,25 @@ export class RespawnScreen {
         ? roleDef(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId).id
         : null;
     const current = resumeRole ?? this.props.roleId ?? DEFAULT_ROLE;
+    // (PHASE11) Prices, and which roles the selected spawn can afford ([D51], [Q30]).
+    const money = roleMoney(o, this.props);
     const items = ROLES.map((r, i) => {
       const sel = r.id === current;
+      const m = money.find((x) => x.roleId === r.id);
+      const poor = !!m && !m.affordable;
       return (
-        `<button type="button" class="rs-role${sel ? ' sel' : ''}" data-role="${esc(r.id)}"` +
+        `<button type="button" class="rs-role${sel ? ' sel' : ''}${poor ? ' poor' : ''}" data-role="${esc(r.id)}"` +
         ` aria-pressed="${sel}"${resumeRole ? ' disabled' : ''} title="${esc(str(r.blurbKey))}">` +
-        `<span class="k">${i + 1}</span><span class="n">${esc(str(r.nameKey))}</span></button>`
+        `<span class="k">${i + 1}</span><span class="n">${esc(str(r.nameKey))}</span>` +
+        (m ? `<span class="p">${esc(m.price)}</span>` : '') +
+        `</button>`
       );
     });
     const label = resumeRole ? str('respawn.role.keeps') : str('respawn.role.title');
-    this.rolesEl.innerHTML = `<div class="rs-roles-label">${esc(label)}</div><div class="rs-roles-row">${items.join('')}</div>`;
+    const poor = resumeRole ? null : cantAffordText(o, current, this.props);
+    this.rolesEl.innerHTML =
+      `<div class="rs-roles-label">${esc(label)}</div><div class="rs-roles-row">${items.join('')}</div>` +
+      (poor ? `<div class="rs-roles-poor">${esc(poor)}</div>` : '');
   }
 
   private renderTimeline(): void {
@@ -897,6 +933,67 @@ export class RespawnScreen {
     rows.forEach((r, i) => out.push(this.labelSvg(r, i, rowH, labelW, sel)));
     this.rowsWrap.innerHTML = `<svg class="rs-rows-svg" width="${totalW}" height="${H}">${out.join('')}</svg>`;
     this.rowsWrap.style.height = `${H}px`;
+    this.renderMoney(labelW, totalW, x, sel);
+  }
+
+  /** (PHASE11) The balance over battle time, on the timeline's own scale ([D51]). */
+  private renderMoney(
+    labelW: number,
+    totalW: number,
+    x: (t: number) => number,
+    sel: SpawnOption | null,
+  ): void {
+    const l = shownEconomy(this.props);
+    this.moneyEl.hidden = !l;
+    if (!l) return;
+    const H = MONEY_H;
+    const end = Math.max(this.domain.to, ...l.purchases.map((p) => p.tick));
+    const pts = moneyCurve(l, end);
+    const lo = Math.min(0, ...pts.map((p) => p.v));
+    const hi = Math.max(1, ...pts.map((p) => p.v));
+    const y = (v: number) => r1(H - 6 - ((v - lo) / (hi - lo)) * (H - 14));
+    const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t)} ${y(p.v)}`).join('');
+    const s: string[] = [];
+    s.push(
+      `<defs><clipPath id="rs-clip-money"><rect x="${labelW}" y="0" width="${totalW - labelW}" height="${H}"/></clipPath></defs>`,
+    );
+    s.push(`<text class="mn-lbl" x="8" y="${r1(H / 2 + 4)}">${esc(str('money.title'))}</text>`);
+    s.push(`<g clip-path="url(#rs-clip-money)">`);
+    if (lo < 0) {
+      s.push(
+        `<rect class="mn-debt" x="${labelW}" y="${y(0)}" width="${totalW - labelW}" height="${r1(H - y(0))}"/>`,
+      );
+    }
+    s.push(`<line class="mn-zero" x1="${labelW}" y1="${y(0)}" x2="${totalW}" y2="${y(0)}"/>`);
+    s.push(`<path class="mn-line" d="${path}"/>`);
+    for (const b of l.bounties) {
+      const tip = esc(str('money.bountyTip', { money: formatMoney(b.amount) }));
+      s.push(
+        `<circle class="mn-bounty" cx="${x(b.tick)}" cy="${y(balanceAt(l, b.tick))}" r="2.5" data-tip="${tip}"/>`,
+      );
+    }
+    for (const p of l.purchases) {
+      const tip = esc(
+        str('money.purchaseTip', {
+          role: str(roleDef(p.roleId).nameKey),
+          money: formatMoney(p.cost),
+        }),
+      );
+      s.push(
+        `<circle class="mn-buy" cx="${x(p.tick)}" cy="${y(balanceAt(l, p.tick))}" r="3.5" data-tip="${tip}"/>`,
+      );
+    }
+    if (sel?.kind === 'new') {
+      const gx = x(sel.entryTick);
+      const v = balanceAt(l, sel.entryTick);
+      s.push(`<line class="guide" x1="${gx}" y1="0" x2="${gx}" y2="${H}"/>`);
+      s.push(
+        `<g class="mn-sel" data-tip="${esc(moneyTip(l, sel.entryTick))}"><circle cx="${gx}" cy="${y(v)}" r="4.5"/>` +
+          `<text x="${gx + 7}" y="${Math.max(11, y(v) - 6)}">${esc(formatMoney(v))}</text></g>`,
+      );
+    }
+    s.push(`</g>`);
+    this.moneyEl.innerHTML = `<svg class="rs-money-svg" width="${totalW}" height="${H}">${s.join('')}</svg>`;
   }
 
   private rowSvg(

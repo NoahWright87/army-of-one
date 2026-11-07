@@ -48,6 +48,11 @@ export interface CapturePointDef {
    * completes once every objective (destroy targets and flag points) is done.
    */
   objective?: boolean;
+  /**
+   * (PHASE11) Extra income per second of battle time while this point is ours ([D51]).
+   * Default `tuning.economy.captureIncomePerSecond`.
+   */
+  income?: number;
 }
 
 /** A fixed gun emplacement ([D15]). Stats come from `tuning.turret`. */
@@ -177,6 +182,8 @@ export interface MapDef {
   capturePoints?: CapturePointDef[];
   /** (07-d) Enemy soldiers ([D44]). */
   squads?: SquadDef[];
+  /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
+  economy?: { startMoney?: number; baseIncomePerSecond?: number };
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

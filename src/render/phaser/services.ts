@@ -40,6 +40,8 @@ export interface SessionDriver {
   readonly ended: boolean;
   /** Camera position until the live soldier exists (its spawn point). */
   readonly cameraHome: Vec2;
+  /** (PHASE11) Money for the HUD; absent/null = not shown. */
+  money?: () => { balance: number; rate: number } | null;
 }
 
 /** Commands a running scene exposes to app-level UI (settings panel buttons, hotkeys). */

@@ -10,6 +10,7 @@ import { migrate } from './migrations';
 import {
   isCaptureTruth,
   isLanes,
+  isLossTruth,
   isMeta,
   isStoredSoldier,
   type MetaV1,
@@ -24,7 +25,8 @@ import type { KeyValueStore, StoreResult } from './storage';
  *   aoo:v1:<missionId>:soldier:<id>  one SoldierRecord (segments encoded), written only on change
  *   aoo:v1:<missionId>:inprogress    the current life's partial segment
  *   aoo:v1:<missionId>:captures      (05-a) CaptureTruth[]; absent in older saves (= [])
- *   …:meta:backup / …:lanes:backup / …:captures:backup   last known-good copies
+ *   aoo:v1:<missionId>:losses        (PHASE11) LossTruth; absent in older saves (= none known)
+ *   …:meta:backup / …:lanes:backup / …:captures:backup / …:losses:backup   last known-good copies
  */
 export const missionKeys = (missionId: MissionId) => {
   const base = `aoo:v1:${missionId}:`;
@@ -38,6 +40,8 @@ export const missionKeys = (missionId: MissionId) => {
     inProgress: `${base}inprogress`,
     captures: `${base}captures`,
     capturesBackup: `${base}captures:backup`,
+    losses: `${base}losses`,
+    lossesBackup: `${base}losses:backup`,
   };
 };
 
@@ -86,6 +90,14 @@ export class MissionSaver {
         this.keys.capturesBackup,
       );
       if (!caps.ok) return caps;
+    }
+    if (state.lossTruth !== undefined) {
+      const losses = await this.write(
+        this.keys.losses,
+        JSON.stringify(state.lossTruth),
+        this.keys.lossesBackup,
+      );
+      if (!losses.ok) return losses;
     }
     const metaResult = await this.write(this.keys.meta, JSON.stringify(meta), this.keys.metaBackup);
     if (!metaResult.ok) return metaResult;
@@ -218,6 +230,9 @@ export async function loadMission(store: KeyValueStore, missionId: MissionId): P
   // re-resolves the battle from tick 0, which observes every capture again).
   const captures = await loadValidated(store, keys.captures, keys.capturesBackup, isCaptureTruth);
   if (captures) state.captureTruth = captures;
+  // (PHASE11) Same for losses: older saves re-learn them on the next attempt or resolve.
+  const losses = await loadValidated(store, keys.losses, keys.lossesBackup, isLossTruth);
+  if (losses) state.lossTruth = losses;
   const inProgress = await loadInProgress(store, missionId);
   if (inProgress) state.inProgress = inProgress;
   return { ok: true, state };

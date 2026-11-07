@@ -22,6 +22,15 @@ import type {
 import { compareIds } from '../../sim/core/ids';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
 import type { MapDef } from '../../sim/world/map';
+import { ROLES } from '../../content/roles';
+import {
+  availableAt,
+  balanceAt,
+  canAfford,
+  formatMoney,
+  rateAt,
+  type Ledger,
+} from '../../timeline/economy';
 import type { RevealOptions } from '../../timeline/reveal';
 import { MIN_DOMAIN_TICKS, type TimeDomain } from './time-scale';
 
@@ -56,6 +65,8 @@ export interface RespawnProps {
    */
   roleId?: RoleId;
   onRole?: (roleId: RoleId) => void;
+  /** (PHASE11) Money on the timeline ([D51]); absent = no money shown (fixtures, economy off). */
+  economy?: Ledger;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */
@@ -70,6 +81,7 @@ export interface RespawnUpdate {
   soldiers?: readonly SoldierRecord[];
   captures?: readonly CaptureTruth[];
   captureChanges?: readonly CaptureChange[];
+  economy?: Ledger;
 }
 
 // ---------- Rows ----------
@@ -536,4 +548,73 @@ export function nextOrdinal(soldiers: readonly SoldierRecord[]): number {
   let max = 0;
   for (const s of soldiers) max = Math.max(max, s.ordinal);
   return max + 1;
+}
+
+// ---------- Money (PHASE11) ----------
+
+/** The economy, if one is shown (present and enabled). */
+export function shownEconomy(p: Pick<RespawnProps, 'economy'>): Ledger | null {
+  return p.economy && p.economy.enabled ? p.economy : null;
+}
+
+/** The option card's money line: what a new soldier there can spend, or "already paid". */
+export function optionMoney(
+  o: SpawnOption,
+  p: Pick<RespawnProps, 'economy'>,
+): { text: string; debt: boolean } | null {
+  const l = shownEconomy(p);
+  if (!l) return null;
+  if (o.kind === 'resume') return { text: str('money.resumePaid'), debt: false };
+  const v = availableAt(l, o.entryTick);
+  const money = formatMoney(v);
+  return v < 0
+    ? { text: str('money.availableDebt', { money }), debt: true }
+    : { text: str('money.available', { money }), debt: false };
+}
+
+export interface RoleMoney {
+  roleId: RoleId;
+  /** "Free" / "$50". */
+  price: string;
+  affordable: boolean;
+}
+
+/** Each role's price, and whether a new soldier at the selected option can afford it. */
+export function roleMoney(o: SpawnOption | null, p: Pick<RespawnProps, 'economy'>): RoleMoney[] {
+  const l = shownEconomy(p);
+  if (!l) return [];
+  return ROLES.map((r) => {
+    const cost = r.cost; // the economy is on here (shownEconomy)
+    return {
+      roleId: r.id,
+      price: cost > 0 ? str('money.cost', { n: cost }) : str('money.free'),
+      affordable: o?.kind !== 'new' || canAfford(l, o.entryTick, cost),
+    };
+  });
+}
+
+/** "Not enough money at 0:26 (needs $50, $20 to spend)": the picked role falls back to free. */
+export function cantAffordText(
+  o: SpawnOption | null,
+  roleId: RoleId,
+  p: Pick<RespawnProps, 'economy'>,
+): string | null {
+  const l = shownEconomy(p);
+  if (!l || o?.kind !== 'new') return null;
+  const m = roleMoney(o, p).find((r) => r.roleId === roleId);
+  if (!m || m.affordable) return null;
+  return str('money.cantAfford', {
+    time: formatBattleTime(o.entryTick),
+    cost: m.price,
+    money: formatMoney(availableAt(l, o.entryTick)),
+  });
+}
+
+/** Tooltip for a point on the money line. */
+export function moneyTip(l: Ledger, t: Tick): string {
+  return str('money.lineTip', {
+    money: formatMoney(balanceAt(l, t)),
+    time: formatBattleTime(t),
+    rate: str('money.rate', { n: Math.round(rateAt(l, t) * 10) / 10 }),
+  });
 }

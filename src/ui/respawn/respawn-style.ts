@@ -277,4 +277,23 @@ export const RESPAWN_CSS = `
   .rs-map-bar { padding: 6px 10px 4px; height: 28px; }
   .rs-map-legend { display: none; }
 }
+.aoo-respawn .rs-money { border-top: 1px solid #2c3742; background: #141b22; flex: none; }
+.aoo-respawn .rs-money[hidden] { display: none; }
+.aoo-respawn .rs-money-svg { display: block; }
+.aoo-respawn .rs-money .mn-lbl { fill: #9ee59a; font: 600 12px system-ui, sans-serif; }
+.aoo-respawn .rs-money .mn-line { fill: none; stroke: #9ee59a; stroke-width: 2; stroke-linejoin: round; }
+.aoo-respawn .rs-money .mn-zero { stroke: #44515e; stroke-dasharray: 3 3; }
+.aoo-respawn .rs-money .mn-debt { fill: rgba(255, 90, 80, .14); }
+.aoo-respawn .rs-money .mn-bounty { fill: #ffd34d; }
+.aoo-respawn .rs-money .mn-buy { fill: #ff8a80; stroke: #141b22; }
+.aoo-respawn .rs-money .mn-sel circle { fill: #fff; stroke: #9ee59a; stroke-width: 2; }
+.aoo-respawn .rs-money .mn-sel text { fill: #fff; font: 700 12px system-ui, sans-serif; paint-order: stroke; stroke: #141b22; stroke-width: 3px; }
+.aoo-respawn .rs-money .guide { stroke: #fff; stroke-opacity: .35; stroke-dasharray: 4 3; }
+.aoo-respawn .rs-opt .m { color: #9ee59a; font-size: 12px; }
+.aoo-respawn .rs-opt .m.debt { color: #ff8a80; }
+.aoo-respawn .rs-role { flex-wrap: wrap; row-gap: 0; min-width: 0; line-height: 1.15; padding-top: 3px; padding-bottom: 3px; }
+.aoo-respawn .rs-role .p { flex-basis: 100%; text-align: center; font-size: 11px; color: #9ee59a; font-variant-numeric: tabular-nums; }
+.aoo-respawn .rs-role.poor { opacity: .55; }
+.aoo-respawn .rs-role.poor .p { color: #ff8a80; text-decoration: line-through; }
+.aoo-respawn .rs-roles-poor { color: #ff8a80; font-size: 12px; margin-top: 4px; }
 `;

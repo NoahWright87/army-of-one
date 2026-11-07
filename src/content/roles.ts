@@ -3,8 +3,8 @@ import type { StringKey } from './strings';
 
 /**
  * (07-c) Soldier roles ([D36]): picked per new soldier on the respawn screen. No limits on how
- * many of each; every role has a spawn cost. The Rifleman is free; the others will cost
- * something once costs are balanced (all 0 for now, and nothing spends them yet).
+ * many of each; every role has a spawn cost. The Rifleman is free ([D18]: you can always
+ * throw another soldier in); the others are paid for from the mission's money (PHASE11).
  */
 export interface RoleDef {
   id: RoleId;
@@ -12,7 +12,7 @@ export interface RoleDef {
   nameKey: StringKey;
   /** Key into strings.ts: one line for the picker. */
   blurbKey: StringKey;
-  /** Spawn cost. Placeholder: nothing spends it yet ([D36]). */
+  /** Spawn cost, spent at the soldier's spawn tick ([D36], [D51]). */
   cost: number;
   /** What the fire button does. */
   weapon: 'rifle' | 'grenade' | 'mg';
@@ -67,7 +67,7 @@ export const ROLES: readonly RoleDef[] = [
     id: 'grenadier',
     nameKey: 'role.grenadier',
     blurbKey: 'role.grenadier.blurb',
-    cost: 0, // TUNE: the costs get balanced later
+    cost: 30, // TUNE [D51]
     weapon: 'grenade',
     ai: {
       coverPreference: 0.6, // TUNE
@@ -84,7 +84,7 @@ export const ROLES: readonly RoleDef[] = [
     id: 'gunner',
     nameKey: 'role.gunner',
     blurbKey: 'role.gunner.blurb',
-    cost: 0, // TUNE: the costs get balanced later
+    cost: 50, // TUNE [D51] (owner's example: a $50 Machine Gunner)
     weapon: 'mg',
     ai: {
       coverPreference: 0.95, // TUNE: seeks cover, then mounts
