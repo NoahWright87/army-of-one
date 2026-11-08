@@ -266,6 +266,23 @@ revise with justification in a PR).
   people, more accurate against vehicles (for auto-aim and the AI), friendly-fire damage from
   the blast. Slower than average: bazookas are heavy.
 
+## Vehicles (PHASE12-b, owner session 2026-11)
+
+- **[D63] Vehicles: a gun truck and a tank.** Both are driven by you as one unit ([D55]); enemies
+  get them too ([D44]).
+- **[D64] Simple compass controls, vehicle-style turning.** Push north, go north; push east, go
+  east. The vehicle has to turn to face that way first. A **tank** turns on the spot and only
+  accelerates once it points roughly the right way. A **truck** can't turn on the spot: it
+  rolls forward slowly while turning, and reaches full speed once it points the right way.
+- **[D65] Small arms do very little to vehicles,** through **one unified armor system** shared
+  with soldiers (the Shotgunner, the Shield) and anything else: no per-unit special cases.
+  (How it works: [Q39].)
+- **[D66] Vehicles run people over,** ours included. The damage comes from speed and weight: the
+  tank crushes slowly, the truck has to hit hard and only hurts at low speed.
+- **[D67] Vehicle wrecks block paths.**
+- **[D68] Vehicles can capture points,** behind a setting so it can be turned off later.
+- **[D69] Longer levels.** Missions need more room for vehicles and everything else.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -459,6 +476,20 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   our own soldiers; only the blast hurts them.
 - **[Q38] Shotgunner "armor" (PHASE12-a).** Implemented as more HP (1.5×), not damage
   reduction. Say if you want armor as its own number (e.g. less damage from pistols/fragments).
+- **[Q39] Unified armor (PHASE12-b) — proposal, waiting for the owner.** See the PHASE12-b doc.
+  One rule for everything that takes damage: `damage = max(hit − armor, hit × chip)`, where
+  `armor` is a flat number per target (optionally higher in a front arc) and `chip` is a small
+  share (e.g. 5 %) that always gets through. Soldiers 0, Shotgunner 3, Shield 20 front, truck
+  ~10, tank ~35 (front 50), cover by material. Big single hits (sniper, rocket, shell, crush)
+  punch through; many small ones (pistol, MG, pellets, fragments) barely scratch.
+- **[Q40] Breakable cover (PHASE12-b) — proposal.** Cover pieces get HP and armor by material;
+  bullets they stop and blasts damage them; vehicles crush light cover by driving into it; a
+  destroyed piece is gone for the rest of that attempt. Walls and bunkers stay unbreakable.
+- **[Q41] Reversing (PHASE12-b).** Pulling the stick opposite to the vehicle's heading: turn
+  all the way round ([D64] read literally), or reverse when it's nearly behind you?
+- **[Q42] Longer levels: extend Breach or add a mission (PHASE12-b)?** Extending Breach moves
+  its objective (the scripted dev stories would need re-recording); a new, longer mission
+  keeps Breach as the short template.
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
