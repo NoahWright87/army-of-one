@@ -40,6 +40,10 @@ describe('respawn money (PHASE11)', () => {
       ['rifleman', 'Free', true],
       ['grenadier', '$30', true],
       ['gunner', '$50', false],
+      ['sniper', '$40', true], // exactly enough
+      ['shield', '$35', true],
+      ['shotgun', '$30', true],
+      ['bazooka', '$60', false],
     ]);
     expect(cantAffordText(at(0), 'gunner', { economy: ledger(40) })).toBe(
       'Not enough money at 0:00 (needs $50, $40 to spend)',

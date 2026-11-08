@@ -291,7 +291,8 @@ export const RESPAWN_CSS = `
 .aoo-respawn .rs-money .guide { stroke: #fff; stroke-opacity: .35; stroke-dasharray: 4 3; }
 .aoo-respawn .rs-opt .m { color: #9ee59a; font-size: 12px; }
 .aoo-respawn .rs-opt .m.debt { color: #ff8a80; }
-.aoo-respawn .rs-role { flex-wrap: wrap; row-gap: 0; min-width: 0; line-height: 1.15; padding-top: 3px; padding-bottom: 3px; }
+.aoo-respawn .rs-roles-row { flex-wrap: wrap; }
+.aoo-respawn .rs-role { flex: 1 1 22%; font-size: 13px; flex-wrap: wrap; row-gap: 0; min-width: 0; line-height: 1.15; padding-top: 3px; padding-bottom: 3px; }
 .aoo-respawn .rs-role .p { flex-basis: 100%; text-align: center; font-size: 11px; color: #9ee59a; font-variant-numeric: tabular-nums; }
 .aoo-respawn .rs-role.poor { opacity: .55; }
 .aoo-respawn .rs-role.poor .p { color: #ff8a80; text-decoration: line-through; }

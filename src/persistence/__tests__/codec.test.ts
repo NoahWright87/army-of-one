@@ -74,3 +74,23 @@ describe('segment codec', () => {
     expect(() => decodeSegment('not json')).toThrow();
   });
 });
+
+describe('recorded weapons (PHASE12-a)', () => {
+  it('a segment keeps each shot weapon through the codec', () => {
+    const seg = {
+      startTick: 0,
+      endTick: 1,
+      endReason: 'death' as const,
+      waypoints: [
+        { t: 0, x: 10, y: 10, facing: 0 },
+        { t: 1, x: 10, y: 10, facing: 0 },
+      ],
+      actions: [
+        { kind: 'shot' as const, t: 1, x: 10, y: 10, angle: 0.1, gun: 'shotgun' as const },
+        { kind: 'shot' as const, t: 1, x: 10, y: 10, angle: 0.2, gun: 'shotgun' as const },
+        { kind: 'shot' as const, t: 1, x: 10, y: 10, angle: 0.3, gun: 'rocket' as const },
+      ],
+    };
+    expect(decodeSegment(encodeSegment(seg))).toEqual(seg);
+  });
+});

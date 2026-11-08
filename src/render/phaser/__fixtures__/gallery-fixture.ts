@@ -411,6 +411,16 @@ export function galleryView(tick: Tick): WorldView {
     objectives: objectives(),
     capturePoints: capturePoints(tick),
     grenades: grenades(tick),
+    // (PHASE12-a) A rocket flying across the grenade column.
+    rockets: [
+      {
+        kind: 'rocket',
+        id: 'RK1',
+        x: col(6) + ((tick % 90) / 90) * 200,
+        y: ROW[2] + 110,
+        angle: 0,
+      },
+    ],
     // (07-c) Cover arcs around the live soldier: a faint fence east, solid wall north-west.
     coverArcs: [
       { angle: 0, halfWidth: 0.6, value: 0.1 },

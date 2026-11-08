@@ -23,7 +23,7 @@ for the owner. Base new work on the top of the stack (or on
 `main` once the stack is merged).
 
 **Then (owner session 2026-11):** the owner set the next direction ([D51]–[D58]): an economy
-on the timeline (PHASE11, built: see its notes), vehicles (12), seeded generation of levels and the
+on the timeline (PHASE11, built: see its notes), four new roles (12-a, built), vehicles (12-b), seeded generation of levels and the
 world map (13), campaign and progression (14), and sharing: weekly seed, leaderboards,
 replays, async co-op (15). PHASE09's missions/art/3D tracks still stand; generated missions
 (13) may replace most hand-made ones.
@@ -72,7 +72,8 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [09](PHASE09.md) | More missions, art pass, 3D spike | 07 | — | Sketch |
 | [10](PHASE10.md) | Lazy outcome-tested recording simplification | 07 | — | **Deferred** |
 | [11](PHASE11.md) | **Economy**: money on the timeline, income, bounties, costs | 07 | — | Built |
-| [12](PHASE12.md) | Vehicles and heavy units | 11 | 13 | Sketch |
+| [12-a](PHASE12-a.md) | More roles: Sniper, Shield, Shotgunner, Bazooka | 11 | — | Built |
+| [12-b](PHASE12-b.md) | Vehicles | 11, 12-a | 13 | Sketch |
 | [13](PHASE13.md) | Seeded generation: levels + world map | 11 | 12 | Sketch |
 | [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |

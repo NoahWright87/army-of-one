@@ -151,6 +151,25 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
         break;
       }
+      // (PHASE12-a) Rockets ([D62]): a launch flash, then a bigger blast.
+      case 'rocketLaunched': {
+        out.push({
+          type: 'muzzle',
+          x: e.fromX,
+          y: e.fromY,
+          angle: e.angle,
+          hostile: false,
+          byId: e.by,
+        });
+        sound('sfx_rifle_shot', { x: e.fromX, y: e.fromY }, e.by === ctx.liveId ? 0.9 : 0.5);
+        break;
+      }
+      case 'rocketExploded': {
+        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.4 });
+        sound('sfx_explosion', e, 1);
+        if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.012, durationMs: 300 });
+        break;
+      }
       case 'mineDetonated': {
         out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius });
         sound('sfx_explosion', e, 1);

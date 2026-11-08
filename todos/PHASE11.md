@@ -4,7 +4,7 @@
 points and killing enemies pays. The respawn screen shows a money line under the lanes and what
 each spawn option can afford. Free Riflemen keep "respawning is the game" ([D18]) intact.
 
-**Depends on:** PHASE07. **Before:** PHASE12 (vehicles need a price), PHASE13 (generators balance
+**Depends on:** PHASE07. **Before:** PHASE12-b (vehicles need a price), PHASE13 (generators balance
 against a budget), PHASE14 (progression raises income, [D57]).
 
 **Owns:** `src/timeline/economy.ts` (new), economy parts of `src/contracts/mission.ts` (additive),

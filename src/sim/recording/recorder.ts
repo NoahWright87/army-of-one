@@ -53,7 +53,26 @@ export class Recorder {
     for (const e of events) {
       if (!pose || e.tick !== pose.t) continue;
       if (e.kind === 'shotFired' && e.by === this.soldierId) {
-        this.actions.push({ kind: 'shot', t: e.tick, x: e.fromX, y: e.fromY, angle: e.angle });
+        // (PHASE12-a) The weapon, when it isn't a plain rifle/MG shot: a Sniper fires a pistol
+        // or a rifle; each shotgun pellet is its own shot ([D59], [D61]).
+        const gun = e.weapon && e.weapon !== 'rifle' && e.weapon !== 'mg' ? e.weapon : undefined;
+        this.actions.push({
+          kind: 'shot',
+          t: e.tick,
+          x: e.fromX,
+          y: e.fromY,
+          angle: e.angle,
+          ...(gun ? { gun } : {}),
+        });
+      } else if (e.kind === 'rocketLaunched' && e.by === this.soldierId) {
+        this.actions.push({
+          kind: 'shot',
+          t: e.tick,
+          x: e.fromX,
+          y: e.fromY,
+          angle: e.angle,
+          gun: 'rocket',
+        });
       } else if (e.kind === 'grenadeThrown' && e.by === this.soldierId) {
         this.actions.push({
           kind: 'throw',

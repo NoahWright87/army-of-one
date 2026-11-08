@@ -119,7 +119,7 @@ export function createSoldier(
     x: position.x,
     y: position.y,
     facing,
-    hp: tuning.soldier.maxHp,
+    hp: soldierMaxHp(tuning, flags.roleId),
     alive: true,
     controllable: flags.controllable ?? true,
     interactive: flags.interactive ?? true,
@@ -157,6 +157,16 @@ export function isEligible(s: SoldierState): boolean {
   return s.alive && s.interactive;
 }
 
+/** (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). */
+export function soldierMaxHp(tuning: Tuning, roleId: RoleId | undefined): number {
+  return Math.round(tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1));
+}
+
+/** (PHASE12-a) Walking speed by role ([D62]: the Bazooka is slower). */
+export function soldierSpeed(tuning: Tuning, roleId: RoleId | undefined): number {
+  return tuning.soldier.speed * (tuning.roleStats?.[roleId ?? 'rifleman']?.speed ?? 1);
+}
+
 /** Static geometry that blocks soldier movement. */
 export function movementSolids(map: MapDef): Rect[] {
   return [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
@@ -171,7 +181,7 @@ export function stepSoldierMovement(
 ): void {
   if (!s.alive) return;
   const dir = clampLength(input.move, 1);
-  const walk = tuning.soldier.speed * DT;
+  const walk = soldierSpeed(tuning, s.roleId) * DT;
   const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
   const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk;
   const next = moveCircle(

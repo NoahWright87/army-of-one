@@ -7,7 +7,21 @@ export type MissionId = string;
  * (07-c) A soldier's role, picked per new soldier on the respawn screen ([D36]). A resumed
  * soldier keeps theirs. Absent on a record means 'rifleman' (records from before 07-c).
  */
-export type RoleId = 'rifleman' | 'grenadier' | 'gunner';
+export type RoleId =
+  | 'rifleman'
+  | 'grenadier'
+  | 'gunner'
+  /** (PHASE12-a) [D59]–[D62]. */
+  | 'sniper'
+  | 'shield'
+  | 'shotgun'
+  | 'bazooka';
+
+/**
+ * (PHASE12-a) What fired a recorded shot. Absent on a shot action = the role's own gun (older
+ * recordings). Needed because a Sniper fires a pistol or a rifle depending on its set-up.
+ */
+export type ShotWeapon = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket';
 
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 
@@ -21,7 +35,15 @@ export interface Waypoint {
 
 /** Discrete recorded actions. Outcomes (hits, damage, deaths) are NOT recorded: they're re-simulated [E3]. */
 export type RecordedAction =
-  | { kind: 'shot'; t: Tick; x: number; y: number; angle: number }
+  | {
+      kind: 'shot';
+      t: Tick;
+      x: number;
+      y: number;
+      angle: number;
+      /** (PHASE12-a) The weapon, when it isn't the role's plain gun ([D59]–[D62]). */
+      gun?: ShotWeapon;
+    }
   /** (07-c) A grenade throw: where it left from, its final angle and throw distance ([D37]). */
   | { kind: 'throw'; t: Tick; x: number; y: number; angle: number; distance: number }
   | {

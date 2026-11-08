@@ -17,6 +17,7 @@
  */
 import type { Tuning } from '../../content/tuning';
 import { roleDef } from '../../content/roles';
+import { hash01 } from '../../sim/core/hash';
 import type { Vec2 } from '../../sim/core/vec';
 import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierView, WorldView } from '../../sim/view';
@@ -30,14 +31,48 @@ export interface AimTarget {
   y: number;
 }
 
-/** Weapon reach for auto-aim, by role. */
-export function autoAimRange(tuning: Tuning, roleId: SoldierView['roleId']): number {
-  const w = roleDef(roleId).weapon;
-  return w === 'mg'
-    ? tuning.mg.range
-    : w === 'grenade'
-      ? tuning.grenade.maxRange
-      : tuning.rifle.range;
+/** Weapon reach for auto-aim, by role (PHASE12-a: and the gun in hand, `SoldierView.gun`). */
+export function autoAimRange(
+  tuning: Tuning,
+  roleId: SoldierView['roleId'],
+  gun?: SoldierView['gun'],
+): number {
+  switch (gun ?? roleDef(roleId).weapon) {
+    case 'mg':
+      return tuning.mg.range;
+    case 'grenade':
+      return tuning.grenade.maxRange;
+    case 'pistol':
+      return tuning.pistol.range;
+    case 'sniper':
+      return tuning.sniper.range;
+    case 'shotgun':
+      return tuning.shotgun.range;
+    case 'rocket':
+      return tuning.rocket.range;
+    default:
+      return tuning.rifle.range;
+  }
+}
+
+/**
+ * (PHASE12-a) Auto-aim's own error ([D59], [D62]), radians: a Sniper's rifle is bad against
+ * moving targets (× their speed, a walk = 1), and a Bazooka is bad against people (vehicles
+ * and structures get none). A deterministic jitter per tick and target.
+ */
+export function autoAimError(
+  tuning: Tuning,
+  gun: SoldierView['gun'],
+  target: { id: string; soldier: boolean; speedFrac: number },
+  tick: number,
+): number {
+  let size = 0;
+  if (gun === 'sniper' && target.soldier) {
+    size = tuning.sniper.movingTargetAimError * target.speedFrac;
+  } else if (gun === 'rocket' && target.soldier) {
+    size = tuning.rocket.soldierAimError;
+  }
+  return size > 0 ? (hash01(`autoaim@${tick}:${target.id}`) * 2 - 1) * size : 0;
 }
 
 /** Solid line-of-sight blockers: walls and closed gates. */
@@ -72,6 +107,8 @@ export function rankTargets(
   map: MapDef,
   me: { id: string; x: number; y: number },
   range: number,
+  /** (PHASE12-a) The Bazooka goes for vehicles first ([D62]). */
+  preferVehicles = false,
 ): Candidate[] {
   const blockers = solidBlockers(map, view);
   const out: Candidate[] = [];
@@ -84,6 +121,9 @@ export function rankTargets(
     if (t.state === 'destroyed') continue;
     const onMe = t.targetId === me.id;
     consider(t.id, t.x, t.y, onMe && t.state === 'windup' ? 0 : onMe ? 1 : 2);
+  }
+  if (preferVehicles) {
+    for (const v of view.vehicles) if (v.state !== 'wreck') consider(v.id, v.x, v.y, -1);
   }
   // (07-d) Enemy soldiers are threats like turrets ([D44]).
   for (const s of view.soldiers) if (s.alive && s.role === 'enemy') consider(s.id, s.x, s.y, 2);
@@ -99,12 +139,13 @@ export function pickTarget(
   me: { id: string; x: number; y: number },
   range: number,
   currentId: string | null,
+  preferVehicles = false,
 ): AimTarget | null {
-  const ranked = rankTargets(view, map, me, range);
+  const ranked = rankTargets(view, map, me, range, preferVehicles);
   if (ranked.length === 0) return null;
   const best = ranked[0]!;
   const current = currentId ? ranked.find((c) => c.id === currentId) : undefined;
-  const pick = current && !(best.tier === 0 && current.tier !== 0) ? current : best;
+  const pick = current && !(best.tier <= 0 && current.tier > best.tier) ? current : best;
   return { id: pick.id, x: pick.x, y: pick.y };
 }
 
@@ -130,6 +171,8 @@ export class AutoAimInput implements InputSource {
   private target: AimTarget | null = null;
   private view: WorldView | null = null;
   private lastPos: Vec2 | null = null;
+  /** (PHASE12-a) Soldier positions one view ago (target speed for the Sniper's error). */
+  private prevSoldiers = new Map<string, Vec2>();
 
   constructor(
     private readonly base: InputSource,
@@ -150,10 +193,22 @@ export class AutoAimInput implements InputSource {
       this.target = null;
       return input;
     }
-    const range = autoAimRange(this.opts.tuning, me.roleId);
-    this.target = pickTarget(view, this.opts.map, me, range, this.target?.id ?? null);
+    const range = autoAimRange(this.opts.tuning, me.roleId, me.gun);
+    const rockets = me.gun === 'rocket';
+    this.target = pickTarget(view, this.opts.map, me, range, this.target?.id ?? null, rockets);
     if (!this.target) return input;
-    const aim = Math.atan2(this.target.y - me.y, this.target.x - me.x);
+    const tgt = this.target;
+    const sv = view.soldiers.find((s) => s.id === tgt.id);
+    const prev = this.prevSoldiers.get(tgt.id);
+    const walk = this.opts.tuning.soldier.speed / 60;
+    const speedFrac = sv && prev ? Math.hypot(sv.x - prev.x, sv.y - prev.y) / walk : 0;
+    const err = autoAimError(
+      this.opts.tuning,
+      me.gun,
+      { id: tgt.id, soldier: !!sv, speedFrac },
+      view.tick,
+    );
+    const aim = Math.atan2(tgt.y - me.y, tgt.x - me.x) + err;
     const aimDistance = Math.hypot(this.target.x - me.x, this.target.y - me.y);
     let fire = this.opts.fireMode() === 'auto' ? true : input.fire;
     // Throws need a release: once the wind-up is full, let go for a tick (that throws).
@@ -177,6 +232,9 @@ export class AutoAimInput implements InputSource {
   }
 
   observe(view: WorldView): void {
+    if (this.view && this.view.tick !== view.tick) {
+      this.prevSoldiers = new Map(this.view.soldiers.map((s) => [s.id, { x: s.x, y: s.y }]));
+    }
     this.view = view;
     this.base.observe?.(view);
   }

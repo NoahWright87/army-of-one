@@ -277,7 +277,7 @@ function explode(world: World, g: GrenadeEntity): void {
 
   for (const s of st.soldiers) {
     if (isEligible(s) && distanceSq(s, c) <= r2) {
-      damageSoldier(world, s, gt.blastDamage, g.by, 'grenade');
+      damageSoldier(world, s, gt.blastDamage, g.by, 'grenade', c);
     }
   }
   const within = (p: Vec2, extra: number) => distanceSq(p, c) <= (gt.blastRadius + extra) ** 2;

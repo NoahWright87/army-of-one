@@ -21,6 +21,16 @@ import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
 
+/** PLACEHOLDER role badge colours ([D36], PHASE12-a). */
+const ROLE_BADGE: Partial<Record<string, number>> = {
+  grenadier: 0x6b8f3a,
+  gunner: 0xb0532a,
+  sniper: 0x3a6fb0,
+  shield: 0x9aa4ae,
+  shotgun: 0x8a3ab0,
+  bazooka: 0xd0b020,
+};
+
 export interface RendererOptions {
   /** tuning.soldier.spriteRadius ([D14]: the largest of the three soldier sizes). */
   spriteRadius: number;
@@ -452,15 +462,27 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
-    // PLACEHOLDER role badges ([D36]): a small square, grenade green for Grenadiers, rust for
-    // Machine Gunners.
+    // PLACEHOLDER role badges ([D36]): a small coloured square per role (none for Riflemen).
     for (const s of this.cur.soldiers) {
       if (!s.alive || !s.roleId || s.roleId === 'rifleman') continue;
       const p = s.role === 'live' && this.livePos ? this.livePos : s;
-      g.fillStyle(s.roleId === 'grenadier' ? 0x6b8f3a : 0xb0532a, 1);
+      g.fillStyle(ROLE_BADGE[s.roleId] ?? 0xb0532a, 1);
       g.fillRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
       g.lineStyle(1, 0x111111, 1);
       g.strokeRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
+    }
+    // (PHASE12-a) PLACEHOLDER rockets: a pale body with a flame trail ([D62]).
+    const prevR = this.prev.rockets ?? [];
+    for (const r of this.cur.rockets ?? []) {
+      const p = prevR.find((x) => x.id === r.id);
+      const x = p ? lerp(p.x, r.x, a) : r.x;
+      const y = p ? lerp(p.y, r.y, a) : r.y;
+      const cx = Math.cos(r.angle);
+      const cy = Math.sin(r.angle);
+      g.lineStyle(4, 0xffa040, 0.8);
+      g.lineBetween(x - cx * 22, y - cy * 22, x - cx * 6, y - cy * 6);
+      g.lineStyle(5, 0xd8d8c8, 1);
+      g.lineBetween(x - cx * 6, y - cy * 6, x + cx * 6, y + cy * 6);
     }
     const prev = this.prev.grenades ?? [];
     for (const gr of this.cur.grenades ?? []) {

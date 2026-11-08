@@ -7,6 +7,7 @@ import type { WorldView } from '../../sim/view';
 import { knobOffset, looksLikeTouch, stickVector } from '../../ui/touch/stick-math';
 import {
   AutoAimInput,
+  autoAimError,
   autoAimRange,
   pickTarget,
   rankTargets,
@@ -125,5 +126,45 @@ describe('touch sticks ([D41])', () => {
     expect(controlScheme('auto', 'auto', false)).toEqual({ touch: false, autoAim: false });
     expect(controlScheme('mouse', 'on', true)).toEqual({ touch: false, autoAim: true });
     expect(controlScheme('touch', 'off', false)).toEqual({ touch: true, autoAim: false });
+  });
+});
+
+describe('auto-aim with the PHASE12-a weapons', () => {
+  it('reaches as far as the gun in hand', () => {
+    expect(autoAimRange(T, 'sniper', 'pistol')).toBe(T.pistol.range);
+    expect(autoAimRange(T, 'sniper', 'sniper')).toBe(T.sniper.range);
+    expect(autoAimRange(T, 'shotgun')).toBe(T.shotgun.range);
+    expect(autoAimRange(T, 'bazooka')).toBe(T.rocket.range);
+  });
+
+  it('is bad with a sniper rifle against moving soldiers, and with rockets against any soldier ([D59], [D62])', () => {
+    const still = { id: 'E1', soldier: true, speedFrac: 0 };
+    const moving = { id: 'E1', soldier: true, speedFrac: 1 };
+    const errs = (gun: 'sniper' | 'rocket' | 'rifle', tgt: typeof still) =>
+      Array.from({ length: 40 }, (_, i) => Math.abs(autoAimError(T, gun, tgt, i)));
+    expect(Math.max(...errs('sniper', still))).toBe(0);
+    expect(Math.max(...errs('sniper', moving))).toBeGreaterThan(T.sniper.movingTargetAimError / 2);
+    expect(Math.max(...errs('rocket', still))).toBeGreaterThan(T.rocket.soldierAimError / 2);
+    expect(Math.max(...errs('rocket', { id: 'V1', soldier: false, speedFrac: 1 }))).toBe(0);
+    expect(Math.max(...errs('rifle', moving))).toBe(0);
+  });
+
+  it('a Bazooka goes for vehicles first', () => {
+    const { view, me } = viewWith((v) => {
+      v.vehicles.push({
+        kind: 'vehicle',
+        id: 'V9',
+        x: 200,
+        y: 520,
+        w: 60,
+        h: 30,
+        heading: 0,
+        state: 'moving',
+        hp: 100,
+        maxHp: 100,
+      });
+    });
+    expect(rankTargets(view, map, me, 1000, true)[0]!.id).toBe('V9');
+    expect(rankTargets(view, map, me, 1000)[0]!.id).not.toBe('V9');
   });
 });

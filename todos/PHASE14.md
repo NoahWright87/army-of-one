@@ -3,7 +3,7 @@
 **Goal:** a reason to keep playing across missions: a campaign through the world map, with
 progress that carries between levels ([D57]: income goes up between levels).
 
-**Depends on:** PHASE11 (money), PHASE13 (generated levels and world map). PHASE12 gives it
+**Depends on:** PHASE11 (money), PHASE13 (generated levels and world map). PHASE12-a/b give it
 something to unlock.
 
 ## Direction

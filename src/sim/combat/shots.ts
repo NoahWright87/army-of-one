@@ -7,6 +7,7 @@ import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
 import { coverCrossings, coverStops } from '../world/cover';
 import { hash01 } from '../core/hash';
+import type { ShotWeapon } from '../../contracts/mission';
 import {
   damageCharge,
   damageObjective,
@@ -180,6 +181,10 @@ export interface ShotParams {
   fireOver?: boolean;
   /** (07-c) Don't emit `shotFired` (fragments emit their own event). */
   silent?: boolean;
+  /** (PHASE12-a) The soldier weapon that fired it (goes into `shotFired`, for recordings). */
+  weapon?: ShotWeapon;
+  /** (PHASE12-a) Damage falls off linearly to this share at full range (the shotgun, [D61]). */
+  falloffTo?: number;
 }
 
 export interface ShotResult {
@@ -210,28 +215,33 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
       hitX: result.hitX,
       hitY: result.hitY,
       ...(hitId !== undefined ? { hitId } : {}),
+      ...(p.weapon !== undefined ? { weapon: p.weapon } : {}),
     });
   if (!tgt || tgt.kind === 'wall' || tgt.kind === 'cover') return result;
+  const damage =
+    p.falloffTo !== undefined && p.range > 0
+      ? p.damage * (1 - (1 - p.falloffTo) * Math.min(1, hit.distance / p.range))
+      : p.damage;
   if (tgt.kind === 'soldier') {
-    damageSoldier(world, world.state.soldiers[tgt.index]!, p.damage, p.by, p.cause);
+    damageSoldier(world, world.state.soldiers[tgt.index]!, damage, p.by, p.cause, p.from);
     return result;
   }
   if (p.team === 'enemy') return result;
   switch (tgt.kind) {
     case 'turret':
-      damageTurret(world, tgt.index, p.damage, p.by);
+      damageTurret(world, tgt.index, damage, p.by);
       break;
     case 'mine':
       detonateMine(world, tgt.index, p.by);
       break;
     case 'vehicle':
-      damageVehicle(world, tgt.index, p.damage, p.by);
+      damageVehicle(world, tgt.index, damage, p.by);
       break;
     case 'objective':
-      damageObjective(world, tgt.index, p.damage, p.by);
+      damageObjective(world, tgt.index, damage, p.by);
       break;
     case 'charge':
-      damageCharge(world, tgt.index, p.damage, p.by);
+      damageCharge(world, tgt.index, damage, p.by);
       break;
   }
   return result;

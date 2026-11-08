@@ -5,6 +5,7 @@ import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
 import { soldierAttack } from './combat/weapons';
 import { stepGrenades } from './entities/grenade';
+import { stepRockets } from './entities/rocket';
 import { spawnSquads, stepAi } from './ai/brain';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
@@ -22,6 +23,8 @@ import {
   isEligible,
   movementSolids,
   stepSoldierMovement,
+  soldierMaxHp,
+  soldierSpeed,
   IDLE_INPUT,
   type SoldierFlags,
   type SoldierId,
@@ -41,9 +44,10 @@ import { separateSoldiers } from './world/separation';
 import { coverArcs, resolveCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
 import { windupProgress } from './combat/weapons';
-import { currentSpread, mountBonus, mountTicksNeeded } from './combat/guns';
+import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/guns';
 import { simPerf } from './perf';
-import type { WorldView } from './view';
+import type { SoldierView, WorldView } from './view';
+import { roleDef } from '../content/roles';
 
 export type { World, WorldState } from './state';
 
@@ -70,6 +74,7 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       objectives: createObjectives(map.objectives ?? [], tuning),
       capturePoints: createCapturePoints(map.capturePoints ?? []),
       grenades: [],
+      rockets: [],
       events: [],
       queuedEvents: [],
       missionComplete: null,
@@ -228,10 +233,10 @@ export function step(
     stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
   }
   hooks.moveUncontrolled?.(world, solids);
-  const walk = t.soldier.speed / 60;
   for (let i = 0; i < n; i++) {
     const s = st.soldiers[i]!;
     if (!s.alive || s.controllable) continue;
+    const walk = soldierSpeed(t, s.roleId) / 60;
     const moved = Math.hypot(s.x - prevX[i]!, s.y - prevY[i]!);
     s.moveFrac = Math.min(t.soldier.sprintMultiplier, moved / walk);
   }
@@ -254,6 +259,7 @@ export function step(
   stepTurrets(world);
   stepMines(world);
   stepGrenades(world);
+  stepRockets(world);
   stepTraffic(world);
   stepBridges(world);
 
@@ -295,7 +301,7 @@ export function getView(world: World): WorldView {
       y: s.y,
       facing: s.facing,
       hp: s.hp,
-      maxHp: tuning.soldier.maxHp,
+      maxHp: soldierMaxHp(tuning, s.roleId),
       alive: s.alive,
       role:
         s.team === 'enemy'
@@ -304,8 +310,17 @@ export function getView(world: World): WorldView {
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
-      ...(s.windupTicks > 0 ? { windup: windupProgress(world, s), windupAim: s.windupAim } : {}),
+      ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'
+        ? { windup: windupProgress(world, s), windupAim: s.windupAim }
+        : {}),
       ...aimView(world, s),
+    })),
+    rockets: (st.rockets ?? []).map((r) => ({
+      kind: 'rocket' as const,
+      id: r.id,
+      x: r.x,
+      y: r.y,
+      angle: r.angle,
     })),
     grenades: (st.grenades ?? []).map((g) => ({
       kind: 'grenade',
@@ -436,17 +451,29 @@ export function getView(world: World): WorldView {
 function aimView(
   world: World,
   s: SoldierState,
-): { aimSpread?: number; mount?: number; mounted?: boolean } {
+): { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } {
   const live =
     s.alive &&
     s.team === undefined &&
     (s.viewRole === 'live' || (s.controllable && s.viewRole === undefined));
   if (!live) return {};
-  const out: { aimSpread?: number; mount?: number; mounted?: boolean } = {
+  const weapon = roleDef(s.roleId).weapon;
+  const gun = gunOf(s, world.tuning);
+  const out: { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } = {
     aimSpread: currentSpread(world, s, s.facing),
+    ...(gun ? { gun } : weapon === 'rocket' ? { gun: 'rocket' as const } : {}),
   };
-  if (s.braceId !== null && s.mountTicks > 0) {
-    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning));
+  if (weapon === 'sniper') {
+    // (PHASE12-a) Set-up ring with or without cover; cyan when the cover bonus applies ([D59]).
+    if (s.mountTicks > 0) {
+      out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
+      out.mounted = mountBonus(world, s, s.facing);
+    }
+  } else if (weapon === 'rocket') {
+    // (PHASE12-a) The Bazooka's aim fills the same ring ([D62]).
+    if (s.windupTicks > 0) out.mount = windupProgress(world, s);
+  } else if (s.braceId !== null && s.mountTicks > 0) {
+    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
     out.mounted = mountBonus(world, s, s.facing);
   }
   return out;

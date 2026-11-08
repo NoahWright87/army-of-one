@@ -20,8 +20,9 @@
  */
 import type { Tuning } from '../../content/tuning';
 import type { SoldierId, SoldierRecord, Waypoint } from '../../contracts/mission';
-import { fireGun, gunCooldownTicks, gunOf } from '../combat/guns';
+import { fireGun, gunCooldownTicks, gunOf, type GunKind } from '../combat/guns';
 import { throwGrenade } from '../entities/grenade';
+import { launchRocket } from '../entities/rocket';
 import { compareIds } from '../core/ids';
 import { DT, secondsToTicks, type Tick } from '../core/time';
 import { distance, type Vec2 } from '../core/vec';
@@ -395,16 +396,23 @@ export class EchoController {
     const actions = this.schedules.get(s.id)!.actionsByTick.get(t);
     if (!actions) return;
     const tol = this.tuning.echo.actionTolerance;
+    let pellet = 0;
     for (const a of actions) {
       const d = Math.hypot(s.x - a.x, s.y - a.y);
       if (d > tol) {
         emit(world, { kind: 'echoDivergence', tick: t, id: s.id, action: a.kind, distance: d });
         continue;
       }
-      if (a.kind === 'shot') {
+      if (a.kind === 'shot' && a.gun === 'rocket') {
+        // (PHASE12-a) The same rocket launch ([D62]).
+        launchRocket(world, s.id, s, a.angle, 'player');
+        s.nextFireTick = t + Math.max(1, secondsToTicks(this.tuning.rocket.cooldownSeconds));
+      } else if (a.kind === 'shot') {
         // (07-c) The echo's own gun (rifle or MG), at the recorded (already spread) angle.
-        const gun = gunOf(s) ?? 'rifle';
-        fireGun(world, s.id, s, a.angle, gun);
+        // (PHASE12-a) Or the recorded weapon: a Sniper's pistol or rifle, a shotgun pellet.
+        const gun: GunKind =
+          (a.gun !== 'rocket' ? a.gun : undefined) ?? gunOf(s, this.tuning) ?? 'rifle';
+        fireGun(world, s.id, s, a.angle, gun, 'player', gun === 'shotgun' ? pellet++ : undefined);
         s.nextFireTick = t + gunCooldownTicks(this.tuning, gun);
       } else if (a.kind === 'throw') {
         // (07-c) Same throw from where the echo is now ([D37]).

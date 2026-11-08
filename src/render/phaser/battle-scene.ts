@@ -298,8 +298,11 @@ export class BattleScene extends Phaser.Scene {
     const { display } = this.services;
     const cam = this.cameras.main;
     const zoom = display.cameraZoom || 1;
+    // (PHASE12-a) A Sniper with its rifle up looks further ahead ([D59]).
+    const live = this.view.soldiers.find((s) => s.id === this.liveId);
+    const far = live?.gun === 'sniper' ? this.world.tuning.sniper.lookAheadMultiplier : 1;
     const ahead = capLookAhead(
-      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance, aim),
+      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance * far, aim),
       cam.width / 2 / zoom,
       cam.height / 2 / zoom,
     );

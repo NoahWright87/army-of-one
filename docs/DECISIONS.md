@@ -250,6 +250,22 @@ revise with justification in a PR).
   **asynchronous co-op**: playing alongside another player's lives as echoes, which affect your
   playthrough like your own echoes do.
 
+## More roles (PHASE12-a, owner session 2026-11)
+
+- **[D59] Sniper.** A pistol while moving. Standing still swaps to a long rifle (after a short
+  set-up, with or without cover) that aims further than average. Cover makes it even more
+  accurate and adds a little range. Like the Machine Gunner's mount ([D40]), but it doesn't need
+  cover. Balance: auto-aim (the player's and the AI's) is very bad against moving targets with
+  the rifle, and the pistol is weak up close and on the move.
+- **[D60] Shield (heavy).** Blocks a share of damage (80 %, tunable) coming from the 135° it
+  faces. Only a basic pistol. Used to guard other troops.
+- **[D61] Shotgunner.** The opposite of the Sniper: useless at long range, more HP than average,
+  powerful up close. Fires a random spread of pellets, deterministic on replay: each pellet's
+  trajectory is recorded.
+- **[D62] Bazooka.** For blowing up vehicles. Takes longer to fire, very inaccurate against
+  people, more accurate against vehicles (for auto-aim and the AI), friendly-fire damage from
+  the blast. Slower than average: bazookas are heavy.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -427,6 +443,22 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   starting state that is part of the seed.
 - **[Q34] Another player's echoes and your money (PHASE15).** In async co-op ([D58]), do their
   bounties and captures fund you? Do their purchases spend from your pool, or come free?
+- **[Q35] Sniper set-up details (PHASE12-a).** Implemented: set-up takes 0.8 s of standing
+  still; while it fills, the Sniper can fire its pistol; firing doesn't interrupt it; any
+  movement drops back to the pistol at once. The rifle's camera looks 1.8× further ahead.
+  Alternatives: no firing while setting up, or a slower turn rate with the rifle up.
+- **[Q36] Does the Shield block explosions (PHASE12-a)?** [D60] says damage from the arc it
+  faces; implemented literally, so a grenade or rocket going off in front is blocked too
+  (`shield.blocksExplosions`, default on). Off makes explosives the counter to a Shield.
+  The Shield only protects others by standing in the way (shots stop at the first soldier);
+  a wider "moving cover" shield would be a new mechanic.
+- **[Q37] Bazooka accuracy by target (PHASE12-a).** "Very inaccurate against people, accurate
+  against vehicles" is implemented as aim error for the AI and auto-aim (`rocket.soldierAimError`
+  against soldiers, none against vehicles/structures; auto-aim goes for vehicles first). A
+  player aiming by hand gets the rocket's plain spread whatever the target. Rockets pass through
+  our own soldiers; only the blast hurts them.
+- **[Q38] Shotgunner "armor" (PHASE12-a).** Implemented as more HP (1.5×), not damage
+  reduction. Say if you want armor as its own number (e.g. less damage from pistols/fragments).
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

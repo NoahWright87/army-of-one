@@ -4,7 +4,7 @@
 deterministically ([D56]). Same seed, same campaign, for everyone, so players can share runs
 and compete on a weekly seed ([D58]).
 
-**Depends on:** PHASE11 (a budget to balance a level against) and ideally PHASE12 (the full set
+**Depends on:** PHASE11 (a budget to balance a level against) and ideally PHASE12-a/b (the full set
 of building blocks), so the generator isn't rewritten for every new unit type.
 
 ## Direction

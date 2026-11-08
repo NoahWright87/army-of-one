@@ -31,6 +31,7 @@ import {
   IDLE_INPUT,
   isEligible,
   isOurEligible,
+  soldierMaxHp,
   type SoldierInput,
   type SoldierState,
 } from '../entities/soldier';
@@ -284,7 +285,23 @@ export function profileOf(role: RoleId | undefined): AiProfile {
 function weaponRange(world: World, s: SoldierState): number {
   const w = roleDef(s.roleId).weapon;
   const t = world.tuning;
-  return w === 'mg' ? t.mg.range : w === 'grenade' ? t.grenade.maxRange : t.rifle.range;
+  switch (w) {
+    case 'mg':
+      return t.mg.range;
+    case 'grenade':
+      return t.grenade.maxRange;
+    // (PHASE12-a) A Sniper fights at rifle range (it stands to set up when engaging, [D59]).
+    case 'sniper':
+      return t.sniper.range;
+    case 'pistol':
+      return t.pistol.range;
+    case 'shotgun':
+      return t.shotgun.range;
+    case 'rocket':
+      return t.rocket.range;
+    default:
+      return t.rifle.range;
+  }
 }
 
 // ---------- decision ----------
@@ -298,7 +315,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   const squad = (world.map.squads ?? []).find((q) => q.id === ai.squad);
   const leashOk = (pt: Vec2) => distance(pt, ai.home) <= prof.leash + 1;
   const underFire = p.hurt || tick - ai.hurtTick < secondsToTicks(1.5);
-  const hpFrac = s.hp / Math.max(1, world.tuning.soldier.maxHp);
+  const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId));
 
   const scores: Record<Behavior, number> = {
     evade: 0,
@@ -510,7 +527,14 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
     // (07-e) Moving targets are harder to hit ([D50]): jitter that grows with their speed.
     if (live && live.moveFrac > 0) {
       const jitter = hash01(`${s.id}@${tick}:moving`) * 2 - 1;
-      aim += jitter * world.tuning.ai.movingTargetError * live.moveFrac;
+      // (PHASE12-a) Much worse with a sniper rifle ([D59]).
+      const extra =
+        gunOf(s, world.tuning) === 'sniper' ? world.tuning.sniper.movingTargetAimError : 0;
+      aim += jitter * (world.tuning.ai.movingTargetError + extra) * live.moveFrac;
+    }
+    // (PHASE12-a) Rockets are very inaccurate against people ([D62]).
+    if (live && roleDef(s.roleId).weapon === 'rocket') {
+      aim += (hash01(`${s.id}@${tick}:rocket`) * 2 - 1) * world.tuning.rocket.soldierAimError;
     }
     aimDistance = distance(s, aimAt);
   } else if (move.x !== 0 || move.y !== 0) {
@@ -522,12 +546,23 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   let fire = false;
   if (live && tick >= ai.reactAt && ai.behavior !== 'evade') {
     const d = distance(s, live);
-    const gun = gunOf(s);
+    const gun = gunOf(s, world.tuning);
+    const weapon = roleDef(s.roleId).weapon;
     if (gun) {
       // Bursts: fire while the cone at the target is tight enough, let recoil recover otherwise.
       const spreadAtTarget = d * Math.tan(currentSpread(world, s, aim));
       const tol = world.tuning.soldier.hitboxRadius * profileOf(s.roleId).burstTolerance;
       fire = spreadAtTarget <= Math.max(tol, world.tuning.soldier.hitboxRadius);
+      // (PHASE12-a) Only within the gun in hand's reach (a Sniper still on its pistol waits).
+      if (gun === 'pistol' || gun === 'shotgun') {
+        fire &&= d <= (gun === 'pistol' ? world.tuning.pistol.range : world.tuning.shotgun.range);
+      }
+    } else if (weapon === 'rocket') {
+      // (PHASE12-a) Bazooka: hold to aim, unless our own squad is near the target ([D62]).
+      const allyNear = world.state.soldiers.some(
+        (a) => a.ai && a !== s && isEligible(a) && distanceSq(a, live) <= 110 * 110,
+      );
+      fire = !allyNear && d <= world.tuning.rocket.range;
     } else {
       // Grenadier: don't throw onto its own squad; wind up to full, then release (throws).
       const allyNear = world.state.soldiers.some(

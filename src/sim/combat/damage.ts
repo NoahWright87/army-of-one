@@ -1,5 +1,5 @@
 import { secondsToTicks } from '../core/time';
-import { distanceSq } from '../core/vec';
+import { distanceSq, type Vec2 } from '../core/vec';
 import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
 import { allObjectivesDone } from '../entities/capture-point';
 import { armMine } from '../entities/mine';
@@ -8,6 +8,24 @@ import { isEligible, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
+
+/** (PHASE12-a) Damage causes that are blasts ([Q36]: `shield.blocksExplosions`). */
+const EXPLOSIVE: ReadonlySet<string> = new Set(['grenade', 'rocket', 'mine']);
+
+/**
+ * (PHASE12-a) Share of damage from `from` a Shield blocks ([D60]): `shield.block` when the
+ * source is inside the arc it faces, else 0. Everyone else blocks nothing.
+ */
+export function shieldBlock(world: World, s: SoldierState, from: Vec2): number {
+  if (s.roleId !== 'shield') return 0;
+  const dx = from.x - s.x;
+  const dy = from.y - s.y;
+  if (dx === 0 && dy === 0) return 0;
+  let diff = Math.atan2(dy, dx) - s.facing;
+  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+  const half = (world.tuning.shield.arcDegrees * Math.PI) / 360;
+  return Math.abs(diff) <= half ? world.tuning.shield.block : 0;
+}
 
 /**
  * Damage and deaths are always simulated, never replayed ([E3]). HP is floored at `minHp`
@@ -19,8 +37,13 @@ export function damageSoldier(
   amount: number,
   by: string | undefined,
   cause: string,
+  /** (PHASE12-a) Where the damage comes from (a shot's origin, a blast's centre): the Shield. */
+  from?: Vec2,
 ): void {
   if (!isEligible(s) || amount <= 0) return;
+  if (from && (world.tuning.shield.blocksExplosions || !EXPLOSIVE.has(cause))) {
+    amount *= 1 - shieldBlock(world, s, from);
+  }
   const before = s.hp;
   s.hp = Math.max(s.hp - amount, s.minHp, 0);
   const tick = world.state.tick;
@@ -125,7 +148,7 @@ export function detonateMine(world: World, index: number, by: string): void {
   const r2 = mt.blastRadius * mt.blastRadius;
   for (const s of st.soldiers) {
     if (isEligible(s) && distanceSq(s, c) <= r2)
-      damageSoldier(world, s, mt.blastDamage, m.id, 'mine');
+      damageSoldier(world, s, mt.blastDamage, m.id, 'mine', c);
   }
 
   if (mt.damagesHazards) {

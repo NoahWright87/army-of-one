@@ -92,7 +92,17 @@ export const STRINGS = {
   'role.gunner': 'Machine Gunner',
   'role.gunner.blurb':
     'Machine gun: sprays on the move. Stand still at cover to mount it and tighten the spread.',
-  'respawn.role.title': 'Role (1–3)',
+  'role.sniper': 'Sniper',
+  'role.sniper.blurb':
+    'Pistol on the move. Stand still to raise a long rifle; on cover it is even steadier.',
+  'role.shield': 'Shield',
+  'role.shield.blurb': 'Blocks most damage from the front. Pistol only. Guard your squad.',
+  'role.shotgun': 'Shotgunner',
+  'role.shotgun.blurb': 'Tough and deadly up close, useless at range.',
+  'role.bazooka': 'Bazooka',
+  'role.bazooka.blurb':
+    'Hold fire to aim a rocket. Wrecks vehicles; slow, and the blast hits friends too.',
+  'respawn.role.title': 'Role (1–7)',
   'respawn.role.keeps': 'A resumed soldier keeps their role',
   'spawn.mission03.west': 'West',
   'spawn.mission03.centre': 'Centre',

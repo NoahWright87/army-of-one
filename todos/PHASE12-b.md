@@ -1,9 +1,10 @@
-# PHASE12: Vehicles and heavy units (sketch)
+# PHASE12-b: Vehicles (sketch)
 
 **Goal:** very expensive, very powerful units you buy with the money from PHASE11. A vehicle
 may look like a crew, but it's just you driving it ([D55]).
 
-**Depends on:** PHASE11 (prices). Flesh out once PHASE11 lands.
+**Depends on:** PHASE11 (prices), PHASE12-a (the Bazooka, the anti-vehicle role). Flesh out once
+the owner has picked the vehicles (see the open questions below).
 
 ## Direction
 - A vehicle is a purchasable unit like a role: one live unit, bigger body and hitbox, much more
@@ -16,7 +17,8 @@ may look like a crew, but it's just you driving it ([D55]).
 - Cover vs vehicles: does a tank crush fences/sandbags? Does cover stop tank shells?
 
 ## ⛔ Decisions needed first
-- Which vehicles first (a tank? a jeep? a mortar team as a "heavy unit"?), and their weapons.
+- Which vehicles first (owner, 2026-11: "some sort of truck with a mounted gun and some sort of
+  tank"), and their weapons.
 - Controls: tank-style (hull turns, turret aims at the cursor) or twin-stick like a soldier?
   On touch?
 - Can a vehicle capture points? Can it be repaired? Does it leave a wreck that blocks paths?

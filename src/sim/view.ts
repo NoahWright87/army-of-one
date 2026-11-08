@@ -37,6 +37,11 @@ export interface SoldierView {
   windupAim?: number;
   /** (07-c) Live soldier only: current ± aim spread, radians (the reticle's size, [D39]). */
   aimSpread?: number;
+  /**
+   * (PHASE12-a) Live soldier: the weapon in hand now (a Sniper's pistol or rifle, [D59]). The
+   * camera looks further ahead with the rifle up; auto-aim uses its reach.
+   */
+  gun?: 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket';
   /** (07-c) Live Machine Gunner: mount progress 0..1 while braced on cover ([D40]). */
   mount?: number;
   /** (07-c) Live Machine Gunner: mounted and aiming across the cover (the bonus applies). */
@@ -44,6 +49,15 @@ export interface SoldierView {
 }
 
 /** (07-c) A grenade in flight ([D37]). */
+/** (PHASE12-a) A rocket in flight ([D62]). */
+export interface RocketView {
+  kind: 'rocket';
+  id: string;
+  x: number;
+  y: number;
+  angle: number;
+}
+
 export interface GrenadeView {
   kind: 'grenade';
   id: string;
@@ -195,6 +209,8 @@ export interface WorldView {
   capturePoints: CapturePointView[];
   /** (07-c) Grenades in flight. */
   grenades?: GrenadeView[];
+  /** (PHASE12-a) Optional so older fixtures still type-check. */
+  rockets?: RocketView[];
   /**
    * (07-c) The live soldier's cover indicator ([D34]): one arc per cover piece or wall close by,
    * pointing at it, darker for better cover. Only the live soldier gets these.

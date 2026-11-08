@@ -130,7 +130,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   back to Breach, and old saves for removed missions are ignored. The title-screen picker only
   shows with more than one mission.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
-  roles are picked on the respawn screen (keys 1–3). The Grenadier holds fire to wind up and
+  roles are picked on the respawn screen (keys 1–7; PHASE12-a added Sniper, Shield,
+  Shotgunner and Bazooka). The Grenadier holds fire to wind up and
   releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
   reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
 - Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role

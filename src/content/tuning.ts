@@ -1,3 +1,4 @@
+import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
 
 /**
@@ -66,6 +67,84 @@ export interface Tuning {
     braceReach: number;
     mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
   } & GunSpread;
+  /** (PHASE12-a) The Shield's sidearm, and the Sniper's while moving or setting up ([D59], [D60]). */
+  pistol: {
+    damage: number;
+    range: number;
+    cooldownSeconds: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Sniper's rifle ([D59]): standing still for `setupSeconds` swaps the pistol
+   * for it, with or without cover. Set up next to non-solid cover and firing across it, the
+   * spread and range improve further. Moving swaps back to the pistol at once.
+   */
+  sniper: {
+    damage: number;
+    range: number;
+    cooldownSeconds: number;
+    setupSeconds: number;
+    /** Braced on cover, firing across it: spread × this, range × `coverRangeMultiplier`. */
+    coverSpreadMultiplier: number;
+    coverRangeMultiplier: number;
+    /** Fire counts as "across the cover" if the aim ray enters a piece this close. */
+    braceReach: number;
+    /**
+     * Aim error against a moving target, × its speed (a walk = 1), radians: for AI snipers on
+     * top of `ai.movingTargetError`, and for the player's auto-aim ([D59]).
+     */
+    movingTargetAimError: number;
+    /** Camera look-ahead × this while the rifle is up (render only). */
+    lookAheadMultiplier: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Shotgunner's shotgun ([D61]): `pellets` hitscan pellets per shot, each at
+   * its own hashed angle within ± `pelletSpread` around the (spread-rolled) aim. Each pellet is
+   * recorded as its own shot. Damage falls off with distance to `falloffTo` × at full range.
+   */
+  shotgun: {
+    pelletDamage: number;
+    pellets: number;
+    pelletSpread: number;
+    range: number;
+    falloffTo: number;
+    cooldownSeconds: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Bazooka's rockets ([D62]): hold fire for `aimSeconds` to launch (releasing
+   * early cancels), then `cooldownSeconds` to reload. A rocket flies straight, explodes on what
+   * it hits (passing through its own side) or at full range. The blast hurts everyone in it,
+   * our own soldiers too.
+   */
+  rocket: {
+    speed: number;
+    range: number;
+    aimSeconds: number;
+    cooldownSeconds: number;
+    /** A direct hit on a soldier, on top of the blast. */
+    directDamage: number;
+    blastRadius: number;
+    blastDamage: number;
+    /** To turrets, objectives, charges in the blast. */
+    hazardDamage: number;
+    /** To vehicles in the blast (what it's for). */
+    vehicleDamage: number;
+    /**
+     * Aim error against soldiers, radians, for AI and auto-aim ([D62]: very inaccurate against
+     * people, accurate against vehicles and structures).
+     */
+    soldierAimError: number;
+  } & GunSpread;
+  /** (PHASE12-a) The Shield ([D60]): blocks a share of damage coming from the arc it faces. */
+  shield: {
+    /** Share of damage blocked, 0..1. */
+    block: number;
+    /** Width of the protected arc, degrees, centred on the facing. */
+    arcDegrees: number;
+    /** Blasts (grenades, rockets, mines) in front are blocked too. false: explosives ignore it. */
+    blocksExplosions: boolean;
+  };
+  /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
+  roleStats: Record<RoleId, { hp: number; speed: number }>;
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
     /** Share of straight shots / lobbed objects each material stops, 0..1. */
@@ -383,6 +462,10 @@ export interface Tuning {
       rifleman: number;
       grenadier: number;
       gunner: number;
+      sniper: number;
+      shield: number;
+      shotgun: number;
+      bazooka: number;
       turret: number;
       vehicle: number;
       mine: number;
@@ -426,6 +509,76 @@ export const DEFAULT_TUNING: Tuning = {
       kick: 0.006, // TUNE
       maxRecoil: 0.04, // TUNE
     },
+  },
+  pistol: {
+    damage: 15, // TUNE: a weak sidearm
+    range: 340, // TUNE
+    cooldownSeconds: 0.3, // TUNE
+    baseSpread: 0.02, // TUNE
+    movingSpread: 0.12, // TUNE
+    kick: 0.05, // TUNE
+    maxRecoil: 0.15, // TUNE
+    recoveryPerSecond: 0.3, // TUNE
+  },
+  sniper: {
+    damage: 80, // TUNE: two hits kill
+    range: 900, // TUNE: well past the rifle's 520
+    cooldownSeconds: 1.2, // TUNE
+    setupSeconds: 0.8, // TUNE
+    baseSpread: 0.006, // TUNE
+    movingSpread: 0, // TUNE: it's only up while standing still
+    kick: 0.06, // TUNE
+    maxRecoil: 0.06, // TUNE
+    recoveryPerSecond: 0.08, // TUNE: settles by the next shot
+    coverSpreadMultiplier: 0.4, // TUNE [D59]: even more accurate on cover
+    coverRangeMultiplier: 1.15, // TUNE [D59]: and a little more range
+    braceReach: 60, // TUNE
+    movingTargetAimError: 0.12, // TUNE [D59]: ~±7° at a walking target, more at a sprint
+    lookAheadMultiplier: 1.8, // TUNE
+  },
+  shotgun: {
+    pelletDamage: 14, // TUNE: 8 × 14 = 112 point blank
+    pellets: 8, // TUNE
+    pelletSpread: 0.16, // TUNE: ±9°
+    range: 300, // TUNE: useless at long range [D61]
+    falloffTo: 0.15, // TUNE: useless far away [D61]
+    cooldownSeconds: 0.8, // TUNE
+    baseSpread: 0, // TUNE
+    movingSpread: 0.05, // TUNE
+    kick: 0.08, // TUNE
+    maxRecoil: 0.1, // TUNE
+    recoveryPerSecond: 0.2, // TUNE
+  },
+  rocket: {
+    speed: 700, // TUNE: units/s
+    range: 700, // TUNE
+    aimSeconds: 0.6, // TUNE [D62]: takes longer to fire
+    cooldownSeconds: 2.5, // TUNE
+    directDamage: 60, // TUNE
+    blastRadius: 70, // TUNE
+    blastDamage: 60, // TUNE
+    hazardDamage: 150, // TUNE
+    vehicleDamage: 400, // TUNE
+    soldierAimError: 0.2, // TUNE [D62]: ±11° at people
+    baseSpread: 0.03, // TUNE
+    movingSpread: 0.15, // TUNE
+    kick: 0, // TUNE
+    maxRecoil: 0, // TUNE
+    recoveryPerSecond: 1, // TUNE
+  },
+  shield: {
+    block: 0.8, // TUNE [D60]
+    arcDegrees: 135, // TUNE [D60]
+    blocksExplosions: true, // [Q36]
+  },
+  roleStats: {
+    rifleman: { hp: 1, speed: 1 },
+    grenadier: { hp: 1, speed: 1 },
+    gunner: { hp: 1, speed: 1 },
+    sniper: { hp: 1, speed: 1 }, // TUNE
+    shield: { hp: 1.2, speed: 0.9 }, // TUNE: heavy
+    shotgun: { hp: 1.5, speed: 1 }, // TUNE [D61]: more HP than average
+    bazooka: { hp: 1, speed: 0.8 }, // TUNE [D62]: bazookas are heavy
   },
   cover: {
     materials: {
@@ -593,6 +746,10 @@ export const DEFAULT_TUNING: Tuning = {
       rifleman: 5, // TUNE
       grenadier: 8, // TUNE
       gunner: 10, // TUNE
+      sniper: 12, // TUNE
+      shield: 10, // TUNE
+      shotgun: 10, // TUNE
+      bazooka: 12, // TUNE
       turret: 20, // TUNE
       vehicle: 5, // TUNE
       mine: 2, // TUNE

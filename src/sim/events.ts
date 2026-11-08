@@ -1,3 +1,4 @@
+import type { ShotWeapon } from '../contracts/mission';
 import type { Tick } from './core/time';
 import type { SoldierId } from './entities/soldier';
 import type { CaptureStage } from './world/map';
@@ -18,6 +19,8 @@ export type SimEvent =
       hitX: number;
       hitY: number;
       hitId?: string;
+      /** (PHASE12-a) The soldier weapon that fired it (recorded with the shot when it matters). */
+      weapon?: ShotWeapon;
     }
   | { kind: 'damaged'; tick: Tick; target: string; amount: number; by?: string }
   | { kind: 'soldierDied'; tick: Tick; id: SoldierId; cause: string; by?: string }
@@ -44,6 +47,26 @@ export type SimEvent =
       distance: number;
     }
   | { kind: 'grenadeBounced'; tick: Tick; id: string; x: number; y: number }
+  /** (PHASE12-a) A Bazooka launched a rocket ([D62]). Recorders turn this into a `shot` action. */
+  | {
+      kind: 'rocketLaunched';
+      tick: Tick;
+      id: string;
+      by: string;
+      fromX: number;
+      fromY: number;
+      angle: number;
+    }
+  /** (PHASE12-a) A rocket's blast. */
+  | {
+      kind: 'rocketExploded';
+      tick: Tick;
+      id: string;
+      by: string;
+      x: number;
+      y: number;
+      radius: number;
+    }
   /** (07-c) Blast + fragments; `fragments` are the rays' end points, for the renderer. */
   | {
       kind: 'grenadeExploded';
