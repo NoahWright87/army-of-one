@@ -27,7 +27,7 @@ import { compareIds } from '../core/ids';
 import { DT, secondsToTicks, type Tick } from '../core/time';
 import { distance, type Vec2 } from '../core/vec';
 import { interact, isLeverOn } from '../entities/lever';
-import type { SoldierState } from '../entities/soldier';
+import { driveOf, wallRadiusOf, type SoldierState } from '../entities/soldier';
 import { emit, type World } from '../state';
 import { getSoldier, soldierIndex, spawnSoldier, type StepHooks } from '../sim';
 import { moveCircle } from '../world/collision';
@@ -280,7 +280,7 @@ export class EchoController {
     if (dx !== 0 || dy !== 0) {
       const d = Math.hypot(dx, dy);
       if (d > et.snapDistance) return false;
-      const res = moveCircle(s, { x: dx, y: dy }, this.tuning.soldier.wallRadius, solids);
+      const res = moveCircle(s, { x: dx, y: dy }, wallRadiusOf(this.tuning, s), solids);
       if (Math.hypot(res.x - target.x, res.y - target.y) > et.blockEpsilon) return false;
     }
     s.x = target.x;
@@ -300,8 +300,14 @@ export class EchoController {
     const t = world.state.tick;
     const et = this.tuning.echo;
     // (07-e) Recordings may sprint ([D49]): catch up at up to sprint speed.
+    // (PHASE12-b) A vehicle's top speed may be higher still.
     const maxStep =
-      this.tuning.soldier.speed * this.tuning.soldier.sprintMultiplier * DT * et.catchUpFactor;
+      Math.max(
+        this.tuning.soldier.speed * this.tuning.soldier.sprintMultiplier,
+        driveOf(this.tuning, s.roleId)?.maxSpeed ?? 0,
+      ) *
+      DT *
+      et.catchUpFactor;
     const lateTolerance = secondsToTicks(et.lateToleranceSeconds);
     s.facing = target.facing;
 
@@ -358,7 +364,7 @@ export class EchoController {
     const res = moveCircle(
       s,
       { x: pos.x - s.x, y: pos.y - s.y },
-      this.tuning.soldier.wallRadius,
+      wallRadiusOf(this.tuning, s),
       solids,
     );
     s.x = res.x;
@@ -403,10 +409,13 @@ export class EchoController {
         emit(world, { kind: 'echoDivergence', tick: t, id: s.id, action: a.kind, distance: d });
         continue;
       }
-      if (a.kind === 'shot' && a.gun === 'rocket') {
-        // (PHASE12-a) The same rocket launch ([D62]).
-        launchRocket(world, s.id, s, a.angle, 'player');
-        s.nextFireTick = t + Math.max(1, secondsToTicks(this.tuning.rocket.cooldownSeconds));
+      // (PHASE12-b) A vehicle's turret points where it fired.
+      if (a.kind === 'shot' && s.drive) s.drive.turret = a.angle;
+      if (a.kind === 'shot' && (a.gun === 'rocket' || a.gun === 'shell')) {
+        // (PHASE12-a) The same rocket launch ([D62]); (PHASE12-b) or tank shell.
+        launchRocket(world, s.id, s, a.angle, 'player', a.gun);
+        const cd = a.gun === 'shell' ? this.tuning.shell : this.tuning.rocket;
+        s.nextFireTick = t + Math.max(1, secondsToTicks(cd.cooldownSeconds));
       } else if (a.kind === 'shot') {
         // (07-c) The echo's own gun (rifle or MG), at the recorded (already spread) angle.
         // (PHASE12-a) Or the recorded weapon: a Sniper's pistol or rifle, a shotgun pellet.

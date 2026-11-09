@@ -71,7 +71,7 @@ export class Recorder {
           x: e.fromX,
           y: e.fromY,
           angle: e.angle,
-          gun: 'rocket',
+          gun: e.shell ? 'shell' : 'rocket',
         });
       } else if (e.kind === 'grenadeThrown' && e.by === this.soldierId) {
         this.actions.push({

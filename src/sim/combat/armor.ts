@@ -63,3 +63,14 @@ export function armorFrom(profile: ArmorProfile, at: Vec2, facing: number, from?
 export function throughArmor(armor: number, pierce: number): number {
   return 1 - Math.max(0, Math.min(1, armor - pierce));
 }
+
+/**
+ * Roughly how much of a hit from a weapon of `kind` gets through a unit of `roleId` (its side
+ * armor). For target choice: the AI and auto-aim prefer targets they can actually hurt.
+ */
+export function damageShare(tuning: Tuning, kind: string, roleId: RoleId | undefined): number {
+  return throughArmor(roleArmor(tuning, roleId).side, pierceOf(tuning, kind));
+}
+
+/** Below this share a target is "not worth shooting" while a better one is in view. */
+export const WORTH_SHOOTING = 0.2;

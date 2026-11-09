@@ -18,6 +18,7 @@
 import type { Tuning } from '../../content/tuning';
 import { roleDef } from '../../content/roles';
 import { hash01 } from '../../sim/core/hash';
+import { damageShare, WORTH_SHOOTING } from '../../sim/combat/armor';
 import type { Vec2 } from '../../sim/core/vec';
 import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierView, WorldView } from '../../sim/view';
@@ -50,6 +51,8 @@ export function autoAimRange(
       return tuning.shotgun.range;
     case 'rocket':
       return tuning.rocket.range;
+    case 'shell':
+      return tuning.shell.range;
     default:
       return tuning.rifle.range;
   }
@@ -109,6 +112,8 @@ export function rankTargets(
   range: number,
   /** (PHASE12-a) The Bazooka goes for vehicles first ([D62]). */
   preferVehicles = false,
+  /** (PHASE12-b) Share of a hit that gets through a soldier/vehicle of this role ([D70]). */
+  share: (roleId: SoldierView['roleId']) => number = () => 1,
 ): Candidate[] {
   const blockers = solidBlockers(map, view);
   const out: Candidate[] = [];
@@ -126,7 +131,14 @@ export function rankTargets(
     for (const v of view.vehicles) if (v.state !== 'wreck') consider(v.id, v.x, v.y, -1);
   }
   // (07-d) Enemy soldiers are threats like turrets ([D44]).
-  for (const s of view.soldiers) if (s.alive && s.role === 'enemy') consider(s.id, s.x, s.y, 2);
+  // (PHASE12-b) Units the weapon can barely hurt (a tank vs a rifle) come last, and (PHASE12-a)
+  // a Bazooka goes for enemy vehicles first.
+  for (const s of view.soldiers) {
+    if (!s.alive || s.role !== 'enemy') continue;
+    const armored = share(s.roleId) < WORTH_SHOOTING;
+    const vehicle = s.roleId === 'truck' || s.roleId === 'tank';
+    consider(s.id, s.x, s.y, preferVehicles && vehicle ? -1 : armored ? 4 : 2);
+  }
   for (const o of view.objectives) if (!o.destroyed) consider(o.id, o.x, o.y, 3);
   out.sort((a, b) => a.tier - b.tier || a.d - b.d || (a.id < b.id ? -1 : 1));
   return out;
@@ -140,8 +152,9 @@ export function pickTarget(
   range: number,
   currentId: string | null,
   preferVehicles = false,
+  share?: (roleId: SoldierView['roleId']) => number,
 ): AimTarget | null {
-  const ranked = rankTargets(view, map, me, range, preferVehicles);
+  const ranked = rankTargets(view, map, me, range, preferVehicles, share);
   if (ranked.length === 0) return null;
   const best = ranked[0]!;
   const current = currentId ? ranked.find((c) => c.id === currentId) : undefined;
@@ -194,8 +207,18 @@ export class AutoAimInput implements InputSource {
       return input;
     }
     const range = autoAimRange(this.opts.tuning, me.roleId, me.gun);
-    const rockets = me.gun === 'rocket';
-    this.target = pickTarget(view, this.opts.map, me, range, this.target?.id ?? null, rockets);
+    const rockets = me.gun === 'rocket' || me.gun === 'shell';
+    const kind = me.gun ?? (roleDef(me.roleId).weapon === 'grenade' ? 'grenade' : 'rifle');
+    const tuning = this.opts.tuning;
+    this.target = pickTarget(
+      view,
+      this.opts.map,
+      me,
+      range,
+      this.target?.id ?? null,
+      rockets,
+      (r) => damageShare(tuning, kind, r),
+    );
     if (!this.target) return input;
     const tgt = this.target;
     const sv = view.soldiers.find((s) => s.id === tgt.id);
@@ -205,7 +228,8 @@ export class AutoAimInput implements InputSource {
     const err = autoAimError(
       this.opts.tuning,
       me.gun,
-      { id: tgt.id, soldier: !!sv, speedFrac },
+      // (PHASE12-b) Vehicles aren't "people" for the Bazooka's error ([D62]).
+      { id: tgt.id, soldier: !!sv && sv.roleId !== 'truck' && sv.roleId !== 'tank', speedFrac },
       view.tick,
     );
     const aim = Math.atan2(tgt.y - me.y, tgt.x - me.x) + err;

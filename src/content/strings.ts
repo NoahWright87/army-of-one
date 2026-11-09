@@ -102,7 +102,11 @@ export const STRINGS = {
   'role.bazooka': 'Bazooka',
   'role.bazooka.blurb':
     'Hold fire to aim a rocket. Wrecks vehicles; slow, and the blast hits friends too.',
-  'respawn.role.title': 'Role (1–7)',
+  'role.truck': 'Gun truck',
+  'role.truck.blurb': 'Fast, lightly armored, machine gun turret. Rolls to turn; runs people over.',
+  'role.tank': 'Tank',
+  'role.tank.blurb': 'Slow and nearly bulletproof. Hold fire to aim the cannon; it reloads slowly.',
+  'respawn.role.title': 'Role (1–9)',
   'respawn.role.keeps': 'A resumed soldier keeps their role',
   'spawn.mission03.west': 'West',
   'spawn.mission03.centre': 'Centre',

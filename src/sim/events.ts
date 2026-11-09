@@ -64,6 +64,8 @@ export type SimEvent =
       fromX: number;
       fromY: number;
       angle: number;
+      /** (PHASE12-b) A tank shell rather than a rocket. */
+      shell?: true;
     }
   /** (PHASE12-b) A cover piece was destroyed ([Q40]). */
   | { kind: 'coverDestroyed'; tick: Tick; id: string; x: number; y: number; by?: string }

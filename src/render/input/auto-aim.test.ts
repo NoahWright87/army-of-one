@@ -3,6 +3,7 @@ import { DEFAULT_TUNING } from '../../content/tuning';
 import { controlScheme } from '../../app/game-settings';
 import { arena } from '../../sim/__tests__/helpers';
 import { createWorld, getView, spawnSoldier } from '../../sim/sim';
+import { damageShare } from '../../sim/combat/armor';
 import type { WorldView } from '../../sim/view';
 import { knobOffset, looksLikeTouch, stickVector } from '../../ui/touch/stick-math';
 import {
@@ -166,5 +167,22 @@ describe('auto-aim with the PHASE12-a weapons', () => {
     });
     expect(rankTargets(view, map, me, 1000, true)[0]!.id).toBe('V9');
     expect(rankTargets(view, map, me, 1000)[0]!.id).not.toBe('V9');
+  });
+});
+
+describe('auto-aim and armor (PHASE12-b)', () => {
+  it('a rifle ranks a tank behind a soldier it can hurt', () => {
+    const w = createWorld(arena(), { ...T, ai: { ...T.ai, enabled: false } });
+    const me = spawnSoldier(w, 'a', { position: { x: 100, y: 500 } });
+    spawnSoldier(w, 'a', { position: { x: 200, y: 500 }, roleId: 'tank', team: 'enemy' });
+    spawnSoldier(w, 'a', { position: { x: 400, y: 500 }, team: 'enemy' });
+    const view = getView(w);
+    const share = (r: (typeof view.soldiers)[number]['roleId']) => damageShare(T, 'rifle', r);
+    const ranked = rankTargets(view, arena(), { id: me, x: 100, y: 500 }, 1000, false, share);
+    expect(view.soldiers.find((s) => s.id === ranked[0]!.id)!.roleId).toBeUndefined();
+    const rockets = rankTargets(view, arena(), { id: me, x: 100, y: 500 }, 1000, true, (r) =>
+      damageShare(T, 'rocket', r),
+    );
+    expect(view.soldiers.find((s) => s.id === rockets[0]!.id)!.roleId).toBe('tank');
   });
 });

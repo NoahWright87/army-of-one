@@ -41,7 +41,9 @@ export interface SoldierView {
    * (PHASE12-a) Live soldier: the weapon in hand now (a Sniper's pistol or rifle, [D59]). The
    * camera looks further ahead with the rifle up; auto-aim uses its reach.
    */
-  gun?: 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket';
+  gun?: 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket' | 'shell';
+  /** (PHASE12-b) A vehicle's turret angle (its `facing` is the hull) ([D63]). */
+  turret?: number;
   /** (07-c) Live Machine Gunner: mount progress 0..1 while braced on cover ([D40]). */
   mount?: number;
   /** (07-c) Live Machine Gunner: mounted and aiming across the cover (the bonus applies). */

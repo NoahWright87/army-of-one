@@ -25,7 +25,8 @@ import { compareIds } from '../core/ids';
 import { secondsToTicks, type Tick } from '../core/time';
 import { distance, distanceSq, type Vec2 } from '../core/vec';
 import { hasLineOfSight } from '../combat/shots';
-import { currentSpread, gunOf } from '../combat/guns';
+import { attackKind, currentSpread, gunOf } from '../combat/guns';
+import { damageShare, WORTH_SHOOTING } from '../combat/armor';
 import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 import {
   IDLE_INPUT,
@@ -212,9 +213,15 @@ function perceive(
     visible.push(o);
   }
   // Target: keep the current one while visible and not much farther than the nearest.
+  // (PHASE12-b) Prefer targets its weapon can hurt: a rifle doesn't waste itself on a tank
+  // while a soldier is in view ([D70]).
+  const kind = attackKind(s, world.tuning);
+  const worth = (o: SoldierState) => damageShare(world.tuning, kind, o.roleId) >= WORTH_SHOOTING;
+  const worthy = visible.filter(worth);
+  const pool = worthy.length > 0 ? worthy : visible;
   let target: SoldierState | null;
-  const cur = ai.targetId ? visible.find((o) => o.id === ai.targetId) : undefined;
-  const nearest = visible[0] ?? null;
+  const cur = ai.targetId ? pool.find((o) => o.id === ai.targetId) : undefined;
+  const nearest = pool[0] ?? null;
   if (cur && nearest && distance(cur, s) <= distance(nearest, s) * 1.3) target = cur;
   else target = nearest;
   if (target) {
@@ -532,9 +539,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
         gunOf(s, world.tuning) === 'sniper' ? world.tuning.sniper.movingTargetAimError : 0;
       aim += jitter * (world.tuning.ai.movingTargetError + extra) * live.moveFrac;
     }
-    // (PHASE12-a) Rockets are very inaccurate against people ([D62]).
-    if (live && roleDef(s.roleId).weapon === 'rocket') {
-      aim += (hash01(`${s.id}@${tick}:rocket`) * 2 - 1) * world.tuning.rocket.soldierAimError;
+    // (PHASE12-a) Rockets are very inaccurate against people ([D62]); (PHASE12-b) shells a bit.
+    const heavy = roleDef(s.roleId).weapon;
+    const vehicleTarget = !!live?.drive;
+    if (live && !vehicleTarget && (heavy === 'rocket' || heavy === 'shell')) {
+      aim += (hash01(`${s.id}@${tick}:rocket`) * 2 - 1) * world.tuning[heavy].soldierAimError;
     }
     aimDistance = distance(s, aimAt);
   } else if (move.x !== 0 || move.y !== 0) {
@@ -557,12 +566,13 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       if (gun === 'pistol' || gun === 'shotgun') {
         fire &&= d <= (gun === 'pistol' ? world.tuning.pistol.range : world.tuning.shotgun.range);
       }
-    } else if (weapon === 'rocket') {
+    } else if (weapon === 'rocket' || weapon === 'shell') {
       // (PHASE12-a) Bazooka: hold to aim, unless our own squad is near the target ([D62]).
+      // (PHASE12-b) A tank's cannon the same way.
       const allyNear = world.state.soldiers.some(
         (a) => a.ai && a !== s && isEligible(a) && distanceSq(a, live) <= 110 * 110,
       );
-      fire = !allyNear && d <= world.tuning.rocket.range;
+      fire = !allyNear && d <= world.tuning[weapon].range;
     } else {
       // Grenadier: don't throw onto its own squad; wind up to full, then release (throws).
       const allyNear = world.state.soldiers.some(
@@ -572,6 +582,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       const need = windupTicksFor(world, aimedThrowDistance(world, input));
       fire = !allyNear && d <= world.tuning.grenade.maxRange && s.windupTicks < need;
     }
+  }
+  // (PHASE12-b) A vehicle's turret lags the aim: hold fire until it's on target.
+  if (fire && s.drive) {
+    const off = Math.atan2(Math.sin(aim - s.drive.turret), Math.cos(aim - s.drive.turret));
+    if (Math.abs(off) > 0.12) fire = false;
   }
   // Holding still steadies the aim: engaging soldiers stand; others move.
   if (ai.behavior === 'engage') move = { x: 0, y: 0 };

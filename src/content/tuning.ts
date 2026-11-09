@@ -15,6 +15,28 @@ export interface GunSpread {
   recoveryPerSecond: number;
 }
 
+/** (PHASE12-b) How a vehicle drives ([D64]). */
+export interface VehicleDrive {
+  /** Collision and hit circle. */
+  bodyRadius: number;
+  maxSpeed: number;
+  reverseSpeed: number;
+  /** Units/s² speeding up, and slowing down. */
+  accel: number;
+  brake: number;
+  /** Hull turn rate, radians/s (the truck's needs it rolling: × speed / crawlSpeed). */
+  turnRate: number;
+  /** Tank: turns on the spot. Truck: false, it has to roll to turn. */
+  turnInPlace: boolean;
+  /** Truck: the speed it rolls at while turning. */
+  crawlSpeed: number;
+  /** Accelerates to full speed once within this many degrees of the wanted heading. */
+  alignDegrees: number;
+  turretTurnRate: number;
+  /** For run-over and ram damage. */
+  weight: number;
+}
+
 /**
  * Every gameplay number lives here. Values marked `// TUNE` are first guesses meant to be
  * adjusted by feel. The sim receives a `Tuning` object explicitly (never imports a global), so
@@ -145,6 +167,41 @@ export interface Tuning {
       { front: number; side: number; rear: number; frontArc: number; rearArc: number }
     >;
     pierce: Record<string, number>;
+  };
+  /**
+   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (hold to aim, then a shell),
+   * slow to reload so there's a window to kill the tank.
+   */
+  shell: {
+    speed: number;
+    range: number;
+    aimSeconds: number;
+    cooldownSeconds: number;
+    directDamage: number;
+    blastRadius: number;
+    blastDamage: number;
+    hazardDamage: number;
+    vehicleDamage: number;
+    soldierAimError: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-b) Vehicles ([D63]–[D68]): one unit you drive. Compass controls: the stick says
+   * which way to go; the vehicle turns to face it first ([D64]). Pulling within `reverseArc`/2
+   * of straight behind reverses. Run-over damage = `crushDamage` × weight × speed (units/s),
+   * once per `crushRepeatSeconds` per target, through armor with 100 % pierce ([D66]); a vehicle
+   * ramming another takes `ramSelfShare` of what the other's weight would deal.
+   */
+  drive: {
+    /** [D68]: vehicles count toward capturing points. */
+    canCapture: boolean;
+    reverseArc: number;
+    crushDamage: number;
+    crushRepeatSeconds: number;
+    /** Below this speed (units/s) a vehicle hurts nobody. */
+    crushMinSpeed: number;
+    ramSelfShare: number;
+    truck: VehicleDrive;
+    tank: VehicleDrive;
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
@@ -597,8 +654,59 @@ export const DEFAULT_TUNING: Tuning = {
       shell: 0.5, // TUNE [D70]
       mine: 0.5, // TUNE
       crush: 1, // [D66]: armor doesn't stop being run over
-      vehicle: 1, // traffic: being hit by a car
+      vehicle: 0, // traffic cars: armor applies (a tank shrugs them off)
       bridgeCollapse: 1,
+    },
+  },
+  shell: {
+    speed: 900, // TUNE
+    range: 800, // TUNE
+    aimSeconds: 0.5, // TUNE
+    cooldownSeconds: 4, // TUNE [D72]: fires slow, a window to kill the tank
+    directDamage: 120, // TUNE
+    blastRadius: 80, // TUNE
+    blastDamage: 90, // TUNE
+    hazardDamage: 250, // TUNE
+    vehicleDamage: 450, // TUNE
+    soldierAimError: 0.05, // TUNE: a cannon, not a rifle
+    baseSpread: 0.01, // TUNE
+    movingSpread: 0.06, // TUNE
+    kick: 0, // TUNE
+    maxRecoil: 0, // TUNE
+    recoveryPerSecond: 1, // TUNE
+  },
+  drive: {
+    canCapture: true, // [D68]
+    reverseArc: 90, // TUNE [D64]: stick within ±45° of straight behind → reverse
+    crushDamage: 0.1, // TUNE [D66]: truck at full speed ≈ 78, tank ≈ 110
+    crushRepeatSeconds: 0.5, // TUNE
+    crushMinSpeed: 12, // TUNE
+    ramSelfShare: 0.5, // TUNE
+    truck: {
+      bodyRadius: 26, // TUNE
+      maxSpeed: 260, // TUNE
+      reverseSpeed: 110, // TUNE
+      accel: 220, // TUNE
+      brake: 420, // TUNE
+      turnRate: 2.2, // TUNE
+      turnInPlace: false, // [D64]
+      crawlSpeed: 70, // TUNE
+      alignDegrees: 20, // TUNE
+      turretTurnRate: 4, // TUNE
+      weight: 3, // TUNE
+    },
+    tank: {
+      bodyRadius: 32, // TUNE
+      maxSpeed: 110, // TUNE
+      reverseSpeed: 70, // TUNE
+      accel: 90, // TUNE
+      brake: 200, // TUNE
+      turnRate: 1.1, // TUNE
+      turnInPlace: true, // [D64]
+      crawlSpeed: 0,
+      alignDegrees: 25, // TUNE
+      turretTurnRate: 1.4, // TUNE
+      weight: 10, // TUNE
     },
   },
   roleStats: {

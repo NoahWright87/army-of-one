@@ -5,6 +5,7 @@
  * Per sim step:   renderer.onStep(prevView, curView)   → effects/sounds from that tick's events
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
+import { DEFAULT_TUNING } from '../../content/tuning';
 import Phaser from 'phaser';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
@@ -20,6 +21,12 @@ import { emptyVisual, soldierVisual } from '../soldier-style';
 import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
+
+/** (PHASE12-b) Vehicle body radii for drawing (the sim's are `tuning.drive.*.bodyRadius`). */
+const VEHICLE_BODY = {
+  truck: DEFAULT_TUNING.drive.truck.bodyRadius,
+  tank: DEFAULT_TUNING.drive.tank.bodyRadius,
+} as const;
 
 /** PLACEHOLDER role badge colours ([D36], PHASE12-a). */
 const ROLE_BADGE: Partial<Record<string, number>> = {
@@ -110,6 +117,18 @@ export class WorldRenderer {
   /** (PHASE12-b) Each cover piece's drawing, by id; destroyed ones are hidden ([Q40]). */
   private readonly coverPieces = new Map<string, Phaser.GameObjects.Graphics>();
   private rubbleGfx!: Phaser.GameObjects.Graphics;
+  /** (PHASE12-b) Vehicle hulls and turrets, redrawn every frame. */
+  private vehicleGfx!: Phaser.GameObjects.Graphics;
+  private readonly vehicleDraws: {
+    x: number;
+    y: number;
+    facing: number;
+    turret: number;
+    tank: boolean;
+    role: string;
+    alive: boolean;
+    alpha: number;
+  }[] = [];
   private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
   /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
@@ -250,6 +269,7 @@ export class WorldRenderer {
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
     this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
+    this.vehicleGfx = scene.add.graphics().setDepth(DEPTH.icons - 1);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
@@ -669,6 +689,7 @@ export class WorldRenderer {
 
   private drawSoldiers(a: number, f: RenderFrame): void {
     const r = this.opts.spriteRadius;
+    this.vehicleDraws.length = 0;
     const now = f.nowMs;
     // (05-b) Off-screen culling: anything outside the camera view (plus a margin for sprites,
     // labels and HP bars) is simply not drawn this frame; the pools hide it. The live soldier is
@@ -718,7 +739,21 @@ export class WorldRenderer {
       spr.setTexture(v.texture).setDepth(v.depth);
       if (spr.x !== px || spr.y !== py) spr.setPosition(px, py);
       if (spr.rotation !== facing) spr.setRotation(facing);
-      const scale = (r * 2) / fitPx(v.texture);
+      // (PHASE12-b) Vehicles: the sprite grows to the body; a hull and turret go on top.
+      const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
+      if (vBody > 0) {
+        this.vehicleDraws.push({
+          x: px,
+          y: py,
+          facing,
+          turret: s.turret ?? facing,
+          tank: s.roleId === 'tank',
+          role: s.role,
+          alive: s.alive,
+          alpha: v.alpha,
+        });
+      }
+      const scale = ((vBody > 0 ? vBody : r) * 2) / fitPx(v.texture);
       if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
       if (spr.alpha !== v.alpha) spr.setAlpha(v.alpha);
       if (!this.applyHitFlash(spr, s.id, now)) this.clearTint(spr);
@@ -770,6 +805,57 @@ export class WorldRenderer {
       }
     }
     this.culledSoldiers = culled;
+    this.drawVehicleBodies();
+  }
+
+  /** (PHASE12-b) PLACEHOLDER vehicle art: a hull box along the heading and a turret/barrel. */
+  private drawVehicleBodies(): void {
+    const g = this.vehicleGfx;
+    g.clear();
+    for (const d of this.vehicleDraws) {
+      const len = d.tank ? 64 : 56;
+      const wid = d.tank ? 50 : 32;
+      const color = !d.alive
+        ? 0x2b2b2b
+        : d.role === 'enemy'
+          ? 0x8a3a2a
+          : d.role === 'live'
+            ? 0x9a8a3a
+            : 0x5f7080;
+      const c = Math.cos(d.facing);
+      const sn = Math.sin(d.facing);
+      const pt = (fx: number, fy: number) =>
+        new Phaser.Math.Vector2(d.x + c * fx - sn * fy, d.y + sn * fx + c * fy);
+      const hull = [
+        pt(len / 2, -wid / 2),
+        pt(len / 2, wid / 2),
+        pt(-len / 2, wid / 2),
+        pt(-len / 2, -wid / 2),
+      ];
+      g.fillStyle(color, d.alpha);
+      g.fillPoints(hull, true);
+      g.lineStyle(2, 0x111111, d.alpha);
+      g.strokePoints(hull, true);
+      if (!d.alive) continue;
+      if (!d.tank) {
+        // Cab at the front.
+        g.fillStyle(0x222222, d.alpha * 0.6);
+        g.fillPoints(
+          [
+            pt(len / 2, -wid / 2),
+            pt(len / 2, wid / 2),
+            pt(len / 4, wid / 2),
+            pt(len / 4, -wid / 2),
+          ],
+          true,
+        );
+      }
+      const barrel = d.tank ? 44 : 26;
+      g.lineStyle(d.tank ? 8 : 5, 0x1a1a1a, d.alpha);
+      g.lineBetween(d.x, d.y, d.x + Math.cos(d.turret) * barrel, d.y + Math.sin(d.turret) * barrel);
+      g.fillStyle(d.tank ? 0x444444 : 0x333333, d.alpha);
+      g.fillCircle(d.x, d.y, d.tank ? 15 : 9);
+    }
   }
 
   /** The camera's world-space view rectangle, grown by `margin`. */

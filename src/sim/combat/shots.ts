@@ -1,6 +1,6 @@
 import { distance, fromAngle, type Vec2 } from '../core/vec';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, teamOf, type SoldierState } from '../entities/soldier';
+import { hitRadiusOf, isEligible, teamOf, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
@@ -145,7 +145,7 @@ export function castRay(
     st.soldiers.forEach((s, index) => {
       if (!isEligible(s) || s.id === opts.ignoreId) return;
       if (team !== 'neutral' && teamOf(s) === team) return;
-      const t = rayCircle(from, dir, s, tuning.soldier.hitboxRadius);
+      const t = rayCircle(from, dir, s, hitRadiusOf(tuning, s));
       consider(t, { kind: 'soldier', id: s.id, index });
     });
   }

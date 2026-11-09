@@ -18,7 +18,9 @@ export interface RoleDef {
    * What the fire button does. (PHASE12-a) 'sniper': a pistol, or the rifle once set up
    * ([D59]); 'pistol': the Shield's sidearm ([D60]); 'shotgun' ([D61]); 'rocket' ([D62]).
    */
-  weapon: 'rifle' | 'grenade' | 'mg' | 'sniper' | 'pistol' | 'shotgun' | 'rocket';
+  weapon: 'rifle' | 'grenade' | 'mg' | 'sniper' | 'pistol' | 'shotgun' | 'rocket' | 'shell';
+  /** (PHASE12-b) A vehicle you drive ([D55], [D63]): its driving numbers are `tuning.drive.*`. */
+  vehicle?: 'truck' | 'tank';
   /** (07-d) How an AI soldier of this role behaves ([D46]). */
   ai: AiProfile;
 }
@@ -167,6 +169,43 @@ export const ROLES: readonly RoleDef[] = [
       leash: 450, // TUNE
       burstTolerance: 4, // TUNE
       threat: 1.5, // TUNE: scary for vehicles later
+    },
+  },
+  // (PHASE12-b) Vehicles ([D63]): very expensive, very powerful.
+  {
+    id: 'truck',
+    nameKey: 'role.truck',
+    blurbKey: 'role.truck.blurb',
+    cost: 120, // TUNE
+    weapon: 'mg',
+    vehicle: 'truck',
+    ai: {
+      coverPreference: 0, // TUNE
+      preferredRange: 0.7, // TUNE
+      aggression: 0.7, // TUNE
+      bravery: 4, // TUNE
+      retreatHp: 0.2, // TUNE
+      leash: 900, // TUNE
+      burstTolerance: 2, // TUNE
+      threat: 3, // TUNE
+    },
+  },
+  {
+    id: 'tank',
+    nameKey: 'role.tank',
+    blurbKey: 'role.tank.blurb',
+    cost: 250, // TUNE
+    weapon: 'shell',
+    vehicle: 'tank',
+    ai: {
+      coverPreference: 0, // TUNE
+      preferredRange: 0.75, // TUNE
+      aggression: 0.5, // TUNE
+      bravery: 8, // TUNE
+      retreatHp: 0.15, // TUNE
+      leash: 800, // TUNE
+      burstTolerance: 4, // TUNE
+      threat: 6, // TUNE: scary ([D46])
     },
   },
 ];

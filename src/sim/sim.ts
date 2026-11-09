@@ -6,6 +6,7 @@ import type { Vec2 } from './core/vec';
 import { soldierAttack } from './combat/weapons';
 import { stepGrenades } from './entities/grenade';
 import { stepRockets } from './entities/rocket';
+import { stepRunOver } from './entities/run-over';
 import { spawnSquads, stepAi } from './ai/brain';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
@@ -25,6 +26,7 @@ import {
   stepSoldierMovement,
   soldierMaxHp,
   soldierSpeed,
+  wallRadiusOf,
   IDLE_INPUT,
   type SoldierFlags,
   type SoldierId,
@@ -242,6 +244,8 @@ export function step(
   }
   separateSoldiers(st.soldiers, solids, t);
   for (const s of st.soldiers) if (s.alive) quantizeSoldier(s);
+  // (PHASE12-b) Vehicles run people over, ram each other, batter cover ([D66]).
+  stepRunOver(world, prevX, prevY);
   hooks.afterMovement?.(world);
 
   for (const s of st.soldiers) {
@@ -267,7 +271,7 @@ export function step(
   solids = currentSolids(world);
   for (const s of st.soldiers) {
     if (!isEligible(s)) continue;
-    const p = moveCircle(s, { x: 0, y: 0 }, t.soldier.wallRadius, solids);
+    const p = moveCircle(s, { x: 0, y: 0 }, wallRadiusOf(t, s), solids);
     s.x = p.x;
     s.y = p.y;
     quantizeSoldier(s);
@@ -310,6 +314,7 @@ export function getView(world: World): WorldView {
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
+      ...(s.drive ? { turret: s.drive.turret } : {}),
       ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'
         ? { windup: windupProgress(world, s), windupAim: s.windupAim }
         : {}),
@@ -470,8 +475,8 @@ function aimView(
       out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
       out.mounted = mountBonus(world, s, s.facing);
     }
-  } else if (weapon === 'rocket') {
-    // (PHASE12-a) The Bazooka's aim fills the same ring ([D62]).
+  } else if (weapon === 'rocket' || weapon === 'shell') {
+    // (PHASE12-a) The Bazooka's aim fills the same ring ([D62]); (PHASE12-b) the tank's too.
     if (s.windupTicks > 0) out.mount = windupProgress(world, s);
   } else if (s.braceId !== null && s.mountTicks > 0) {
     out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));

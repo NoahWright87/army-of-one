@@ -31,25 +31,28 @@ export function windupTicksFor(world: World, distance: number): number {
   return Math.max(1, secondsToTicks(gt.windupBaseSeconds + gt.windupSecondsPerUnit * distance));
 }
 
-/** (PHASE12-a) Ticks the Bazooka aims before a launch ([D62]). */
-export function rocketAimTicks(world: World): number {
-  return Math.max(1, secondsToTicks(world.tuning.rocket.aimSeconds));
+/** (PHASE12-a) Ticks the Bazooka (or, PHASE12-b, a tank's cannon) aims before a launch. */
+export function rocketAimTicks(world: World, weapon: 'rocket' | 'shell' = 'rocket'): number {
+  return Math.max(1, secondsToTicks(world.tuning[weapon].aimSeconds));
 }
 
 /** Wind-up progress 0..1 for the view (0 when not winding up). */
 export function windupProgress(world: World, s: SoldierState, aimDistance?: number): number {
   if (s.windupTicks <= 0) return 0;
-  if (roleDef(s.roleId).weapon === 'rocket')
-    return Math.min(1, s.windupTicks / rocketAimTicks(world));
+  const w = roleDef(s.roleId).weapon;
+  if (w === 'rocket' || w === 'shell') return Math.min(1, s.windupTicks / rocketAimTicks(world, w));
   const d = aimDistance ?? s.windupAim;
   return Math.min(1, s.windupTicks / windupTicksFor(world, d));
 }
 
 /** Applies one tick of a live soldier's fire input. */
 export function soldierAttack(world: World, s: SoldierState, input: SoldierInput): void {
-  // (PHASE12-a) The Bazooka: aim, then launch ([D62]).
-  if (roleDef(s.roleId).weapon === 'rocket') {
-    stepBazooka(world, s, input);
+  // (PHASE12-b) A vehicle fires where its turret points, not straight at the aim.
+  if (s.drive) input = { ...input, aim: s.drive.turret };
+  // (PHASE12-a) The Bazooka: aim, then launch ([D62]); (PHASE12-b) the tank's cannon too.
+  const weapon = roleDef(s.roleId).weapon;
+  if (weapon === 'rocket' || weapon === 'shell') {
+    stepBazooka(world, s, input, weapon);
     return;
   }
   // (07-e) Sprinting: no firing, and a wind-up just holds ([D49]).
@@ -88,7 +91,12 @@ export function soldierAttack(world: World, s: SoldierState, input: SoldierInput
  * aims for `rocket.aimSeconds`, then the rocket launches at the aim plus the rolled spread.
  * Releasing early, or sprinting, cancels the aim.
  */
-function stepBazooka(world: World, s: SoldierState, input: SoldierInput): void {
+function stepBazooka(
+  world: World,
+  s: SoldierState,
+  input: SoldierInput,
+  weapon: 'rocket' | 'shell',
+): void {
   if (!isEligible(s)) return;
   const tick = world.state.tick;
   if (!input.fire || s.sprinting || tick < s.nextFireTick) {
@@ -96,10 +104,10 @@ function stepBazooka(world: World, s: SoldierState, input: SoldierInput): void {
     return;
   }
   s.windupTicks += 1;
-  if (s.windupTicks < rocketAimTicks(world)) return;
+  if (s.windupTicks < rocketAimTicks(world, weapon)) return;
   s.windupTicks = 0;
-  const rt = world.tuning.rocket;
+  const rt = world.tuning[weapon];
   const angle = input.aim + spreadOffset(`${s.id}@${tick}:aim`, spreadOf(rt, s.moveFrac, 0));
-  launchRocket(world, s.id, s, angle, teamOf(s) === 'enemy' ? 'enemy' : 'player');
+  launchRocket(world, s.id, s, angle, teamOf(s) === 'enemy' ? 'enemy' : 'player', weapon);
   s.nextFireTick = tick + Math.max(1, secondsToTicks(rt.cooldownSeconds));
 }

@@ -31,6 +31,8 @@ export interface RocketEntity {
   /** Who launched it (credited for kills, including friendly ones). */
   by: string;
   team: 'player' | 'enemy';
+  /** (PHASE12-b) A Bazooka rocket, or a tank shell ([D63]); stats from `tuning.rocket` / `.shell`. */
+  kind?: 'shell';
   x: number;
   y: number;
   angle: number;
@@ -49,12 +51,14 @@ export function launchRocket(
   from: Vec2,
   angle: number,
   team: 'player' | 'enemy' = 'player',
+  kind: 'rocket' | 'shell' = 'rocket',
 ): RocketEntity {
   const st = world.state;
   const r: RocketEntity = {
     id: allocateId(st.ids, 'R'),
     by,
     team,
+    ...(kind === 'shell' ? { kind: 'shell' as const } : {}),
     x: from.x,
     y: from.y,
     angle,
@@ -71,6 +75,7 @@ export function launchRocket(
     fromX: from.x,
     fromY: from.y,
     angle,
+    ...(kind === 'shell' ? { shell: true as const } : {}),
   });
   return r;
 }
@@ -79,9 +84,9 @@ export function launchRocket(
 export function stepRockets(world: World): void {
   const list = world.state.rockets;
   if (!list || list.length === 0) return;
-  const rt = world.tuning.rocket;
   const done: { r: RocketEntity; at: Vec2; directId?: string }[] = [];
   for (const r of list) {
+    const rt = statsOf(world, r);
     const step = Math.min(rt.speed * DT, Math.max(0, rt.range - r.travelled));
     const hit = castRay(world, r, r.angle, step, r.team as Team, {
       ignoreId: r.by,
@@ -107,9 +112,15 @@ export function stepRockets(world: World): void {
   for (const x of done) explode(world, x.r, x.at, x.directId);
 }
 
+/** (PHASE12-b) Rocket or shell numbers. */
+function statsOf(world: World, r: RocketEntity) {
+  return r.kind === 'shell' ? world.tuning.shell : world.tuning.rocket;
+}
+
 function explode(world: World, r: RocketEntity, c: Vec2, directId?: string): void {
   const { map, state: st, tuning } = world;
-  const rt = tuning.rocket;
+  const rt = statsOf(world, r);
+  const cause = r.kind === 'shell' ? 'shell' : 'rocket';
   emit(world, {
     kind: 'rocketExploded',
     tick: st.tick,
@@ -121,16 +132,16 @@ function explode(world: World, r: RocketEntity, c: Vec2, directId?: string): voi
   });
   if (directId) {
     const s = st.soldiers.find((x) => x.id === directId);
-    if (s) damageSoldier(world, s, rt.directDamage, r.by, 'rocket', c);
+    if (s) damageSoldier(world, s, rt.directDamage, r.by, cause, c);
   }
   // The blast hurts everyone in it: friendly fire ([D62]).
   const r2 = rt.blastRadius * rt.blastRadius;
   for (const s of st.soldiers) {
     if (isEligible(s) && distanceSq(s, c) <= r2) {
-      damageSoldier(world, s, rt.blastDamage, r.by, 'rocket', c);
+      damageSoldier(world, s, rt.blastDamage, r.by, cause, c);
     }
   }
-  blastCover(world, c, rt.blastRadius, rt.hazardDamage, 'rocket', r.by); // [Q40]
+  blastCover(world, c, rt.blastRadius, rt.hazardDamage, cause, r.by); // [Q40]
   const within = (p: Vec2, extra: number) => distanceSq(p, c) <= (rt.blastRadius + extra) ** 2;
   const lanes = (map.trafficLanes ?? []).map((d) => laneInfo(d, tuning));
   st.vehicles.forEach((v, i) => {

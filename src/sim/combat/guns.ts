@@ -193,7 +193,8 @@ export function currentSpread(world: World, s: SoldierState, aim: number): numbe
   const gun = gunOf(s, world.tuning);
   if (!gun) {
     // (PHASE12-a) The Bazooka's rocket cone.
-    if (roleDef(s.roleId).weapon === 'rocket') return spreadOf(world.tuning.rocket, s.moveFrac, 0);
+    const w = roleDef(s.roleId).weapon;
+    if (w === 'rocket' || w === 'shell') return spreadOf(world.tuning[w], s.moveFrac, 0);
     return world.tuning.grenade.movingSpread * s.moveFrac;
   }
   return spreadOf(effectiveSpread(world, s, gun, aim), s.moveFrac, s.recoil);
@@ -271,9 +272,17 @@ export function trySoldierFire(world: World, s: SoldierState, aim: number): Shot
 export function stepGunner(world: World, s: SoldierState, input: SoldierInput, gun: GunKind): void {
   s.recoil = recoverRecoil(s.recoil, gunTuning(world.tuning, gun));
   const w = roleDef(s.roleId).weapon;
-  if (w === 'mg' || w === 'sniper') stepMount(world, s, input);
+  // (PHASE12-b) A vehicle's turret MG doesn't mount on cover.
+  if ((w === 'mg' && !s.drive) || w === 'sniper') stepMount(world, s, input);
   // A Sniper that just set up fires its rifle on this very tick.
   const now = gunOf(s, world.tuning) ?? gun;
   if (now !== gun) s.recoil = recoverRecoil(s.recoil, gunTuning(world.tuning, now));
   if (input.fire) trySoldierFire(world, s, input.aim);
+}
+
+/** (PHASE12-b) The damage kind a soldier's attacks deal now (for armor-aware target choice). */
+export function attackKind(s: SoldierState, tuning: Tuning): string {
+  const w = roleDef(s.roleId).weapon;
+  if (w === 'grenade' || w === 'rocket' || w === 'shell') return w;
+  return gunOf(s, tuning) ?? 'rifle';
 }
