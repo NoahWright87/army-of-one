@@ -21,6 +21,7 @@ import {
 } from '../combat/damage';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
+import { blastCover } from '../world/cover';
 import { objectiveRadius } from './objective';
 import { isEligible } from './soldier';
 import { laneInfo, vehicleRect } from './traffic';
@@ -129,6 +130,7 @@ function explode(world: World, r: RocketEntity, c: Vec2, directId?: string): voi
       damageSoldier(world, s, rt.blastDamage, r.by, 'rocket', c);
     }
   }
+  blastCover(world, c, rt.blastRadius, rt.hazardDamage, 'rocket', r.by); // [Q40]
   const within = (p: Vec2, extra: number) => distanceSq(p, c) <= (rt.blastRadius + extra) ** 2;
   const lanes = (map.trafficLanes ?? []).map((d) => laneInfo(d, tuning));
   st.vehicles.forEach((v, i) => {

@@ -8,24 +8,7 @@ import { isEligible, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
-
-/** (PHASE12-a) Damage causes that are blasts ([Q36]: `shield.blocksExplosions`). */
-const EXPLOSIVE: ReadonlySet<string> = new Set(['grenade', 'rocket', 'mine']);
-
-/**
- * (PHASE12-a) Share of damage from `from` a Shield blocks ([D60]): `shield.block` when the
- * source is inside the arc it faces, else 0. Everyone else blocks nothing.
- */
-export function shieldBlock(world: World, s: SoldierState, from: Vec2): number {
-  if (s.roleId !== 'shield') return 0;
-  const dx = from.x - s.x;
-  const dy = from.y - s.y;
-  if (dx === 0 && dy === 0) return 0;
-  let diff = Math.atan2(dy, dx) - s.facing;
-  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-  const half = (world.tuning.shield.arcDegrees * Math.PI) / 360;
-  return Math.abs(diff) <= half ? world.tuning.shield.block : 0;
-}
+import { armorFrom, pierceOf, roleArmor, throughArmor } from './armor';
 
 /**
  * Damage and deaths are always simulated, never replayed ([E3]). HP is floored at `minHp`
@@ -37,19 +20,31 @@ export function damageSoldier(
   amount: number,
   by: string | undefined,
   cause: string,
-  /** (PHASE12-a) Where the damage comes from (a shot's origin, a blast's centre): the Shield. */
+  /** (PHASE12-a) Where the damage comes from (a shot's origin, a blast's centre): armor. */
   from?: Vec2,
+  /** (PHASE12-b) Damage kind for pierce (default `cause`), e.g. 'fragment' for shrapnel. */
+  kind: string = cause,
 ): void {
   if (!isEligible(s) || amount <= 0) return;
-  if (from && (world.tuning.shield.blocksExplosions || !EXPLOSIVE.has(cause))) {
-    amount *= 1 - shieldBlock(world, s, from);
-  }
+  // (PHASE12-b) Unified armor ([D70]).
+  const armor = armorFrom(roleArmor(world.tuning, s.roleId), s, s.facing, from);
+  const through = throughArmor(armor, pierceOf(world.tuning, kind));
+  const raw = amount;
+  amount *= through;
   const before = s.hp;
   s.hp = Math.max(s.hp - amount, s.minHp, 0);
   const tick = world.state.tick;
   const applied = before - s.hp;
-  if (applied > 0) {
-    emit(world, { kind: 'damaged', tick, target: s.id, amount: applied, ...(by ? { by } : {}) });
+  if (applied > 0 || (raw > 0 && through < 0.3)) {
+    emit(world, {
+      kind: 'damaged',
+      tick,
+      target: s.id,
+      amount: applied,
+      ...(by ? { by } : {}),
+      // (PHASE12-b) Armor ate most of it: the renderer shows a ricochet.
+      ...(through < 0.3 ? { armored: true as const } : {}),
+    });
   }
   if (s.hp <= 0) {
     s.alive = false;

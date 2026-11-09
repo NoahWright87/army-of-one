@@ -37,6 +37,7 @@ const ENTITY_LISTS = Object.keys({
   capturePoints: 1,
   grenades: 1,
   rockets: 1,
+  coverDestroyed: 1,
   coverArcs: 1,
 } satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete'>, 1>);
 

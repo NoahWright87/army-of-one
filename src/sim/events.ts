@@ -22,7 +22,15 @@ export type SimEvent =
       /** (PHASE12-a) The soldier weapon that fired it (recorded with the shot when it matters). */
       weapon?: ShotWeapon;
     }
-  | { kind: 'damaged'; tick: Tick; target: string; amount: number; by?: string }
+  | {
+      kind: 'damaged';
+      tick: Tick;
+      target: string;
+      amount: number;
+      by?: string;
+      /** (PHASE12-b) Armor stopped most of the hit (a ricochet, [D70]). */
+      armored?: true;
+    }
   | { kind: 'soldierDied'; tick: Tick; id: SoldierId; cause: string; by?: string }
   | { kind: 'hazardDestroyed'; tick: Tick; id: string; by?: string }
   | {
@@ -57,6 +65,8 @@ export type SimEvent =
       fromY: number;
       angle: number;
     }
+  /** (PHASE12-b) A cover piece was destroyed ([Q40]). */
+  | { kind: 'coverDestroyed'; tick: Tick; id: string; x: number; y: number; by?: string }
   /** (PHASE12-a) A rocket's blast. */
   | {
       kind: 'rocketExploded';

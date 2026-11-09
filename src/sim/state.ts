@@ -42,6 +42,10 @@ export interface WorldState {
   trafficPool?: number[];
   /** (07-c) Grenades in flight, sorted by id. Optional for snapshots from before 07-c. */
   grenades?: GrenadeEntity[];
+  /** (PHASE12-b) Damage taken so far by cover pieces, by id (breakable cover, [Q40]). */
+  coverHp?: Record<string, number>;
+  /** (PHASE12-b) Destroyed cover piece ids, sorted. Absent/empty = all standing. */
+  coverDestroyed?: string[];
   /** (PHASE12-a) Rockets in flight, sorted by id. Optional for older snapshots. */
   rockets?: RocketEntity[];
   /** (05-a) Parallel to `map.capturePoints`. */

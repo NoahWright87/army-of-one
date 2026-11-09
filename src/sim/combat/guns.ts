@@ -32,7 +32,7 @@ import {
 } from '../entities/soldier';
 import type { World } from '../state';
 import { rayRect } from '../world/collision';
-import { canFireOver, distanceToRect, type CoverPiece } from '../world/cover';
+import { canFireOver, distanceToRect, standingCover, type CoverPiece } from '../world/cover';
 import { fireShot, type ShotResult } from './shots';
 
 export type GunKind = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun';
@@ -111,7 +111,7 @@ export function firesAcrossCover(world: World, from: Vec2, angle: number, reach:
 export function braceCover(world: World, p: Vec2): CoverPiece | null {
   let best: CoverPiece | null = null;
   let bestD = Infinity;
-  for (const c of world.cover) {
+  for (const c of standingCover(world)) {
     if (!canFireOver(p, c, c.bullet, world.tuning)) continue;
     const d = distanceToRect(p, c.rect);
     if (d < bestD || (d === bestD && best && c.id < best.id)) {
@@ -133,7 +133,7 @@ export function isMounted(world: World, s: SoldierState): boolean {
  */
 export function mountBonus(world: World, s: SoldierState, aim: number): boolean {
   if (!isMounted(world, s)) return false;
-  const piece = world.cover.find((c) => c.id === s.braceId);
+  const piece = standingCover(world).find((c) => c.id === s.braceId);
   if (!piece) return false;
   const reach =
     roleDef(s.roleId).weapon === 'sniper'

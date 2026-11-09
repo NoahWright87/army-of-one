@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
-import { damageSoldier, shieldBlock } from '../combat/damage';
+import { damageSoldier } from '../combat/damage';
 import { currentSpread, gunOf, gunRange, isSetUp, mountTicksNeeded } from '../combat/guns';
 import { hashState } from '../core/hash';
 import { getSoldier } from '../sim';
@@ -85,32 +85,24 @@ describe('Sniper ([D59])', () => {
   });
 });
 
-describe('Shield ([D60])', () => {
-  it('blocks 80% of damage from the 135° it faces, none from behind', () => {
+describe('Shield ([D60], armor [D70])', () => {
+  it('blocks 80% of a rifle hit from the 135° it faces, none from the side or behind', () => {
     const w = world(arena());
     const id = soldierAt(w, { x: 500, y: 500 }, { roleId: 'shield' });
     run(w, 1, { [id]: idle(0) }); // facing +x
     const s = getSoldier(w, id)!;
-    expect(shieldBlock(w, s, { x: 700, y: 500 })).toBe(T.shield.block);
-    expect(shieldBlock(w, s, { x: 700, y: 650 })).toBe(T.shield.block); // 36.9°: inside ±67.5°
-    expect(shieldBlock(w, s, { x: 500, y: 700 })).toBe(0); // 90°: the side
-    expect(shieldBlock(w, s, { x: 300, y: 500 })).toBe(0);
-    const hp = s.hp;
-    damageSoldier(w, s, 50, 'x', 'test', { x: 700, y: 500 });
-    expect(hp - s.hp).toBeCloseTo(10);
-    damageSoldier(w, s, 50, 'x', 'test', { x: 300, y: 500 });
-    expect(hp - s.hp).toBeCloseTo(60);
-  });
-
-  it('explosions in front are blocked unless `shield.blocksExplosions` is off ([Q36])', () => {
-    for (const blocks of [true, false]) {
-      const w = world(arena(), { shield: { blocksExplosions: blocks } });
-      const id = soldierAt(w, { x: 500, y: 500 }, { roleId: 'shield' });
-      run(w, 1, { [id]: idle(0) });
-      const s = getSoldier(w, id)!;
-      damageSoldier(w, s, 50, 'x', 'grenade', { x: 540, y: 500 });
-      expect(s.hp).toBeCloseTo(T.soldier.maxHp * T.roleStats.shield.hp - (blocks ? 10 : 50));
-    }
+    const hit = (from: { x: number; y: number }, cause = 'rifle') => {
+      const before = s.hp;
+      damageSoldier(w, s, 10, 'x', cause, from);
+      return before - s.hp;
+    };
+    expect(hit({ x: 700, y: 500 })).toBeCloseTo(2);
+    expect(hit({ x: 700, y: 650 })).toBeCloseTo(2); // 36.9°: inside ±67.5°
+    expect(hit({ x: 500, y: 700 })).toBeCloseTo(10); // 90°: the side
+    expect(hit({ x: 300, y: 500 })).toBeCloseTo(10);
+    // A sniper pierces 5 %; a grenade blast right next to it 50 % ([D71]); shrapnel 0 %.
+    expect(hit({ x: 700, y: 500 }, 'sniper')).toBeCloseTo(2.5);
+    expect(hit({ x: 540, y: 500 }, 'grenade')).toBeCloseTo(7);
   });
 
   it('carries a pistol and is a bit tougher and slower', () => {

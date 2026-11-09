@@ -211,6 +211,8 @@ export interface WorldView {
   grenades?: GrenadeView[];
   /** (PHASE12-a) Optional so older fixtures still type-check. */
   rockets?: RocketView[];
+  /** (PHASE12-b) Ids of destroyed cover pieces ([Q40]). */
+  coverDestroyed?: string[];
   /**
    * (07-c) The live soldier's cover indicator ([D34]): one arc per cover piece or wall close by,
    * pointing at it, darker for better cover. Only the live soldier gets these.

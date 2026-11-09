@@ -134,21 +134,27 @@ export interface Tuning {
      */
     soldierAimError: number;
   } & GunSpread;
-  /** (PHASE12-a) The Shield ([D60]): blocks a share of damage coming from the arc it faces. */
-  shield: {
-    /** Share of damage blocked, 0..1. */
-    block: number;
-    /** Width of the protected arc, degrees, centred on the facing. */
-    arcDegrees: number;
-    /** Blasts (grenades, rockets, mines) in front are blocked too. false: explosives ignore it. */
-    blocksExplosions: boolean;
+  /**
+   * (PHASE12-b) Unified armor ([D70]): damage taken = hit × (1 − max(0, armor − pierce)).
+   * Armor by direction (front / side / rear, arcs in degrees); pierce by damage kind (the death
+   * cause, or 'fragment' for grenade shrapnel). Kinds not listed pierce 0.
+   */
+  armor: {
+    roles: Record<
+      RoleId,
+      { front: number; side: number; rear: number; frontArc: number; rearArc: number }
+    >;
+    pierce: Record<string, number>;
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
-    /** Share of straight shots / lobbed objects each material stops, 0..1. */
-    materials: Record<CoverMaterial, { bullet: number; lobbed: number }>;
+    /**
+     * Share of straight shots / lobbed objects each material stops, 0..1. (PHASE12-b) `hp`: how
+     * much damage destroys a piece (0 = unbreakable); `armor`: the unified armor ([D70], [Q40]).
+     */
+    materials: Record<CoverMaterial, { bullet: number; lobbed: number; hp: number; armor: number }>;
     /** A shooter this close (to the cover's nearest edge) fires over cover below `fireOverBelow`. */
     fireOverDistance: number;
     /** Cover strictly below this value can be fired over from close up (1 = anything not solid). */
@@ -466,12 +472,17 @@ export interface Tuning {
       shield: number;
       shotgun: number;
       bazooka: number;
+      truck: number;
+      tank: number;
       turret: number;
       vehicle: number;
       mine: number;
     };
   };
 }
+
+const NONE = { front: 0, side: 0, rear: 0, frontArc: 0, rearArc: 0 };
+const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc: 0 });
 
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
@@ -566,10 +577,29 @@ export const DEFAULT_TUNING: Tuning = {
     maxRecoil: 0, // TUNE
     recoveryPerSecond: 1, // TUNE
   },
-  shield: {
-    block: 0.8, // TUNE [D60]
-    arcDegrees: 135, // TUNE [D60]
-    blocksExplosions: true, // [Q36]
+  armor: {
+    roles: {
+      rifleman: NONE,
+      grenadier: NONE,
+      gunner: NONE,
+      sniper: NONE,
+      shield: { front: 0.8, side: 0, rear: 0, frontArc: 135, rearArc: 0 }, // TUNE [D60], [D70]
+      shotgun: all(0.1), // TUNE [D70]
+      bazooka: NONE,
+      truck: all(0.6), // TUNE [D70]: 50–75 %
+      tank: { front: 0.99, side: 0.99, rear: 0.9, frontArc: 180, rearArc: 90 }, // TUNE [D70]
+    },
+    pierce: {
+      sniper: 0.05, // TUNE [D70]
+      grenade: 0.5, // TUNE [D71]: the blast itself
+      fragment: 0, // TUNE [D71]: shrapnel
+      rocket: 0.5, // TUNE [D70]
+      shell: 0.5, // TUNE [D70]
+      mine: 0.5, // TUNE
+      crush: 1, // [D66]: armor doesn't stop being run over
+      vehicle: 1, // traffic: being hit by a car
+      bridgeCollapse: 1,
+    },
   },
   roleStats: {
     rifleman: { hp: 1, speed: 1 },
@@ -579,15 +609,17 @@ export const DEFAULT_TUNING: Tuning = {
     shield: { hp: 1.2, speed: 0.9 }, // TUNE: heavy
     shotgun: { hp: 1.5, speed: 1 }, // TUNE [D61]: more HP than average
     bazooka: { hp: 1, speed: 0.8 }, // TUNE [D62]: bazookas are heavy
+    truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
+    tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
   },
   cover: {
     materials: {
-      fence: { bullet: 0.1, lobbed: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
-      sandbags: { bullet: 0.5, lobbed: 0.15 }, // TUNE: half cover, easy to lob over
-      halfWall: { bullet: 0.6, lobbed: 0.15 }, // TUNE
-      window: { bullet: 0.3, lobbed: 0.4 }, // TUNE: an opening in a wall (frame + sill)
-      bunkerWindow: { bullet: 0.9, lobbed: 0.7 }, // TUNE: a narrow armored slit
-      crate: { bullet: 0.75, lobbed: 0.3 }, // TUNE
+      fence: { bullet: 0.1, lobbed: 0.5, hp: 120, armor: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
+      sandbags: { bullet: 0.5, lobbed: 0.15, hp: 400, armor: 0.95 }, // TUNE: half cover, easy to lob over
+      halfWall: { bullet: 0.6, lobbed: 0.15, hp: 600, armor: 0.97 }, // TUNE
+      window: { bullet: 0.3, lobbed: 0.4, hp: 0, armor: 1 }, // TUNE: an opening in a wall (frame + sill)
+      bunkerWindow: { bullet: 0.9, lobbed: 0.7, hp: 0, armor: 1 }, // TUNE: a narrow armored slit
+      crate: { bullet: 0.75, lobbed: 0.3, hp: 250, armor: 0.85 }, // TUNE
     },
     fireOverDistance: 30, // TUNE: about a soldier's width from the edge
     fireOverBelow: 1, // TUNE: anything that isn't solid
@@ -612,12 +644,12 @@ export const DEFAULT_TUNING: Tuning = {
     groundedHeight: 3, // TUNE
     movingSpread: 0.15, // TUNE: about ±9°
     movingDistanceSpread: 0.2, // TUNE
-    blastRadius: 40, // TUNE: small; the fragments do the reach
+    blastRadius: 40, // TUNE [D71]: small area, decent damage, 50 % pierce
     blastDamage: 90, // TUNE
     hazardDamage: 120, // TUNE
-    fragments: 14, // TUNE
-    fragmentRange: 170, // TUNE
-    fragmentDamage: 30, // TUNE
+    fragments: 20, // TUNE [D71]: many …
+    fragmentRange: 240, // TUNE [D71]: … reaching a lot further …
+    fragmentDamage: 18, // TUNE [D71]: … a little damage each, 0 % pierce
   },
   ai: {
     enabled: true,
@@ -750,6 +782,8 @@ export const DEFAULT_TUNING: Tuning = {
       shield: 10, // TUNE
       shotgun: 10, // TUNE
       bazooka: 12, // TUNE
+      truck: 60, // TUNE
+      tank: 120, // TUNE
       turret: 20, // TUNE
       vehicle: 5, // TUNE
       mine: 2, // TUNE

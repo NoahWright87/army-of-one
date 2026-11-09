@@ -107,6 +107,10 @@ const COVER_STYLE_DEFAULT: { fill: number; alpha: number; line: number; hatch?: 
 export class WorldRenderer {
   /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
   private coverGfx!: Phaser.GameObjects.Graphics;
+  /** (PHASE12-b) Each cover piece's drawing, by id; destroyed ones are hidden ([Q40]). */
+  private readonly coverPieces = new Map<string, Phaser.GameObjects.Graphics>();
+  private rubbleGfx!: Phaser.GameObjects.Graphics;
+  private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
   /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
   private reticleGfx!: Phaser.GameObjects.Graphics;
@@ -245,6 +249,7 @@ export class WorldRenderer {
     this.effectImages = new FreeList(img(DEPTH.effects));
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
+    this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
@@ -275,8 +280,10 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
     // (07-c) Partial cover ([D32]), by material.
-    const cover = scene.add.graphics().setDepth(DEPTH.walls);
     for (const c of map.cover ?? []) {
+      // (PHASE12-b) One graphics object per piece, so a destroyed piece can be hidden ([Q40]).
+      const cover = scene.add.graphics().setDepth(DEPTH.walls);
+      this.coverPieces.set(c.id, cover);
       const st = COVER_STYLE[c.material] ?? COVER_STYLE_DEFAULT;
       const { x, y, w, h } = c.rect;
       if (st.alpha >= 1) {
@@ -404,12 +411,36 @@ export class WorldRenderer {
     this.drawTurrets(a, f);
     this.drawSoldiers(a, f);
     this.drawCoverAndThrows(f);
+    this.drawRubble();
     this.drawGrenades(a, f.nowMs);
 
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
     this.drawReticle(f.pointer, f.liveId);
     this.updateLoops();
+  }
+
+  /** (PHASE12-b) Hides destroyed cover and draws PLACEHOLDER rubble where it stood ([Q40]). */
+  private drawRubble(): void {
+    const down = this.cur.coverDestroyed ?? [];
+    const key = down.join(',');
+    if (key === this.rubbleKey) return;
+    this.rubbleKey = key;
+    const g = this.rubbleGfx;
+    g.clear();
+    for (const [id, gfx] of this.coverPieces) gfx.setVisible(!down.includes(id));
+    for (const def of this.map.cover ?? []) {
+      if (!down.includes(def.id)) continue;
+      const { x, y, w, h } = def.rect;
+      g.fillStyle(0x4a4236, 0.6);
+      const n = Math.max(3, Math.round((w * h) / 120));
+      for (let i = 0; i < n; i++) {
+        // Fixed pseudo-random scatter per piece (render only).
+        const fx = ((i * 0.618034 + def.id.length * 0.1) % 1) * w;
+        const fy = ((i * 0.414214 + 0.3) % 1) * h;
+        g.fillCircle(x + fx, y + fy, 2 + (i % 3));
+      }
+    }
   }
 
   /**

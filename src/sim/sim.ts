@@ -41,7 +41,7 @@ import { moveCircle } from './world/collision';
 import { validateMap, type MapDef, type Rect, type SpawnPointId } from './world/map';
 import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
-import { coverArcs, resolveCover, type CoverArc } from './world/cover';
+import { coverArcs, resolveCover, standingCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
 import { windupProgress } from './combat/weapons';
 import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/guns';
@@ -331,6 +331,7 @@ export function getView(world: World): WorldView {
       fuse: 1 - g.fuseTicks / grenadeFuseTotal,
     })),
     coverArcs: liveCoverArcs(world),
+    ...(st.coverDestroyed?.length ? { coverDestroyed: [...st.coverDestroyed] } : {}),
     turrets: (map.turrets ?? []).map((def, i) => {
       const tu = st.turrets[i]!;
       return {
@@ -490,7 +491,7 @@ function liveCoverArcs(world: World): CoverArc[] {
   if (!live) return [];
   const r = world.tuning.cover.indicatorRadius;
   const pieces: { rect: Rect; value: number }[] = [
-    ...world.cover.map((c) => ({ rect: c.rect, value: c.bullet })),
+    ...standingCover(world).map((c) => ({ rect: c.rect, value: c.bullet })),
     ...world.map.walls.map((rect) => ({ rect, value: 1 })),
     ...dynamicBlockers(world)
       .filter((b) => b.blocksShots)

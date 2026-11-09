@@ -36,7 +36,7 @@ import {
   type SoldierState,
 } from '../entities/soldier';
 import type { World } from '../state';
-import { seesThroughCover } from '../world/cover';
+import { seesThroughCover, standingCover } from '../world/cover';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
 import { soldierIndex } from '../soldier-index';
@@ -207,7 +207,7 @@ function perceive(
     .slice(0, Math.max(1, t.maxCandidates));
   const visible: SoldierState[] = [];
   for (const o of cands) {
-    if (!seesThroughCover(world.cover, s, o, t.sightRange, world.tuning)) continue;
+    if (!seesThroughCover(standingCover(world), s, o, t.sightRange, world.tuning)) continue;
     if (!hasLineOfSight(world, s, o, 'enemy', s.id)) continue;
     visible.push(o);
   }
@@ -475,7 +475,7 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
   const off = t.soldier.wallRadius + 6;
   let best: Vec2 | null = null;
   let bestD = Infinity;
-  for (const c of world.cover) {
+  for (const c of standingCover(world)) {
     const r = c.rect;
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;

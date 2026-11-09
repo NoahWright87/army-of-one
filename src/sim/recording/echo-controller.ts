@@ -411,7 +411,9 @@ export class EchoController {
         // (07-c) The echo's own gun (rifle or MG), at the recorded (already spread) angle.
         // (PHASE12-a) Or the recorded weapon: a Sniper's pistol or rifle, a shotgun pellet.
         const gun: GunKind =
-          (a.gun !== 'rocket' ? a.gun : undefined) ?? gunOf(s, this.tuning) ?? 'rifle';
+          (a.gun !== 'rocket' && a.gun !== 'shell' ? a.gun : undefined) ??
+          gunOf(s, this.tuning) ??
+          'rifle';
         fireGun(world, s.id, s, a.angle, gun, 'player', gun === 'shotgun' ? pellet++ : undefined);
         s.nextFireTick = t + gunCooldownTicks(this.tuning, gun);
       } else if (a.kind === 'throw') {

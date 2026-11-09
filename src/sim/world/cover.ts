@@ -10,6 +10,9 @@
  *   `tuning.cover.fireOverBelow` ignores that piece for their own shots and sight.
  * - Sight past cover: crossing a piece multiplies the remaining sight distance by (1 − bullet).
  */
+import { throughArmor, pierceOf } from '../combat/armor';
+import { emit, type World } from '../state';
+import { circleOverlapsRect } from './collision';
 import type { Tuning } from '../../content/tuning';
 import { hash01 } from '../core/hash';
 import type { Vec2 } from '../core/vec';
@@ -25,6 +28,10 @@ export interface CoverPiece {
   bullet: number;
   /** Share of lobbed objects stopped, 0..1. */
   lobbed: number;
+  /** (PHASE12-b) Damage that destroys it; 0 = unbreakable ([Q40]). */
+  hp: number;
+  /** (PHASE12-b) Its armor ([D70]). */
+  armor: number;
 }
 
 export function resolveCover(map: MapDef, tuning: Tuning): CoverPiece[] {
@@ -37,6 +44,8 @@ export function resolveCover(map: MapDef, tuning: Tuning): CoverPiece[] {
       material: c.material,
       bullet: clamp01(c.bullet ?? m.bullet),
       lobbed: clamp01(c.lobbed ?? m.lobbed),
+      hp: m.hp,
+      armor: m.armor,
     };
   });
 }
@@ -178,4 +187,72 @@ export function coverArcs(
     out.push({ angle, halfWidth: half, value: piece.value });
   }
   return out;
+}
+
+// ---------- (PHASE12-b) Breakable cover ([Q40]) ----------
+
+/** Cover pieces still standing (`state.coverDestroyed` removes them), in map order. */
+export function standingCover(world: World): readonly CoverPiece[] {
+  const down = world.state.coverDestroyed;
+  if (!down || down.length === 0) return world.cover;
+  return world.cover.filter((c) => !down.includes(c.id));
+}
+
+/** Rects of destroyed cover (they no longer block movement). */
+export function destroyedCoverRects(world: World): ReadonlySet<Rect> {
+  const down = world.state.coverDestroyed;
+  if (!down || down.length === 0) return EMPTY;
+  return new Set(world.cover.filter((c) => down.includes(c.id)).map((c) => c.rect));
+}
+const EMPTY: ReadonlySet<Rect> = new Set();
+
+/**
+ * Damages a cover piece ([Q40]) through its armor ([D70]): a bullet it stopped, a blast, a
+ * vehicle driving into it. At 0 it's destroyed for the rest of the attempt: it stops blocking
+ * movement, shots and sight. Unbreakable pieces (hp 0) ignore it. Emits `coverDestroyed`.
+ */
+export function damageCover(
+  world: World,
+  id: string,
+  amount: number,
+  kind: string,
+  by: string | undefined,
+): void {
+  const piece = world.cover.find((c) => c.id === id);
+  if (!piece || piece.hp <= 0 || amount <= 0) return;
+  const st = world.state;
+  if (st.coverDestroyed?.includes(id)) return;
+  const dmg = amount * throughArmor(piece.armor, pierceOf(world.tuning, kind));
+  const hp = st.coverHp ?? (st.coverHp = {});
+  const left = (hp[id] ?? piece.hp) - dmg;
+  hp[id] = left;
+  if (left > 0) return;
+  const down = st.coverDestroyed ?? (st.coverDestroyed = []);
+  down.push(id);
+  down.sort();
+  const r = piece.rect;
+  emit(world, {
+    kind: 'coverDestroyed',
+    tick: st.tick,
+    id,
+    x: r.x + r.w / 2,
+    y: r.y + r.h / 2,
+    ...(by !== undefined ? { by } : {}),
+  });
+}
+
+/** Damages every breakable piece a blast of `radius` at `c` touches. */
+export function blastCover(
+  world: World,
+  c: Vec2,
+  radius: number,
+  amount: number,
+  kind: string,
+  by: string | undefined,
+): void {
+  for (const piece of standingCover(world)) {
+    if (piece.hp > 0 && circleOverlapsRect(c, radius, piece.rect)) {
+      damageCover(world, piece.id, amount, kind, by);
+    }
+  }
 }

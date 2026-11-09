@@ -15,13 +15,16 @@ export type RoleId =
   | 'sniper'
   | 'shield'
   | 'shotgun'
-  | 'bazooka';
+  | 'bazooka'
+  /** (PHASE12-b) Vehicles: one unit you drive ([D55], [D63]). */
+  | 'truck'
+  | 'tank';
 
 /**
  * (PHASE12-a) What fired a recorded shot. Absent on a shot action = the role's own gun (older
  * recordings). Needed because a Sniper fires a pistol or a rifle depending on its set-up.
  */
-export type ShotWeapon = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket';
+export type ShotWeapon = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket' | 'shell';
 
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 
