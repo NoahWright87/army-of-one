@@ -1,55 +1,46 @@
-# PHASE12-b: Vehicles (plan; ⛔ armor and cover proposals wait for the owner)
+# PHASE12-b: Vehicles, unified armor, breakable cover, a long mission
 
 **Goal:** a gun truck and a tank ([D63]): very expensive, very powerful units you buy with the
 money from PHASE11 and drive yourself ([D55]). Enemies get them too ([D44]); the Bazooka
-(PHASE12-a) is the counter.
+(PHASE12-a) is the counter. Built on one armor rule for everything ([D70]) and breakable cover
+([Q40]), with a long new mission to show them off ([D69]).
 
 **Depends on:** PHASE11 (prices), PHASE12-a (the Bazooka).
 
-## Decided
-- [D63] gun truck + tank. [D64] compass controls with vehicle turning (tank turns on the spot;
-  truck only turns while rolling). [D65] small arms do very little, through one unified armor
-  system. [D66] run-over damage from speed × weight, ours included. [D67] wrecks block paths.
-  [D68] vehicles capture points (setting). [D69] longer levels.
+## Tasks
+- [x] **Unified armor** (`src/sim/combat/armor.ts`, `tuning.armor`): percentage armor by
+  direction (front / side / rear arcs), pierce by damage kind ([D70]). Replaces the Shield's
+  special case. Grenade blast 50 % pierce, shrapnel 0 % and longer reach ([D71]). A ricochet cue
+  when armor eats most of a hit.
+- [x] **Breakable cover** ([Q40]): HP + armor per material (`tuning.cover.materials`); shots it
+  stops, blasts, and vehicles pushing into it damage it; destroyed pieces stop blocking
+  movement, shots and sight (`standingCover`, `state.coverDestroyed`) and are drawn as rubble.
+  Windows and bunker slits are unbreakable.
+- [x] **Vehicles** as roles `truck` / `tank` (`roles.ts`, `tuning.drive`): compass controls with
+  vehicle turning ([D64]: the tank turns on the spot and throttles up once aligned; the truck
+  rolls at a crawl to turn), reverse when pulling back ([D72]), a turret that turns at its own
+  rate. Truck: turret MG. Tank: a slow cannon (`tuning.shell`, a shell like the Bazooka's
+  rocket, [D72]).
+- [x] **Run over / ram** ([D66], `entities/run-over.ts`): weight × speed, 100 % pierce, ours
+  too; ramming a vehicle hurts the rammer; vehicles batter through breakable cover.
+- [x] **Wrecks block** movement and shots ([D67]). **Capture** behind `drive.canCapture` ([D68]).
+- [x] Recorded and replayed like soldiers: the hull heading is the waypoint facing, shots
+  (MG, `gun: 'shell'`) are actions; an echo's turret follows its shots.
+- [x] **Enemy vehicles** (AI drives them; holds fire until the turret is on target). The AI and
+  auto-aim prefer targets their weapon can hurt (`damageShare`, `WORTH_SHOOTING`).
+- [x] **Mission 5 "Armored Push"** (`mission-05.ts`, [D69]): 1800 × 12000, four capture points
+  with forward spawns, every enemy role, trucks and tanks, two gates, a river with two bridges.
+- [x] Tests: `armor`, `cover-break`, `vehicles`, `mission-05`, auto-aim.
 
-## Proposal: unified armor ([Q39]) ⛔
-One rule for every damage taker (soldiers, vehicles, turrets, cover, objectives):
-
-    damage taken = max(hit − armor, hit × chip)
-
-- `armor` is a flat number per target, from its role/vehicle/material. Optionally a higher
-  `frontArmor` over a `frontArc` (the Shield's 135°, a tank's glacis).
-- `chip` (e.g. 5 %, one tuning value) always gets through, so small arms do *very little*,
-  not nothing ([D65]).
-- No weapon tags or tables: a weapon's "penetration" is just its damage per hit. Big single hits
-  (sniper 80, rocket 400 to vehicles, tank shell, a crush) punch through; many small hits
-  (pistol 15, MG 14, pellets 14, fragments) mostly bounce.
-- First numbers (TUNE): soldiers 0, Shotgunner 3, Shield front 20 (replaces the 80 % rule:
-  pistols bounce off, a rifle does 20 %, a sniper still does 75 %), truck 10, tank 35 / front
-  50, fence 0, sandbags 12, crate 15, half wall 25, bunker and walls unbreakable.
-- Run-over damage ([D66]) = weight × speed² (TUNE), through the target's armor like any hit, so
-  a slow truck bump does nothing to a soldier but a fast one hurts, and a slow tank still
-  crushes because it's so heavy.
-
-## Proposal: breakable cover ([Q40]) ⛔
-- Cover pieces get HP and armor by material. A bullet stopped by cover damages it; blasts
-  damage cover in their radius; a vehicle driving into cover hits it with run-over damage.
-- A destroyed piece is gone (rubble drawn, no longer blocks movement, shots or sight) for the
-  rest of that attempt. Because the sim is deterministic, it's destroyed again in every replay
-  that does the same thing; if history changes, it may stand, and echoes that walked through
-  the gap may be interrupted ([D24]). That's the timeline working, not a bug.
-- Walls, bunker walls and the map edge stay unbreakable.
-
-## Build plan (once the proposals are approved)
-- Vehicle units: `VehicleRole` defs (truck, tank) next to `roles.ts`, priced ([D51]); the
-  live/echo/AI unit is the same entity as a soldier with a bigger body (hitbox, wall radius),
-  hull heading + turret aim, speed with acceleration and turn rate. Recorded like soldiers
-  (pose + hull/turret facing, shots).
-- Controls ([D64]): the move stick is a desired compass direction; tank: rotate toward it,
-  throttle up once within ~30°; truck: turn rate scales with speed, a minimum crawl speed while
-  turning. Turret follows the aim at its own turn rate. Touch: same sticks.
-- Weapons: truck MG on the turret (the MG's stats, no mount needed); tank cannon (aim wind-up
-  like the Bazooka, a shell with a blast) + a coaxial MG (TBD).
-- Run-over ([D66]), wrecks as blockers ([D67]), capture setting ([D68]).
-- Enemy vehicles: AI drives them (paths for big bodies need a coarser nav or clearance).
-- A longer level ([D69], [Q42]).
+## Notes from implementation
+- A vehicle is a `SoldierState` with `drive` (speed, turret, run-over memory). `facing` is the
+  hull. Radii: `wallRadiusOf` / `hitRadiusOf`; separation treats a vehicle as kinematic against
+  soldiers (it pushes, isn't pushed) and lets two vehicles push each other.
+- Run-over speed is what the vehicle actually moved this tick (echoes crush exactly like the live
+  drive); pushing into cover uses the speed it's trying to go, so it can batter through.
+- Armor numbers are in `tuning.armor.roles`; pierce in `tuning.armor.pierce` keyed by damage
+  kind (the death cause, or `fragment` for shrapnel). Turrets, objectives and traffic cars have
+  no armor (unchanged). Traffic cars' contact damage now goes through armor (`vehicle` pierce 0).
+- Not done / next: placeholder vehicle art (boxes); vehicle-aware pathfinding (big bodies use the
+  soldier nav grid, and the nav grid doesn't open up when cover is destroyed, [Q44]); scripted
+  autoplay stories for Mission 5; tuning by play.

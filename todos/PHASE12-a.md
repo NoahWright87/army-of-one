@@ -33,7 +33,8 @@ weakness. Same soldiers for us and the enemy AI ([D44]).
   shooter's position and angle (`gunRange`), so echoes get the same range without state.
 - **Shield.** `damageSoldier` takes the damage's source point (a shot's origin, a blast's
   centre). Contact damage (cars, a collapsing bridge) has no source, so no block.
-  `shield.blocksExplosions` (default on, [Q36]) decides whether blasts in front are blocked.
+  (PHASE12-b: replaced by the unified armor, [D70]: the Shield is 80 % front armor, and
+  explosions block or not by their pierce.)
   The Shield protects others only by standing in the way: shots stop at the first soldier.
 - **Shotgun.** Pellet `i` of a shot rolls cover with key `S@tick:p<i>`; an echo fires its
   recorded pellets in order with the same keys, so cover rolls match ([E10]).

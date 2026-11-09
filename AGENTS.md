@@ -130,14 +130,18 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   back to Breach, and old saves for removed missions are ignored. The title-screen picker only
   shows with more than one mission.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
-  roles are picked on the respawn screen (keys 1–7; PHASE12-a added Sniper, Shield,
-  Shotgunner and Bazooka). The Grenadier holds fire to wind up and
+  roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
+  Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier holds fire to wind up and
   releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
   reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
 - Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role
   personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
   `&enemies=0` turns them off anywhere. Scripted tests use `CLASSIC_TUNING` (no enemies).
   Shift sprints (touch: RUN); no firing while sprinting ([D49]).
+- Vehicles (PHASE12-b): roles 8/9 are the Gun truck and the Tank (`tuning.drive`, `tuning.shell`):
+  compass controls, the vehicle turns first. One armor rule for everything
+  (`src/sim/combat/armor.ts`, `tuning.armor`); cover breaks (`tuning.cover.materials` hp/armor).
+  Mission 5 "Armored Push" (`?mission=mission-05`) is the long vehicle mission.
 - Economy (PHASE11): money is a function of battle time (`src/timeline/economy.ts`,
   `tuning.economy`, role `cost` in `roles.ts`). The respawn screen shows a money strip and what
   each spawn can spend; the HUD shows the balance. F2 → Sim tuning → `economy.enabled` turns it

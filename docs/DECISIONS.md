@@ -281,7 +281,23 @@ revise with justification in a PR).
   tank crushes slowly, the truck has to hit hard and only hurts at low speed.
 - **[D67] Vehicle wrecks block paths.**
 - **[D68] Vehicles can capture points,** behind a setting so it can be turned off later.
-- **[D69] Longer levels.** Missions need more room for vehicles and everything else.
+- **[D69] Longer levels.** Missions need more room for vehicles and everything else. A new,
+  longer mission shows vehicles off (Breach stays the short template): wider (1.5–2 phone
+  screens), much taller, more enemy variety, several capture points (to test money too).
+- **[D70] Unified armor (was Q39).** Armor reduces damage by a percentage and can be
+  directional; some weapons pierce armor. One rule for everything:
+  `damage taken = hit × (1 − max(0, armor from that direction − pierce))`. Shotgunner 10 %,
+  Shield 80 % (front), truck 60 %, tank 99 % (front and sides) / 90 % (rear). Pierce: sniper
+  5 %, rockets and tank shells 50 %, being run over 100 % (armor doesn't stop a tank running you
+  over; a truck smashing into a tank damages the truck too).
+- **[D71] Grenades have two damage sets.** The explosion: small area, decent damage, 50 % pierce
+  (a Shield right next to it gets hurt). The shrapnel: reaches much further, many pieces, a
+  little damage each, 0 % pierce (a grenade going off well in front of a Shield does little).
+- **[D72] The tank has just a cannon,** for now. It fires slowly, giving people a chance to kill
+  the tank. Vehicles reverse when you pull back.
+- **[E12] Bullets through walls, later.** The armor rule can cover it (a wall's armor and a
+  weapon's pierce; walls themselves stay unbreakable). Deferred; every damage path already goes
+  through `src/sim/combat/armor.ts`, so it stays open.
 
 ## Platform & process
 
@@ -464,7 +480,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   still; while it fills, the Sniper can fire its pistol; firing doesn't interrupt it; any
   movement drops back to the pistol at once. The rifle's camera looks 1.8× further ahead.
   Alternatives: no firing while setting up, or a slower turn rate with the rifle up.
-- **[Q36] Does the Shield block explosions (PHASE12-a)?** [D60] says damage from the arc it
+- **[Q36] (Resolved by [D70]/[D71]: pierce decides; the `shield.blocksExplosions` flag is
+  gone.)** Does the Shield block explosions (PHASE12-a)? [D60] says damage from the arc it
   faces; implemented literally, so a grenade or rocket going off in front is blocked too
   (`shield.blocksExplosions`, default on). Off makes explosives the counter to a Shield.
   The Shield only protects others by standing in the way (shots stop at the first soldier);
@@ -476,20 +493,30 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   our own soldiers; only the blast hurts them.
 - **[Q38] Shotgunner "armor" (PHASE12-a).** Implemented as more HP (1.5×), not damage
   reduction. Say if you want armor as its own number (e.g. less damage from pistols/fragments).
-- **[Q39] Unified armor (PHASE12-b) — proposal, waiting for the owner.** See the PHASE12-b doc.
+- **[Q39] (Became [D70].)** Unified armor (PHASE12-b) — the first proposal, kept for history. See the PHASE12-b doc.
   One rule for everything that takes damage: `damage = max(hit − armor, hit × chip)`, where
   `armor` is a flat number per target (optionally higher in a front arc) and `chip` is a small
   share (e.g. 5 %) that always gets through. Soldiers 0, Shotgunner 3, Shield 20 front, truck
   ~10, tank ~35 (front 50), cover by material. Big single hits (sniper, rocket, shell, crush)
   punch through; many small ones (pistol, MG, pellets, fragments) barely scratch.
-- **[Q40] Breakable cover (PHASE12-b) — proposal.** Cover pieces get HP and armor by material;
+- **[Q40] Breakable cover (PHASE12-b) — built as proposed.** Cover pieces get HP and armor by material;
   bullets they stop and blasts damage them; vehicles crush light cover by driving into it; a
   destroyed piece is gone for the rest of that attempt. Walls and bunkers stay unbreakable.
-- **[Q41] Reversing (PHASE12-b).** Pulling the stick opposite to the vehicle's heading: turn
+- **[Q41] (Resolved: reverse, [D72].)** Reversing (PHASE12-b). Pulling the stick opposite to the vehicle's heading: turn
   all the way round ([D64] read literally), or reverse when it's nearly behind you?
-- **[Q42] Longer levels: extend Breach or add a mission (PHASE12-b)?** Extending Breach moves
+- **[Q42] (Resolved: a new mission, [D69].)** Longer levels: extend Breach or add a mission? Extending Breach moves
   its objective (the scripted dev stories would need re-recording); a new, longer mission
   keeps Breach as the short template.
+- **[Q43] "1.5–2 phone screens wide" (PHASE12-b).** At camera zoom 1 the view is as wide in
+  world units as the screen in CSS pixels: a landscape phone shows ~850, a portrait one ~390.
+  Mission 5 is 1800 wide (~2 landscape phone screens; Breach is 1600) and 12000 tall (Breach
+  5450). Say if you meant something else; `M5_W` / `M5_H` in `mission-05.ts`.
+- **[Q44] Vehicle details (PHASE12-b).** Implemented, all tunable: vehicles are round for
+  collisions (truck r 26, tank r 32) and drawn as boxes; they spawn at the normal spawn points
+  and cost $120 / $250 (Mission 5 starts with $150, so a truck early and a tank after a capture
+  or two); traffic cars can't hurt a tank much (their contact damage goes through armor) and
+  aren't hurt by being rammed; the enemy AI drives with the soldiers' pathfinding (it doesn't
+  know a vehicle is wider, and it doesn't path through cover it has destroyed).
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
