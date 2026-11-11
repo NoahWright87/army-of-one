@@ -135,25 +135,6 @@ export function captureOfSpawn(map: MapDef, spawnPointId: string): string | null
   return p?.kind === 'capture' ? (p.capturePointId ?? null) : null;
 }
 
-/** (05-a) "Point lost" / "captured" captions, flagged `lost` for the highlight. */
-export function captureChangeCaption(
-  c: CaptureChange,
-  map: MapDef,
-): { text: string; lost: boolean } {
-  const point = capturePointName(map, c.pointId);
-  if (c.after === null) return { text: str('respawn.change.pointLost', { point }), lost: true };
-  if (c.before === null) {
-    return {
-      text: str('respawn.change.pointCaptured', { point, time: formatBattleTime(c.after) }),
-      lost: false,
-    };
-  }
-  return {
-    text: str('respawn.change.pointMoved', { point, time: formatBattleTime(c.after) }),
-    lost: false,
-  };
-}
-
 /** (05-a) Capture flags drawn on the time axis: every point held as ours, with its tick. */
 export function captureFlags(
   p: Pick<RespawnProps, 'map' | 'captures' | 'resolvedUntil'>,
@@ -303,67 +284,6 @@ function push(out: { from: Tick; to: Tick; kind: LaneSpanKind }[], r: (typeof ou
   const last = out[out.length - 1];
   if (last && last.kind === r.kind && last.to + 1 === r.from) last.to = r.to;
   else out.push(r);
-}
-
-// ---------- Captions ----------
-
-export function changeCaption(change: LaneChange, ordinal: number): string {
-  const n = ordinal;
-  const a = change.after;
-  switch (a.kind) {
-    case 'open':
-      return str('respawn.change.survived', { n });
-    case 'death':
-      return str('respawn.change.diesAt', { n, time: formatBattleTime(a.tick) });
-    case 'interrupted':
-      return str('respawn.change.interrupted', { n, time: formatBattleTime(a.tick) });
-    case 'neverSpawned':
-      return str('respawn.change.neverSpawned', { n });
-    case 'unresolved':
-      return str('respawn.change.unresolved', { n });
-    case 'complete':
-      return str('respawn.change.complete', { n });
-  }
-}
-
-/** Visible captions: newest first, at most `max`, plus a "+N more" tail. */
-export function captionList(captions: readonly string[], max = 4): string[] {
-  const newest = [...captions].reverse();
-  if (newest.length <= max) return newest;
-  return [...newest.slice(0, max), str('respawn.change.more', { n: newest.length - max })];
-}
-
-// ---------- Header ----------
-
-export interface HeaderItem {
-  label: string;
-  value: string;
-  cls?: string;
-}
-
-export function headerItems(p: RespawnProps): { title: string; items: HeaderItem[] } {
-  const flagOnly =
-    (p.map.objectives ?? []).length === 0 && (p.map.capturePoints ?? []).some((c) => c.objective);
-  const done = flagOnly ? 'respawn.header.objectiveCaptured' : 'respawn.header.objectiveDone';
-  const open = flagOnly ? 'respawn.header.objectiveNotCaptured' : 'respawn.header.objectiveIntact';
-  return {
-    title: str('respawn.header.attempt', { n: p.attemptsPlayed + 1 }),
-    items: [
-      { label: str('respawn.header.soldiers'), value: String(p.soldiers.length) },
-      {
-        label: str('respawn.header.reached'),
-        value:
-          p.reachedTick === null
-            ? str('respawn.header.reachedNone')
-            : formatBattleTime(p.reachedTick),
-      },
-      {
-        label: str('respawn.header.objective'),
-        value: p.objectiveComplete ? str(done) : str(open),
-        cls: p.objectiveComplete ? 'done' : 'pending',
-      },
-    ],
-  };
 }
 
 // ---------- Domain / scrubber ----------

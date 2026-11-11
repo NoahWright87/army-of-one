@@ -14,7 +14,6 @@ import { str } from '../../content/strings';
 import { DEFAULT_ROLE, ROLES, isRoleId, roleDef } from '../../content/roles';
 import type {
   RoleId,
-  CaptureChange,
   LaneChange,
   LaneSpanKind,
   SoldierId,
@@ -26,10 +25,7 @@ import { mapThumbSvg } from './map-thumb';
 import { MapPanel } from './map-panel';
 import { isTallMap } from './map-panel-model';
 import {
-  captureChangeCaption,
   captureFlags,
-  captionList,
-  changeCaption,
   changedRanges,
   cycleSelection,
   defaultSelection,
@@ -37,13 +33,11 @@ import {
   endStyle,
   endTooltip,
   findOption,
-  headerItems,
   isEventMarker,
   laneRows,
   markerTooltip,
   optionKey,
   optionLabel,
-  ordinalFromId,
   reconcileSelection,
   screenKeyAction,
   spanClass,
@@ -116,9 +110,7 @@ export class RespawnScreen {
   private fitted = true;
   private domain: TimeDomain;
   private readonly deployListeners = new Set<(o: SpawnOption) => void>();
-  private captions: string[] = [];
   /** (05-a) Captions that report a lost capture point (highlighted). */
-  private lostCaptions = new Set<string>();
   private pulses = new Map<SoldierId, Anim>();
   private flashes = new Map<
     SoldierId,
@@ -133,8 +125,6 @@ export class RespawnScreen {
   private readonly cleanups: (() => void)[] = [];
 
   // Elements
-  private readonly head = el('header', 'rs-head');
-  private readonly captionsEl = el('div', 'rs-captions');
   private readonly frame = el('div', 'rs-tl-frame');
   private readonly scroller = el('div', 'rs-tl-scroll');
   private readonly axisWrap = el('div', 'rs-axis');
@@ -180,7 +170,6 @@ export class RespawnScreen {
     this.build();
     parent.appendChild(this.root);
     this.pushChanges(props.changes ?? []);
-    this.pushCaptureChanges(props.captureChanges ?? []);
     this.installInput();
     this.renderAll();
     // Focus the selected option so keyboard users can act at once.
@@ -208,7 +197,6 @@ export class RespawnScreen {
     }
     if (u.options) this.diffOptions(prevOptions, u.options);
     if (u.changes) this.pushChanges(u.changes);
-    if (u.captureChanges) this.pushCaptureChanges(u.captureChanges);
     this.selected = reconcileSelection(this.selected, this.props.options);
     this.updateDomain();
     this.renderAll();
@@ -289,7 +277,6 @@ export class RespawnScreen {
     const tl = el('section', 'rs-tl');
     const bar = el('div', 'rs-tl-bar');
     bar.append(el('h2', '', str('respawn.timeline.title')));
-    bar.append(el('span', 'rs-hint', str('respawn.timeline.hint')));
     const tools = el('div', 'rs-tools');
     const mk = (label: string, text: string, run: () => void) => {
       const b = el('button', 'rs-tool', text);
@@ -304,6 +291,10 @@ export class RespawnScreen {
       mk(str('respawn.timeline.fit'), str('respawn.timeline.fit'), () => this.fitAll()),
     );
     tools.lastElementChild!.classList.add('wide');
+    // The key (what X, O, ! … mean) lives behind an ℹ️ button instead of under the timeline.
+    const info = mk(str('respawn.legend.title'), 'ℹ️', () => this.toggleLegend());
+    info.classList.add('rs-info');
+    tools.prepend(info);
     // (06-b) Phone + wide map: the map shares the timeline's area; these swap them.
     const toMap = mk(str('respawn.map.show'), str('respawn.map.show'), () =>
       this.showPhoneMap(true),
@@ -319,7 +310,9 @@ export class RespawnScreen {
     bar.append(tools);
     this.scroller.append(this.axisWrap, this.rowsWrap);
     this.frame.append(this.scroller, this.emptyEl, this.tip);
-    tl.append(bar, this.captionsEl, this.frame, this.moneyEl, this.legendEl);
+    tl.append(bar, this.frame, this.moneyEl, this.legendEl);
+    this.legendEl.hidden = true;
+    this.legendEl.onclick = () => this.toggleLegend(false);
 
     const spawn = el('aside', 'rs-spawn');
     spawn.append(el('h2', '', str('respawn.spawn.title')), this.optsEl);
@@ -330,7 +323,7 @@ export class RespawnScreen {
     spawn.append(dbar);
 
     main.append(tl, this.mapPanel.root, spawn);
-    this.root.append(this.head, main);
+    this.root.append(main);
   }
 
   // ---------- Input ----------
@@ -563,20 +556,7 @@ export class RespawnScreen {
   private pushChanges(changes: readonly LaneChange[]): void {
     const t = now();
     for (const c of changes) {
-      const ordinal =
-        this.props.soldiers.find((s) => s.id === c.soldierId)?.ordinal ??
-        ordinalFromId(c.soldierId);
-      const text = changeCaption(c, ordinal);
-      if (this.captions[this.captions.length - 1] !== text) this.captions.push(text);
       if (this.settings.animations) this.pulses.set(c.soldierId, { start: t });
-    }
-  }
-
-  private pushCaptureChanges(changes: readonly CaptureChange[]): void {
-    for (const c of changes) {
-      const { text, lost } = captureChangeCaption(c, this.props.map);
-      if (lost) this.lostCaptions.add(text);
-      if (this.captions[this.captions.length - 1] !== text) this.captions.push(text);
     }
   }
 
@@ -651,8 +631,6 @@ export class RespawnScreen {
 
   private renderAll(): void {
     if (this.destroyed) return;
-    this.renderHeader();
-    this.renderCaptions();
     this.renderLegend();
     this.renderOptions();
     this.renderMap();
@@ -679,42 +657,16 @@ export class RespawnScreen {
     this.main.classList.toggle('map-tall', on && tall);
     this.main.classList.toggle('map-wide', on && !tall);
     this.mapPanel.root.hidden = !on;
-    if (on) this.mapPanel.render(this.props, this.selected, this.settings.legend);
+    if (on) this.mapPanel.render(this.props, this.selected, false);
   }
 
-  private renderHeader(): void {
-    const h = headerItems(this.props);
-    this.head.innerHTML =
-      `<h1>${esc(h.title)}</h1><dl>` +
-      h.items
-        .map(
-          (i) =>
-            `<div class="${i.cls ?? ''}"><dt>${esc(i.label)}</dt><dd>${esc(i.value)}</dd></div>`,
-        )
-        .join('') +
-      `</dl>`;
+  /** Shows/hides the key popover (ℹ️). */
+  private toggleLegend(on = this.legendEl.hidden): void {
+    this.legendEl.hidden = !on;
   }
 
-  private renderCaptions(): void {
-    if (this.captions.length === 0) {
-      this.captionsEl.hidden = true;
-      return;
-    }
-    this.captionsEl.hidden = false;
-    const list = captionList(this.captions, 3);
-    this.captionsEl.innerHTML =
-      `<span class="rs-cap-title">${esc(str('respawn.change.title'))}</span>` +
-      list
-        .map(
-          (c, i) =>
-            `<span class="rs-cap${i === 0 ? ' newest' : ''}${this.lostCaptions.has(c) ? ' lost' : ''}">${esc(c)}</span>`,
-        )
-        .join('');
-  }
-
+  /** The key popover: timeline glyphs, then the map's symbols. */
   private renderLegend(): void {
-    this.legendEl.hidden = !this.settings.legend;
-    if (!this.settings.legend) return;
     const item = (sw: string, label: string) =>
       `<span class="lg"><svg width="26" height="16" aria-hidden="true">${sw}</svg>${esc(label)}</span>`;
     this.legendEl.innerHTML = [
@@ -733,6 +685,7 @@ export class RespawnScreen {
         '<rect class="sp-unresolved" x="1" y="3" width="24" height="10" fill="url(#rs-hatch)"/>',
         str('respawn.legend.unresolved'),
       ),
+      ...(this.settings.showMap ? [this.mapPanel.legendHtml()] : []),
     ].join('');
   }
 

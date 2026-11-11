@@ -6,8 +6,6 @@ import { MemoryStorage, SettingsStore } from '../../settings/registry';
 import { buildFixture } from '../__fixtures__/respawn-fixtures';
 import { mapThumbSvg } from '../map-thumb';
 import {
-  captionList,
-  changeCaption,
   changedRanges,
   cycleSelection,
   defaultSelection,
@@ -15,7 +13,6 @@ import {
   endStyle,
   endTooltip,
   findOption,
-  headerItems,
   isEventMarker,
   isUnconfirmed,
   laneRows,
@@ -183,41 +180,7 @@ describe('span and end styling', () => {
   });
 });
 
-describe('captions, header, rows', () => {
-  it('history-changed captions', () => {
-    expect(
-      changeCaption(
-        { soldierId: 'S1', before: { kind: 'death', tick: 5 }, after: { kind: 'open', tick: 5 } },
-        1,
-      ),
-    ).toBe('Soldier 1 survived!');
-    expect(
-      changeCaption(
-        {
-          soldierId: 'S1',
-          before: { kind: 'open', tick: 5 },
-          after: { kind: 'death', tick: s(72) },
-        },
-        1,
-      ),
-    ).toBe('Soldier 1 now dies at 1:12');
-    expect(
-      changeCaption(
-        { soldierId: 'S4', before: { kind: 'death', tick: 5 }, after: { kind: 'neverSpawned' } },
-        4,
-      ),
-    ).toContain('never spawns');
-    expect(captionList(['a', 'b', 'c', 'd', 'e'], 3)).toEqual(['e', 'd', 'c', '+2 more']);
-  });
-
-  it('header: next attempt, soldiers, time reached, objective', () => {
-    const p = buildFixture('rescue')!.props;
-    const h = headerItems(p);
-    expect(h.title).toBe('Attempt 3');
-    expect(h.items.map((i) => i.value)).toEqual(['2', '1:10', 'Not destroyed']);
-    expect(headerItems(buildFixture('empty')!.props).items[1]!.value).toBe('Not started');
-  });
-
+describe('rows', () => {
   it('rows are ordered by ordinal and carry the spawn point name', () => {
     const p = buildFixture('twelve')!.props;
     const rows = laneRows([...p.lanes].reverse(), p.soldiers, p.map);

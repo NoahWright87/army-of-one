@@ -10,13 +10,6 @@ export const RESPAWN_CSS = `
 .aoo-respawn * { box-sizing: border-box; }
 .aoo-respawn [hidden] { display: none !important; }
 
-.rs-head { display: flex; align-items: center; gap: 6px 28px; flex-wrap: wrap; }
-.rs-head h1 { margin: 0; font-size: 22px; color: #ffd34d; letter-spacing: .02em; }
-.rs-head dl { display: flex; gap: 4px 22px; margin: 0; flex-wrap: wrap; }
-.rs-head dl div { display: flex; flex-direction: column; }
-.rs-head dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #8a96a3; }
-.rs-head dd { margin: 0; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.rs-head .done dd { color: #5ee38a; }
 
 .rs-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; }
 .rs-tl, .rs-spawn { background: rgba(16,20,24,.94); border: 1px solid #39424c; border-radius: 6px;
@@ -24,21 +17,12 @@ export const RESPAWN_CSS = `
 .rs-tl-bar { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 12px; }
 .rs-tl-bar h2, .rs-spawn h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
   color: #9fb3c8; margin: 0; white-space: nowrap; }
-.rs-hint { color: #6f7b88; font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rs-tools { display: flex; gap: 6px; margin-left: auto; }
 .rs-tool { min-width: 44px; height: 44px; font: 600 20px system-ui, sans-serif; background: #222a32;
   color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; cursor: pointer; padding: 0; }
 .rs-tool.wide { font-size: 13px; padding: 0 12px; }
 .rs-tool:hover { border-color: #66727e; }
 
-.rs-captions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; align-items: center; }
-.rs-cap-title { font-size: 11px; text-transform: uppercase; color: #ffd34d; letter-spacing: .06em; font-weight: 700; }
-.rs-cap { background: #262110; border: 1px solid #5c4e1c; color: #e8d9a6; padding: 3px 9px;
-  border-radius: 12px; font-size: 13px; font-weight: 600; }
-.rs-cap.newest { background: #3b3112; border-color: #ffd34d; color: #fff1c2; }
-.rs-cap.lost { background: #3a1414; border-color: #ff5a5a; color: #ffd6d6; font-weight: 700; }
-.rs-cap.lost.newest { animation: rs-lost 1.2s ease-in-out 3; }
-@keyframes rs-lost { 50% { background: #6a1c1c; } }
 .flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
 .capflag line { stroke: #4ade80; stroke-width: 2; }
 .capflag path { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
@@ -57,8 +41,14 @@ export const RESPAWN_CSS = `
 .rs-axis svg, .rs-rows svg { display: block; }
 .rs-empty { position: absolute; left: 16px; right: 16px; top: 60px; text-align: center; color: #b5c0cc;
   font-size: 16px; line-height: 1.5; }
-.rs-legend { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 6px 12px; border-top: 1px solid #2b333b;
-  font-size: 12px; color: #9aa7b6; }
+.rs-tl { position: relative; }
+/* The key: a popover behind the ℹ️ button (tap it, or the popover, to close). */
+.rs-legend { position: absolute; top: 52px; right: 8px; z-index: 5; max-width: min(340px, calc(100% - 16px));
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; font-size: 13px; color: #c9d3dc;
+  background: #161c22; border: 1px solid #4a5560; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  cursor: pointer; }
+.rs-legend[hidden] { display: none; }
+.rs-info { font-size: 18px; }
 .rs-legend .lg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .rs-tip { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; background: #0b0e12;
   border: 1px solid #4a5560; color: #f1f3f5; padding: 5px 8px; border-radius: 4px; font-size: 13px;
@@ -168,15 +158,10 @@ export const RESPAWN_CSS = `
 
 @media (max-width: 760px) {
   .aoo-respawn { padding: 8px 16px 12px; gap: 8px; }
-  .rs-head { gap: 2px 16px; }
-  .rs-head h1 { font-size: 18px; }
-  .rs-head dl { gap: 2px 14px; }
-  .rs-head dt { font-size: 10px; }
-  .rs-head dd { font-size: 14px; }
-  .rs-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(160px, 1fr) auto; gap: 8px; }
+            .rs-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(160px, 1fr) auto; gap: 8px; }
   .rs-spawn { max-height: 40vh; }
   .rs-spawn h2 { padding: 8px 12px 6px; }
-  .rs-hint, .rs-keys { display: none; }
+  .rs-keys { display: none; }
   .rs-opt { min-height: 56px; }
   .rs-opt-icon { flex-basis: 64px; }
   .rs-opt-icon .thumb { width: 64px; height: 44px; }
@@ -185,7 +170,6 @@ export const RESPAWN_CSS = `
   .rs-roles-row { flex-wrap: wrap; gap: 4px; }
   .rs-role { min-height: 34px; font-size: 13px; padding: 0 6px; }
   .rs-role .k { display: none; }
-  .rs-legend { gap: 0 10px; font-size: 11px; padding: 4px 10px; }
 }
 
 /* (06-b) Revealed map panel ([D29]). Wide maps sit above the spawn list; tall maps (a vertical
