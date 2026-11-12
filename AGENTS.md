@@ -141,13 +141,16 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Vehicles (PHASE12-b): roles 8/9 are the Gun truck and the Tank (`tuning.drive`, `tuning.shell`):
   compass controls, the vehicle turns first. One armor rule for everything
   (`src/sim/combat/armor.ts`, `tuning.armor`); cover breaks (`tuning.cover.materials` hp/armor).
-  Mission 5 "Armored Push" (`?mission=mission-05`) is the long vehicle mission.
+  Mission 5 "Armored Push" (`?mission=mission-05`) is the long vehicle mission. No map uses
+  traffic lanes any more ([D75]): enemy gun trucks patrol the roads. Role icons (placeholders)
+  live in `src/content/role-icons.ts` and show on soldiers and the respawn screen.
 - Economy (PHASE11): money is a function of battle time (`src/timeline/economy.ts`,
   `tuning.economy`, role `cost` in `roles.ts`). The respawn screen shows a money strip and what
   each spawn can spend; the HUD shows the balance. F2 → Sim tuning → `economy.enabled` turns it
   off.
-- Controls (PHASE07-b): touch devices get on-screen sticks + auto-aim by default; F2 → Controls
-  switches scheme/auto-aim/auto-fire. Emulate a phone in Playwright with `devices['iPhone 13']`.
+- Controls (PHASE07-b): touch devices get on-screen controls + auto-aim by default; F2 → Controls
+  switches scheme/auto-aim/auto-fire, touch aiming (tap-to-aim or stick, PHASE12-d) and
+  auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one

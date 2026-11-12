@@ -254,4 +254,19 @@ export const RESPAWN_CSS = `
 .hp-bg { fill: #2a3138; }
 .hp.hp-ok { fill: #5ee38a; } .hp.hp-low { fill: #ffae42; } .hp.hp-crit { fill: #ff4d5e; }
 .end.weak .g-o { stroke: #3f7a52; filter: none; opacity: .7; }
+/* (PHASE12-d) Grouped timeline: branches from each spawn point down to its soldiers. */
+.branch { stroke: #2f6f86; stroke-width: 2; fill: none; opacity: .8; }
+.branch.compact { opacity: .45; stroke-width: 1; }
+.row.compact .row-bg { fill: transparent; }
+.cl-line { stroke: #9aa7b6; stroke-width: 2; opacity: .7; }
+.cl-end { fill: #9aa7b6; }
+.cl-end.end-x { fill: #ff4d5e; }
+.cl-end.end-o { fill: #5ee38a; }
+.cl-end.end-bang { fill: #ffae42; }
+.lbl-compact { fill: #161c22; }
+.lbl.spawn .tw { fill: #6f9fb4; font: 700 11px system-ui, sans-serif; }
+.lbl.spawn .fold { cursor: pointer; }
+.lbl.spawn .hit { fill: transparent; }
+.lbl.spawn.closed .name { fill: #6f7b88; }
+.row.spawnrow.closed .sp-track { opacity: .35; }
 `;

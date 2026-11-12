@@ -558,13 +558,19 @@ export function moneyTip(l: Ledger, t: Tick): string {
 /** A spawn point's row: its marker sits at its next entry slot ([D7]). */
 export interface SpawnTimelineRow {
   kind: 'spawn';
-  key: OptionKey;
-  option: Extract<SpawnOption, { kind: 'new' }>;
+  spawnPointId: string;
+  /** Its option's key, or null when the point isn't offered right now (closed / lost). */
+  key: OptionKey | null;
+  option: Extract<SpawnOption, { kind: 'new' }> | null;
   name: string;
   /** When the point opened (0 for initial points, the capture tick for forward ones). */
   openTick: Tick;
   /** Earlier entries at this point (the queue so far). */
   entries: Tick[];
+  /** Its soldiers are folded into compact lines. */
+  collapsed: boolean;
+  /** How many soldiers belong to it. */
+  count: number;
   y: number;
   h: number;
 }
@@ -572,8 +578,14 @@ export interface SpawnTimelineRow {
 export interface LaneTimelineRow {
   kind: 'lane';
   row: LaneRow;
-  /** Resumable (an O) or selected: full height. Everything else is shorter. */
+  /** The spawn point it's nested under. */
+  spawnPointId: string;
+  /** Resumable (offered) or selected: full height. Everything else is shorter. */
   interactive: boolean;
+  /** Folded under a collapsed spawn point: a thin line, no label. */
+  compact: boolean;
+  /** Its spawn tick (where the branch leaves the spawn row). */
+  spawnTick: Tick;
   y: number;
   h: number;
 }
@@ -581,61 +593,111 @@ export interface LaneTimelineRow {
 export type TimelineRow = SpawnTimelineRow | LaneTimelineRow;
 
 /** Row heights from the base row height: spawn rows and inert lanes are shorter. */
-export function rowHeights(rowH: number): { spawn: number; lane: number; inert: number } {
+export function rowHeights(rowH: number): {
+  spawn: number;
+  lane: number;
+  inert: number;
+  compact: number;
+} {
   return {
     spawn: Math.max(22, Math.round(rowH * 0.6)),
     lane: rowH,
     inert: Math.max(22, Math.round(rowH * 0.62)),
+    compact: 8,
   };
 }
 
 /**
- * Every timeline row top to bottom: one per open spawn point first (map order), then one per
- * soldier lane. Each row has its y and height.
+ * (PHASE12-d) Every timeline row top to bottom, grouped by spawn point (map order): the point's
+ * row, then its soldiers nested under it. Within a group, soldiers you can resume come first,
+ * earliest resume first; the rest follow by spawn time. A collapsed point folds its soldiers
+ * into thin unlabeled lines. Each row has its y and height.
  */
 export function timelineRows(
   p: Pick<RespawnProps, 'map' | 'lanes' | 'soldiers' | 'options' | 'captures'>,
   selected: OptionKey | null,
   rowH: number,
+  collapsed: ReadonlySet<string> = new Set(),
 ): TimelineRow[] {
   const hs = rowHeights(rowH);
+  const resumeTick = new Map<SoldierId, Tick>();
+  for (const o of p.options) if (o.kind === 'resume') resumeTick.set(o.soldierId, o.resumeTick);
+  const bySoldier = new Map(p.soldiers.map((s) => [s.id, s]));
+  const lanes = laneRows(p.lanes, p.soldiers, p.map);
+  const groups = new Map<string, LaneRow[]>();
+  for (const l of lanes) {
+    const sp = bySoldier.get(l.soldierId)?.spawnPointId ?? '';
+    const g = groups.get(sp) ?? [];
+    g.push(l);
+    groups.set(sp, g);
+  }
   const out: TimelineRow[] = [];
   let y = 0;
-  for (const sp of p.map.spawnPoints) {
-    const option = p.options.find(
-      (o): o is Extract<SpawnOption, { kind: 'new' }> =>
-        o.kind === 'new' && o.spawnPointId === sp.id,
-    );
-    if (!option) continue;
+  const known = new Set(p.map.spawnPoints.map((sp) => sp.id));
+  const order = [
+    ...p.map.spawnPoints.map((sp) => sp.id),
+    ...[...groups.keys()].filter((k) => !known.has(k)),
+  ];
+  for (const spId of order) {
+    const sp = p.map.spawnPoints.find((x) => x.id === spId);
+    const members = groups.get(spId) ?? [];
+    const option =
+      p.options.find(
+        (o): o is Extract<SpawnOption, { kind: 'new' }> =>
+          o.kind === 'new' && o.spawnPointId === spId,
+      ) ?? null;
+    if (!option && members.length === 0) continue;
     const cap =
-      sp.kind === 'capture'
+      sp?.kind === 'capture'
         ? (p.captures ?? []).find((c) => c.pointId === sp.capturePointId && c.stage === 'ours')
         : undefined;
     const openTick = cap?.tick ?? 0;
-    const entries = p.soldiers
-      .filter((s) => s.spawnPointId === sp.id && s.spawnTick >= openTick)
-      .map((s) => s.spawnTick)
-      .sort((a, b) => a - b);
-    out.push({
-      kind: 'spawn',
-      key: optionKey(option),
-      option,
-      name: spawnPointName(p.map, sp.id),
-      openTick,
-      entries,
-      y,
-      h: hs.spawn,
+    const fold = collapsed.has(spId) && members.length > 0;
+    if (sp) {
+      out.push({
+        kind: 'spawn',
+        spawnPointId: spId,
+        key: option ? optionKey(option) : null,
+        option,
+        name: spawnPointName(p.map, spId),
+        openTick,
+        entries: members
+          .map((m) => bySoldier.get(m.soldierId)?.spawnTick ?? 0)
+          .sort((a, b) => a - b),
+        collapsed: fold,
+        count: members.length,
+        y,
+        h: hs.spawn,
+      });
+      y += hs.spawn;
+    }
+    const sorted = [...members].sort((a, b) => {
+      const ra = resumeTick.get(a.soldierId);
+      const rb = resumeTick.get(b.soldierId);
+      if (ra !== undefined || rb !== undefined) {
+        if (ra === undefined) return 1;
+        if (rb === undefined) return -1;
+        if (ra !== rb) return ra - rb;
+      }
+      const sa = bySoldier.get(a.soldierId)?.spawnTick ?? 0;
+      const sb = bySoldier.get(b.soldierId)?.spawnTick ?? 0;
+      return sa - sb || a.ordinal - b.ordinal;
     });
-    y += hs.spawn;
-  }
-  for (const row of laneRows(p.lanes, p.soldiers, p.map)) {
-    // (PHASE12-d) Interactive = actually offered (a too-hurt O isn't, [D76]) or selected.
-    const interactive =
-      p.options.some((o) => o.kind === 'resume' && o.soldierId === row.soldierId) ||
-      selected === `resume:${row.soldierId}`;
-    const h = interactive ? hs.lane : hs.inert;
-    out.push({ kind: 'lane', row, interactive, y, h });
-    y += h;
+    for (const row of sorted) {
+      const interactive = resumeTick.has(row.soldierId) || selected === `resume:${row.soldierId}`;
+      const h = fold ? hs.compact : interactive ? hs.lane : hs.inert;
+      out.push({
+        kind: 'lane',
+        row,
+        spawnPointId: spId,
+        interactive,
+        compact: fold,
+        spawnTick: bySoldier.get(row.soldierId)?.spawnTick ?? row.lane.recordedFrom,
+        y,
+        h,
+      });
+      y += h;
+    }
   }
   return out;
 }

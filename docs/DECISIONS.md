@@ -311,6 +311,29 @@ revise with justification in a PR).
   timeline. The screen opens on the quick-redeploy choice, so DEPLOY is one tap back in. (The
   role menu is where "certain roles only at certain spawn points" would go, if wanted later.)
 
+## Owner playtest gripes (2026-11)
+
+- **[D74] Doors are open-only (was Q8).** Opening only opens; closing is its own recorded action.
+  If two soldiers open the same door, the second keeps it open. (`echo.replayInteract:
+  'restoreState'`, now the default: an echo's replayed press only brings the door to the state
+  its original press produced.)
+- **[D75] No endless sideways traffic.** It wasted time. Roads get enemy gun trucks driving a
+  patrol loop instead (an oval or a figure 8): Breach's road two, Mission 5's highway two and
+  its service road one. (The traffic code stays for maps that want it; none use it now.)
+- **[D76] Resume HP.** The respawn screen shows how much HP a saved soldier has where their
+  recording ends (a bar under the O, and its tooltip). A soldier with less than 10 % left
+  (`spawn.minResumeHp`) doesn't count as saved: their O shows dimmed and isn't offered.
+- **[D77] The timeline groups soldiers under their spawn point,** with branch lines from the
+  spawn row down to each soldier (like a git graph). Within a spawn point, soldiers you can
+  resume come first, earliest resume first; the rest follow (by spawn time). Each spawn point
+  can be folded: its soldiers become thin unlabeled lines with a dot for how they end.
+- **[D78] Readable soldiers, safer rockets.** Every soldier wears its role icon on its circle.
+  Rocket and tank-shell auto-aim go for vehicles first and lead moving vehicles (the AI too).
+  Auto-aim never fires an explosive (rocket, shell, grenade) when one of ours would be in the
+  blast. Auto-aim can be turned off per role (Controls settings), and on touch you can aim by
+  hand: touch the battlefield where you want to aim and hold to fire (it overrides auto-aim
+  while you hold it; the old aim stick is a setting).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -377,7 +400,7 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q7] Is traffic already running at battle start (PHASE02-a)?** `tuning.vehicle.prewarm`:
   `true` (default: lanes start full, as if traffic had always run) or `false` (empty road at 0:00,
   first vehicle enters at each lane's offset).
-- **[Q8] How does an echo replay a lever press (PHASE03-a)?** `tuning.echo.replayInteract`:
+- **[Q8] (Resolved: [D74], 'restoreState' is the default.)** How does an echo replay a lever press (PHASE03-a)? `tuning.echo.replayInteract`:
   `'toggle'` (default: it presses the lever again, so if a later soldier already opened the gate,
   the echo's replayed press *closes* it, possibly blocking itself) or `'restoreState'` (it only
   presses if that brings the gate/bridge to the state its original press produced; an
@@ -529,6 +552,11 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   or two); traffic cars can't hurt a tank much (their contact damage goes through armor) and
   aren't hurt by being rammed; the enemy AI drives with the soldiers' pathfinding (it doesn't
   know a vehicle is wider, and it doesn't path through cover it has destroyed).
+- **[Q45] Playtest-gripe details (PHASE12-d).** Implemented: tap-to-aim is the default touch
+  aiming (`input.touchAim`), and the move stick shrinks to the bottom-left corner so the rest
+  of the screen is "aim here"; folded soldiers can't be tapped to resume (unfold first); the
+  friendly-fire guard counts our live soldier and echoes (not static figures) within the blast
+  radius plus a soldier's width; patrols ignore their leash along their own route.
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

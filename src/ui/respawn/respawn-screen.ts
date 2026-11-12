@@ -52,6 +52,7 @@ import {
   timelineRows,
   type LaneTimelineRow,
   type SpawnTimelineRow,
+  type TimelineRow,
 } from './respawn-model';
 import { roleIconG, roleIconSvg } from '../../content/role-icons';
 import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
@@ -77,6 +78,8 @@ export interface RespawnScreenOptions {
   settings?: RespawnViewSettings;
 }
 
+/** (PHASE12-d) Spawn points whose soldiers are folded (kept while the page is open). */
+const collapsedSpawns = new Set<string>();
 const PULSE_MS = 1800;
 const FLASH_MS = 1400;
 const AXIS_H = 40;
@@ -490,6 +493,14 @@ export class RespawnScreen {
   }
 
   private tap(target: HTMLElement | null, e: PointerEvent): void {
+    // (PHASE12-d) Fold / unfold a spawn point's soldiers.
+    const fold = target?.closest<Element>('[data-fold]')?.getAttribute('data-fold');
+    if (fold) {
+      if (collapsedSpawns.has(fold)) collapsedSpawns.delete(fold);
+      else collapsedSpawns.add(fold);
+      this.scheduleRender();
+      return;
+    }
     const hit = target?.closest<Element>('[data-select], [data-tip]');
     if (!hit) {
       this.hideTip();
@@ -727,7 +738,7 @@ export class RespawnScreen {
     if (this.destroyed) return;
     const p = this.props;
     // (PHASE12-c) Spawn points first (short rows), then soldiers (inert ones shorter).
-    const rows = timelineRows(p, this.selected, this.settings.rowHeight);
+    const rows = timelineRows(p, this.selected, this.settings.rowHeight, collapsedSpawns);
     this.emptyEl.hidden = rows.some((r) => r.kind === 'lane') || rows.length > 0;
     const labelW = this.labelWidth();
     const totalW = this.frame.clientWidth;
@@ -821,9 +832,12 @@ export class RespawnScreen {
       out.push(
         r.kind === 'spawn'
           ? this.spawnRowSvg(r, labelW, totalW, x, plotRight, sel)
-          : this.rowSvg(r.row, i, r.y, r.h, labelW, totalW, x, sel, t),
+          : r.compact
+            ? this.compactRowSvg(r, totalW, x)
+            : this.rowSvg(r.row, i, r.y, r.h, labelW, totalW, x, sel, t),
       ),
     );
+    out.push(this.branchesSvg(rows, x));
     // Guides and scrubber above the rows.
     out.push(`<g clip-path="url(#rs-clip)" class="overlay">`);
     if (dim) {
@@ -843,7 +857,11 @@ export class RespawnScreen {
     // Labels (fixed column over the clipped plot).
     rows.forEach((r) =>
       out.push(
-        r.kind === 'spawn' ? this.spawnLabelSvg(r, labelW, sel) : this.labelSvg(r, labelW, sel),
+        r.kind === 'spawn'
+          ? this.spawnLabelSvg(r, labelW, sel)
+          : r.compact
+            ? `<rect class="lbl-compact" x="0" y="${r.y}" width="${labelW}" height="${r.h}"/>`
+            : this.labelSvg(r, labelW, sel),
       ),
     );
     this.rowsWrap.innerHTML = `<svg class="rs-rows-svg" width="${totalW}" height="${H}">${out.join('')}</svg>`;
@@ -1060,13 +1078,41 @@ export class RespawnScreen {
     );
   }
 
-  /** (PHASE12-c) A spawn point's label: its name. */
-  private spawnLabelSvg(row: SpawnTimelineRow, labelW: number, sel: SpawnOption | null): string {
-    const isSel = sel?.kind === 'new' && sel.spawnPointId === row.option.spawnPointId;
+  /** (PHASE12-d) A folded soldier: a thin line from spawn to end, a dot for how it ends. */
+  private compactRowSvg(row: LaneTimelineRow, totalW: number, x: (t: number) => number): string {
+    const lane = row.row.lane;
+    const cy = r1(row.y + row.h / 2);
+    const es = endStyle(lane.end);
+    const endT = es.tick ?? lane.recordedTo;
     return (
-      `<g class="lbl spawn${isSel ? ' sel' : ''}" data-select="${esc(row.key)}" data-tip="${esc(row.name)}">` +
+      `<g class="row compact" data-row="${esc(row.row.soldierId)}">` +
+      `<rect class="row-bg" x="0" y="${row.y}" width="${totalW}" height="${row.h}"/>` +
+      `<g clip-path="url(#rs-clip)">` +
+      `<line class="cl-line" x1="${x(lane.recordedFrom)}" y1="${cy}" x2="${x(endT)}" y2="${cy}"/>` +
+      (es.glyph ? `<circle class="cl-end ${es.cls}" cx="${x(endT)}" cy="${cy}" r="3"/>` : '') +
+      `</g></g>`
+    );
+  }
+
+  /**
+   * (PHASE12-c) A spawn point's label: a fold toggle (▾ / ▸) and its name. Tapping the name
+   * picks the spawn; tapping the toggle folds its soldiers into thin lines (PHASE12-d).
+   */
+  private spawnLabelSvg(row: SpawnTimelineRow, labelW: number, sel: SpawnOption | null): string {
+    const isSel = sel?.kind === 'new' && sel.spawnPointId === row.spawnPointId;
+    const pick = row.key ? ` data-select="${esc(row.key)}"` : '';
+    const cy = r1(row.y + row.h / 2 + 4);
+    const fold =
+      row.count > 0
+        ? `<g class="fold" data-fold="${esc(row.spawnPointId)}"><rect class="hit" x="0" y="${row.y}" width="18" height="${row.h}"/>` +
+          `<text class="tw" x="4" y="${cy}">${row.collapsed ? '▸' : '▾'}</text></g>`
+        : '';
+    return (
+      `<g class="lbl spawn${isSel ? ' sel' : ''}${row.option ? '' : ' closed'}">` +
       `<rect x="0" y="${row.y}" width="${labelW}" height="${row.h}"/>` +
-      `<text class="name" x="8" y="${r1(row.y + row.h / 2 + 4)}">${esc(row.name)}</text>` +
+      `<g${pick} data-tip="${esc(row.name)}"><rect class="hit" x="18" y="${row.y}" width="${labelW - 18}" height="${row.h}"/>` +
+      `<text class="name" x="18" y="${cy}">${esc(row.name)}</text></g>` +
+      fold +
       `</g>`
     );
   }
@@ -1074,6 +1120,7 @@ export class RespawnScreen {
   /**
    * (PHASE12-c) A spawn point's row: a track from when it opened, ticks for the soldiers who
    * entered there, and the marker at its next entry slot ([D7]) — tap it to pick that spawn.
+   * A point not offered right now (closed, lost) has no marker.
    */
   private spawnRowSvg(
     row: SpawnTimelineRow,
@@ -1085,18 +1132,9 @@ export class RespawnScreen {
   ): string {
     const { y: y0, h, option: o } = row;
     const cy = r1(y0 + h / 2);
-    const isSel = sel?.kind === 'new' && sel.spawnPointId === o.spawnPointId;
-    const money = optionMoney(o, this.props);
-    const tip = esc(
-      [
-        str('respawn.spawn.rowTip', { place: row.name, time: formatBattleTime(o.entryTick) }),
-        money?.text,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-    );
+    const isSel = sel?.kind === 'new' && sel.spawnPointId === row.spawnPointId;
     const s: string[] = [];
-    s.push(`<g class="row spawnrow${isSel ? ' sel' : ''}">`);
+    s.push(`<g class="row spawnrow${isSel ? ' sel' : ''}${o ? '' : ' closed'}">`);
     s.push(`<rect class="row-bg" x="0" y="${y0}" width="${totalW}" height="${h}"/>`);
     s.push(`<g clip-path="url(#rs-clip)">`);
     const x0 = Math.max(labelW, x(row.openTick));
@@ -1106,16 +1144,48 @@ export class RespawnScreen {
         `<line class="sp-entry" x1="${x(e)}" y1="${r1(cy - 4)}" x2="${x(e)}" y2="${r1(cy + 4)}"/>`,
       );
     }
-    const mx = x(o.entryTick);
-    const a = Math.max(6, Math.min(10, h * 0.32));
-    s.push(
-      `<g class="sp-next${isSel ? ' sel' : ''}" data-select="${esc(row.key)}" data-tip="${tip}">` +
-        (isSel ? `<circle class="sel-ring" cx="${mx}" cy="${cy}" r="${r1(a + 5)}"/>` : '') +
-        `<path class="sp-chev" d="M${r1(mx - a)} ${r1(cy + a * 0.6)}L${mx} ${r1(cy - a * 0.7)}L${r1(mx + a)} ${r1(cy + a * 0.6)}Z"/>` +
-        `<circle class="hit" cx="${mx}" cy="${cy}" r="22"/></g>`,
-    );
+    if (o && row.key) {
+      const money = optionMoney(o, this.props);
+      const tip = esc(
+        [
+          str('respawn.spawn.rowTip', { place: row.name, time: formatBattleTime(o.entryTick) }),
+          money?.text,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+      const mx = x(o.entryTick);
+      const a = Math.max(6, Math.min(10, h * 0.32));
+      s.push(
+        `<g class="sp-next${isSel ? ' sel' : ''}" data-select="${esc(row.key)}" data-tip="${tip}">` +
+          (isSel ? `<circle class="sel-ring" cx="${mx}" cy="${cy}" r="${r1(a + 5)}"/>` : '') +
+          `<path class="sp-chev" d="M${r1(mx - a)} ${r1(cy + a * 0.6)}L${mx} ${r1(cy - a * 0.7)}L${r1(mx + a)} ${r1(cy + a * 0.6)}Z"/>` +
+          `<circle class="hit" cx="${mx}" cy="${cy}" r="22"/></g>`,
+      );
+    }
     s.push(`</g></g>`);
     return s.join('');
+  }
+
+  /**
+   * (PHASE12-d) Branch lines, like a git graph: from each spawn point's row down to each of its
+   * soldiers, at the moment they entered.
+   */
+  private branchesSvg(rows: readonly TimelineRow[], x: (t: number) => number): string {
+    const out: string[] = [];
+    let spawn: SpawnTimelineRow | null = null;
+    for (const r of rows) {
+      if (r.kind === 'spawn') {
+        spawn = r;
+        continue;
+      }
+      if (!spawn || spawn.spawnPointId !== r.spawnPointId) continue;
+      const bx = x(r.spawnTick);
+      out.push(
+        `<path class="branch${r.compact ? ' compact' : ''}" d="M${bx} ${r1(spawn.y + spawn.h / 2)}V${r1(r.y + r.h / 2)}"/>`,
+      );
+    }
+    return `<g clip-path="url(#rs-clip)" class="branches">${out.join('')}</g>`;
   }
 }
 

@@ -765,6 +765,7 @@ export class WorldRenderer {
           ic.setPosition(px, py)
             .setScale((r * 1.25) / ROLE_ICON_PX)
             .setAlpha(v.alpha);
+          if (ic.depth !== v.depth + 0.5) ic.setDepth(v.depth + 0.5); // just above its soldier
         }
       }
       if (!this.applyHitFlash(spr, s.id, now)) this.clearTint(spr);

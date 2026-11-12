@@ -293,19 +293,45 @@ describe('respawn settings', () => {
 });
 
 describe('timeline rows (PHASE12-c)', () => {
-  it('spawn points come first, short; resumable soldiers are taller than inert ones', () => {
-    const p = buildFixture('rescue')!.props;
+  it('soldiers nest under their spawn point: resumable first (earliest resume), then the rest', () => {
+    const p = buildFixture('twelve')!.props;
     const rows = timelineRows(p, null, 44);
-    const spawnRows = rows.filter((r) => r.kind === 'spawn');
-    expect(spawnRows.length).toBe(p.options.filter((o) => o.kind === 'new').length);
-    expect(rows.slice(0, spawnRows.length).every((r) => r.kind === 'spawn')).toBe(true);
-    const lanes = rows.filter((r) => r.kind === 'lane');
-    const open = lanes.find((r) => r.kind === 'lane' && r.row.lane.end.kind === 'open');
-    const dead = lanes.find((r) => r.kind === 'lane' && r.row.lane.end.kind === 'death');
-    if (open && dead) expect(open.h).toBeGreaterThan(dead.h);
-    expect(spawnRows[0]!.h).toBeLessThan(44);
     // Rows stack without gaps.
     for (let i = 1; i < rows.length; i++) expect(rows[i]!.y).toBe(rows[i - 1]!.y + rows[i - 1]!.h);
+    // Every lane sits under the spawn row of its own spawn point.
+    let current: string | null = null;
+    for (const r of rows) {
+      if (r.kind === 'spawn') current = r.spawnPointId;
+      else expect(r.spawnPointId).toBe(current);
+    }
+    // Within each group: offered resumes first, by resume time; then the rest by spawn time.
+    const resumeAt = new Map(
+      p.options.flatMap((o) => (o.kind === 'resume' ? [[o.soldierId, o.resumeTick] as const] : [])),
+    );
+    const groups = new Map<string, typeof rows>();
+    for (const r of rows)
+      if (r.kind === 'lane') groups.set(r.spawnPointId, [...(groups.get(r.spawnPointId) ?? []), r]);
+    for (const g of groups.values()) {
+      const keys = g.map((r) => (r.kind === 'lane' ? resumeAt.get(r.row.soldierId) : undefined));
+      const firstInert = keys.findIndex((k) => k === undefined);
+      if (firstInert >= 0) expect(keys.slice(firstInert).every((k) => k === undefined)).toBe(true);
+      const live = keys.filter((k): k is number => k !== undefined);
+      expect([...live].sort((a, b) => a - b)).toEqual(live);
+    }
+    const spawnH = rows.find((r) => r.kind === 'spawn')!.h;
+    expect(spawnH).toBeLessThan(44);
+  });
+
+  it('a folded spawn point turns its soldiers into thin unlabeled rows', () => {
+    const p = buildFixture('twelve')!.props;
+    const sp = p.soldiers[0]!.spawnPointId;
+    const rows = timelineRows(p, null, 44, new Set([sp]));
+    const folded = rows.filter((r) => r.kind === 'lane' && r.spawnPointId === sp);
+    expect(folded.length).toBeGreaterThan(0);
+    expect(folded.every((r) => r.kind === 'lane' && r.compact && r.h < 12)).toBe(true);
+    expect(rows.find((r) => r.kind === 'spawn' && r.spawnPointId === sp)).toMatchObject({
+      collapsed: true,
+    });
   });
 
   it('opens on the preferred option (quick redeploy) when it is still offered', () => {
