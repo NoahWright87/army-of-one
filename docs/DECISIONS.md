@@ -334,6 +334,18 @@ revise with justification in a PR).
   hand: touch the battlefield where you want to aim and hold to fire (it overrides auto-aim
   while you hold it; the old aim stick is a setting).
 
+## Sharing (owner session 2026-11)
+
+- **[D79] Shareable replays, no server.** A run (finished or in progress) packs into a link:
+  every recording plus the timeline, compressed into the URL after `#replay=` (a 3-life Breach
+  win is ~3.5k characters; long runs make long links). Links point at the exact deploy they
+  came from (Netlify's per-deploy URL), so updates never break them. Opening one plays the
+  whole thing; a finished run offers "Play this mission", an in-progress one "Continue from
+  here" (it becomes your save for that mission, after a confirm if you already have one). The
+  title screen lists missions in progress (Watch / Share / Continue) and the last 3 wins per
+  mission (Watch / Share), kept in localStorage. Short links via a server are for later
+  (PHASE15).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

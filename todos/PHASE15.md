@@ -23,3 +23,9 @@ another player's lives as echoes that affect your run.
 - Money in async co-op ([Q34]): do their bounties/captures fund you, do their soldiers cost you?
 - Can you resume another player's O and play on as their soldier?
 - Hosting: what (if any) backend, and accounts/names for leaderboards.
+
+## Notes (PHASE12-e, built early)
+- Link sharing without a server is built ([D79]): `src/app/share.ts` (pack/unpack, links pinned
+  to the deploy URL), viewer mode on the results screen, the title-screen replay list
+  (`src/app/replay-library.ts`). Still to do here: short links (a Netlify Function + Blobs),
+  leaderboards, the weekly seed, async co-op.

@@ -151,6 +151,9 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Controls (PHASE07-b): touch devices get on-screen controls + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire, touch aiming (tap-to-aim or stick, PHASE12-d) and
   auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`.
+- Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
+  format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
+  title screen's list. Open any `/#replay=…` link to watch it.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one
