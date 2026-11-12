@@ -1,5 +1,12 @@
 import type { Tuning } from '../content/tuning';
-import type { CaptureTruth, LaneTruth, SoldierRecord, SpawnOption } from '../contracts/mission';
+import type {
+  CaptureTruth,
+  LaneTruth,
+  LossTruth,
+  SoldierRecord,
+  SpawnOption,
+} from '../contracts/mission';
+import { pointLostAfter } from './losses';
 import { oursTicks } from './captures';
 import { compareIds } from '../sim/core/ids';
 import { secondsToTicks, type Tick } from '../sim/core/time';
@@ -10,6 +17,8 @@ export interface SpawnRules {
   spawnIntervalTicks: Tick;
   /** Lead-in before control ([D5], [D25]). */
   leadInTicks: Tick;
+  /** (PHASE12-d) Minimum share of max HP to offer a resume ([D76]); 0 = any. */
+  minResumeHp?: number;
 }
 
 /** The spawn rules a mission is played with, from `tuning.spawn` (PHASE04). */
@@ -17,6 +26,7 @@ export function spawnRules(tuning: Pick<Tuning, 'spawn'>): SpawnRules {
   return {
     spawnIntervalTicks: secondsToTicks(tuning.spawn.intervalSeconds),
     leadInTicks: secondsToTicks(tuning.spawn.leadInSeconds),
+    minResumeHp: tuning.spawn.minResumeHp,
   };
 }
 
@@ -71,20 +81,25 @@ export function deriveSpawnOptions(
   lanes: readonly LaneTruth[],
   rules: SpawnRules,
   captures: readonly CaptureTruth[] = [],
+  losses?: LossTruth,
 ): SpawnOption[] {
   const options: SpawnOption[] = [];
   for (const p of map.spawnPoints) {
     const openTick = spawnPointOpenTick(map, p.id, captures);
     if (openTick === null) continue;
-    options.push({
-      kind: 'new',
-      spawnPointId: p.id,
-      entryTick: nextEntryTick(openTick, p.id, soldiers, rules),
-    });
+    const entryTick = nextEntryTick(openTick, p.id, soldiers, rules);
+    // (PHASE11, [Q25]) A forward point lost to enemy soldiers closes from that tick on.
+    if (p.kind === 'capture' && p.capturePointId !== undefined) {
+      const lost = pointLostAfter(losses, p.capturePointId, openTick);
+      if (lost !== null && entryTick >= lost) continue;
+    }
+    options.push({ kind: 'new', spawnPointId: p.id, entryTick });
   }
 
+  // (PHASE12-d) Too hurt to be worth resuming ([D76]): not offered.
+  const minHp = rules.minResumeHp ?? 0;
   const resumable = lanes
-    .filter((l) => l.end.kind === 'open')
+    .filter((l) => l.end.kind === 'open' && (l.end.hp === undefined || l.end.hp >= minHp))
     .sort((a, b) => compareIds(a.soldierId, b.soldierId));
   for (const l of resumable) {
     if (l.end.kind !== 'open') continue;

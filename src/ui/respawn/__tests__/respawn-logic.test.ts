@@ -4,10 +4,7 @@ import type { LaneSpan, SpawnOption } from '../../../contracts/mission';
 import { secondsToTicks } from '../../../sim/core/time';
 import { MemoryStorage, SettingsStore } from '../../settings/registry';
 import { buildFixture } from '../__fixtures__/respawn-fixtures';
-import { mapThumbSvg } from '../map-thumb';
 import {
-  captionList,
-  changeCaption,
   changedRanges,
   cycleSelection,
   defaultSelection,
@@ -15,10 +12,11 @@ import {
   endStyle,
   endTooltip,
   findOption,
-  headerItems,
   isEventMarker,
+  initialSelection,
   isUnconfirmed,
   laneRows,
+  timelineRows,
   markerTooltip,
   optionKey,
   optionLabel,
@@ -183,41 +181,7 @@ describe('span and end styling', () => {
   });
 });
 
-describe('captions, header, rows', () => {
-  it('history-changed captions', () => {
-    expect(
-      changeCaption(
-        { soldierId: 'S1', before: { kind: 'death', tick: 5 }, after: { kind: 'open', tick: 5 } },
-        1,
-      ),
-    ).toBe('Soldier 1 survived!');
-    expect(
-      changeCaption(
-        {
-          soldierId: 'S1',
-          before: { kind: 'open', tick: 5 },
-          after: { kind: 'death', tick: s(72) },
-        },
-        1,
-      ),
-    ).toBe('Soldier 1 now dies at 1:12');
-    expect(
-      changeCaption(
-        { soldierId: 'S4', before: { kind: 'death', tick: 5 }, after: { kind: 'neverSpawned' } },
-        4,
-      ),
-    ).toContain('never spawns');
-    expect(captionList(['a', 'b', 'c', 'd', 'e'], 3)).toEqual(['e', 'd', 'c', '+2 more']);
-  });
-
-  it('header: next attempt, soldiers, time reached, objective', () => {
-    const p = buildFixture('rescue')!.props;
-    const h = headerItems(p);
-    expect(h.title).toBe('Attempt 3');
-    expect(h.items.map((i) => i.value)).toEqual(['2', '1:10', 'Not destroyed']);
-    expect(headerItems(buildFixture('empty')!.props).items[1]!.value).toBe('Not started');
-  });
-
+describe('rows', () => {
   it('rows are ordered by ordinal and carry the spawn point name', () => {
     const p = buildFixture('twelve')!.props;
     const rows = laneRows([...p.lanes].reverse(), p.soldiers, p.map);
@@ -315,16 +279,6 @@ describe('options and selection', () => {
   });
 });
 
-describe('map thumbnail', () => {
-  it('draws walls, water and marks the chosen point', () => {
-    const svg = mapThumbSvg(MISSION_03, { pointId: 'east', width: 84, height: 58 });
-    expect(svg.match(/class="th-wall"/g)?.length).toBe(MISSION_03.walls.length);
-    expect(svg.match(/class="th-water"/g)?.length).toBe(MISSION_03.water.length);
-    expect(svg.match(/th-pt on/g)?.length).toBe(1);
-    expect(svg).toContain('cx="1140" cy="5250"');
-  });
-});
-
 describe('respawn settings', () => {
   it('registers with defaults and reads back typed values', () => {
     const store = new SettingsStore(new MemoryStorage(), 'k');
@@ -335,5 +289,57 @@ describe('respawn settings', () => {
     const r = readRespawnSettings(store);
     expect(r.rowHeight).toBe(72);
     expect(r.wheel).toBe('scroll');
+  });
+});
+
+describe('timeline rows (PHASE12-c)', () => {
+  it('soldiers nest under their spawn point: resumable first (earliest resume), then the rest', () => {
+    const p = buildFixture('twelve')!.props;
+    const rows = timelineRows(p, null, 44);
+    // Rows stack without gaps.
+    for (let i = 1; i < rows.length; i++) expect(rows[i]!.y).toBe(rows[i - 1]!.y + rows[i - 1]!.h);
+    // Every lane sits under the spawn row of its own spawn point.
+    let current: string | null = null;
+    for (const r of rows) {
+      if (r.kind === 'spawn') current = r.spawnPointId;
+      else expect(r.spawnPointId).toBe(current);
+    }
+    // Within each group: offered resumes first, by resume time; then the rest by spawn time.
+    const resumeAt = new Map(
+      p.options.flatMap((o) => (o.kind === 'resume' ? [[o.soldierId, o.resumeTick] as const] : [])),
+    );
+    const groups = new Map<string, typeof rows>();
+    for (const r of rows)
+      if (r.kind === 'lane') groups.set(r.spawnPointId, [...(groups.get(r.spawnPointId) ?? []), r]);
+    for (const g of groups.values()) {
+      const keys = g.map((r) => (r.kind === 'lane' ? resumeAt.get(r.row.soldierId) : undefined));
+      const firstInert = keys.findIndex((k) => k === undefined);
+      if (firstInert >= 0) expect(keys.slice(firstInert).every((k) => k === undefined)).toBe(true);
+      const live = keys.filter((k): k is number => k !== undefined);
+      expect([...live].sort((a, b) => a - b)).toEqual(live);
+    }
+    const spawnH = rows.find((r) => r.kind === 'spawn')!.h;
+    expect(spawnH).toBeLessThan(44);
+  });
+
+  it('a folded spawn point turns its soldiers into thin unlabeled rows', () => {
+    const p = buildFixture('twelve')!.props;
+    const sp = p.soldiers[0]!.spawnPointId;
+    const rows = timelineRows(p, null, 44, new Set([sp]));
+    const folded = rows.filter((r) => r.kind === 'lane' && r.spawnPointId === sp);
+    expect(folded.length).toBeGreaterThan(0);
+    expect(folded.every((r) => r.kind === 'lane' && r.compact && r.h < 12)).toBe(true);
+    expect(rows.find((r) => r.kind === 'spawn' && r.spawnPointId === sp)).toMatchObject({
+      collapsed: true,
+    });
+  });
+
+  it('opens on the preferred option (quick redeploy) when it is still offered', () => {
+    const p = buildFixture('rescue')!.props;
+    const last = p.options[p.options.length - 1]!;
+    expect(initialSelection(p.options, last)).toBe(
+      last.kind === 'new' ? `new:${last.spawnPointId}` : `resume:${last.soldierId}`,
+    );
+    expect(initialSelection(p.options, null)).toBe(defaultSelection(p.options));
   });
 });

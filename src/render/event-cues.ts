@@ -118,6 +118,13 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         break;
       }
       case 'damaged': {
+        // (PHASE12-b) Armor ate the hit: a ricochet spark instead of a flash ([D70]).
+        if (e.armored) {
+          const p = ctx.positionOf(e.target);
+          if (p) out.push({ type: 'impact', x: p.x, y: p.y });
+          sound('sfx_hit', p, 0.25);
+          break;
+        }
         out.push({ type: 'hitFlash', targetId: e.target });
         const isLive = e.target === ctx.liveId;
         if (isLive) {
@@ -149,6 +156,31 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         }
         sound('sfx_explosion', e, 0.9);
         if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.01, durationMs: 250 });
+        break;
+      }
+      // (PHASE12-a) Rockets ([D62]): a launch flash, then a bigger blast.
+      case 'rocketLaunched': {
+        out.push({
+          type: 'muzzle',
+          x: e.fromX,
+          y: e.fromY,
+          angle: e.angle,
+          hostile: false,
+          byId: e.by,
+        });
+        sound('sfx_rifle_shot', { x: e.fromX, y: e.fromY }, e.by === ctx.liveId ? 0.9 : 0.5);
+        break;
+      }
+      case 'rocketExploded': {
+        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.4 });
+        sound('sfx_explosion', e, 1);
+        if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.012, durationMs: 300 });
+        break;
+      }
+      // (PHASE12-b) Cover breaking ([Q40]).
+      case 'coverDestroyed': {
+        out.push({ type: 'explosion', x: e.x, y: e.y, radius: 24 });
+        sound('sfx_hit', e, 0.6);
         break;
       }
       case 'mineDetonated': {

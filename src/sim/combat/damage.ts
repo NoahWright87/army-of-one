@@ -1,5 +1,5 @@
 import { secondsToTicks } from '../core/time';
-import { distanceSq } from '../core/vec';
+import { distanceSq, type Vec2 } from '../core/vec';
 import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
 import { allObjectivesDone } from '../entities/capture-point';
 import { armMine } from '../entities/mine';
@@ -8,6 +8,7 @@ import { isEligible, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
+import { armorFrom, pierceOf, roleArmor, throughArmor } from './armor';
 
 /**
  * Damage and deaths are always simulated, never replayed ([E3]). HP is floored at `minHp`
@@ -19,14 +20,31 @@ export function damageSoldier(
   amount: number,
   by: string | undefined,
   cause: string,
+  /** (PHASE12-a) Where the damage comes from (a shot's origin, a blast's centre): armor. */
+  from?: Vec2,
+  /** (PHASE12-b) Damage kind for pierce (default `cause`), e.g. 'fragment' for shrapnel. */
+  kind: string = cause,
 ): void {
   if (!isEligible(s) || amount <= 0) return;
+  // (PHASE12-b) Unified armor ([D70]).
+  const armor = armorFrom(roleArmor(world.tuning, s.roleId), s, s.facing, from);
+  const through = throughArmor(armor, pierceOf(world.tuning, kind));
+  const raw = amount;
+  amount *= through;
   const before = s.hp;
   s.hp = Math.max(s.hp - amount, s.minHp, 0);
   const tick = world.state.tick;
   const applied = before - s.hp;
-  if (applied > 0) {
-    emit(world, { kind: 'damaged', tick, target: s.id, amount: applied, ...(by ? { by } : {}) });
+  if (applied > 0 || (raw > 0 && through < 0.3)) {
+    emit(world, {
+      kind: 'damaged',
+      tick,
+      target: s.id,
+      amount: applied,
+      ...(by ? { by } : {}),
+      // (PHASE12-b) Armor ate most of it: the renderer shows a ricochet.
+      ...(through < 0.3 ? { armored: true as const } : {}),
+    });
   }
   if (s.hp <= 0) {
     s.alive = false;
@@ -125,7 +143,7 @@ export function detonateMine(world: World, index: number, by: string): void {
   const r2 = mt.blastRadius * mt.blastRadius;
   for (const s of st.soldiers) {
     if (isEligible(s) && distanceSq(s, c) <= r2)
-      damageSoldier(world, s, mt.blastDamage, m.id, 'mine');
+      damageSoldier(world, s, mt.blastDamage, m.id, 'mine', c);
   }
 
   if (mt.damagesHazards) {

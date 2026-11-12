@@ -5,7 +5,10 @@
  * Per sim step:   renderer.onStep(prevView, curView)   → effects/sounds from that tick's events
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
+import { DEFAULT_TUNING } from '../../content/tuning';
 import Phaser from 'phaser';
+import { ICON_ROLES, roleIconDocument } from '../../content/role-icons';
+import type { RoleId } from '../../contracts/mission';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
 import type { Vec2 } from '../../sim/core/vec';
@@ -20,6 +23,24 @@ import { emptyVisual, soldierVisual } from '../soldier-style';
 import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
+
+/** (PHASE12-b) Vehicle body radii for drawing (the sim's are `tuning.drive.*.bodyRadius`). */
+const VEHICLE_BODY = {
+  truck: DEFAULT_TUNING.drive.truck.bodyRadius,
+  tank: DEFAULT_TUNING.drive.tank.bodyRadius,
+} as const;
+
+/** (PHASE12-d) Role icon textures, rasterised from the PLACEHOLDER SVGs in content/role-icons. */
+const ROLE_ICON_PX = 64;
+const roleIconKey = (roleId: RoleId) => `role_icon_${roleId}`;
+function ensureRoleIconTextures(scene: Phaser.Scene): void {
+  for (const roleId of ICON_ROLES) {
+    const key = roleIconKey(roleId);
+    if (scene.textures.exists(key)) continue;
+    const svg = roleIconDocument(roleId, ROLE_ICON_PX, '#f4f6f8');
+    scene.textures.addBase64(key, `data:image/svg+xml;base64,${btoa(svg)}`);
+  }
+}
 
 export interface RendererOptions {
   /** tuning.soldier.spriteRadius ([D14]: the largest of the three soldier sizes). */
@@ -97,6 +118,22 @@ const COVER_STYLE_DEFAULT: { fill: number; alpha: number; line: number; hatch?: 
 export class WorldRenderer {
   /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
   private coverGfx!: Phaser.GameObjects.Graphics;
+  /** (PHASE12-b) Each cover piece's drawing, by id; destroyed ones are hidden ([Q40]). */
+  private readonly coverPieces = new Map<string, Phaser.GameObjects.Graphics>();
+  private rubbleGfx!: Phaser.GameObjects.Graphics;
+  /** (PHASE12-b) Vehicle hulls and turrets, redrawn every frame. */
+  private vehicleGfx!: Phaser.GameObjects.Graphics;
+  private readonly vehicleDraws: {
+    x: number;
+    y: number;
+    facing: number;
+    turret: number;
+    tank: boolean;
+    role: string;
+    alive: boolean;
+    alpha: number;
+  }[] = [];
+  private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
   /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
   private reticleGfx!: Phaser.GameObjects.Graphics;
@@ -125,6 +162,8 @@ export class WorldRenderer {
   private readonly shields: KeyedPool<Img>;
   private readonly staticOverlays: KeyedPool<Img>;
   private readonly icons: KeyedPool<Img>;
+  /** (PHASE12-d) A role icon on every soldier's circle (PLACEHOLDER art, content/role-icons). */
+  private readonly roleIcons: KeyedPool<Img>;
   private readonly labels: KeyedPool<Txt>;
   private readonly turretBases: KeyedPool<Img>;
   private readonly turretGuns: KeyedPool<Img>;
@@ -185,6 +224,8 @@ export class WorldRenderer {
     this.shields = new KeyedPool(img(DEPTH.shield));
     this.staticOverlays = new KeyedPool(img(DEPTH.static + 0.5));
     this.icons = new KeyedPool(img(DEPTH.icons));
+    this.roleIcons = new KeyedPool(img(DEPTH.liveMarker + 0.5));
+    ensureRoleIconTextures(scene);
     this.labels = new KeyedPool(text(DEPTH.labels, 11));
     this.turretBases = new KeyedPool(img(DEPTH.turrets));
     this.turretGuns = new KeyedPool(img(DEPTH.turrets + 0.5));
@@ -214,6 +255,7 @@ export class WorldRenderer {
       this.shields,
       this.staticOverlays,
       this.icons,
+      this.roleIcons,
       this.labels,
       this.turretBases,
       this.turretGuns,
@@ -235,6 +277,8 @@ export class WorldRenderer {
     this.effectImages = new FreeList(img(DEPTH.effects));
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
+    this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
+    this.vehicleGfx = scene.add.graphics().setDepth(DEPTH.icons - 1);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
@@ -265,8 +309,10 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
     // (07-c) Partial cover ([D32]), by material.
-    const cover = scene.add.graphics().setDepth(DEPTH.walls);
     for (const c of map.cover ?? []) {
+      // (PHASE12-b) One graphics object per piece, so a destroyed piece can be hidden ([Q40]).
+      const cover = scene.add.graphics().setDepth(DEPTH.walls);
+      this.coverPieces.set(c.id, cover);
       const st = COVER_STYLE[c.material] ?? COVER_STYLE_DEFAULT;
       const { x, y, w, h } = c.rect;
       if (st.alpha >= 1) {
@@ -394,12 +440,36 @@ export class WorldRenderer {
     this.drawTurrets(a, f);
     this.drawSoldiers(a, f);
     this.drawCoverAndThrows(f);
+    this.drawRubble();
     this.drawGrenades(a, f.nowMs);
 
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
     this.drawReticle(f.pointer, f.liveId);
     this.updateLoops();
+  }
+
+  /** (PHASE12-b) Hides destroyed cover and draws PLACEHOLDER rubble where it stood ([Q40]). */
+  private drawRubble(): void {
+    const down = this.cur.coverDestroyed ?? [];
+    const key = down.join(',');
+    if (key === this.rubbleKey) return;
+    this.rubbleKey = key;
+    const g = this.rubbleGfx;
+    g.clear();
+    for (const [id, gfx] of this.coverPieces) gfx.setVisible(!down.includes(id));
+    for (const def of this.map.cover ?? []) {
+      if (!down.includes(def.id)) continue;
+      const { x, y, w, h } = def.rect;
+      g.fillStyle(0x4a4236, 0.6);
+      const n = Math.max(3, Math.round((w * h) / 120));
+      for (let i = 0; i < n; i++) {
+        // Fixed pseudo-random scatter per piece (render only).
+        const fx = ((i * 0.618034 + def.id.length * 0.1) % 1) * w;
+        const fy = ((i * 0.414214 + 0.3) % 1) * h;
+        g.fillCircle(x + fx, y + fy, 2 + (i % 3));
+      }
+    }
   }
 
   /**
@@ -452,15 +522,18 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
-    // PLACEHOLDER role badges ([D36]): a small square, grenade green for Grenadiers, rust for
-    // Machine Gunners.
-    for (const s of this.cur.soldiers) {
-      if (!s.alive || !s.roleId || s.roleId === 'rifleman') continue;
-      const p = s.role === 'live' && this.livePos ? this.livePos : s;
-      g.fillStyle(s.roleId === 'grenadier' ? 0x6b8f3a : 0xb0532a, 1);
-      g.fillRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
-      g.lineStyle(1, 0x111111, 1);
-      g.strokeRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
+    // (PHASE12-a) PLACEHOLDER rockets: a pale body with a flame trail ([D62]).
+    const prevR = this.prev.rockets ?? [];
+    for (const r of this.cur.rockets ?? []) {
+      const p = prevR.find((x) => x.id === r.id);
+      const x = p ? lerp(p.x, r.x, a) : r.x;
+      const y = p ? lerp(p.y, r.y, a) : r.y;
+      const cx = Math.cos(r.angle);
+      const cy = Math.sin(r.angle);
+      g.lineStyle(4, 0xffa040, 0.8);
+      g.lineBetween(x - cx * 22, y - cy * 22, x - cx * 6, y - cy * 6);
+      g.lineStyle(5, 0xd8d8c8, 1);
+      g.lineBetween(x - cx * 6, y - cy * 6, x + cx * 6, y + cy * 6);
     }
     const prev = this.prev.grenades ?? [];
     for (const gr of this.cur.grenades ?? []) {
@@ -616,6 +689,7 @@ export class WorldRenderer {
 
   private drawSoldiers(a: number, f: RenderFrame): void {
     const r = this.opts.spriteRadius;
+    this.vehicleDraws.length = 0;
     const now = f.nowMs;
     // (05-b) Off-screen culling: anything outside the camera view (plus a margin for sprites,
     // labels and HP bars) is simply not drawn this frame; the pools hide it. The live soldier is
@@ -665,9 +739,35 @@ export class WorldRenderer {
       spr.setTexture(v.texture).setDepth(v.depth);
       if (spr.x !== px || spr.y !== py) spr.setPosition(px, py);
       if (spr.rotation !== facing) spr.setRotation(facing);
-      const scale = (r * 2) / fitPx(v.texture);
+      // (PHASE12-b) Vehicles: the sprite grows to the body; a hull and turret go on top.
+      const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
+      if (vBody > 0) {
+        this.vehicleDraws.push({
+          x: px,
+          y: py,
+          facing,
+          turret: s.turret ?? facing,
+          tank: s.roleId === 'tank',
+          role: s.role,
+          alive: s.alive,
+          alpha: v.alpha,
+        });
+      }
+      const scale = ((vBody > 0 ? vBody : r) * 2) / fitPx(v.texture);
       if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
       if (spr.alpha !== v.alpha) spr.setAlpha(v.alpha);
+      // (PHASE12-d) The role icon on the circle, upright so it reads at a glance.
+      if (vBody === 0 && s.alive) {
+        const key = roleIconKey(s.roleId ?? 'rifleman');
+        if (this.scene.textures.exists(key)) {
+          const ic = this.roleIcons.get(s.id);
+          if (ic.texture.key !== key) ic.setTexture(key);
+          ic.setPosition(px, py)
+            .setScale((r * 1.25) / ROLE_ICON_PX)
+            .setAlpha(v.alpha);
+          if (ic.depth !== v.depth + 0.5) ic.setDepth(v.depth + 0.5); // just above its soldier
+        }
+      }
       if (!this.applyHitFlash(spr, s.id, now)) this.clearTint(spr);
       if (s.role === 'live' && s.alive && (f.liveId === null || s.id === f.liveId)) {
         this.livePosBuf.x = px;
@@ -717,6 +817,57 @@ export class WorldRenderer {
       }
     }
     this.culledSoldiers = culled;
+    this.drawVehicleBodies();
+  }
+
+  /** (PHASE12-b) PLACEHOLDER vehicle art: a hull box along the heading and a turret/barrel. */
+  private drawVehicleBodies(): void {
+    const g = this.vehicleGfx;
+    g.clear();
+    for (const d of this.vehicleDraws) {
+      const len = d.tank ? 64 : 56;
+      const wid = d.tank ? 50 : 32;
+      const color = !d.alive
+        ? 0x2b2b2b
+        : d.role === 'enemy'
+          ? 0x8a3a2a
+          : d.role === 'live'
+            ? 0x9a8a3a
+            : 0x5f7080;
+      const c = Math.cos(d.facing);
+      const sn = Math.sin(d.facing);
+      const pt = (fx: number, fy: number) =>
+        new Phaser.Math.Vector2(d.x + c * fx - sn * fy, d.y + sn * fx + c * fy);
+      const hull = [
+        pt(len / 2, -wid / 2),
+        pt(len / 2, wid / 2),
+        pt(-len / 2, wid / 2),
+        pt(-len / 2, -wid / 2),
+      ];
+      g.fillStyle(color, d.alpha);
+      g.fillPoints(hull, true);
+      g.lineStyle(2, 0x111111, d.alpha);
+      g.strokePoints(hull, true);
+      if (!d.alive) continue;
+      if (!d.tank) {
+        // Cab at the front.
+        g.fillStyle(0x222222, d.alpha * 0.6);
+        g.fillPoints(
+          [
+            pt(len / 2, -wid / 2),
+            pt(len / 2, wid / 2),
+            pt(len / 4, wid / 2),
+            pt(len / 4, -wid / 2),
+          ],
+          true,
+        );
+      }
+      const barrel = d.tank ? 44 : 26;
+      g.lineStyle(d.tank ? 8 : 5, 0x1a1a1a, d.alpha);
+      g.lineBetween(d.x, d.y, d.x + Math.cos(d.turret) * barrel, d.y + Math.sin(d.turret) * barrel);
+      g.fillStyle(d.tank ? 0x444444 : 0x333333, d.alpha);
+      g.fillCircle(d.x, d.y, d.tank ? 15 : 9);
+    }
   }
 
   /** The camera's world-space view rectangle, grown by `margin`. */

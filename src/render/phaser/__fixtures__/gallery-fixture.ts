@@ -35,13 +35,21 @@ export const GALLERY_MAP: MapDef = {
   // Water under the bridges row.
   water: [{ x: 20, y: ROW[3] - 50, w: col(4) + 80, h: 100 }],
   // (07-c) One piece of each cover material ([D32]), right of the water.
-  cover: (['fence', 'sandbags', 'halfWall', 'window', 'bunkerWindow', 'crate'] as const).map(
-    (material, i) => ({
-      id: `cv-${material}`,
-      rect: { x: col(5) - 60 + i * 64, y: ROW[3] + 28, w: 44, h: 18 },
-      material,
-    }),
-  ),
+  cover: [
+    ...(['fence', 'sandbags', 'halfWall', 'window', 'bunkerWindow', 'crate'] as const).map(
+      (material, i) => ({
+        id: `cv-${material}`,
+        rect: { x: col(5) - 60 + i * 64, y: ROW[3] + 28, w: 44, h: 18 },
+        material,
+      }),
+    ),
+    // (PHASE12-b) A destroyed piece: rubble ([Q40]).
+    {
+      id: 'cv-broken',
+      rect: { x: col(5) - 60 + 6 * 64, y: ROW[3] + 28, w: 44, h: 18 },
+      material: 'sandbags' as const,
+    },
+  ],
   spawnPoints: [
     {
       id: 'west',
@@ -411,6 +419,17 @@ export function galleryView(tick: Tick): WorldView {
     objectives: objectives(),
     capturePoints: capturePoints(tick),
     grenades: grenades(tick),
+    coverDestroyed: ['cv-broken'],
+    // (PHASE12-a) A rocket flying across the grenade column.
+    rockets: [
+      {
+        kind: 'rocket',
+        id: 'RK1',
+        x: col(6) + ((tick % 90) / 90) * 200,
+        y: ROW[2] + 110,
+        angle: 0,
+      },
+    ],
     // (07-c) Cover arcs around the live soldier: a faint fence east, solid wall north-west.
     coverArcs: [
       { angle: 0, halfWidth: 0.6, value: 0.1 },

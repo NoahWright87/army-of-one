@@ -105,7 +105,7 @@ function applyFate(
       const t = clamp(fate.tick, from, to);
       spans = paintSpan(spans, wFrom, t, 'alive', a);
       spans = paintSpan(spans, t + 1, to, 'lost', a);
-      end = { kind: 'open', tick: t };
+      end = { kind: 'open', tick: t, ...(fate.hp !== undefined ? { hp: fate.hp } : {}) };
       cutoff = t + 1;
       break;
     }
@@ -118,7 +118,9 @@ function applyFate(
       spans = paintSpan(spans, wFrom, wTo, 'alive', a);
       if (wTo >= to) {
         // Observed alive through the end of the recording (e.g. a suspended life): resumable.
-        end = obs.missionComplete ? { kind: 'complete', tick: to } : { kind: 'open', tick: to };
+        end = obs.missionComplete
+          ? { kind: 'complete', tick: to }
+          : { kind: 'open', tick: to, ...(fate.hp !== undefined ? { hp: fate.hp } : {}) };
       } else if (contradicts(lane.end, obs.toTick)) {
         // Prior truth said this soldier was gone by now; what happens next is unknown ([D23]).
         spans = paintSpan(spans, wTo + 1, to, 'unresolved', a);

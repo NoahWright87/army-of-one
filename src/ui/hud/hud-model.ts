@@ -1,6 +1,7 @@
 /** Pure HUD logic: turns a WorldView into the strings/numbers the HUD shows. */
 import { str, strDynamic } from '../../content/strings';
 import { formatBattleTime } from '../../sim/core/time';
+import { formatMoney } from '../../timeline/economy';
 import type { CapturePointView, ObjectiveView, SoldierView, WorldView } from '../../sim/view';
 
 export type HudStatus = 'alive' | 'leadIn' | 'dead' | 'none';
@@ -14,6 +15,16 @@ export interface HudModel {
   status: HudStatus;
   objective: string;
   missionComplete: boolean;
+  /** (PHASE11) "$120", or null with the economy off / no driver. */
+  money: string | null;
+  moneyRate?: string;
+  moneyDebt?: boolean;
+}
+
+/** (PHASE11) The money at the current tick ([D51]). */
+export interface HudMoney {
+  balance: number;
+  rate: number;
 }
 
 export function formatHp(hp: number, maxHp: number): string {
@@ -57,7 +68,11 @@ export function soldierStatus(s: SoldierView | undefined): HudStatus {
   return s.leadIn ? 'leadIn' : 'alive';
 }
 
-export function buildHudModel(view: WorldView, liveId: string | null): HudModel {
+export function buildHudModel(
+  view: WorldView,
+  liveId: string | null,
+  money: HudMoney | null = null,
+): HudModel {
   const s = liveId ? view.soldiers.find((x) => x.id === liveId) : undefined;
   const complete = view.missionComplete !== null;
   return {
@@ -68,5 +83,12 @@ export function buildHudModel(view: WorldView, liveId: string | null): HudModel 
     status: soldierStatus(s),
     objective: objectiveText(view.objectives, complete, view.capturePoints),
     missionComplete: complete,
+    money: money ? formatMoney(money.balance) : null,
+    ...(money
+      ? {
+          moneyRate: str('money.rate', { n: Math.round(money.rate * 10) / 10 }),
+          moneyDebt: money.balance < 0,
+        }
+      : {}),
   };
 }

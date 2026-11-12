@@ -1,3 +1,4 @@
+import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
 
 /**
@@ -12,6 +13,28 @@ export interface GunSpread {
   kick: number;
   maxRecoil: number;
   recoveryPerSecond: number;
+}
+
+/** (PHASE12-b) How a vehicle drives ([D64]). */
+export interface VehicleDrive {
+  /** Collision and hit circle. */
+  bodyRadius: number;
+  maxSpeed: number;
+  reverseSpeed: number;
+  /** Units/s² speeding up, and slowing down. */
+  accel: number;
+  brake: number;
+  /** Hull turn rate, radians/s (the truck's needs it rolling: × speed / crawlSpeed). */
+  turnRate: number;
+  /** Tank: turns on the spot. Truck: false, it has to roll to turn. */
+  turnInPlace: boolean;
+  /** Truck: the speed it rolls at while turning. */
+  crawlSpeed: number;
+  /** Accelerates to full speed once within this many degrees of the wanted heading. */
+  alignDegrees: number;
+  turretTurnRate: number;
+  /** For run-over and ram damage. */
+  weight: number;
 }
 
 /**
@@ -66,10 +89,129 @@ export interface Tuning {
     braceReach: number;
     mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
   } & GunSpread;
+  /** (PHASE12-a) The Shield's sidearm, and the Sniper's while moving or setting up ([D59], [D60]). */
+  pistol: {
+    damage: number;
+    range: number;
+    cooldownSeconds: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Sniper's rifle ([D59]): standing still for `setupSeconds` swaps the pistol
+   * for it, with or without cover. Set up next to non-solid cover and firing across it, the
+   * spread and range improve further. Moving swaps back to the pistol at once.
+   */
+  sniper: {
+    damage: number;
+    range: number;
+    cooldownSeconds: number;
+    setupSeconds: number;
+    /** Braced on cover, firing across it: spread × this, range × `coverRangeMultiplier`. */
+    coverSpreadMultiplier: number;
+    coverRangeMultiplier: number;
+    /** Fire counts as "across the cover" if the aim ray enters a piece this close. */
+    braceReach: number;
+    /**
+     * Aim error against a moving target, × its speed (a walk = 1), radians: for AI snipers on
+     * top of `ai.movingTargetError`, and for the player's auto-aim ([D59]).
+     */
+    movingTargetAimError: number;
+    /** Camera look-ahead × this while the rifle is up (render only). */
+    lookAheadMultiplier: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Shotgunner's shotgun ([D61]): `pellets` hitscan pellets per shot, each at
+   * its own hashed angle within ± `pelletSpread` around the (spread-rolled) aim. Each pellet is
+   * recorded as its own shot. Damage falls off with distance to `falloffTo` × at full range.
+   */
+  shotgun: {
+    pelletDamage: number;
+    pellets: number;
+    pelletSpread: number;
+    range: number;
+    falloffTo: number;
+    cooldownSeconds: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-a) The Bazooka's rockets ([D62]): hold fire for `aimSeconds` to launch (releasing
+   * early cancels), then `cooldownSeconds` to reload. A rocket flies straight, explodes on what
+   * it hits (passing through its own side) or at full range. The blast hurts everyone in it,
+   * our own soldiers too.
+   */
+  rocket: {
+    speed: number;
+    range: number;
+    aimSeconds: number;
+    cooldownSeconds: number;
+    /** A direct hit on a soldier, on top of the blast. */
+    directDamage: number;
+    blastRadius: number;
+    blastDamage: number;
+    /** To turrets, objectives, charges in the blast. */
+    hazardDamage: number;
+    /** To vehicles in the blast (what it's for). */
+    vehicleDamage: number;
+    /**
+     * Aim error against soldiers, radians, for AI and auto-aim ([D62]: very inaccurate against
+     * people, accurate against vehicles and structures).
+     */
+    soldierAimError: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-b) Unified armor ([D70]): damage taken = hit × (1 − max(0, armor − pierce)).
+   * Armor by direction (front / side / rear, arcs in degrees); pierce by damage kind (the death
+   * cause, or 'fragment' for grenade shrapnel). Kinds not listed pierce 0.
+   */
+  armor: {
+    roles: Record<
+      RoleId,
+      { front: number; side: number; rear: number; frontArc: number; rearArc: number }
+    >;
+    pierce: Record<string, number>;
+  };
+  /**
+   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (hold to aim, then a shell),
+   * slow to reload so there's a window to kill the tank.
+   */
+  shell: {
+    speed: number;
+    range: number;
+    aimSeconds: number;
+    cooldownSeconds: number;
+    directDamage: number;
+    blastRadius: number;
+    blastDamage: number;
+    hazardDamage: number;
+    vehicleDamage: number;
+    soldierAimError: number;
+  } & GunSpread;
+  /**
+   * (PHASE12-b) Vehicles ([D63]–[D68]): one unit you drive. Compass controls: the stick says
+   * which way to go; the vehicle turns to face it first ([D64]). Pulling within `reverseArc`/2
+   * of straight behind reverses. Run-over damage = `crushDamage` × weight × speed (units/s),
+   * once per `crushRepeatSeconds` per target, through armor with 100 % pierce ([D66]); a vehicle
+   * ramming another takes `ramSelfShare` of what the other's weight would deal.
+   */
+  drive: {
+    /** [D68]: vehicles count toward capturing points. */
+    canCapture: boolean;
+    reverseArc: number;
+    crushDamage: number;
+    crushRepeatSeconds: number;
+    /** Below this speed (units/s) a vehicle hurts nobody. */
+    crushMinSpeed: number;
+    ramSelfShare: number;
+    truck: VehicleDrive;
+    tank: VehicleDrive;
+  };
+  /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
+  roleStats: Record<RoleId, { hp: number; speed: number }>;
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
-    /** Share of straight shots / lobbed objects each material stops, 0..1. */
-    materials: Record<CoverMaterial, { bullet: number; lobbed: number }>;
+    /**
+     * Share of straight shots / lobbed objects each material stops, 0..1. (PHASE12-b) `hp`: how
+     * much damage destroys a piece (0 = unbreakable); `armor`: the unified armor ([D70], [Q40]).
+     */
+    materials: Record<CoverMaterial, { bullet: number; lobbed: number; hp: number; armor: number }>;
     /** A shooter this close (to the cover's nearest edge) fires over cover below `fireOverBelow`. */
     fireOverDistance: number;
     /** Cover strictly below this value can be fired over from close up (1 = anything not solid). */
@@ -341,6 +483,11 @@ export interface Tuning {
     intervalSeconds: number;
     /** Countdown before control on every deploy ([D5], [D25]). */
     leadInSeconds: number;
+    /**
+     * (PHASE12-d) A saved soldier is offered for resume only with at least this share of max HP
+     * left where their recording ends ([D76]). 0 = any.
+     */
+    minResumeHp: number;
   };
   /** (04) Real-time pause on the frozen battlefield with a "KIA" caption after the live soldier dies. */
   deathBeatSeconds: number;
@@ -365,7 +512,39 @@ export interface Tuning {
     /** Recordings are sampled every this many ticks (gaps are interpolated). */
     sampleTicks: number;
   };
+  /**
+   * (PHASE11) Money on the timeline ([D51]–[D54]). UI and flow only: the sim never reads it.
+   * Maps may override the start and base income (`map.economy`) and each capture point's
+   * income (`capturePoint.income`). Role prices are `cost` in roles.ts.
+   */
+  economy: {
+    /** Off: every role is free and no money is shown. */
+    enabled: boolean;
+    startMoney: number;
+    /** Income per second of battle time, whatever happens ([D52]). */
+    baseIncomePerSecond: number;
+    /** Extra income per second while a capture point is ours. */
+    captureIncomePerSecond: number;
+    /** One-time bounty per enemy loss ([D53]). */
+    bounty: {
+      rifleman: number;
+      grenadier: number;
+      gunner: number;
+      sniper: number;
+      shield: number;
+      shotgun: number;
+      bazooka: number;
+      truck: number;
+      tank: number;
+      turret: number;
+      vehicle: number;
+      mine: number;
+    };
+  };
 }
+
+const NONE = { front: 0, side: 0, rear: 0, frontArc: 0, rearArc: 0 };
+const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc: 0 });
 
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
@@ -404,14 +583,156 @@ export const DEFAULT_TUNING: Tuning = {
       maxRecoil: 0.04, // TUNE
     },
   },
+  pistol: {
+    damage: 15, // TUNE: a weak sidearm
+    range: 340, // TUNE
+    cooldownSeconds: 0.3, // TUNE
+    baseSpread: 0.02, // TUNE
+    movingSpread: 0.12, // TUNE
+    kick: 0.05, // TUNE
+    maxRecoil: 0.15, // TUNE
+    recoveryPerSecond: 0.3, // TUNE
+  },
+  sniper: {
+    damage: 80, // TUNE: two hits kill
+    range: 900, // TUNE: well past the rifle's 520
+    cooldownSeconds: 1.2, // TUNE
+    setupSeconds: 0.8, // TUNE
+    baseSpread: 0.006, // TUNE
+    movingSpread: 0, // TUNE: it's only up while standing still
+    kick: 0.06, // TUNE
+    maxRecoil: 0.06, // TUNE
+    recoveryPerSecond: 0.08, // TUNE: settles by the next shot
+    coverSpreadMultiplier: 0.4, // TUNE [D59]: even more accurate on cover
+    coverRangeMultiplier: 1.15, // TUNE [D59]: and a little more range
+    braceReach: 60, // TUNE
+    movingTargetAimError: 0.12, // TUNE [D59]: ~±7° at a walking target, more at a sprint
+    lookAheadMultiplier: 1.8, // TUNE
+  },
+  shotgun: {
+    pelletDamage: 14, // TUNE: 8 × 14 = 112 point blank
+    pellets: 8, // TUNE
+    pelletSpread: 0.16, // TUNE: ±9°
+    range: 300, // TUNE: useless at long range [D61]
+    falloffTo: 0.15, // TUNE: useless far away [D61]
+    cooldownSeconds: 0.8, // TUNE
+    baseSpread: 0, // TUNE
+    movingSpread: 0.05, // TUNE
+    kick: 0.08, // TUNE
+    maxRecoil: 0.1, // TUNE
+    recoveryPerSecond: 0.2, // TUNE
+  },
+  rocket: {
+    speed: 700, // TUNE: units/s
+    range: 700, // TUNE
+    aimSeconds: 0.6, // TUNE [D62]: takes longer to fire
+    cooldownSeconds: 2.5, // TUNE
+    directDamage: 60, // TUNE
+    blastRadius: 70, // TUNE
+    blastDamage: 60, // TUNE
+    hazardDamage: 150, // TUNE
+    vehicleDamage: 400, // TUNE
+    soldierAimError: 0.2, // TUNE [D62]: ±11° at people
+    baseSpread: 0.03, // TUNE
+    movingSpread: 0.15, // TUNE
+    kick: 0, // TUNE
+    maxRecoil: 0, // TUNE
+    recoveryPerSecond: 1, // TUNE
+  },
+  armor: {
+    roles: {
+      rifleman: NONE,
+      grenadier: NONE,
+      gunner: NONE,
+      sniper: NONE,
+      shield: { front: 0.8, side: 0, rear: 0, frontArc: 135, rearArc: 0 }, // TUNE [D60], [D70]
+      shotgun: all(0.1), // TUNE [D70]
+      bazooka: NONE,
+      truck: all(0.6), // TUNE [D70]: 50–75 %
+      tank: { front: 0.99, side: 0.99, rear: 0.9, frontArc: 180, rearArc: 90 }, // TUNE [D70]
+    },
+    pierce: {
+      sniper: 0.05, // TUNE [D70]
+      grenade: 0.5, // TUNE [D71]: the blast itself
+      fragment: 0, // TUNE [D71]: shrapnel
+      rocket: 0.5, // TUNE [D70]
+      shell: 0.5, // TUNE [D70]
+      mine: 0.5, // TUNE
+      crush: 1, // [D66]: armor doesn't stop being run over
+      vehicle: 0, // traffic cars: armor applies (a tank shrugs them off)
+      bridgeCollapse: 1,
+    },
+  },
+  shell: {
+    speed: 900, // TUNE
+    range: 800, // TUNE
+    aimSeconds: 0.5, // TUNE
+    cooldownSeconds: 4, // TUNE [D72]: fires slow, a window to kill the tank
+    directDamage: 120, // TUNE
+    blastRadius: 80, // TUNE
+    blastDamage: 90, // TUNE
+    hazardDamage: 250, // TUNE
+    vehicleDamage: 450, // TUNE
+    soldierAimError: 0.05, // TUNE: a cannon, not a rifle
+    baseSpread: 0.01, // TUNE
+    movingSpread: 0.06, // TUNE
+    kick: 0, // TUNE
+    maxRecoil: 0, // TUNE
+    recoveryPerSecond: 1, // TUNE
+  },
+  drive: {
+    canCapture: true, // [D68]
+    reverseArc: 90, // TUNE [D64]: stick within ±45° of straight behind → reverse
+    crushDamage: 0.1, // TUNE [D66]: truck at full speed ≈ 78, tank ≈ 110
+    crushRepeatSeconds: 0.5, // TUNE
+    crushMinSpeed: 12, // TUNE
+    ramSelfShare: 0.5, // TUNE
+    truck: {
+      bodyRadius: 26, // TUNE
+      maxSpeed: 260, // TUNE
+      reverseSpeed: 110, // TUNE
+      accel: 220, // TUNE
+      brake: 420, // TUNE
+      turnRate: 2.2, // TUNE
+      turnInPlace: false, // [D64]
+      crawlSpeed: 70, // TUNE
+      alignDegrees: 20, // TUNE
+      turretTurnRate: 4, // TUNE
+      weight: 3, // TUNE
+    },
+    tank: {
+      bodyRadius: 32, // TUNE
+      maxSpeed: 110, // TUNE
+      reverseSpeed: 70, // TUNE
+      accel: 90, // TUNE
+      brake: 200, // TUNE
+      turnRate: 1.1, // TUNE
+      turnInPlace: true, // [D64]
+      crawlSpeed: 0,
+      alignDegrees: 25, // TUNE
+      turretTurnRate: 1.4, // TUNE
+      weight: 10, // TUNE
+    },
+  },
+  roleStats: {
+    rifleman: { hp: 1, speed: 1 },
+    grenadier: { hp: 1, speed: 1 },
+    gunner: { hp: 1, speed: 1 },
+    sniper: { hp: 1, speed: 1 }, // TUNE
+    shield: { hp: 1.2, speed: 0.9 }, // TUNE: heavy
+    shotgun: { hp: 1.5, speed: 1 }, // TUNE [D61]: more HP than average
+    bazooka: { hp: 1, speed: 0.8 }, // TUNE [D62]: bazookas are heavy
+    truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
+    tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
+  },
   cover: {
     materials: {
-      fence: { bullet: 0.1, lobbed: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
-      sandbags: { bullet: 0.5, lobbed: 0.15 }, // TUNE: half cover, easy to lob over
-      halfWall: { bullet: 0.6, lobbed: 0.15 }, // TUNE
-      window: { bullet: 0.3, lobbed: 0.4 }, // TUNE: an opening in a wall (frame + sill)
-      bunkerWindow: { bullet: 0.9, lobbed: 0.7 }, // TUNE: a narrow armored slit
-      crate: { bullet: 0.75, lobbed: 0.3 }, // TUNE
+      fence: { bullet: 0.1, lobbed: 0.5, hp: 120, armor: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
+      sandbags: { bullet: 0.5, lobbed: 0.15, hp: 400, armor: 0.95 }, // TUNE: half cover, easy to lob over
+      halfWall: { bullet: 0.6, lobbed: 0.15, hp: 600, armor: 0.97 }, // TUNE
+      window: { bullet: 0.3, lobbed: 0.4, hp: 0, armor: 1 }, // TUNE: an opening in a wall (frame + sill)
+      bunkerWindow: { bullet: 0.9, lobbed: 0.7, hp: 0, armor: 1 }, // TUNE: a narrow armored slit
+      crate: { bullet: 0.75, lobbed: 0.3, hp: 250, armor: 0.85 }, // TUNE
     },
     fireOverDistance: 30, // TUNE: about a soldier's width from the edge
     fireOverBelow: 1, // TUNE: anything that isn't solid
@@ -436,12 +757,12 @@ export const DEFAULT_TUNING: Tuning = {
     groundedHeight: 3, // TUNE
     movingSpread: 0.15, // TUNE: about ±9°
     movingDistanceSpread: 0.2, // TUNE
-    blastRadius: 40, // TUNE: small; the fragments do the reach
+    blastRadius: 40, // TUNE [D71]: small area, decent damage, 50 % pierce
     blastDamage: 90, // TUNE
     hazardDamage: 120, // TUNE
-    fragments: 14, // TUNE
-    fragmentRange: 170, // TUNE
-    fragmentDamage: 30, // TUNE
+    fragments: 20, // TUNE [D71]: many …
+    fragmentRange: 240, // TUNE [D71]: … reaching a lot further …
+    fragmentDamage: 18, // TUNE [D71]: … a little damage each, 0 % pierce
   },
   ai: {
     enabled: true,
@@ -539,7 +860,7 @@ export const DEFAULT_TUNING: Tuning = {
     lateToleranceSeconds: 0.75, // TUNE
     lateGraceSeconds: 1, // TUNE
     actionTolerance: 12, // TUNE: about a hitbox radius
-    replayInteract: 'toggle', // TUNE
+    replayInteract: 'restoreState', // [D74]: opening only opens, closing only closes
     autoAimReplay: 'recorded',
   },
   attempt: {
@@ -551,6 +872,7 @@ export const DEFAULT_TUNING: Tuning = {
   spawn: {
     intervalSeconds: 2, // TUNE [D7]
     leadInSeconds: 5, // TUNE [D5]
+    minResumeHp: 0.1, // TUNE [D76]
   },
   deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
   autosaveIntervalSeconds: 5, // TUNE
@@ -560,6 +882,26 @@ export const DEFAULT_TUNING: Tuning = {
     cellSize: 64, // TUNE
     occludeByWalls: false, // TUNE
     sampleTicks: 30, // TUNE: 0.5 s; the gaps between samples are interpolated
+  },
+  economy: {
+    enabled: true,
+    startMoney: 100, // TUNE [D51] (owner's example)
+    baseIncomePerSecond: 1, // TUNE [D51]
+    captureIncomePerSecond: 2, // TUNE [D51]
+    bounty: {
+      rifleman: 5, // TUNE
+      grenadier: 8, // TUNE
+      gunner: 10, // TUNE
+      sniper: 12, // TUNE
+      shield: 10, // TUNE
+      shotgun: 10, // TUNE
+      bazooka: 12, // TUNE
+      truck: 60, // TUNE
+      tank: 120, // TUNE
+      turret: 20, // TUNE
+      vehicle: 5, // TUNE
+      mine: 2, // TUNE
+    },
   },
 };
 

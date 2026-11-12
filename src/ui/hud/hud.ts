@@ -19,6 +19,9 @@ const HUD_CSS = `
 .aoo-hud .fill { height: 100%; background: #4cd964; transition: width .08s linear; }
 .aoo-hud .fill.low { background: #ff9f0a; } .aoo-hud .fill.crit { background: #ff3b30; }
 .aoo-hud .hp .num { font-variant-numeric: tabular-nums; min-width: 70px; }
+.aoo-hud .money { font-variant-numeric: tabular-nums; color: #9ee59a; }
+.aoo-hud .money.debt { color: #ff8a80; } .aoo-hud .money[hidden] { display: none; }
+.aoo-hud .money .rate { opacity: .75; font-weight: 500; margin-left: 6px; }
 .aoo-hud.leadIn .bar { box-shadow: 0 0 6px 2px #35e0ff; }
 .aoo-hud.dead .who { color: #ff6b6b; }
 .aoo-hud .tr { position: absolute; top: 12px; right: 12px; font-size: 22px; font-variant-numeric: tabular-nums; }
@@ -41,6 +44,10 @@ export class Hud {
   private readonly fill = el('div', 'fill');
   private readonly hpNum = el('span', 'num');
   private readonly clock = el('div', 'tr');
+  /** (PHASE11) Money ([D51]). */
+  private readonly money = el('div', 'money');
+  private readonly moneyNum = el('span', 'num');
+  private readonly moneyRate = el('span', 'rate');
   private readonly obj = el('div', 'obj');
   private readonly vignette = el('div', 'vignette');
   private readonly banner = el('div', 'banner');
@@ -54,7 +61,10 @@ export class Hud {
     const bar = el('div', 'bar');
     bar.append(this.fill);
     hp.append(el('span', '', str('hud.hp')), bar, this.hpNum);
-    tl.append(this.who, hp);
+    this.money.title = str('hud.moneyLabel');
+    this.money.hidden = true;
+    this.money.append(this.moneyNum, this.moneyRate);
+    tl.append(this.who, hp, this.money);
     this.clock.title = str('hud.clockLabel');
     this.banner.hidden = true;
     this.root.append(this.vignette, tl, this.obj, this.clock, this.banner);
@@ -71,6 +81,13 @@ export class Hud {
     const rootCls = `aoo-hud ${m.status}`;
     if (this.root.className !== rootCls) this.root.className = rootCls;
     setText(this.clock, m.clock);
+    if (this.money.hidden !== (m.money === null)) this.money.hidden = m.money === null;
+    if (m.money !== null) {
+      setText(this.moneyNum, m.money);
+      setText(this.moneyRate, m.moneyRate ?? '');
+      const cls = m.moneyDebt ? 'money debt' : 'money';
+      if (this.money.className !== cls) this.money.className = cls;
+    }
     setText(this.obj, m.objective);
     if (this.banner.hidden === m.missionComplete) this.banner.hidden = !m.missionComplete;
     if (m.missionComplete) setText(this.banner, str('mission.complete'));

@@ -45,6 +45,15 @@ import type { MapDef } from '../sim/world/map';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
 import { applyCaptureObservation } from '../timeline/captures';
+import {
+  balanceAt,
+  buildLedger,
+  canAfford,
+  rateAt,
+  roleCost,
+  type Ledger,
+} from '../timeline/economy';
+import { applyLossObservation } from '../timeline/losses';
 import { revealOptions } from '../timeline/reveal';
 import type { RespawnProps, RespawnUpdate } from '../ui/respawn/respawn-model';
 import {
@@ -311,7 +320,31 @@ export class GameController {
       this.mission.lanes,
       spawnRules(this.tuning),
       this.mission.captureTruth ?? [],
+      this.mission.lossTruth,
     );
+  }
+
+  /** (PHASE11) The money in the current truth ([D51]), optionally with a not-yet-recorded life. */
+  ledger(pending?: { tick: Tick; roleId: RoleId }): Ledger {
+    return buildLedger({
+      map: this.a.map,
+      tuning: this.tuning,
+      soldiers: this.mission.soldiers,
+      lanes: this.mission.lanes,
+      captures: this.mission.captureTruth ?? [],
+      ...(this.mission.lossTruth ? { losses: this.mission.lossTruth } : {}),
+      ...(pending ? { pending } : {}),
+    });
+  }
+
+  /**
+   * (PHASE11) The role a new soldier at `entryTick` deploys as: the picked role if the money
+   * available then covers it ([Q30]), else a free Rifleman ([D18]; quick redeploy relies on it).
+   */
+  affordableRole(entryTick: Tick, roleId: RoleId = this.roleId): RoleId {
+    return canAfford(this.ledger(), entryTick, roleCost(roleId, this.tuning))
+      ? roleId
+      : DEFAULT_ROLE;
   }
 
   /** Deploys a spawn option from the respawn screen. */
@@ -366,6 +399,7 @@ export class GameController {
     const hold = Math.max(0, -start);
     const snap = this.snapshots.nearestValidSnapshot(ffTarget);
     const from: AttemptFrom = snap ? { kind: 'snapshot', snapshot: snap } : { kind: 'start' };
+    const role = option.kind === 'new' ? this.affordableRole(option.entryTick) : DEFAULT_ROLE;
     const live: LiveSpec =
       option.kind === 'new'
         ? {
@@ -373,7 +407,7 @@ export class GameController {
             soldierId: nextSoldierId(this.mission.soldiers),
             spawnPointId: option.spawnPointId,
             entryTick: option.entryTick,
-            ...(this.roleId !== DEFAULT_ROLE ? { roleId: this.roleId } : {}),
+            ...(role !== DEFAULT_ROLE ? { roleId: role } : {}),
           }
         : { mode: 'resume', soldierId: option.soldierId, controlFromTick: option.resumeTick };
 
@@ -410,6 +444,7 @@ export class GameController {
       onTick: (r) => this.onTick(r),
       onOver: (r) => this.onOver(r),
     });
+    run.money = () => this.liveMoney(run);
     if (attempt.isOver()) {
       // The fast-forward itself ended it: the choice was invalidated ("History shifted", [D23]),
       // or an echo finished the mission before the countdown (shown on the frozen field).
@@ -585,6 +620,30 @@ export class GameController {
     });
   }
 
+  /**
+   * (PHASE11) The HUD's money: the truth with what this attempt has seen so far folded in
+   * (captures, losses), plus the live soldier's own purchase.
+   */
+  private liveMoney(run: LiveRun): { balance: number; rate: number } | null {
+    if (!this.tuning.economy.enabled) return null;
+    const a = run.attempt;
+    const so = a.worldSoFar();
+    const live = a.live;
+    const tick = Math.max(0, a.tick);
+    const l = buildLedger({
+      map: this.a.map,
+      tuning: this.tuning,
+      soldiers: this.mission.soldiers,
+      lanes: this.mission.lanes,
+      captures: applyCaptureObservation(this.mission.captureTruth ?? [], so).captures,
+      losses: applyLossObservation(this.mission.lossTruth, so),
+      ...(live?.mode === 'new'
+        ? { pending: { tick: live.entryTick, roleId: live.roleId ?? DEFAULT_ROLE } }
+        : {}),
+    });
+    return { balance: balanceAt(l, tick), rate: rateAt(l, tick) };
+  }
+
   /** Folds an observation into the truth; returns the lane changes. */
   private fold(obs: AttemptObservation): LaneChange[] {
     const { lanes, changes } = applyObservation(this.mission.lanes, this.mission.soldiers, obs);
@@ -594,6 +653,11 @@ export class GameController {
       this.mission.captureTruth = caps.captures;
     }
     this.lastCaptureChanges = caps.changes;
+    // (PHASE11) Enemy losses and lost points ([D53], [Q25]).
+    const hasLosses = (obs.enemyLosses?.length ?? 0) + (obs.pointLosses?.length ?? 0) > 0;
+    if (hasLosses || this.mission.lossTruth !== undefined) {
+      this.mission.lossTruth = applyLossObservation(this.mission.lossTruth, obs);
+    }
     this.rescues += changes.filter(isRescue).length;
     this.lastObservation = obs;
     return changes;
@@ -663,6 +727,7 @@ export class GameController {
         objectiveComplete: this.objectiveComplete(),
         captures: this.mission.captureTruth ?? [],
         captureChanges: this.lastCaptureChanges,
+        economy: this.ledger(),
       });
     } else {
       this.pendingChanges = [...this.pendingChanges, ...changes];
@@ -797,6 +862,9 @@ export class GameController {
         resolvedUntil: this.resolvedUntil,
         reveal: revealOptions(this.tuning), // (06-b) revealed map
         roleId: this.roleId, // (07-c) role picker
+        // (PHASE12-c) Opens on the quick-redeploy choice: DEPLOY is one tap back in.
+        preferred: quickRedeployOption(options, this.lastSpawnPointId),
+        economy: this.ledger(), // (PHASE11) money
         onRole: (r) => {
           this.roleId = r;
         },

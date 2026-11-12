@@ -1,12 +1,13 @@
 import { distance, fromAngle, type Vec2 } from '../core/vec';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, teamOf, type SoldierState } from '../entities/soldier';
+import { hitRadiusOf, isEligible, teamOf, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
-import { coverCrossings, coverStops } from '../world/cover';
+import { coverCrossings, coverStops, damageCover, standingCover } from '../world/cover';
 import { hash01 } from '../core/hash';
+import type { ShotWeapon } from '../../contracts/mission';
 import {
   damageCharge,
   damageObjective,
@@ -85,7 +86,15 @@ export function castRay(
 
   for (const w of map.walls) consider(rayRect(from, dir, w), { kind: 'wall' });
   if (opts.coverKey !== undefined) {
-    for (const c of coverCrossings(world.cover, from, dir, best, tuning, 'bullet', opts.fireOver)) {
+    for (const c of coverCrossings(
+      standingCover(world),
+      from,
+      dir,
+      best,
+      tuning,
+      'bullet',
+      opts.fireOver,
+    )) {
       if (c.distance >= best) break;
       if (coverStops(opts.coverKey, c.piece.id, c.piece.bullet)) {
         consider(c.distance, { kind: 'cover', id: c.piece.id });
@@ -136,7 +145,7 @@ export function castRay(
     st.soldiers.forEach((s, index) => {
       if (!isEligible(s) || s.id === opts.ignoreId) return;
       if (team !== 'neutral' && teamOf(s) === team) return;
-      const t = rayCircle(from, dir, s, tuning.soldier.hitboxRadius);
+      const t = rayCircle(from, dir, s, hitRadiusOf(tuning, s));
       consider(t, { kind: 'soldier', id: s.id, index });
     });
   }
@@ -180,6 +189,12 @@ export interface ShotParams {
   fireOver?: boolean;
   /** (07-c) Don't emit `shotFired` (fragments emit their own event). */
   silent?: boolean;
+  /** (PHASE12-a) The soldier weapon that fired it (goes into `shotFired`, for recordings). */
+  weapon?: ShotWeapon;
+  /** (PHASE12-b) Damage kind for armor pierce (default `cause`). */
+  damageKind?: string;
+  /** (PHASE12-a) Damage falls off linearly to this share at full range (the shotgun, [D61]). */
+  falloffTo?: number;
 }
 
 export interface ShotResult {
@@ -210,28 +225,46 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
       hitX: result.hitX,
       hitY: result.hitY,
       ...(hitId !== undefined ? { hitId } : {}),
+      ...(p.weapon !== undefined ? { weapon: p.weapon } : {}),
     });
-  if (!tgt || tgt.kind === 'wall' || tgt.kind === 'cover') return result;
+  if (!tgt || tgt.kind === 'wall') return result;
+  const damage =
+    p.falloffTo !== undefined && p.range > 0
+      ? p.damage * (1 - (1 - p.falloffTo) * Math.min(1, hit.distance / p.range))
+      : p.damage;
+  // (PHASE12-b) Cover that stops a shot takes the hit ([Q40]); gates and wrecks ignore it.
+  if (tgt.kind === 'cover') {
+    damageCover(world, tgt.id, damage, p.damageKind ?? p.cause, p.by);
+    return result;
+  }
   if (tgt.kind === 'soldier') {
-    damageSoldier(world, world.state.soldiers[tgt.index]!, p.damage, p.by, p.cause);
+    damageSoldier(
+      world,
+      world.state.soldiers[tgt.index]!,
+      damage,
+      p.by,
+      p.cause,
+      p.from,
+      p.damageKind ?? p.cause,
+    );
     return result;
   }
   if (p.team === 'enemy') return result;
   switch (tgt.kind) {
     case 'turret':
-      damageTurret(world, tgt.index, p.damage, p.by);
+      damageTurret(world, tgt.index, damage, p.by);
       break;
     case 'mine':
       detonateMine(world, tgt.index, p.by);
       break;
     case 'vehicle':
-      damageVehicle(world, tgt.index, p.damage, p.by);
+      damageVehicle(world, tgt.index, damage, p.by);
       break;
     case 'objective':
-      damageObjective(world, tgt.index, p.damage, p.by);
+      damageObjective(world, tgt.index, damage, p.by);
       break;
     case 'charge':
-      damageCharge(world, tgt.index, p.damage, p.by);
+      damageCharge(world, tgt.index, damage, p.by);
       break;
   }
   return result;

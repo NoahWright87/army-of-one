@@ -2,13 +2,15 @@
 import type { MapDef } from '../../sim/world/map';
 import { MISSION_03 } from './mission-03';
 import { MISSION_04 } from './mission-04';
+import { MISSION_05 } from './mission-05';
 import { TEST_RANGE } from './test-range';
 
 /**
  * Playable missions, in title-screen order. [D31]: Breach is the template and the default;
  * mission-01/02 were removed. (07-c) Compound is a proof of concept for indoor cover ([D38]).
+ * (PHASE12-b) Armored Push: the long vehicle mission ([D69]).
  */
-export const MISSIONS: readonly MapDef[] = [MISSION_03, MISSION_04];
+export const MISSIONS: readonly MapDef[] = [MISSION_03, MISSION_04, MISSION_05];
 
 /** (06-a) The mission a fresh game plays ([D27], [D28], [D31]). */
 export const DEFAULT_MISSION: MapDef = MISSION_03;

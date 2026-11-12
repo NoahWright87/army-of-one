@@ -5,10 +5,10 @@
  * longer happens). Pure.
  */
 import type {
-  AttemptObservation,
   CaptureChange,
   CaptureTruth,
   SoldierId,
+  WorldObservation,
 } from '../contracts/mission';
 import type { Tick } from '../sim/core/time';
 
@@ -38,7 +38,7 @@ export function captureOf(
  */
 export function applyCaptureObservation(
   truth: readonly CaptureTruth[],
-  obs: AttemptObservation,
+  obs: WorldObservation,
 ): { captures: CaptureTruth[]; changes: CaptureChange[] } {
   const inWindow = (t: Tick) => t >= obs.fromTick && t <= obs.toTick;
   const kept = truth.filter((c) => !inWindow(c.tick));

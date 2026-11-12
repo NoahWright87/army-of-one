@@ -2,7 +2,13 @@
  * Hand-rolled shape guards for persisted data. They check structure (not every semantic
  * invariant) so garbage in storage turns into a clean load error instead of a crash later.
  */
-import type { CaptureTruth, LaneTruth, RoleId, SoldierRecord } from '../contracts/mission';
+import type {
+  CaptureTruth,
+  LaneTruth,
+  LossTruth,
+  RoleId,
+  SoldierRecord,
+} from '../contracts/mission';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -99,6 +105,26 @@ export function isCaptureTruth(v: unknown): v is CaptureTruth[] {
         isNum(c.observedInAttempt) &&
         Array.isArray(c.by) &&
         c.by.every(isStr),
+    )
+  );
+}
+
+/** (PHASE11) Loss truth: enemy losses ([D53]) and lost capture points ([Q25]). */
+export function isLossTruth(v: unknown): v is LossTruth {
+  if (!isObj(v) || !Array.isArray(v.enemies) || !Array.isArray(v.points)) return false;
+  const kinds = ['soldier', 'turret', 'vehicle', 'mine'];
+  return (
+    v.enemies.every(
+      (e) =>
+        isObj(e) &&
+        isStr(e.refId) &&
+        kinds.includes(e.kind as string) &&
+        isNum(e.tick) &&
+        isNum(e.observedInAttempt) &&
+        (e.roleId === undefined || isStr(e.roleId)),
+    ) &&
+    v.points.every(
+      (p) => isObj(p) && isStr(p.pointId) && isNum(p.tick) && isNum(p.observedInAttempt),
     )
   );
 }

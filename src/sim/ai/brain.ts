@@ -23,19 +23,21 @@ import type { RoleId } from '../../contracts/mission';
 import { hash01 } from '../core/hash';
 import { compareIds } from '../core/ids';
 import { secondsToTicks, type Tick } from '../core/time';
-import { distance, distanceSq, type Vec2 } from '../core/vec';
+import { distance, distanceSq, leadPoint, type Vec2 } from '../core/vec';
 import { hasLineOfSight } from '../combat/shots';
-import { currentSpread, gunOf } from '../combat/guns';
+import { attackKind, currentSpread, gunOf } from '../combat/guns';
+import { damageShare, WORTH_SHOOTING } from '../combat/armor';
 import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 import {
   IDLE_INPUT,
   isEligible,
   isOurEligible,
+  soldierMaxHp,
   type SoldierInput,
   type SoldierState,
 } from '../entities/soldier';
 import type { World } from '../state';
-import { seesThroughCover } from '../world/cover';
+import { seesThroughCover, standingCover } from '../world/cover';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
 import { soldierIndex } from '../soldier-index';
@@ -73,6 +75,14 @@ export interface AiState {
 }
 
 const BEHAVIOR_ARRIVE = 10;
+
+/**
+ * (PHASE12-d) How close counts as "there": vehicles can't stop on a point (a truck can't even
+ * turn on the spot), so they arrive within a few body radii.
+ */
+function arriveRadius(s: SoldierState, soldier: number): number {
+  return s.drive ? Math.max(soldier, 70) : soldier;
+}
 /** (perf) A destination has to move this far to be worth a new path. */
 const REPLAN_MOVE = 64;
 /** (perf) Paths longer than this aren't searched (the chase leash is shorter anyway). */
@@ -206,14 +216,20 @@ function perceive(
     .slice(0, Math.max(1, t.maxCandidates));
   const visible: SoldierState[] = [];
   for (const o of cands) {
-    if (!seesThroughCover(world.cover, s, o, t.sightRange, world.tuning)) continue;
+    if (!seesThroughCover(standingCover(world), s, o, t.sightRange, world.tuning)) continue;
     if (!hasLineOfSight(world, s, o, 'enemy', s.id)) continue;
     visible.push(o);
   }
   // Target: keep the current one while visible and not much farther than the nearest.
+  // (PHASE12-b) Prefer targets its weapon can hurt: a rifle doesn't waste itself on a tank
+  // while a soldier is in view ([D70]).
+  const kind = attackKind(s, world.tuning);
+  const worth = (o: SoldierState) => damageShare(world.tuning, kind, o.roleId) >= WORTH_SHOOTING;
+  const worthy = visible.filter(worth);
+  const pool = worthy.length > 0 ? worthy : visible;
   let target: SoldierState | null;
-  const cur = ai.targetId ? visible.find((o) => o.id === ai.targetId) : undefined;
-  const nearest = visible[0] ?? null;
+  const cur = ai.targetId ? pool.find((o) => o.id === ai.targetId) : undefined;
+  const nearest = pool[0] ?? null;
   if (cur && nearest && distance(cur, s) <= distance(nearest, s) * 1.3) target = cur;
   else target = nearest;
   if (target) {
@@ -284,7 +300,23 @@ export function profileOf(role: RoleId | undefined): AiProfile {
 function weaponRange(world: World, s: SoldierState): number {
   const w = roleDef(s.roleId).weapon;
   const t = world.tuning;
-  return w === 'mg' ? t.mg.range : w === 'grenade' ? t.grenade.maxRange : t.rifle.range;
+  switch (w) {
+    case 'mg':
+      return t.mg.range;
+    case 'grenade':
+      return t.grenade.maxRange;
+    // (PHASE12-a) A Sniper fights at rifle range (it stands to set up when engaging, [D59]).
+    case 'sniper':
+      return t.sniper.range;
+    case 'pistol':
+      return t.pistol.range;
+    case 'shotgun':
+      return t.shotgun.range;
+    case 'rocket':
+      return t.rocket.range;
+    default:
+      return t.rifle.range;
+  }
 }
 
 // ---------- decision ----------
@@ -296,9 +328,12 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   const p = perceive(world, s, ai, ours);
   const range = weaponRange(world, s);
   const squad = (world.map.squads ?? []).find((q) => q.id === ai.squad);
-  const leashOk = (pt: Vec2) => distance(pt, ai.home) <= prof.leash + 1;
+  // (PHASE12-d) A patrol's "post" is its whole route, not where it started.
+  const posts: readonly Vec2[] =
+    squad?.order.kind === 'patrol' && squad.order.route.length > 0 ? squad.order.route : [ai.home];
+  const leashOk = (pt: Vec2) => posts.some((h) => distance(pt, h) <= prof.leash + 1);
   const underFire = p.hurt || tick - ai.hurtTick < secondsToTicks(1.5);
-  const hpFrac = s.hp / Math.max(1, world.tuning.soldier.maxHp);
+  const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId));
 
   const scores: Record<Behavior, number> = {
     evade: 0,
@@ -393,7 +428,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       const route = squad?.order.kind === 'patrol' ? squad.order.route : [];
       if (route.length > 0) {
         let pt = route[ai.patrolIdx % route.length]!;
-        if (distance(s, pt) < 24) {
+        if (distance(s, pt) < arriveRadius(s, 24)) {
           ai.patrolIdx = (ai.patrolIdx + 1) % route.length;
           pt = route[ai.patrolIdx]!;
         }
@@ -405,7 +440,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       dest = null;
       break;
     case 'hold':
-      dest = distance(s, ai.home) > 24 ? ai.home : null;
+      dest = distance(s, ai.home) > arriveRadius(s, 24) ? ai.home : null;
       break;
   }
   setDest(world, s, ai, dest);
@@ -458,7 +493,7 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
   const off = t.soldier.wallRadius + 6;
   let best: Vec2 | null = null;
   let bestD = Infinity;
-  for (const c of world.cover) {
+  for (const c of standingCover(world)) {
     const r = c.rect;
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
@@ -491,7 +526,8 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;
   let move = { x: 0, y: 0 };
   if (ai.path && ai.pathIdx < ai.path.length) {
-    while (ai.pathIdx < ai.path.length && distance(s, ai.path[ai.pathIdx]!) <= BEHAVIOR_ARRIVE) {
+    const arrive = arriveRadius(s, BEHAVIOR_ARRIVE);
+    while (ai.pathIdx < ai.path.length && distance(s, ai.path[ai.pathIdx]!) <= arrive) {
       ai.pathIdx++;
     }
     const wp = ai.path[ai.pathIdx];
@@ -506,11 +542,32 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   let aim = s.facing;
   let aimDistance: number | undefined;
   if (aimAt) {
-    aim = Math.atan2(aimAt.y - s.y, aimAt.x - s.x) + ai.aimErr;
+    // (PHASE12-d) A rocket or shell leads a moving vehicle so it meets it.
+    const proj = roleDef(s.roleId).weapon;
+    let at: Vec2 = aimAt;
+    if (live?.drive && (proj === 'rocket' || proj === 'shell')) {
+      const v = live.drive.speed / 60;
+      at = leadPoint(
+        s,
+        live,
+        { x: Math.cos(live.facing) * v, y: Math.sin(live.facing) * v },
+        world.tuning[proj].speed / 60,
+      );
+    }
+    aim = Math.atan2(at.y - s.y, at.x - s.x) + ai.aimErr;
     // (07-e) Moving targets are harder to hit ([D50]): jitter that grows with their speed.
     if (live && live.moveFrac > 0) {
       const jitter = hash01(`${s.id}@${tick}:moving`) * 2 - 1;
-      aim += jitter * world.tuning.ai.movingTargetError * live.moveFrac;
+      // (PHASE12-a) Much worse with a sniper rifle ([D59]).
+      const extra =
+        gunOf(s, world.tuning) === 'sniper' ? world.tuning.sniper.movingTargetAimError : 0;
+      aim += jitter * (world.tuning.ai.movingTargetError + extra) * live.moveFrac;
+    }
+    // (PHASE12-a) Rockets are very inaccurate against people ([D62]); (PHASE12-b) shells a bit.
+    const heavy = roleDef(s.roleId).weapon;
+    const vehicleTarget = !!live?.drive;
+    if (live && !vehicleTarget && (heavy === 'rocket' || heavy === 'shell')) {
+      aim += (hash01(`${s.id}@${tick}:rocket`) * 2 - 1) * world.tuning[heavy].soldierAimError;
     }
     aimDistance = distance(s, aimAt);
   } else if (move.x !== 0 || move.y !== 0) {
@@ -522,12 +579,24 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   let fire = false;
   if (live && tick >= ai.reactAt && ai.behavior !== 'evade') {
     const d = distance(s, live);
-    const gun = gunOf(s);
+    const gun = gunOf(s, world.tuning);
+    const weapon = roleDef(s.roleId).weapon;
     if (gun) {
       // Bursts: fire while the cone at the target is tight enough, let recoil recover otherwise.
       const spreadAtTarget = d * Math.tan(currentSpread(world, s, aim));
       const tol = world.tuning.soldier.hitboxRadius * profileOf(s.roleId).burstTolerance;
       fire = spreadAtTarget <= Math.max(tol, world.tuning.soldier.hitboxRadius);
+      // (PHASE12-a) Only within the gun in hand's reach (a Sniper still on its pistol waits).
+      if (gun === 'pistol' || gun === 'shotgun') {
+        fire &&= d <= (gun === 'pistol' ? world.tuning.pistol.range : world.tuning.shotgun.range);
+      }
+    } else if (weapon === 'rocket' || weapon === 'shell') {
+      // (PHASE12-a) Bazooka: hold to aim, unless our own squad is near the target ([D62]).
+      // (PHASE12-b) A tank's cannon the same way.
+      const allyNear = world.state.soldiers.some(
+        (a) => a.ai && a !== s && isEligible(a) && distanceSq(a, live) <= 110 * 110,
+      );
+      fire = !allyNear && d <= world.tuning[weapon].range;
     } else {
       // Grenadier: don't throw onto its own squad; wind up to full, then release (throws).
       const allyNear = world.state.soldiers.some(
@@ -537,6 +606,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       const need = windupTicksFor(world, aimedThrowDistance(world, input));
       fire = !allyNear && d <= world.tuning.grenade.maxRange && s.windupTicks < need;
     }
+  }
+  // (PHASE12-b) A vehicle's turret lags the aim: hold fire until it's on target.
+  if (fire && s.drive) {
+    const off = Math.atan2(Math.sin(aim - s.drive.turret), Math.cos(aim - s.drive.turret));
+    if (Math.abs(off) > 0.12) fire = false;
   }
   // Holding still steadies the aim: engaging soldiers stand; others move.
   if (ai.behavior === 'engage') move = { x: 0, y: 0 };

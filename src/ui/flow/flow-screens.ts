@@ -22,6 +22,15 @@ const CSS = `
   background: #ffd34d; border: 0; border-radius: 6px; cursor: pointer; padding: 0 18px; }
 .aoo-screen button.secondary { background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; }
 .aoo-screen button:disabled { opacity: .35; cursor: default; }
+.aoo-screen .library { width: min(460px, 86vw); display: flex; flex-direction: column; gap: 6px;
+  margin-top: 6px; }
+.aoo-screen .library[hidden] { display: none; }
+.aoo-screen .lib-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #9fb3c8; }
+.aoo-screen .lib-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1b2229;
+  border: 1px solid #2f3842; border-radius: 6px; }
+.aoo-screen .lib-label { flex: 1; font-size: 13px; color: #d8e0e8; text-align: left; }
+.aoo-screen .lib-btns { display: flex; gap: 6px; }
+.aoo-screen .card .lib-btn { padding: 6px 10px; min-width: 0; font-size: 13px; }
 .aoo-screen .mission-pick select { font: 600 15px system-ui, sans-serif; margin-left: 6px; padding: 4px 6px;
   background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; }
 .aoo-screen button.confirm { background: #ff6b5a; color: #fff; }
@@ -99,11 +108,38 @@ export interface TitleProps {
   freshLabelKey?: 'title.new' | 'title.deploy';
 }
 
+/** (PHASE12-e) One row of the title screen's replay list ([D79]). */
+export interface TitleLibraryItem {
+  label: string;
+  actions: { label: string; run(): void; primary?: boolean }[];
+}
+
 export class TitleScreen {
   private readonly s;
+  private readonly libraryEl = el('div', 'library');
 
   constructor(parent: HTMLElement) {
     this.s = screen(parent);
+  }
+
+  /** (PHASE12-e) The saved replays and missions in progress (empty hides the list). */
+  setLibrary(items: readonly TitleLibraryItem[]): void {
+    this.libraryEl.replaceChildren();
+    this.libraryEl.hidden = items.length === 0;
+    if (items.length === 0) return;
+    this.libraryEl.append(el('div', 'lib-title', str('library.title')));
+    for (const it of items) {
+      const row = el('div', 'lib-row');
+      row.append(el('span', 'lib-label', it.label));
+      const btns = el('span', 'lib-btns');
+      for (const a of it.actions) {
+        const b = el('button', a.primary ? 'lib-btn primary' : 'lib-btn', a.label);
+        b.onclick = () => a.run();
+        btns.append(b);
+      }
+      row.append(btns);
+      this.libraryEl.append(row);
+    }
   }
 
   show(p: TitleProps): void {
@@ -136,6 +172,7 @@ export class TitleScreen {
         ? [missionPicker(p.missions, p.currentMissionId ?? '', p.onPickMission)]
         : [el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) }))]),
       ...(p.canContinue ? [cont, fresh] : [fresh]),
+      this.libraryEl,
     );
     root.hidden = false;
     (p.canContinue ? cont : fresh).focus();

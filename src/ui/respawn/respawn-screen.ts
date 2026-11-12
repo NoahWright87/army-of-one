@@ -2,7 +2,7 @@
  * The respawn screen ([E5]): a DOM/SVG overlay, independent of Phaser and of the sim. It shows the
  * timeline truth (one row per soldier on a shared battle-time axis), the scrubber ([D23]) and the
  * spawn panel, and reports the player's choice through `onDeploy`. All decisions live in pure
- * modules (respawn-model.ts, time-scale.ts, map-thumb.ts); this file only renders and wires input.
+ * modules (respawn-model.ts, time-scale.ts); this file only renders and wires input.
  *
  * Usage (PHASE04):
  *   const screen = RespawnScreen.mount(uiRoot, props, { onDeploy: (opt) => ... });
@@ -14,7 +14,6 @@ import { str } from '../../content/strings';
 import { DEFAULT_ROLE, ROLES, isRoleId, roleDef } from '../../content/roles';
 import type {
   RoleId,
-  CaptureChange,
   LaneChange,
   LaneSpanKind,
   SoldierId,
@@ -22,28 +21,19 @@ import type {
 } from '../../contracts/mission';
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import { el, injectStyle } from '../dom';
-import { mapThumbSvg } from './map-thumb';
 import { MapPanel } from './map-panel';
 import { isTallMap } from './map-panel-model';
 import {
-  captureChangeCaption,
   captureFlags,
-  captionList,
-  changeCaption,
   changedRanges,
   cycleSelection,
-  defaultSelection,
   displaySpans,
   endStyle,
   endTooltip,
   findOption,
-  headerItems,
   isEventMarker,
-  laneRows,
   markerTooltip,
-  optionKey,
   optionLabel,
-  ordinalFromId,
   reconcileSelection,
   screenKeyAction,
   spanClass,
@@ -54,7 +44,18 @@ import {
   type OptionKey,
   type RespawnProps,
   type RespawnUpdate,
+  moneyTip,
+  optionMoney,
+  roleMoney,
+  shownEconomy,
+  initialSelection,
+  timelineRows,
+  type LaneTimelineRow,
+  type SpawnTimelineRow,
+  type TimelineRow,
 } from './respawn-model';
+import { roleIconG, roleIconSvg } from '../../content/role-icons';
+import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
 import { DEFAULT_RESPAWN_SETTINGS, type RespawnViewSettings } from './respawn-settings';
 import { RESPAWN_CSS } from './respawn-style';
 import {
@@ -64,6 +65,7 @@ import {
   panBy,
   pinchFactor,
   tickToX,
+  xToTick,
   wheelZoomFactor,
   zoomAt,
   axisTicks,
@@ -76,15 +78,16 @@ export interface RespawnScreenOptions {
   settings?: RespawnViewSettings;
 }
 
+/** (PHASE12-d) Spawn points whose soldiers are folded (kept while the page is open). */
+const collapsedSpawns = new Set<string>();
 const PULSE_MS = 1800;
 const FLASH_MS = 1400;
-const APPEAR_MS = 700;
-const LEAVE_MS = 600;
 const AXIS_H = 40;
+/** (PHASE11) Height of the money strip under the lanes. */
+const MONEY_H = 46;
 const DRAG_SLOP_PX = 6;
 
 /** (06-b) Phone, wide map: the top area shows the map instead of the timeline (remembered). */
-let phoneShowsMap = false;
 
 /** Last zoom/pan, reused on the next open when auto-fit is off. */
 let lastView: { view: TimeView; fitted: boolean } | null = null;
@@ -107,16 +110,12 @@ export class RespawnScreen {
   private fitted = true;
   private domain: TimeDomain;
   private readonly deployListeners = new Set<(o: SpawnOption) => void>();
-  private captions: string[] = [];
   /** (05-a) Captions that report a lost capture point (highlighted). */
-  private lostCaptions = new Set<string>();
   private pulses = new Map<SoldierId, Anim>();
   private flashes = new Map<
     SoldierId,
     Anim & { ranges: { from: Tick; to: Tick; kind: LaneSpanKind }[] }
   >();
-  private appear = new Map<OptionKey, Anim>();
-  private leaving = new Map<OptionKey, Anim & { option: SpawnOption }>();
   private destroyed = false;
   private raf = 0;
   private animTimer: ReturnType<typeof setTimeout> | null = null;
@@ -124,19 +123,19 @@ export class RespawnScreen {
   private readonly cleanups: (() => void)[] = [];
 
   // Elements
-  private readonly head = el('header', 'rs-head');
-  private readonly captionsEl = el('div', 'rs-captions');
   private readonly frame = el('div', 'rs-tl-frame');
   private readonly scroller = el('div', 'rs-tl-scroll');
   private readonly axisWrap = el('div', 'rs-axis');
   private readonly rowsWrap = el('div', 'rs-rows');
   private readonly emptyEl = el('div', 'rs-empty', str('respawn.timeline.empty'));
   private readonly legendEl = el('div', 'rs-legend');
+  /** (PHASE11) The money line under the lanes ([D51]). */
+  private readonly moneyEl = el('div', 'rs-money');
   private readonly tip = el('div', 'rs-tip');
-  private readonly optsEl = el('div', 'rs-opts');
   private readonly deployBtn = el('button', 'rs-deploy');
-  /** (07-c) Role picker ([D36]). */
-  private readonly rolesEl = el('div', 'rs-roles');
+  /** (PHASE12-c) One role button beside DEPLOY; it opens the role menu. */
+  private readonly roleBtn = el('button', 'rs-role-btn');
+  private readonly roleMenu = el('div', 'rs-role-menu');
   private readonly main = el('div', 'rs-main');
   /** (06-b) Revealed map ([D29]). */
   private readonly mapPanel = new MapPanel({
@@ -156,7 +155,7 @@ export class RespawnScreen {
     this.props = { ...props };
     this.settings = opts.settings ?? DEFAULT_RESPAWN_SETTINGS;
     if (opts.onDeploy) this.deployListeners.add(opts.onDeploy);
-    this.selected = defaultSelection(props.options);
+    this.selected = initialSelection(props.options, props.preferred);
     this.domain = timelineDomain(this.props);
     if (!this.settings.autoFit && lastView) {
       this.view = lastView.view;
@@ -169,11 +168,10 @@ export class RespawnScreen {
     this.build();
     parent.appendChild(this.root);
     this.pushChanges(props.changes ?? []);
-    this.pushCaptureChanges(props.captureChanges ?? []);
     this.installInput();
     this.renderAll();
-    // Focus the selected option so keyboard users can act at once.
-    this.optsEl.querySelector<HTMLElement>('.rs-opt.sel')?.focus({ preventScroll: true });
+    // Focus DEPLOY so Enter / Space acts at once.
+    this.deployBtn.focus({ preventScroll: true });
   }
 
   // ---------- Public API ----------
@@ -182,7 +180,6 @@ export class RespawnScreen {
   update(u: RespawnUpdate): void {
     if (this.destroyed) return;
     const prevLanes = new Map(this.props.lanes.map((l) => [l.soldierId, l]));
-    const prevOptions = this.props.options;
     this.props = {
       ...this.props,
       ...Object.fromEntries(Object.entries(u).filter(([, v]) => v !== undefined)),
@@ -195,9 +192,7 @@ export class RespawnScreen {
         if (ranges.length > 0) this.flashes.set(l.soldierId, { start: t, ranges });
       }
     }
-    if (u.options) this.diffOptions(prevOptions, u.options);
     if (u.changes) this.pushChanges(u.changes);
-    if (u.captureChanges) this.pushCaptureChanges(u.captureChanges);
     this.selected = reconcileSelection(this.selected, this.props.options);
     this.updateDomain();
     this.renderAll();
@@ -277,8 +272,6 @@ export class RespawnScreen {
     const main = this.main;
     const tl = el('section', 'rs-tl');
     const bar = el('div', 'rs-tl-bar');
-    bar.append(el('h2', '', str('respawn.timeline.title')));
-    bar.append(el('span', 'rs-hint', str('respawn.timeline.hint')));
     const tools = el('div', 'rs-tools');
     const mk = (label: string, text: string, run: () => void) => {
       const b = el('button', 'rs-tool', text);
@@ -293,33 +286,28 @@ export class RespawnScreen {
       mk(str('respawn.timeline.fit'), str('respawn.timeline.fit'), () => this.fitAll()),
     );
     tools.lastElementChild!.classList.add('wide');
-    // (06-b) Phone + wide map: the map shares the timeline's area; these swap them.
-    const toMap = mk(str('respawn.map.show'), str('respawn.map.show'), () =>
-      this.showPhoneMap(true),
-    );
-    toMap.classList.add('wide', 'rs-view-toggle');
-    tools.append(toMap);
-    const toTl = mk(str('respawn.map.back'), str('respawn.map.back'), () =>
-      this.showPhoneMap(false),
-    );
-    toTl.classList.add('wide', 'rs-view-toggle');
-    this.mapPanel.addBarButton(toTl);
-    this.main.classList.toggle('phone-map', phoneShowsMap);
+    // The key (what X, O, ! … mean) lives behind an ℹ️ button instead of under the timeline.
+    const info = mk(str('respawn.legend.title'), 'ℹ️', () => this.toggleLegend());
+    info.classList.add('rs-info');
+    tools.prepend(info);
     bar.append(tools);
     this.scroller.append(this.axisWrap, this.rowsWrap);
     this.frame.append(this.scroller, this.emptyEl, this.tip);
-    tl.append(bar, this.captionsEl, this.frame, this.legendEl);
+    tl.append(bar, this.frame, this.moneyEl, this.legendEl);
+    this.legendEl.hidden = true;
+    this.legendEl.onclick = () => this.toggleLegend(false);
 
-    const spawn = el('aside', 'rs-spawn');
-    spawn.append(el('h2', '', str('respawn.spawn.title')), this.optsEl);
+    // (PHASE12-c) The bottom bar: the role button and DEPLOY, under your thumb.
     const dbar = el('div', 'rs-deploy-bar');
     this.deployBtn.onclick = () => this.deploy();
-    if (this.props.onRole) dbar.append(this.rolesEl);
-    dbar.append(this.deployBtn, el('div', 'rs-keys', str('respawn.keys')));
-    spawn.append(dbar);
+    this.roleBtn.type = 'button';
+    this.roleBtn.onclick = () => this.toggleRoleMenu();
+    this.roleMenu.hidden = true;
+    if (this.props.onRole) dbar.append(this.roleBtn);
+    dbar.append(this.deployBtn);
 
-    main.append(tl, this.mapPanel.root, spawn);
-    this.root.append(this.head, main);
+    main.append(tl, this.mapPanel.root, dbar);
+    this.root.append(main, this.roleMenu);
   }
 
   // ---------- Input ----------
@@ -345,7 +333,6 @@ export class RespawnScreen {
       e.preventDefault();
       if (action === 'next' || action === 'prev') {
         this.select(cycleSelection(this.props.options, this.selected, action === 'next' ? 1 : -1));
-        this.optsEl.querySelector<HTMLElement>('.rs-opt.sel')?.focus({ preventScroll: true });
       } else if (action === 'deploy') this.deploy();
       else if (action === 'zoomIn') this.zoomBy(1.6);
       else if (action === 'zoomOut') this.zoomBy(1 / 1.6);
@@ -366,9 +353,19 @@ export class RespawnScreen {
     this.cleanups.push(() => mro.disconnect());
 
     // (07-c) Role picker: click a role, or press its number.
-    on(this.rolesEl, 'click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-role]');
-      if (b && isRoleId(b.dataset.role)) this.pickRole(b.dataset.role);
+    on(this.roleMenu, 'click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-role]');
+      if (b && !b.disabled && isRoleId(b.dataset.role)) {
+        this.pickRole(b.dataset.role);
+        this.toggleRoleMenu(false);
+      }
+    });
+    // Tapping anywhere else closes the menu.
+    on(this.root, 'pointerdown', (e) => {
+      const t = e.target as HTMLElement;
+      if (!this.roleMenu.hidden && !t.closest('.rs-role-menu, .rs-role-btn')) {
+        this.toggleRoleMenu(false);
+      }
     });
     const onRoleKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -384,18 +381,19 @@ export class RespawnScreen {
     window.addEventListener('keydown', onRoleKey);
     this.cleanups.push(() => window.removeEventListener('keydown', onRoleKey));
 
-    // Option list clicks.
-    on(this.optsEl, 'click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-opt]');
-      if (b && b.dataset.opt) this.select(b.dataset.opt);
-    });
-    on(this.optsEl, 'dblclick', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-opt]');
-      if (b && b.dataset.opt) {
-        this.select(b.dataset.opt);
-        this.deploy();
-      }
-    });
+    // (PHASE11) Money strip: hover (or tap) for the balance at that battle time.
+    const moneyTipAt = (e: PointerEvent) => {
+      const l = shownEconomy(this.props);
+      if (!l || !this.view) return;
+      const hit = (e.target as Element | null)?.closest('[data-tip]')?.getAttribute('data-tip');
+      const px = e.clientX - this.moneyEl.getBoundingClientRect().left - this.labelWidth();
+      if (!hit && px < 0) return this.hideTip();
+      const tick = Math.max(0, Math.round(xToTick(this.view, px)));
+      this.showTip(hit ?? moneyTip(l, tick), e.clientX, e.clientY);
+    };
+    on(this.moneyEl, 'pointermove', moneyTipAt);
+    on(this.moneyEl, 'pointerdown', moneyTipAt);
+    on(this.moneyEl, 'pointerleave', () => this.hideTip());
 
     // Timeline: drag to pan, pinch/wheel to zoom, tap an O to select, tap a marker for details.
     const pointers = new Map<number, { x: number; y: number }>();
@@ -495,6 +493,14 @@ export class RespawnScreen {
   }
 
   private tap(target: HTMLElement | null, e: PointerEvent): void {
+    // (PHASE12-d) Fold / unfold a spawn point's soldiers.
+    const fold = target?.closest<Element>('[data-fold]')?.getAttribute('data-fold');
+    if (fold) {
+      if (collapsedSpawns.has(fold)) collapsedSpawns.delete(fold);
+      else collapsedSpawns.add(fold);
+      this.scheduleRender();
+      return;
+    }
     const hit = target?.closest<Element>('[data-select], [data-tip]');
     if (!hit) {
       this.hideTip();
@@ -538,35 +544,8 @@ export class RespawnScreen {
   private pushChanges(changes: readonly LaneChange[]): void {
     const t = now();
     for (const c of changes) {
-      const ordinal =
-        this.props.soldiers.find((s) => s.id === c.soldierId)?.ordinal ??
-        ordinalFromId(c.soldierId);
-      const text = changeCaption(c, ordinal);
-      if (this.captions[this.captions.length - 1] !== text) this.captions.push(text);
       if (this.settings.animations) this.pulses.set(c.soldierId, { start: t });
     }
-  }
-
-  private pushCaptureChanges(changes: readonly CaptureChange[]): void {
-    for (const c of changes) {
-      const { text, lost } = captureChangeCaption(c, this.props.map);
-      if (lost) this.lostCaptions.add(text);
-      if (this.captions[this.captions.length - 1] !== text) this.captions.push(text);
-    }
-  }
-
-  private diffOptions(prev: readonly SpawnOption[], next: readonly SpawnOption[]): void {
-    if (!this.settings.animations) return;
-    const t = now();
-    const nextKeys = new Set(next.map(optionKey));
-    const prevKeys = new Set(prev.map(optionKey));
-    for (const o of next)
-      if (!prevKeys.has(optionKey(o))) this.appear.set(optionKey(o), { start: t });
-    for (const o of prev) {
-      const k = optionKey(o);
-      if (!nextKeys.has(k)) this.leaving.set(k, { start: t, option: o });
-    }
-    for (const k of nextKeys) this.leaving.delete(k);
   }
 
   private updateDomain(): void {
@@ -577,7 +556,8 @@ export class RespawnScreen {
   }
 
   private labelWidth(): number {
-    return this.frame.clientWidth < 560 ? 86 : 118;
+    // (PHASE12-c) Icons + numbers instead of names: narrow.
+    return this.frame.clientWidth < 560 ? 70 : 96;
   }
 
   private scheduleRender(): void {
@@ -602,8 +582,6 @@ export class RespawnScreen {
     };
     consider(this.pulses, PULSE_MS);
     consider(this.flashes, FLASH_MS);
-    consider(this.appear, APPEAR_MS);
-    consider(this.leaving, LEAVE_MS);
     if (next === Infinity) return;
     this.animTimer = setTimeout(() => {
       this.animTimer = null;
@@ -613,7 +591,6 @@ export class RespawnScreen {
 
   private revealSelection(): void {
     const o = this.selectedOption();
-    this.optsEl.querySelector<HTMLElement>('.rs-opt.sel')?.scrollIntoView({ block: 'nearest' });
     if (o?.kind === 'resume') {
       const row = this.rowsWrap.querySelector<SVGElement>(
         `[data-row="${CSS.escape(o.soldierId)}"]`,
@@ -626,24 +603,11 @@ export class RespawnScreen {
 
   private renderAll(): void {
     if (this.destroyed) return;
-    this.renderHeader();
-    this.renderCaptions();
     this.renderLegend();
     this.renderOptions();
     this.renderMap();
     this.renderTimeline();
     this.scheduleAnimCleanup();
-  }
-
-  /** (06-b) Phone, wide map: show the map (or the timeline) in the top area. */
-  private showPhoneMap(on: boolean): void {
-    phoneShowsMap = on;
-    this.main.classList.toggle('phone-map', on);
-    requestAnimationFrame(() => {
-      if (this.destroyed) return;
-      this.mapPanel.resize();
-      this.scheduleRender();
-    });
   }
 
   /** (06-b) Revealed map: layout classes, then the panel (incremental reveal). */
@@ -654,42 +618,16 @@ export class RespawnScreen {
     this.main.classList.toggle('map-tall', on && tall);
     this.main.classList.toggle('map-wide', on && !tall);
     this.mapPanel.root.hidden = !on;
-    if (on) this.mapPanel.render(this.props, this.selected, this.settings.legend);
+    if (on) this.mapPanel.render(this.props, this.selected, false);
   }
 
-  private renderHeader(): void {
-    const h = headerItems(this.props);
-    this.head.innerHTML =
-      `<h1>${esc(h.title)}</h1><dl>` +
-      h.items
-        .map(
-          (i) =>
-            `<div class="${i.cls ?? ''}"><dt>${esc(i.label)}</dt><dd>${esc(i.value)}</dd></div>`,
-        )
-        .join('') +
-      `</dl>`;
+  /** Shows/hides the key popover (ℹ️). */
+  private toggleLegend(on = this.legendEl.hidden): void {
+    this.legendEl.hidden = !on;
   }
 
-  private renderCaptions(): void {
-    if (this.captions.length === 0) {
-      this.captionsEl.hidden = true;
-      return;
-    }
-    this.captionsEl.hidden = false;
-    const list = captionList(this.captions, 3);
-    this.captionsEl.innerHTML =
-      `<span class="rs-cap-title">${esc(str('respawn.change.title'))}</span>` +
-      list
-        .map(
-          (c, i) =>
-            `<span class="rs-cap${i === 0 ? ' newest' : ''}${this.lostCaptions.has(c) ? ' lost' : ''}">${esc(c)}</span>`,
-        )
-        .join('');
-  }
-
+  /** The key popover: timeline glyphs, then the map's symbols. */
   private renderLegend(): void {
-    this.legendEl.hidden = !this.settings.legend;
-    if (!this.settings.legend) return;
     const item = (sw: string, label: string) =>
       `<span class="lg"><svg width="26" height="16" aria-hidden="true">${sw}</svg>${esc(label)}</span>`;
     this.legendEl.innerHTML = [
@@ -708,86 +646,100 @@ export class RespawnScreen {
         '<rect class="sp-unresolved" x="1" y="3" width="24" height="10" fill="url(#rs-hatch)"/>',
         str('respawn.legend.unresolved'),
       ),
+      ...(this.settings.showMap ? [this.mapPanel.legendHtml()] : []),
     ].join('');
   }
 
+  /** (PHASE12-c) The bottom bar: the role button and DEPLOY / REDEPLOY. */
   private renderOptions(): void {
     const p = this.props;
-    const t = now();
-    const anim = this.settings.animations;
-    const items: string[] = [];
-    const row = (o: SpawnOption, cls: string, delay: number | null) => {
-      const lab = optionLabel(o, p);
-      const sel = lab.key === this.selected;
-      const icon =
-        o.kind === 'new'
-          ? mapThumbSvg(p.map, { pointId: o.spawnPointId, width: 84, height: 58 })
-          : `<svg class="rs-o-icon" viewBox="0 0 40 40" width="44" height="44" aria-hidden="true">${glyphSvg('O', 20, 20, 13)}</svg>`;
-      const style = delay !== null ? ` style="animation-delay:${-Math.round(delay)}ms"` : '';
-      return (
-        `<button type="button" class="rs-opt ${o.kind}${lab.forward ? ' forward' : ''}${sel ? ' sel' : ''}${cls}" data-opt="${esc(lab.key)}"` +
-        ` role="option" aria-selected="${sel}"${style}>` +
-        `<span class="rs-opt-icon">${icon}</span>` +
-        `<span class="rs-opt-text"><span class="t">${esc(lab.title)}</span>` +
-        `<span class="d">${esc(lab.detail)}</span>` +
-        (lab.capturedBy ? `<span class="c">${esc(lab.capturedBy)}</span>` : '') +
-        (lab.unconfirmed ? `<span class="u">${esc(str('respawn.spawn.unconfirmed'))}</span>` : '') +
-        `</span></button>`
-      );
-    };
-    for (const o of p.options) {
-      const a = anim ? this.appear.get(optionKey(o)) : undefined;
-      const age = a ? t - a.start : null;
-      items.push(row(o, age !== null && age < APPEAR_MS ? ' appear' : '', age));
-    }
-    if (anim) {
-      for (const [, l] of this.leaving) {
-        const age = t - l.start;
-        if (age < LEAVE_MS)
-          items.push(row(l.option, ' leaving', age).replace('data-opt=', 'data-gone='));
-      }
-    }
-    if (p.options.length === 0)
-      items.push(`<div class="rs-none">${esc(str('respawn.spawn.none'))}</div>`);
-    const focused = (document.activeElement as HTMLElement | null)?.dataset?.opt;
-    this.optsEl.setAttribute('role', 'listbox');
-    this.optsEl.innerHTML = items.join('');
-    if (focused) {
-      this.optsEl
-        .querySelector<HTMLElement>(`[data-opt="${CSS.escape(focused)}"]`)
-        ?.focus({ preventScroll: true });
-    }
     const o = this.selectedOption();
     this.renderRoles(o);
     this.deployBtn.disabled = !o;
-    this.deployBtn.textContent = o ? optionLabel(o, p).deployLabel : str('respawn.deploy.pick');
+    if (!o) {
+      this.deployBtn.innerHTML = `<span class="go">${esc(str('respawn.deploy.pick'))}</span>`;
+      return;
+    }
+    const lab = optionLabel(o, p);
+    const where =
+      o.kind === 'new'
+        ? str('respawn.deploy.where', {
+            place: spawnPointName(p.map, o.spawnPointId),
+            time: formatBattleTime(o.entryTick),
+          })
+        : str('respawn.deploy.where', {
+            place: str('respawn.timeline.soldier', {
+              n: p.soldiers.find((s) => s.id === o.soldierId)?.ordinal ?? 0,
+            }),
+            time: formatBattleTime(o.resumeTick),
+          });
+    this.deployBtn.innerHTML =
+      `<span class="go">${esc(str(o.kind === 'new' ? 'respawn.deploy.go' : 'respawn.deploy.redeploy'))}</span>` +
+      `<span class="where">${esc(where)}</span>`;
+    this.deployBtn.title = lab.deployLabel;
   }
 
-  /** (07-c) Role buttons; a resume keeps the soldier's own role, so the picker shows that. */
+  /** The role in effect for an option: a resumed soldier keeps theirs ([D36]). */
+  private roleFor(o: SpawnOption | null): { roleId: RoleId; locked: boolean } {
+    if (o?.kind === 'resume') {
+      return {
+        roleId: roleDef(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId).id,
+        locked: true,
+      };
+    }
+    return { roleId: this.props.roleId ?? DEFAULT_ROLE, locked: false };
+  }
+
+  /** (PHASE12-c) The role button (icon + price, 🔒 on a resume) and its menu. */
   private renderRoles(o: SpawnOption | null): void {
     if (!this.props.onRole) return;
-    const resumeRole =
-      o?.kind === 'resume'
-        ? roleDef(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId).id
-        : null;
-    const current = resumeRole ?? this.props.roleId ?? DEFAULT_ROLE;
+    const { roleId, locked } = this.roleFor(o);
+    const money = roleMoney(o, this.props);
+    const m = money.find((x) => x.roleId === roleId);
+    const poor = !locked && !!m && !m.affordable;
+    this.roleBtn.className = `rs-role-btn${locked ? ' locked' : ''}${poor ? ' poor' : ''}`;
+    this.roleBtn.disabled = locked;
+    this.roleBtn.title = str(roleDef(roleId).nameKey);
+    this.roleBtn.setAttribute('aria-label', str(roleDef(roleId).nameKey));
+    this.roleBtn.innerHTML =
+      roleIconSvg(roleId, 28) +
+      (locked ? `<span class="lock">🔒</span>` : m ? `<span class="p">${esc(m.price)}</span>` : '');
+    if (locked) this.toggleRoleMenu(false);
+    if (this.roleMenu.hidden) return;
+    const avail = o ? optionMoney(o, this.props) : null;
     const items = ROLES.map((r, i) => {
-      const sel = r.id === current;
+      const rm = money.find((x) => x.roleId === r.id);
+      const off = !!rm && !rm.affordable;
+      const sel = r.id === roleId;
       return (
-        `<button type="button" class="rs-role${sel ? ' sel' : ''}" data-role="${esc(r.id)}"` +
-        ` aria-pressed="${sel}"${resumeRole ? ' disabled' : ''} title="${esc(str(r.blurbKey))}">` +
-        `<span class="k">${i + 1}</span><span class="n">${esc(str(r.nameKey))}</span></button>`
+        `<button type="button" class="rs-rm-item${sel ? ' sel' : ''}${off ? ' poor' : ''}" data-role="${esc(r.id)}"` +
+        `${off ? ' disabled' : ''} title="${esc(str(r.blurbKey))}">` +
+        roleIconSvg(r.id, 24) +
+        `<span class="n">${esc(str(r.nameKey))}</span>` +
+        (rm ? `<span class="p">${esc(rm.price)}</span>` : '') +
+        `<span class="k">${i + 1}</span></button>`
       );
     });
-    const label = resumeRole ? str('respawn.role.keeps') : str('respawn.role.title');
-    this.rolesEl.innerHTML = `<div class="rs-roles-label">${esc(label)}</div><div class="rs-roles-row">${items.join('')}</div>`;
+    this.roleMenu.innerHTML =
+      (avail
+        ? `<div class="rs-rm-money${avail.debt ? ' debt' : ''}">${esc(avail.text)}</div>`
+        : '') + `<div class="rs-rm-grid">${items.join('')}</div>`;
+  }
+
+  /** Opens/closes the role menu (above the role button). */
+  private toggleRoleMenu(on = this.roleMenu.hidden): void {
+    if (on && this.roleBtn.disabled) on = false;
+    if (this.roleMenu.hidden === !on) return;
+    this.roleMenu.hidden = !on;
+    if (on) this.renderRoles(this.selectedOption());
   }
 
   private renderTimeline(): void {
     if (this.destroyed) return;
     const p = this.props;
-    const rows = laneRows(p.lanes, p.soldiers, p.map);
-    this.emptyEl.hidden = rows.length > 0;
+    // (PHASE12-c) Spawn points first (short rows), then soldiers (inert ones shorter).
+    const rows = timelineRows(p, this.selected, this.settings.rowHeight, collapsedSpawns);
+    this.emptyEl.hidden = rows.some((r) => r.kind === 'lane') || rows.length > 0;
     const labelW = this.labelWidth();
     const totalW = this.frame.clientWidth;
     const plotW = Math.max(40, totalW - labelW);
@@ -801,7 +753,6 @@ export class RespawnScreen {
         : clampView({ ...this.view, width: plotW }, this.domain);
     }
     const v = this.view;
-    const rowH = this.settings.rowHeight;
     const t = now();
     const sel = this.selectedOption();
     const dim = unconfirmedRange(p.resolvedUntil, this.domain);
@@ -867,7 +818,8 @@ export class RespawnScreen {
       `</svg>`;
 
     // Rows.
-    const H = Math.max(rows.length * rowH, 1);
+    const last = rows[rows.length - 1];
+    const H = Math.max(last ? last.y + last.h : 0, 1);
     const out: string[] = [];
     out.push(
       `<defs>` +
@@ -876,7 +828,16 @@ export class RespawnScreen {
         `<clipPath id="rs-clip"><rect x="${labelW}" y="0" width="${plotW}" height="${H}"/></clipPath>` +
         `</defs>`,
     );
-    rows.forEach((r, i) => out.push(this.rowSvg(r, i, rowH, labelW, totalW, x, sel, t)));
+    rows.forEach((r, i) =>
+      out.push(
+        r.kind === 'spawn'
+          ? this.spawnRowSvg(r, labelW, totalW, x, plotRight, sel)
+          : r.compact
+            ? this.compactRowSvg(r, totalW, x)
+            : this.rowSvg(r.row, i, r.y, r.h, labelW, totalW, x, sel, t),
+      ),
+    );
+    out.push(this.branchesSvg(rows, x));
     // Guides and scrubber above the rows.
     out.push(`<g clip-path="url(#rs-clip)" class="overlay">`);
     if (dim) {
@@ -894,14 +855,84 @@ export class RespawnScreen {
     }
     out.push(`</g>`);
     // Labels (fixed column over the clipped plot).
-    rows.forEach((r, i) => out.push(this.labelSvg(r, i, rowH, labelW, sel)));
+    rows.forEach((r) =>
+      out.push(
+        r.kind === 'spawn'
+          ? this.spawnLabelSvg(r, labelW, sel)
+          : r.compact
+            ? `<rect class="lbl-compact" x="0" y="${r.y}" width="${labelW}" height="${r.h}"/>`
+            : this.labelSvg(r, labelW, sel),
+      ),
+    );
     this.rowsWrap.innerHTML = `<svg class="rs-rows-svg" width="${totalW}" height="${H}">${out.join('')}</svg>`;
     this.rowsWrap.style.height = `${H}px`;
+    this.renderMoney(labelW, totalW, x, sel);
+  }
+
+  /** (PHASE11) The balance over battle time, on the timeline's own scale ([D51]). */
+  private renderMoney(
+    labelW: number,
+    totalW: number,
+    x: (t: number) => number,
+    sel: SpawnOption | null,
+  ): void {
+    const l = shownEconomy(this.props);
+    this.moneyEl.hidden = !l;
+    if (!l) return;
+    const H = MONEY_H;
+    const end = Math.max(this.domain.to, ...l.purchases.map((p) => p.tick));
+    const pts = moneyCurve(l, end);
+    const lo = Math.min(0, ...pts.map((p) => p.v));
+    const hi = Math.max(1, ...pts.map((p) => p.v));
+    const y = (v: number) => r1(H - 6 - ((v - lo) / (hi - lo)) * (H - 14));
+    const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t)} ${y(p.v)}`).join('');
+    const s: string[] = [];
+    s.push(
+      `<defs><clipPath id="rs-clip-money"><rect x="${labelW}" y="0" width="${totalW - labelW}" height="${H}"/></clipPath></defs>`,
+    );
+    s.push(`<text class="mn-lbl" x="8" y="${r1(H / 2 + 4)}">${esc(str('money.title'))}</text>`);
+    s.push(`<g clip-path="url(#rs-clip-money)">`);
+    if (lo < 0) {
+      s.push(
+        `<rect class="mn-debt" x="${labelW}" y="${y(0)}" width="${totalW - labelW}" height="${r1(H - y(0))}"/>`,
+      );
+    }
+    s.push(`<line class="mn-zero" x1="${labelW}" y1="${y(0)}" x2="${totalW}" y2="${y(0)}"/>`);
+    s.push(`<path class="mn-line" d="${path}"/>`);
+    for (const b of l.bounties) {
+      const tip = esc(str('money.bountyTip', { money: formatMoney(b.amount) }));
+      s.push(
+        `<circle class="mn-bounty" cx="${x(b.tick)}" cy="${y(balanceAt(l, b.tick))}" r="2.5" data-tip="${tip}"/>`,
+      );
+    }
+    for (const p of l.purchases) {
+      const tip = esc(
+        str('money.purchaseTip', {
+          role: str(roleDef(p.roleId).nameKey),
+          money: formatMoney(p.cost),
+        }),
+      );
+      s.push(
+        `<circle class="mn-buy" cx="${x(p.tick)}" cy="${y(balanceAt(l, p.tick))}" r="3.5" data-tip="${tip}"/>`,
+      );
+    }
+    if (sel?.kind === 'new') {
+      const gx = x(sel.entryTick);
+      const v = balanceAt(l, sel.entryTick);
+      s.push(`<line class="guide" x1="${gx}" y1="0" x2="${gx}" y2="${H}"/>`);
+      s.push(
+        `<g class="mn-sel" data-tip="${esc(moneyTip(l, sel.entryTick))}"><circle cx="${gx}" cy="${y(v)}" r="4.5"/>` +
+          `<text x="${gx + 7}" y="${Math.max(11, y(v) - 6)}">${esc(formatMoney(v))}</text></g>`,
+      );
+    }
+    s.push(`</g>`);
+    this.moneyEl.innerHTML = `<svg class="rs-money-svg" width="${totalW}" height="${H}">${s.join('')}</svg>`;
   }
 
   private rowSvg(
     r: LaneRow,
     i: number,
+    y0: number,
     rowH: number,
     labelW: number,
     totalW: number,
@@ -909,7 +940,6 @@ export class RespawnScreen {
     sel: SpawnOption | null,
     t: number,
   ): string {
-    const y0 = i * rowH;
     const cy = r1(y0 + rowH / 2);
     const lane = r.lane;
     const isSel = sel?.kind === 'resume' && sel.soldierId === r.soldierId;
@@ -985,6 +1015,23 @@ export class RespawnScreen {
     }
     // End glyph: X and O dominate.
     const es = endStyle(lane.end);
+    // (PHASE12-d) Only an O that's actually offered can be picked (too hurt: [D76]).
+    if (es.selectable) {
+      es.selectable = this.props.options.some(
+        (o) => o.kind === 'resume' && o.soldierId === r.soldierId,
+      );
+      if (!es.selectable) es.cls += ' weak';
+    }
+    // (PHASE12-d) HP left at the O: a small bar under it.
+    if (lane.end.kind === 'open' && lane.end.hp !== undefined && es.tick !== null) {
+      const hx = x(es.tick);
+      const w = 22;
+      const hpc = lane.end.hp > 0.5 ? 'hp-ok' : lane.end.hp > 0.25 ? 'hp-low' : 'hp-crit';
+      s.push(
+        `<rect class="hp-bg" x="${r1(hx - w / 2)}" y="${r1(cy + rowH * 0.32)}" width="${w}" height="3" rx="1.5"/>` +
+          `<rect class="hp ${hpc}" x="${r1(hx - w / 2)}" y="${r1(cy + rowH * 0.32)}" width="${r1(w * lane.end.hp)}" height="3" rx="1.5"/>`,
+      );
+    }
     if (es.glyph && es.tick !== null) {
       const gx = x(es.tick);
       const g = Math.max(8, Math.min(15, rowH * 0.34));
@@ -1011,25 +1058,134 @@ export class RespawnScreen {
     return s.join('');
   }
 
-  private labelSvg(
-    r: LaneRow,
-    i: number,
-    rowH: number,
-    labelW: number,
-    sel: SpawnOption | null,
-  ): string {
-    const y0 = i * rowH;
+  /** A soldier's label: their role icon and number (PHASE12-c). */
+  private labelSvg(row: LaneTimelineRow, labelW: number, sel: SpawnOption | null): string {
+    const r = row.row;
+    const { y: y0, h } = row;
     const isSel = sel?.kind === 'resume' && sel.soldierId === r.soldierId;
-    const two = rowH >= 36;
-    const sub = r.neverSpawned ? str('respawn.timeline.neverSpawned') : r.spawnName;
-    const tip = r.neverSpawned ? ` data-tip="${esc(endTooltip(r.lane.end, r.ordinal))}"` : '';
+    const tip = esc(
+      r.neverSpawned
+        ? endTooltip(r.lane.end, r.ordinal)
+        : `${str(roleDef(r.roleId).nameKey)} · ${r.label} · ${r.spawnName}`,
+    );
+    const icon = Math.min(18, h - 6);
     return (
-      `<g class="lbl${isSel ? ' sel' : ''}${r.neverSpawned ? ' never' : ''}"${tip}>` +
-      `<rect x="0" y="${y0}" width="${labelW}" height="${rowH}"/>` +
-      `<text class="name" x="10" y="${r1(y0 + (two ? rowH / 2 - 2 : rowH / 2 + 5))}">${esc(r.label)}</text>` +
-      (two ? `<text class="sub" x="10" y="${r1(y0 + rowH / 2 + 12)}">${esc(sub)}</text>` : '') +
+      `<g class="lbl${isSel ? ' sel' : ''}${r.neverSpawned ? ' never' : ''}${row.interactive ? '' : ' inert'}" data-tip="${tip}">` +
+      `<rect x="0" y="${y0}" width="${labelW}" height="${h}"/>` +
+      roleIconG(r.roleId, 8, r1(y0 + (h - icon) / 2), icon) +
+      `<text class="name" x="${12 + icon}" y="${r1(y0 + h / 2 + 5)}">${esc(str('respawn.timeline.soldierShort', { n: r.ordinal }))}</text>` +
       `</g>`
     );
+  }
+
+  /** (PHASE12-d) A folded soldier: a thin line from spawn to end, a dot for how it ends. */
+  private compactRowSvg(row: LaneTimelineRow, totalW: number, x: (t: number) => number): string {
+    const lane = row.row.lane;
+    const cy = r1(row.y + row.h / 2);
+    const es = endStyle(lane.end);
+    const endT = es.tick ?? lane.recordedTo;
+    return (
+      `<g class="row compact" data-row="${esc(row.row.soldierId)}">` +
+      `<rect class="row-bg" x="0" y="${row.y}" width="${totalW}" height="${row.h}"/>` +
+      `<g clip-path="url(#rs-clip)">` +
+      `<line class="cl-line" x1="${x(lane.recordedFrom)}" y1="${cy}" x2="${x(endT)}" y2="${cy}"/>` +
+      (es.glyph ? `<circle class="cl-end ${es.cls}" cx="${x(endT)}" cy="${cy}" r="3"/>` : '') +
+      `</g></g>`
+    );
+  }
+
+  /**
+   * (PHASE12-c) A spawn point's label: a fold toggle (▾ / ▸) and its name. Tapping the name
+   * picks the spawn; tapping the toggle folds its soldiers into thin lines (PHASE12-d).
+   */
+  private spawnLabelSvg(row: SpawnTimelineRow, labelW: number, sel: SpawnOption | null): string {
+    const isSel = sel?.kind === 'new' && sel.spawnPointId === row.spawnPointId;
+    const pick = row.key ? ` data-select="${esc(row.key)}"` : '';
+    const cy = r1(row.y + row.h / 2 + 4);
+    const fold =
+      row.count > 0
+        ? `<g class="fold" data-fold="${esc(row.spawnPointId)}"><rect class="hit" x="0" y="${row.y}" width="18" height="${row.h}"/>` +
+          `<text class="tw" x="4" y="${cy}">${row.collapsed ? '▸' : '▾'}</text></g>`
+        : '';
+    return (
+      `<g class="lbl spawn${isSel ? ' sel' : ''}${row.option ? '' : ' closed'}">` +
+      `<rect x="0" y="${row.y}" width="${labelW}" height="${row.h}"/>` +
+      `<g${pick} data-tip="${esc(row.name)}"><rect class="hit" x="18" y="${row.y}" width="${labelW - 18}" height="${row.h}"/>` +
+      `<text class="name" x="18" y="${cy}">${esc(row.name)}</text></g>` +
+      fold +
+      `</g>`
+    );
+  }
+
+  /**
+   * (PHASE12-c) A spawn point's row: a track from when it opened, ticks for the soldiers who
+   * entered there, and the marker at its next entry slot ([D7]) — tap it to pick that spawn.
+   * A point not offered right now (closed, lost) has no marker.
+   */
+  private spawnRowSvg(
+    row: SpawnTimelineRow,
+    labelW: number,
+    totalW: number,
+    x: (t: number) => number,
+    plotRight: number,
+    sel: SpawnOption | null,
+  ): string {
+    const { y: y0, h, option: o } = row;
+    const cy = r1(y0 + h / 2);
+    const isSel = sel?.kind === 'new' && sel.spawnPointId === row.spawnPointId;
+    const s: string[] = [];
+    s.push(`<g class="row spawnrow${isSel ? ' sel' : ''}${o ? '' : ' closed'}">`);
+    s.push(`<rect class="row-bg" x="0" y="${y0}" width="${totalW}" height="${h}"/>`);
+    s.push(`<g clip-path="url(#rs-clip)">`);
+    const x0 = Math.max(labelW, x(row.openTick));
+    s.push(`<line class="sp-track" x1="${x0}" y1="${cy}" x2="${plotRight}" y2="${cy}"/>`);
+    for (const e of row.entries) {
+      s.push(
+        `<line class="sp-entry" x1="${x(e)}" y1="${r1(cy - 4)}" x2="${x(e)}" y2="${r1(cy + 4)}"/>`,
+      );
+    }
+    if (o && row.key) {
+      const money = optionMoney(o, this.props);
+      const tip = esc(
+        [
+          str('respawn.spawn.rowTip', { place: row.name, time: formatBattleTime(o.entryTick) }),
+          money?.text,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+      const mx = x(o.entryTick);
+      const a = Math.max(6, Math.min(10, h * 0.32));
+      s.push(
+        `<g class="sp-next${isSel ? ' sel' : ''}" data-select="${esc(row.key)}" data-tip="${tip}">` +
+          (isSel ? `<circle class="sel-ring" cx="${mx}" cy="${cy}" r="${r1(a + 5)}"/>` : '') +
+          `<path class="sp-chev" d="M${r1(mx - a)} ${r1(cy + a * 0.6)}L${mx} ${r1(cy - a * 0.7)}L${r1(mx + a)} ${r1(cy + a * 0.6)}Z"/>` +
+          `<circle class="hit" cx="${mx}" cy="${cy}" r="22"/></g>`,
+      );
+    }
+    s.push(`</g></g>`);
+    return s.join('');
+  }
+
+  /**
+   * (PHASE12-d) Branch lines, like a git graph: from each spawn point's row down to each of its
+   * soldiers, at the moment they entered.
+   */
+  private branchesSvg(rows: readonly TimelineRow[], x: (t: number) => number): string {
+    const out: string[] = [];
+    let spawn: SpawnTimelineRow | null = null;
+    for (const r of rows) {
+      if (r.kind === 'spawn') {
+        spawn = r;
+        continue;
+      }
+      if (!spawn || spawn.spawnPointId !== r.spawnPointId) continue;
+      const bx = x(r.spawnTick);
+      out.push(
+        `<path class="branch${r.compact ? ' compact' : ''}" d="M${bx} ${r1(spawn.y + spawn.h / 2)}V${r1(r.y + r.h / 2)}"/>`,
+      );
+    }
+    return `<g clip-path="url(#rs-clip)" class="branches">${out.join('')}</g>`;
   }
 }
 

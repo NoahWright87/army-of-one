@@ -16,8 +16,6 @@ export interface RespawnViewSettings {
   wheel: 'zoom' | 'scroll';
   /** Pulses, flashes and fades when history changes. */
   animations: boolean;
-  /** Show the X/O/!/dashed legend under the timeline. */
-  legend: boolean;
   /** (06-b) Show the revealed map panel ([D29]). */
   showMap: boolean;
 }
@@ -28,7 +26,6 @@ export const DEFAULT_RESPAWN_SETTINGS: RespawnViewSettings = {
   autoFit: true,
   wheel: 'zoom',
   animations: true,
-  legend: true,
   showMap: true,
 };
 
@@ -38,7 +35,6 @@ export const RESPAWN_SETTING_IDS: { [K in keyof RespawnViewSettings]: string } =
   autoFit: 'respawn.autoFit',
   wheel: 'respawn.wheel',
   animations: 'respawn.animations',
-  legend: 'respawn.legend',
   showMap: 'respawn.showMap',
 };
 
@@ -90,13 +86,6 @@ export function respawnSettingDefs(): SettingDef[] {
       default: d.animations,
     },
     {
-      id: id.legend,
-      group: G,
-      label: str('settings.respawn.legend'),
-      type: 'boolean',
-      default: d.legend,
-    },
-    {
       id: id.showMap,
       group: G,
       label: str('settings.respawn.showMap'),
@@ -114,7 +103,6 @@ export function readRespawnSettings(store: SettingsStore): RespawnViewSettings {
     autoFit: store.getBool(id.autoFit),
     wheel: store.getString(id.wheel) === 'scroll' ? 'scroll' : 'zoom',
     animations: store.getBool(id.animations),
-    legend: store.getBool(id.legend),
     showMap: store.getBool(id.showMap),
   };
 }

@@ -1,4 +1,4 @@
-import type { Tuning } from '../../content/tuning';
+import type { Tuning, VehicleDrive } from '../../content/tuning';
 import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
@@ -78,6 +78,11 @@ export interface SoldierState {
   moveFrac: number;
   /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
   sprinting?: boolean;
+  /**
+   * (PHASE12-b) A vehicle's driving state ([D63], [D64]); absent for soldiers. For a vehicle,
+   * `facing` is the hull's heading (what's recorded); the turret aims separately.
+   */
+  drive?: DriveState;
   /** Interact was held last tick (interact is edge-triggered). */
   interactHeld: boolean;
   deathTick: Tick | null;
@@ -89,6 +94,16 @@ export interface SoldierState {
    * while an echo controller drives it through a lead-in; 'interrupted' marks a frozen echo.
    */
   viewRole?: 'live' | 'interrupted';
+}
+
+/** (PHASE12-b) A vehicle's driving state. Plain data (snapshots). */
+export interface DriveState {
+  /** Signed speed along the hull, units/s (negative = reversing). */
+  speed: number;
+  /** Turret angle, radians. */
+  turret: number;
+  /** Last tick each soldier was run over by this one ([D66]), by id. */
+  hits: Record<string, number>;
 }
 
 /** Optional flags for a new soldier. Defaults: a live, interactive, killable soldier. */
@@ -119,7 +134,8 @@ export function createSoldier(
     x: position.x,
     y: position.y,
     facing,
-    hp: tuning.soldier.maxHp,
+    hp: soldierMaxHp(tuning, flags.roleId),
+    ...(isVehicleRole(flags.roleId) ? { drive: { speed: 0, turret: facing, hits: {} } } : {}),
     alive: true,
     controllable: flags.controllable ?? true,
     interactive: flags.interactive ?? true,
@@ -157,6 +173,36 @@ export function isEligible(s: SoldierState): boolean {
   return s.alive && s.interactive;
 }
 
+/** (PHASE12-b) Is this role a vehicle ([D63])? */
+export function isVehicleRole(roleId: RoleId | undefined): boolean {
+  return roleId === 'truck' || roleId === 'tank';
+}
+
+/** (PHASE12-b) A vehicle's driving numbers, or null for a soldier. */
+export function driveOf(tuning: Tuning, roleId: RoleId | undefined): VehicleDrive | null {
+  return roleId === 'truck' || roleId === 'tank' ? tuning.drive[roleId] : null;
+}
+
+/** (PHASE12-b) Collision radius against walls (a vehicle's body, else the soldier's). */
+export function wallRadiusOf(tuning: Tuning, s: SoldierState): number {
+  return driveOf(tuning, s.roleId)?.bodyRadius ?? tuning.soldier.wallRadius;
+}
+
+/** (PHASE12-b) Hit circle radius (a vehicle's body, else the soldier hitbox). */
+export function hitRadiusOf(tuning: Tuning, s: SoldierState): number {
+  return driveOf(tuning, s.roleId)?.bodyRadius ?? tuning.soldier.hitboxRadius;
+}
+
+/** (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). */
+export function soldierMaxHp(tuning: Tuning, roleId: RoleId | undefined): number {
+  return Math.round(tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1));
+}
+
+/** (PHASE12-a) Walking speed by role ([D62]: the Bazooka is slower). */
+export function soldierSpeed(tuning: Tuning, roleId: RoleId | undefined): number {
+  return tuning.soldier.speed * (tuning.roleStats?.[roleId ?? 'rifleman']?.speed ?? 1);
+}
+
 /** Static geometry that blocks soldier movement. */
 export function movementSolids(map: MapDef): Rect[] {
   return [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
@@ -170,8 +216,13 @@ export function stepSoldierMovement(
   tuning: Tuning,
 ): void {
   if (!s.alive) return;
+  const drive = driveOf(tuning, s.roleId);
+  if (drive) {
+    stepVehicleMovement(s, input, solids, tuning, drive);
+    return;
+  }
   const dir = clampLength(input.move, 1);
-  const walk = tuning.soldier.speed * DT;
+  const walk = soldierSpeed(tuning, s.roleId) * DT;
   const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
   const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk;
   const next = moveCircle(
@@ -187,4 +238,57 @@ export function stepSoldierMovement(
   s.x = next.x;
   s.y = next.y;
   s.facing = input.aim;
+}
+
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const approach = (v: number, target: number, step: number) =>
+  v < target ? Math.min(target, v + step) : Math.max(target, v - step);
+
+/**
+ * (PHASE12-b) One tick of driving ([D64]). The stick is a compass direction: the hull turns
+ * toward it, then the vehicle drives. A tank turns on the spot and only throttles up once it
+ * points within `alignDegrees`; a truck can't turn standing still, so it rolls at `crawlSpeed`
+ * while turning and speeds up once pointed the right way. Pulling (nearly) straight back
+ * reverses. The turret turns toward the aim at its own rate.
+ */
+function stepVehicleMovement(
+  s: SoldierState,
+  input: SoldierInput,
+  solids: readonly Rect[],
+  tuning: Tuning,
+  d: VehicleDrive,
+): void {
+  const dv = (s.drive ??= { speed: 0, turret: s.facing, hits: {} });
+  const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
+  let target = 0;
+  if (mag > 0.15) {
+    const want = Math.atan2(input.move.y, input.move.x);
+    const back = Math.abs(wrapAngle(want - s.facing));
+    const reverse = back > Math.PI - (tuning.drive.reverseArc * Math.PI) / 360;
+    const heading = reverse ? wrapAngle(want + Math.PI) : want;
+    const diff = wrapAngle(heading - s.facing);
+    let rate = d.turnRate;
+    if (!d.turnInPlace) rate *= Math.min(1, Math.abs(dv.speed) / Math.max(1, d.crawlSpeed));
+    const turn = Math.max(-rate * DT, Math.min(rate * DT, diff));
+    s.facing = wrapAngle(s.facing + turn);
+    const aligned = Math.abs(wrapAngle(heading - s.facing)) <= (d.alignDegrees * Math.PI) / 180;
+    const top = (reverse ? d.reverseSpeed : d.maxSpeed) * mag;
+    target = aligned ? top : d.turnInPlace ? 0 : Math.min(top, d.crawlSpeed);
+    if (reverse) target = -target;
+  }
+  const slowing =
+    Math.sign(target) !== Math.sign(dv.speed) || Math.abs(target) < Math.abs(dv.speed);
+  dv.speed = approach(dv.speed, target, (slowing ? d.brake : d.accel) * DT);
+  const step = dv.speed * DT;
+  const dir = { x: Math.cos(s.facing) * step, y: Math.sin(s.facing) * step };
+  const next = moveCircle({ x: s.x, y: s.y }, dir, d.bodyRadius, solids);
+  const moved = Math.hypot(next.x - s.x, next.y - s.y);
+  // Bumped into something: lose most of the speed.
+  if (Math.abs(step) > 0.5 && moved < Math.abs(step) * 0.5) dv.speed *= 0.5;
+  s.moveFrac = Math.min(1, moved / Math.max(1e-6, d.maxSpeed * DT));
+  s.sprinting = false;
+  s.x = next.x;
+  s.y = next.y;
+  const tr = d.turretTurnRate * DT;
+  dv.turret = wrapAngle(dv.turret + Math.max(-tr, Math.min(tr, wrapAngle(input.aim - dv.turret))));
 }

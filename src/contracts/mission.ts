@@ -7,7 +7,24 @@ export type MissionId = string;
  * (07-c) A soldier's role, picked per new soldier on the respawn screen ([D36]). A resumed
  * soldier keeps theirs. Absent on a record means 'rifleman' (records from before 07-c).
  */
-export type RoleId = 'rifleman' | 'grenadier' | 'gunner';
+export type RoleId =
+  | 'rifleman'
+  | 'grenadier'
+  | 'gunner'
+  /** (PHASE12-a) [D59]–[D62]. */
+  | 'sniper'
+  | 'shield'
+  | 'shotgun'
+  | 'bazooka'
+  /** (PHASE12-b) Vehicles: one unit you drive ([D55], [D63]). */
+  | 'truck'
+  | 'tank';
+
+/**
+ * (PHASE12-a) What fired a recorded shot. Absent on a shot action = the role's own gun (older
+ * recordings). Needed because a Sniper fires a pistol or a rifle depending on its set-up.
+ */
+export type ShotWeapon = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket' | 'shell';
 
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 
@@ -21,7 +38,15 @@ export interface Waypoint {
 
 /** Discrete recorded actions. Outcomes (hits, damage, deaths) are NOT recorded: they're re-simulated [E3]. */
 export type RecordedAction =
-  | { kind: 'shot'; t: Tick; x: number; y: number; angle: number }
+  | {
+      kind: 'shot';
+      t: Tick;
+      x: number;
+      y: number;
+      angle: number;
+      /** (PHASE12-a) The weapon, when it isn't the role's plain gun ([D59]–[D62]). */
+      gun?: ShotWeapon;
+    }
   /** (07-c) A grenade throw: where it left from, its final angle and throw distance ([D37]). */
   | { kind: 'throw'; t: Tick; x: number; y: number; angle: number; distance: number }
   | {
@@ -57,9 +82,11 @@ export interface SoldierRecord {
 // ---------- Observation (produced by 03-a's attempt runner, consumed by 03-b) ----------
 
 export type LaneFate =
-  | { kind: 'alive' } // alive at obs.toTick; recording continues past it
+  /** alive at obs.toTick; recording continues past it. (PHASE12-d) `hp`: share of max HP then. */
+  | { kind: 'alive'; hp?: number }
   | { kind: 'died'; tick: Tick; cause: string }
-  | { kind: 'static'; tick: Tick } // reached end of recording alive → O
+  /** reached end of recording alive → O. (PHASE12-d) `hp`: share of max HP left then. */
+  | { kind: 'static'; tick: Tick; hp?: number }
   | { kind: 'interrupted'; tick: Tick; reason: string } // could not follow its schedule; froze [D24]
   | { kind: 'neverSpawned'; reason: string }; // spawn point not ours at spawnTick [D26]
 
@@ -99,6 +126,40 @@ export interface AttemptObservation {
    * Absent = none observed (same as []).
    */
   captures?: CaptureObservation[];
+  /** (PHASE11) Enemy soldiers/structures lost inside the window, whatever caused it ([D53]). */
+  enemyLosses?: EnemyLossObservation[];
+  /** (PHASE11) Capture points that stopped being ours inside the window ([D45], [Q25]). */
+  pointLosses?: PointLossObservation[];
+}
+
+/** (PHASE11) The world-level fields of an observation (what capture and loss folds read). */
+export type WorldObservation = Pick<
+  AttemptObservation,
+  'attempt' | 'fromTick' | 'toTick' | 'captures' | 'enemyLosses' | 'pointLosses'
+>;
+
+/** (PHASE11) What kind of enemy loss earns a bounty ([D53]). */
+export type EnemyLossKind = 'soldier' | 'turret' | 'vehicle' | 'mine';
+
+/** (PHASE11) An enemy soldier died, or an enemy structure was destroyed, at `tick`. */
+export interface EnemyLossObservation {
+  refId: string;
+  kind: EnemyLossKind;
+  /** Enemy soldiers: their role (bounties may differ by role). */
+  roleId?: RoleId;
+  tick: Tick;
+}
+
+/** (PHASE11) A capture point went from ours back to neutral (enemy soldiers retook it). */
+export interface PointLossObservation {
+  pointId: string;
+  tick: Tick;
+}
+
+/** (PHASE11) World-level loss truth, folded like `CaptureTruth`. */
+export interface LossTruth {
+  enemies: (EnemyLossObservation & { observedInAttempt: number })[];
+  points: (PointLossObservation & { observedInAttempt: number })[];
 }
 
 /** (05-a) A capture point reached `stage` at `tick`; `by` = the soldiers in the circle then. */
@@ -138,7 +199,8 @@ export interface LaneSpan {
 
 export type LaneEnd =
   | { kind: 'death'; tick: Tick } // X
-  | { kind: 'open'; tick: Tick } // O: alive at end of recording, resumable
+  /** O: alive at end of recording, resumable. (PHASE12-d) `hp`: share of max HP left. */
+  | { kind: 'open'; tick: Tick; hp?: number }
   | { kind: 'interrupted'; tick: Tick } // !  not resumable [D24]
   | { kind: 'neverSpawned' } // whole lane greyed [D26]
   | { kind: 'unresolved' } // scrubber hasn't caught up [D23]
@@ -189,4 +251,6 @@ export interface MissionState {
   inProgress?: InProgressLife;
   /** (05-a) Capture truth; absent in older saves and on maps without capture points (= []). */
   captureTruth?: CaptureTruth[];
+  /** (PHASE11) Enemy losses and lost points; absent in older saves (= nothing known yet). */
+  lossTruth?: LossTruth;
 }

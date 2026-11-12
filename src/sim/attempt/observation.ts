@@ -5,10 +5,13 @@
 import type {
   AttemptObservation,
   CaptureObservation,
+  EnemyLossObservation,
   LaneFate,
   MarkerKind,
+  PointLossObservation,
   SoldierId,
   TimelineMarker,
+  WorldObservation,
 } from '../../contracts/mission';
 import { compareIds } from '../core/ids';
 import type { Tick } from '../core/time';
@@ -16,6 +19,7 @@ import type { SimEvent } from '../events';
 import type { World } from '../state';
 import { simPerf } from '../perf';
 import { soldierIndex } from '../sim';
+import { soldierMaxHp } from '../entities/soldier';
 import type { EchoController, EchoTransition } from '../recording/echo-controller';
 
 /** String keys (into src/content/strings.ts) for each marker kind's tooltip. */
@@ -49,6 +53,9 @@ export class ObservationBuilder {
   readonly header: ObservationHeader;
   private readonly markers: TimelineMarker[] = [];
   private readonly captures: CaptureObservation[] = [];
+  /** (PHASE11) Every enemy loss in the window ([D53]) and every lost point ([Q25]). */
+  private readonly enemyLosses: EnemyLossObservation[] = [];
+  private readonly pointLosses: PointLossObservation[] = [];
   /** Soldiers that were alive (in the world, not dead) at fromTick or spawned later. */
   private readonly existed = new Set<SoldierId>();
 
@@ -99,6 +106,18 @@ export class ObservationBuilder {
         case 'soldierDied':
           // (07-d) An enemy soldier killed by one of ours is that soldier's kill.
           if (!isOurs(e.id)) {
+            // (PHASE11) Every enemy death pays, whatever caused it ([D53]).
+            if (isSoldier(e.id)) {
+              const s = simPerf.soldierIndex
+                ? soldierIndex(world.state.soldiers).get(e.id)
+                : world.state.soldiers.find((x) => x.id === e.id);
+              this.enemyLosses.push({
+                refId: e.id,
+                kind: 'soldier',
+                ...(s ? { roleId: s.roleId ?? 'rifleman' } : {}),
+                tick: e.tick,
+              });
+            }
             if (isOurs(e.by)) this.mark(e.by, e.tick, 'kill', e.id);
             break;
           }
@@ -113,13 +132,26 @@ export class ObservationBuilder {
             }
           }
           break;
-        case 'hazardDestroyed':
+        case 'hazardDestroyed': {
+          const isTurret = (world.map.turrets ?? []).some((t) => t.id === e.id);
+          const isVehicle = world.state.vehicles.some((v) => v.id === e.id);
+          // (PHASE11) Bridges are terrain, not enemy structures: no bounty.
+          if (isTurret || isVehicle) {
+            this.enemyLosses.push({
+              refId: e.id,
+              kind: isTurret ? 'turret' : 'vehicle',
+              tick: e.tick,
+            });
+          }
           if (isOurs(e.by)) {
-            const isTurret = (world.map.turrets ?? []).some((t) => t.id === e.id);
             this.mark(e.by, e.tick, isTurret ? 'kill' : 'hazardDestroyed', e.id);
           }
           break;
+        }
         case 'mineDetonated':
+          if ((world.map.mines ?? []).some((m) => m.id === e.id)) {
+            this.enemyLosses.push({ refId: e.id, kind: 'mine', tick: e.tick });
+          }
           if (isOurs(e.by)) this.mark(e.by, e.tick, 'hazardDestroyed', e.id);
           break;
         case 'interacted':
@@ -129,8 +161,12 @@ export class ObservationBuilder {
           if (isOurs(e.by)) this.mark(e.by, e.tick, 'objective', e.id);
           break;
         case 'captureStageChanged':
-          // (07-d) Losses to enemy soldiers aren't part of the capture truth yet ([Q25]).
-          if (e.stage === 'enemy' || e.lost) break;
+          // (PHASE11) Enemy soldiers took one of our points back to neutral ([D45], [Q25]).
+          if (e.lost) {
+            if (e.stage === 'neutral') this.pointLosses.push({ pointId: e.id, tick: e.tick });
+            break;
+          }
+          if (e.stage === 'enemy') break;
           this.captures.push({
             pointId: e.id,
             stage: e.stage,
@@ -151,6 +187,21 @@ export class ObservationBuilder {
           break;
       }
     }
+  }
+
+  /**
+   * (PHASE11) The world-level part of the observation so far (captures and losses up to
+   * `toTick`), without lane fates. The live HUD folds it to show the money as it changes.
+   */
+  worldSoFar(toTick: Tick): WorldObservation {
+    return {
+      attempt: this.header.attempt,
+      fromTick: this.header.fromTick,
+      toTick,
+      captures: this.captures.map((c) => ({ ...c, by: [...c.by] })),
+      enemyLosses: this.enemyLosses.map((l) => ({ ...l })),
+      pointLosses: this.pointLosses.map((l) => ({ ...l })),
+    };
   }
 
   /** Echo lane transitions (O reached, interrupted). */
@@ -186,6 +237,8 @@ export class ObservationBuilder {
       lanes,
       markers: this.markers.map((m) => ({ ...m })),
       captures: this.captures.map((c) => ({ ...c, by: [...c.by] })),
+      enemyLosses: this.enemyLosses.map((l) => ({ ...l })),
+      pointLosses: this.pointLosses.map((l) => ({ ...l })),
       ...(mc && mc.tick >= this.header.fromTick && mc.by
         ? { missionComplete: { tick: mc.tick, bySoldierId: mc.by } }
         : {}),
@@ -206,9 +259,11 @@ function laneFate(
   const s = byId ? byId.get(id) : world.state.soldiers.find((x) => x.id === id);
   if (!s || !existed) return null; // not spawned in the window, or already dead at its start
   if (!s.alive) return { kind: 'died', tick: s.deathTick!, cause: s.deathCause ?? 'unknown' };
-  if (echo?.mode === 'static') return { kind: 'static', tick: echo.fateTick! };
+  // (PHASE12-d) How hurt they are where the recording ends (resume HP).
+  const hp = Math.max(0, Math.min(1, s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId))));
+  if (echo?.mode === 'static') return { kind: 'static', tick: echo.fateTick!, hp };
   if (echo?.mode === 'interrupted') {
     return { kind: 'interrupted', tick: echo.fateTick!, reason: echo.reason ?? '' };
   }
-  return { kind: 'alive' };
+  return { kind: 'alive', hp };
 }

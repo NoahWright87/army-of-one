@@ -4,6 +4,7 @@
  *   npm run sim -- --map mission-03 --script breach-naive    # scripted scenario, prints events
  *   npm run sim -- --map mission-03 --list                   # list scenarios
  *   npm run sim -- --scenario rescue|chain|bench             # PHASE03-a echoes (sim-echoes.ts)
+ *   npm run sim -- --scenario economy [--lives a,b] [--enemies]  # PHASE11 money (sim-economy.ts)
  * mission-03 "Breach" is the only mission ([D31]); `--script` defaults to it.
  * Flags: --quiet (no per-event lines), --all-events (include every shot/damage event).
  */
@@ -19,12 +20,19 @@ import { runScenario } from '../src/sim/scenarios/driver';
 import { MISSION_03_SCENARIOS } from '../src/sim/scenarios/mission-03';
 import type { MapDef } from '../src/sim/world/map';
 import { runEchoScenario } from './sim-echoes';
+import { runEconomyScenario } from './sim-economy';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : fallback;
 }
 const flag = (name: string) => process.argv.includes(`--${name}`);
+
+if (arg('scenario', '') === 'economy') {
+  const lives = arg('lives', 'breach-slow,breach-rescue,breach-resume,breach-win').split(',');
+  await runEconomyScenario(lives, flag('enemies'));
+  process.exit(0);
+}
 
 if (process.argv.includes('--scenario')) {
   runEchoScenario(arg('scenario', ''), {

@@ -27,7 +27,7 @@ import { fireShot } from '../combat/shots';
 import { emit, type World } from '../state';
 import { dynamicBlockers } from '../world/blockers';
 import { circleOverlapsRect } from '../world/collision';
-import { canFireOver, coverStops } from '../world/cover';
+import { blastCover, canFireOver, coverStops, standingCover } from '../world/cover';
 import type { Rect } from '../world/map';
 import { objectiveRadius } from './objective';
 import { isEligible } from './soldier';
@@ -86,7 +86,7 @@ export function throwGrenade(
     vz: (gt.gravity * flight) / 2,
     fuseTicks: Math.max(1, secondsToTicks(gt.fuseSeconds)),
     firstFlight: true,
-    thrownOver: world.cover
+    thrownOver: standingCover(world)
       .filter((c) => canFireOver(from, c, c.lobbed, world.tuning))
       .map((c) => c.id),
     passing: [],
@@ -146,7 +146,7 @@ function sweep(p: Vec2, v: Vec2, r: Rect): { t: number; axis: 'x' | 'y' } | null
 function obstacles(world: World): Obstacle[] {
   const { map } = world;
   const out: Obstacle[] = map.walls.map((rect) => ({ rect, lobbed: 1 }));
-  for (const c of world.cover) out.push({ rect: c.rect, coverId: c.id, lobbed: c.lobbed });
+  for (const c of standingCover(world)) out.push({ rect: c.rect, coverId: c.id, lobbed: c.lobbed });
   const standing = new Set([
     ...(map.turrets ?? []).map((t) => t.id),
     ...(map.objectives ?? []).map((o) => o.id),
@@ -258,6 +258,7 @@ function explode(world: World, g: GrenadeEntity): void {
       range: gt.fragmentRange,
       damage: gt.fragmentDamage,
       cause: 'grenade',
+      damageKind: 'fragment', // [D71]: shrapnel doesn't pierce
       coverKey: `${g.id}#f${i}`,
       fireOver: false,
       silent: true,
@@ -277,9 +278,11 @@ function explode(world: World, g: GrenadeEntity): void {
 
   for (const s of st.soldiers) {
     if (isEligible(s) && distanceSq(s, c) <= r2) {
-      damageSoldier(world, s, gt.blastDamage, g.by, 'grenade');
+      damageSoldier(world, s, gt.blastDamage, g.by, 'grenade', c);
     }
   }
+  // (PHASE12-b) The blast damages breakable cover ([Q40]); the fragments hit it as shots.
+  blastCover(world, c, gt.blastRadius, gt.blastDamage, 'grenade', g.by);
   const within = (p: Vec2, extra: number) => distanceSq(p, c) <= (gt.blastRadius + extra) ** 2;
   (map.turrets ?? []).forEach((def, i) => {
     if (within(def.position, tuning.turret.radius)) damageTurret(world, i, gt.hazardDamage, g.by);

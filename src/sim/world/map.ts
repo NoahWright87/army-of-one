@@ -48,6 +48,11 @@ export interface CapturePointDef {
    * completes once every objective (destroy targets and flag points) is done.
    */
   objective?: boolean;
+  /**
+   * (PHASE11) Extra income per second of battle time while this point is ours ([D51]).
+   * Default `tuning.economy.captureIncomePerSecond`.
+   */
+  income?: number;
 }
 
 /** A fixed gun emplacement ([D15]). Stats come from `tuning.turret`. */
@@ -177,6 +182,8 @@ export interface MapDef {
   capturePoints?: CapturePointDef[];
   /** (07-d) Enemy soldiers ([D44]). */
   squads?: SquadDef[];
+  /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
+  economy?: { startMoney?: number; baseIncomePerSecond?: number };
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */
@@ -196,8 +203,9 @@ export function validateMap(map: MapDef): void {
   ];
   for (const e of all) {
     if (ids.has(e.id)) throw new Error(`${map.id}: duplicate entity id ${e.id}`);
-    // Soldier ("S…"), enemy ("E…"), vehicle ("V…") and grenade ("G…") ids are runtime ids.
-    if (/^[SEVG]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
+    // Soldier ("S…"), enemy ("E…"), vehicle ("V…"), grenade ("G…") and rocket ("R…") ids are
+    // runtime ids.
+    if (/^[SEVGR]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
     ids.add(e.id);
   }
   for (const l of map.trafficLanes ?? []) {

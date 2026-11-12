@@ -22,6 +22,15 @@ import type {
 import { compareIds } from '../../sim/core/ids';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
 import type { MapDef } from '../../sim/world/map';
+import { ROLES } from '../../content/roles';
+import {
+  availableAt,
+  balanceAt,
+  canAfford,
+  formatMoney,
+  rateAt,
+  type Ledger,
+} from '../../timeline/economy';
 import type { RevealOptions } from '../../timeline/reveal';
 import { MIN_DOMAIN_TICKS, type TimeDomain } from './time-scale';
 
@@ -56,6 +65,13 @@ export interface RespawnProps {
    */
   roleId?: RoleId;
   onRole?: (roleId: RoleId) => void;
+  /**
+   * The option selected when the screen opens: the quick-redeploy choice (last spawn point's
+   * next slot), so DEPLOY is one tap back into the action. Absent: the first option.
+   */
+  preferred?: SpawnOption | null;
+  /** (PHASE11) Money on the timeline ([D51]); absent = no money shown (fixtures, economy off). */
+  economy?: Ledger;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */
@@ -70,6 +86,7 @@ export interface RespawnUpdate {
   soldiers?: readonly SoldierRecord[];
   captures?: readonly CaptureTruth[];
   captureChanges?: readonly CaptureChange[];
+  economy?: Ledger;
 }
 
 // ---------- Rows ----------
@@ -78,6 +95,8 @@ export interface LaneRow {
   soldierId: SoldierId;
   ordinal: number;
   label: string;
+  /** The soldier's role (an icon replaces the name, PHASE12-c). */
+  roleId: RoleId;
   spawnName: string;
   lane: LaneTruth;
   neverSpawned: boolean;
@@ -98,6 +117,7 @@ export function laneRows(
         soldierId: lane.soldierId,
         ordinal,
         label: str('respawn.timeline.soldier', { n: ordinal }),
+        roleId: s?.roleId ?? 'rifleman',
         spawnName: s ? spawnPointName(map, s.spawnPointId) : '',
         lane,
         neverSpawned: lane.end.kind === 'neverSpawned',
@@ -121,25 +141,6 @@ export function capturePointName(map: MapDef, pointId: string): string {
 export function captureOfSpawn(map: MapDef, spawnPointId: string): string | null {
   const p = map.spawnPoints.find((sp) => sp.id === spawnPointId);
   return p?.kind === 'capture' ? (p.capturePointId ?? null) : null;
-}
-
-/** (05-a) "Point lost" / "captured" captions, flagged `lost` for the highlight. */
-export function captureChangeCaption(
-  c: CaptureChange,
-  map: MapDef,
-): { text: string; lost: boolean } {
-  const point = capturePointName(map, c.pointId);
-  if (c.after === null) return { text: str('respawn.change.pointLost', { point }), lost: true };
-  if (c.before === null) {
-    return {
-      text: str('respawn.change.pointCaptured', { point, time: formatBattleTime(c.after) }),
-      lost: false,
-    };
-  }
-  return {
-    text: str('respawn.change.pointMoved', { point, time: formatBattleTime(c.after) }),
-    lost: false,
-  };
 }
 
 /** (05-a) Capture flags drawn on the time axis: every point held as ours, with its tick. */
@@ -228,7 +229,13 @@ export function endTooltip(end: LaneEnd, ordinal: number): string {
     case 'death':
       return str('respawn.end.death', { n, time: formatBattleTime(end.tick) });
     case 'open':
-      return str('respawn.end.open', { n, time: formatBattleTime(end.tick) });
+      return end.hp === undefined
+        ? str('respawn.end.open', { n, time: formatBattleTime(end.tick) })
+        : str('respawn.end.openHp', {
+            n,
+            time: formatBattleTime(end.tick),
+            hp: Math.round(end.hp * 100),
+          });
     case 'interrupted':
       return str('respawn.end.interrupted', { n, time: formatBattleTime(end.tick) });
     case 'complete':
@@ -291,67 +298,6 @@ function push(out: { from: Tick; to: Tick; kind: LaneSpanKind }[], r: (typeof ou
   const last = out[out.length - 1];
   if (last && last.kind === r.kind && last.to + 1 === r.from) last.to = r.to;
   else out.push(r);
-}
-
-// ---------- Captions ----------
-
-export function changeCaption(change: LaneChange, ordinal: number): string {
-  const n = ordinal;
-  const a = change.after;
-  switch (a.kind) {
-    case 'open':
-      return str('respawn.change.survived', { n });
-    case 'death':
-      return str('respawn.change.diesAt', { n, time: formatBattleTime(a.tick) });
-    case 'interrupted':
-      return str('respawn.change.interrupted', { n, time: formatBattleTime(a.tick) });
-    case 'neverSpawned':
-      return str('respawn.change.neverSpawned', { n });
-    case 'unresolved':
-      return str('respawn.change.unresolved', { n });
-    case 'complete':
-      return str('respawn.change.complete', { n });
-  }
-}
-
-/** Visible captions: newest first, at most `max`, plus a "+N more" tail. */
-export function captionList(captions: readonly string[], max = 4): string[] {
-  const newest = [...captions].reverse();
-  if (newest.length <= max) return newest;
-  return [...newest.slice(0, max), str('respawn.change.more', { n: newest.length - max })];
-}
-
-// ---------- Header ----------
-
-export interface HeaderItem {
-  label: string;
-  value: string;
-  cls?: string;
-}
-
-export function headerItems(p: RespawnProps): { title: string; items: HeaderItem[] } {
-  const flagOnly =
-    (p.map.objectives ?? []).length === 0 && (p.map.capturePoints ?? []).some((c) => c.objective);
-  const done = flagOnly ? 'respawn.header.objectiveCaptured' : 'respawn.header.objectiveDone';
-  const open = flagOnly ? 'respawn.header.objectiveNotCaptured' : 'respawn.header.objectiveIntact';
-  return {
-    title: str('respawn.header.attempt', { n: p.attemptsPlayed + 1 }),
-    items: [
-      { label: str('respawn.header.soldiers'), value: String(p.soldiers.length) },
-      {
-        label: str('respawn.header.reached'),
-        value:
-          p.reachedTick === null
-            ? str('respawn.header.reachedNone')
-            : formatBattleTime(p.reachedTick),
-      },
-      {
-        label: str('respawn.header.objective'),
-        value: p.objectiveComplete ? str(done) : str(open),
-        cls: p.objectiveComplete ? 'done' : 'pending',
-      },
-    ],
-  };
 }
 
 // ---------- Domain / scrubber ----------
@@ -536,4 +482,231 @@ export function nextOrdinal(soldiers: readonly SoldierRecord[]): number {
   let max = 0;
   for (const s of soldiers) max = Math.max(max, s.ordinal);
   return max + 1;
+}
+
+// ---------- Money (PHASE11) ----------
+
+/** The economy, if one is shown (present and enabled). */
+export function shownEconomy(p: Pick<RespawnProps, 'economy'>): Ledger | null {
+  return p.economy && p.economy.enabled ? p.economy : null;
+}
+
+/** The option card's money line: what a new soldier there can spend, or "already paid". */
+export function optionMoney(
+  o: SpawnOption,
+  p: Pick<RespawnProps, 'economy'>,
+): { text: string; debt: boolean } | null {
+  const l = shownEconomy(p);
+  if (!l) return null;
+  if (o.kind === 'resume') return { text: str('money.resumePaid'), debt: false };
+  const v = availableAt(l, o.entryTick);
+  const money = formatMoney(v);
+  return v < 0
+    ? { text: str('money.availableDebt', { money }), debt: true }
+    : { text: str('money.available', { money }), debt: false };
+}
+
+export interface RoleMoney {
+  roleId: RoleId;
+  /** "Free" / "$50". */
+  price: string;
+  affordable: boolean;
+}
+
+/** Each role's price, and whether a new soldier at the selected option can afford it. */
+export function roleMoney(o: SpawnOption | null, p: Pick<RespawnProps, 'economy'>): RoleMoney[] {
+  const l = shownEconomy(p);
+  if (!l) return [];
+  return ROLES.map((r) => {
+    const cost = r.cost; // the economy is on here (shownEconomy)
+    return {
+      roleId: r.id,
+      price: cost > 0 ? str('money.cost', { n: cost }) : str('money.free'),
+      affordable: o?.kind !== 'new' || canAfford(l, o.entryTick, cost),
+    };
+  });
+}
+
+/** "Not enough money at 0:26 (needs $50, $20 to spend)": the picked role falls back to free. */
+export function cantAffordText(
+  o: SpawnOption | null,
+  roleId: RoleId,
+  p: Pick<RespawnProps, 'economy'>,
+): string | null {
+  const l = shownEconomy(p);
+  if (!l || o?.kind !== 'new') return null;
+  const m = roleMoney(o, p).find((r) => r.roleId === roleId);
+  if (!m || m.affordable) return null;
+  return str('money.cantAfford', {
+    time: formatBattleTime(o.entryTick),
+    cost: m.price,
+    money: formatMoney(availableAt(l, o.entryTick)),
+  });
+}
+
+/** Tooltip for a point on the money line. */
+export function moneyTip(l: Ledger, t: Tick): string {
+  return str('money.lineTip', {
+    money: formatMoney(balanceAt(l, t)),
+    time: formatBattleTime(t),
+    rate: str('money.rate', { n: Math.round(rateAt(l, t) * 10) / 10 }),
+  });
+}
+
+// ---------- Timeline rows (PHASE12-c: spawn points on the timeline) ----------
+
+/** A spawn point's row: its marker sits at its next entry slot ([D7]). */
+export interface SpawnTimelineRow {
+  kind: 'spawn';
+  spawnPointId: string;
+  /** Its option's key, or null when the point isn't offered right now (closed / lost). */
+  key: OptionKey | null;
+  option: Extract<SpawnOption, { kind: 'new' }> | null;
+  name: string;
+  /** When the point opened (0 for initial points, the capture tick for forward ones). */
+  openTick: Tick;
+  /** Earlier entries at this point (the queue so far). */
+  entries: Tick[];
+  /** Its soldiers are folded into compact lines. */
+  collapsed: boolean;
+  /** How many soldiers belong to it. */
+  count: number;
+  y: number;
+  h: number;
+}
+
+export interface LaneTimelineRow {
+  kind: 'lane';
+  row: LaneRow;
+  /** The spawn point it's nested under. */
+  spawnPointId: string;
+  /** Resumable (offered) or selected: full height. Everything else is shorter. */
+  interactive: boolean;
+  /** Folded under a collapsed spawn point: a thin line, no label. */
+  compact: boolean;
+  /** Its spawn tick (where the branch leaves the spawn row). */
+  spawnTick: Tick;
+  y: number;
+  h: number;
+}
+
+export type TimelineRow = SpawnTimelineRow | LaneTimelineRow;
+
+/** Row heights from the base row height: spawn rows and inert lanes are shorter. */
+export function rowHeights(rowH: number): {
+  spawn: number;
+  lane: number;
+  inert: number;
+  compact: number;
+} {
+  return {
+    spawn: Math.max(22, Math.round(rowH * 0.6)),
+    lane: rowH,
+    inert: Math.max(22, Math.round(rowH * 0.62)),
+    compact: 8,
+  };
+}
+
+/**
+ * (PHASE12-d) Every timeline row top to bottom, grouped by spawn point (map order): the point's
+ * row, then its soldiers nested under it. Within a group, soldiers you can resume come first,
+ * earliest resume first; the rest follow by spawn time. A collapsed point folds its soldiers
+ * into thin unlabeled lines. Each row has its y and height.
+ */
+export function timelineRows(
+  p: Pick<RespawnProps, 'map' | 'lanes' | 'soldiers' | 'options' | 'captures'>,
+  selected: OptionKey | null,
+  rowH: number,
+  collapsed: ReadonlySet<string> = new Set(),
+): TimelineRow[] {
+  const hs = rowHeights(rowH);
+  const resumeTick = new Map<SoldierId, Tick>();
+  for (const o of p.options) if (o.kind === 'resume') resumeTick.set(o.soldierId, o.resumeTick);
+  const bySoldier = new Map(p.soldiers.map((s) => [s.id, s]));
+  const lanes = laneRows(p.lanes, p.soldiers, p.map);
+  const groups = new Map<string, LaneRow[]>();
+  for (const l of lanes) {
+    const sp = bySoldier.get(l.soldierId)?.spawnPointId ?? '';
+    const g = groups.get(sp) ?? [];
+    g.push(l);
+    groups.set(sp, g);
+  }
+  const out: TimelineRow[] = [];
+  let y = 0;
+  const known = new Set(p.map.spawnPoints.map((sp) => sp.id));
+  const order = [
+    ...p.map.spawnPoints.map((sp) => sp.id),
+    ...[...groups.keys()].filter((k) => !known.has(k)),
+  ];
+  for (const spId of order) {
+    const sp = p.map.spawnPoints.find((x) => x.id === spId);
+    const members = groups.get(spId) ?? [];
+    const option =
+      p.options.find(
+        (o): o is Extract<SpawnOption, { kind: 'new' }> =>
+          o.kind === 'new' && o.spawnPointId === spId,
+      ) ?? null;
+    if (!option && members.length === 0) continue;
+    const cap =
+      sp?.kind === 'capture'
+        ? (p.captures ?? []).find((c) => c.pointId === sp.capturePointId && c.stage === 'ours')
+        : undefined;
+    const openTick = cap?.tick ?? 0;
+    const fold = collapsed.has(spId) && members.length > 0;
+    if (sp) {
+      out.push({
+        kind: 'spawn',
+        spawnPointId: spId,
+        key: option ? optionKey(option) : null,
+        option,
+        name: spawnPointName(p.map, spId),
+        openTick,
+        entries: members
+          .map((m) => bySoldier.get(m.soldierId)?.spawnTick ?? 0)
+          .sort((a, b) => a - b),
+        collapsed: fold,
+        count: members.length,
+        y,
+        h: hs.spawn,
+      });
+      y += hs.spawn;
+    }
+    const sorted = [...members].sort((a, b) => {
+      const ra = resumeTick.get(a.soldierId);
+      const rb = resumeTick.get(b.soldierId);
+      if (ra !== undefined || rb !== undefined) {
+        if (ra === undefined) return 1;
+        if (rb === undefined) return -1;
+        if (ra !== rb) return ra - rb;
+      }
+      const sa = bySoldier.get(a.soldierId)?.spawnTick ?? 0;
+      const sb = bySoldier.get(b.soldierId)?.spawnTick ?? 0;
+      return sa - sb || a.ordinal - b.ordinal;
+    });
+    for (const row of sorted) {
+      const interactive = resumeTick.has(row.soldierId) || selected === `resume:${row.soldierId}`;
+      const h = fold ? hs.compact : interactive ? hs.lane : hs.inert;
+      out.push({
+        kind: 'lane',
+        row,
+        spawnPointId: spId,
+        interactive,
+        compact: fold,
+        spawnTick: bySoldier.get(row.soldierId)?.spawnTick ?? row.lane.recordedFrom,
+        y,
+        h,
+      });
+      y += h;
+    }
+  }
+  return out;
+}
+
+/** The option to select when the screen opens: `preferred` if still offered, else the first. */
+export function initialSelection(
+  options: readonly SpawnOption[],
+  preferred: SpawnOption | null | undefined,
+): OptionKey | null {
+  if (preferred && findOption(options, optionKey(preferred))) return optionKey(preferred);
+  return defaultSelection(options);
 }

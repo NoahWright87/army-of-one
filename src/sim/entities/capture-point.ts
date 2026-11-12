@@ -91,6 +91,8 @@ export function stepCapturePoints(world: World): void {
     let foes = 0;
     for (const s of st.soldiers) {
       if (!isEligible(s)) continue;
+      // (PHASE12-b) Vehicles capture too, unless turned off ([D68]).
+      if (s.drive && !world.tuning.drive.canCapture) continue;
       const dx = s.x - def.position.x;
       const dy = s.y - def.position.y;
       if (dx * dx + dy * dy > r2) continue;

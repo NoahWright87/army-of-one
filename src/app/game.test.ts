@@ -61,7 +61,7 @@ describe('the loop: first death → rescue → resume → mission complete', () 
     expect(s2.end.kind).toBe('death');
     expect((s2.end as { tick: number }).tick).toBeLessThan(s1DeathTick);
     const s1After = lane(screen.latest.lanes, 'S1');
-    expect(s1After.end).toEqual({ kind: 'open', tick: s1DeathTick });
+    expect(s1After.end).toMatchObject({ kind: 'open', tick: s1DeathTick });
     // The scrubber reported progressively and then finished.
     const progress = h.events.filter((e) => e.type === 'resolveProgress');
     expect(progress.length).toBeGreaterThan(1);
@@ -229,7 +229,7 @@ describe('reload recovery ([D6])', () => {
     });
     expect(r.runs[0]!.countdownAtStart).toBe(LEAD_IN);
     expect(r.game.mission.attemptCount).toBe(1);
-    expect(lane(r.game.mission.lanes, 'S1').end).toEqual({
+    expect(lane(r.game.mission.lanes, 'S1').end).toMatchObject({
       kind: 'open',
       tick: secondsToTicks(20),
     });

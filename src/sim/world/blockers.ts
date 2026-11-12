@@ -1,8 +1,10 @@
 import { isBridgeWalkable } from '../entities/bridge';
 import { objectiveRadius } from '../entities/objective';
 import { laneInfo, vehicleRect } from '../entities/traffic';
+import { driveOf } from '../entities/soldier';
 import type { World } from '../state';
 import { squareAround, type Rect } from './map';
+import { destroyedCoverRects } from './cover';
 
 /** A piece of world-state geometry that currently blocks movement. */
 export interface Blocker {
@@ -44,6 +46,13 @@ export function dynamicBlockers(world: World): Blocker[] {
     const blocksShots = v.state === 'wreck' && tuning.vehicle.wreckBlocksShots;
     out.push({ id: v.id, rect: vehicleRect(v, lanes[v.lane]!), blocksShots });
   }
+  // (PHASE12-b) Destroyed vehicles leave wrecks that block movement and shots ([D67]).
+  for (const s of st.soldiers) {
+    if (s.alive || !s.drive) continue;
+    const d = driveOf(tuning, s.roleId);
+    if (d)
+      out.push({ id: `wreck:${s.id}`, rect: squareAround(s, d.bodyRadius), blocksShots: true });
+  }
   (map.objectives ?? []).forEach((def, i) => {
     if (!st.objectives[i]!.destroyed) {
       out.push({
@@ -58,5 +67,8 @@ export function dynamicBlockers(world: World): Blocker[] {
 
 /** Everything that blocks soldier movement right now: static walls/water + dynamic blockers. */
 export function currentSolids(world: World, blockers = dynamicBlockers(world)): Rect[] {
-  return [...world.solids, ...blockers.map((b) => b.rect)];
+  // (PHASE12-b) Destroyed cover no longer blocks ([Q40]).
+  const gone = destroyedCoverRects(world);
+  const base = gone.size === 0 ? world.solids : world.solids.filter((r) => !gone.has(r));
+  return [...base, ...blockers.map((b) => b.rect)];
 }

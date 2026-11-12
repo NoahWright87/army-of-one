@@ -1,5 +1,5 @@
 import type { Tuning } from '../../content/tuning';
-import { isEligible, type SoldierState } from '../entities/soldier';
+import { driveOf, isEligible, wallRadiusOf, type SoldierState } from '../entities/soldier';
 import { moveCircle } from './collision';
 import type { Rect } from './map';
 import { simPerf } from '../perf';
@@ -20,10 +20,14 @@ export function separateSoldiers(
   solids: readonly Rect[],
   tuning: Tuning,
 ): void {
-  const { blockerRadius, wallRadius } = tuning.soldier;
+  const { blockerRadius } = tuning.soldier;
   const { stiffness, maxPushPerTick } = tuning.separation;
-  const minD = blockerRadius * 2;
   const active = soldiers.filter(isEligible);
+  // (PHASE12-b) Vehicles have big bodies and push soldiers without being pushed by them.
+  const radius = active.map((s) => driveOf(tuning, s.roleId)?.bodyRadius ?? blockerRadius);
+  const heavy = active.map((s) => !!s.drive);
+  const maxR = radius.reduce((m, r) => Math.max(m, r), blockerRadius);
+  const minD = maxR * 2;
   const px = new Float64Array(active.length);
   const py = new Float64Array(active.length);
   let any = false;
@@ -36,20 +40,24 @@ export function separateSoldiers(
   const pair = (i: number, j: number) => {
     const a = active[i]!;
     const b = active[j]!;
-    if (a.kinematic && b.kinematic) return;
+    // (PHASE12-b) A vehicle against a soldier acts kinematic; two vehicles push each other.
+    const aKin = a.kinematic || (heavy[i]! && !heavy[j]!);
+    const bKin = b.kinematic || (heavy[j]! && !heavy[i]!);
+    if (aKin && bKin) return;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const d2 = dx * dx + dy * dy;
-    if (d2 >= minD * minD) return;
+    const pairD = radius[i]! + radius[j]!;
+    if (d2 >= pairD * pairD) return;
     const d = Math.sqrt(d2);
     // Exactly coincident: push along a direction derived from the pair's order (deterministic).
     const nx = d > 1e-9 ? dx / d : Math.cos(j * 2.399963);
     const ny = d > 1e-9 ? dy / d : Math.sin(j * 2.399963);
-    const push = (minD - d) * stiffness;
-    if (a.kinematic) {
+    const push = (pairD - d) * stiffness * (heavy[i]! || heavy[j]! ? 2 : 1);
+    if (aKin) {
       px[j] = px[j]! + nx * push;
       py[j] = py[j]! + ny * push;
-    } else if (b.kinematic) {
+    } else if (bKin) {
       px[i] = px[i]! - nx * push;
       py[i] = py[i]! - ny * push;
     } else {
@@ -83,7 +91,7 @@ export function separateSoldiers(
       dy = (dy / len) * maxPushPerTick;
     }
     const s = active[i]!;
-    const next = moveCircle(s, { x: dx, y: dy }, wallRadius, solids);
+    const next = moveCircle(s, { x: dx, y: dy }, wallRadiusOf(tuning, s), solids);
     s.x = next.x;
     s.y = next.y;
   }

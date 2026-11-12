@@ -52,6 +52,9 @@ export class BattleScene extends Phaser.Scene {
   private firstFrame = true;
   /** (06-c) The view the HUD last showed (it only changes when the sim steps). */
   private hudView: WorldView | null = null;
+  /** (PHASE11) Cached HUD money and the tick it was computed at. */
+  private money: { balance: number; rate: number } | null = null;
+  private moneyTick: number | null = null;
   private ghostDrawn = false;
   private frameMs: number | null = null;
   private frameMax = 0;
@@ -103,6 +106,8 @@ export class BattleScene extends Phaser.Scene {
     this.firstFrame = true;
     this.lookAim = null;
     this.hudView = null;
+    this.money = null;
+    this.moneyTick = null;
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
@@ -216,7 +221,15 @@ export class BattleScene extends Phaser.Scene {
     // (06-c) The HUD only changes when the sim steps (the view object is replaced then).
     if (this.view !== this.hudView) {
       this.hudView = this.view;
-      hud.update(buildHudModel(this.view, this.liveId));
+      // (PHASE11) Money: refolded at most every quarter second of battle time.
+      if (
+        driver?.money &&
+        (this.moneyTick === null || Math.abs(this.view.tick - this.moneyTick) >= 15)
+      ) {
+        this.moneyTick = this.view.tick;
+        this.money = driver.money();
+      }
+      hud.update(buildHudModel(this.view, this.liveId, this.money));
     }
     if (driver) {
       const left = driver.countdown();
@@ -285,8 +298,11 @@ export class BattleScene extends Phaser.Scene {
     const { display } = this.services;
     const cam = this.cameras.main;
     const zoom = display.cameraZoom || 1;
+    // (PHASE12-a) A Sniper with its rifle up looks further ahead ([D59]).
+    const live = this.view.soldiers.find((s) => s.id === this.liveId);
+    const far = live?.gun === 'sniper' ? this.world.tuning.sniper.lookAheadMultiplier : 1;
     const ahead = capLookAhead(
-      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance, aim),
+      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance * far, aim),
       cam.width / 2 / zoom,
       cam.height / 2 / zoom,
     );

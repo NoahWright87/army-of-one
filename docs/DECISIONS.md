@@ -212,6 +212,140 @@ revise with justification in a PR).
   default and the template. Machine guns (steadied on cover), mortars and enemy soldiers come
   after cover.
 
+## Economy, vehicles, generation, sharing (owner session 2026-11)
+
+- **[D51] Money lives on the timeline.** Every level has a starting amount and a base income per
+  second of battle time (both may come from campaign progress, [D57]). Capturing a point raises
+  the income rate for as long as the point is ours in the current truth. Spending happens at a
+  soldier's spawn tick. So the balance at battle time t is: start + income up to t + bounties up
+  to t − spending up to t, in the latest truth ([D2]). Example: $100 start, $1/s, one spawn
+  every 2 s; a $50 Machine Gunner as soldier #10 (18 s) leaves $68; a point captured at 60 s
+  worth $2/s means $110 at 60 s and $3/s from then on. Free Riflemen keep [D18] intact: you can
+  always throw another soldier in.
+- **[D52] Income is pure battle time.** It doesn't depend on anyone of ours being alive. What
+  earns money is capturing objectives and taking out enemies, not survival.
+- **[D53] Bounties: every enemy death counts, once, at its tick.** An enemy soldier or structure
+  that dies pays a one-time bounty at that point on the timeline, whatever killed it: our shot,
+  an echo's grenade, or an enemy stepping on its own mine. It pays once in the truth, not once
+  per attempt. If a later attempt changes when (or whether) it dies, the bounty moves (or goes)
+  with it. Cheap early enemies and an early capture point should make players feel they're
+  getting somewhere, and the money that piles up by later capture points is what pays for heavy
+  units there.
+- **[D54] Debt, not un-spawning.** A soldier you bought stays bought. If history changes and
+  takes money away (a capture no longer happens, a bounty disappears), the balance may go
+  negative; you can't buy anything that would need the missing money until it recovers.
+  Soldiers never vanish for lack of money.
+- **[D55] Vehicles are big units you drive.** A vehicle (a tank, say) may look like a crew, but
+  it's just you driving it as the player: one live unit with its own controls, a bigger body,
+  far more HP and firepower. Very expensive, very powerful. It records and replays like any
+  soldier ([E1]).
+- **[D56] Seeded generation of levels and the world map.** Generation builds both the levels
+  and the meta/world map that connects them, from a seed, deterministically. There may be a
+  hand-made campaign first (tutorial through to a final boss); after it, endless generated
+  campaigns and missions. Same seed, same campaign, for everyone.
+- **[D57] Campaign progress raises your income.** Between levels in a campaign, your income
+  (and possibly starting money) goes up.
+- **[D58] Sharing without multiplayer.** Seeds make runs comparable: a **weekly campaign** (one
+  seed per week), leaderboards, high scores and watching each other's replays. Beyond that,
+  **asynchronous co-op**: playing alongside another player's lives as echoes, which affect your
+  playthrough like your own echoes do.
+
+## More roles (PHASE12-a, owner session 2026-11)
+
+- **[D59] Sniper.** A pistol while moving. Standing still swaps to a long rifle (after a short
+  set-up, with or without cover) that aims further than average. Cover makes it even more
+  accurate and adds a little range. Like the Machine Gunner's mount ([D40]), but it doesn't need
+  cover. Balance: auto-aim (the player's and the AI's) is very bad against moving targets with
+  the rifle, and the pistol is weak up close and on the move.
+- **[D60] Shield (heavy).** Blocks a share of damage (80 %, tunable) coming from the 135° it
+  faces. Only a basic pistol. Used to guard other troops.
+- **[D61] Shotgunner.** The opposite of the Sniper: useless at long range, more HP than average,
+  powerful up close. Fires a random spread of pellets, deterministic on replay: each pellet's
+  trajectory is recorded.
+- **[D62] Bazooka.** For blowing up vehicles. Takes longer to fire, very inaccurate against
+  people, more accurate against vehicles (for auto-aim and the AI), friendly-fire damage from
+  the blast. Slower than average: bazookas are heavy.
+
+## Vehicles (PHASE12-b, owner session 2026-11)
+
+- **[D63] Vehicles: a gun truck and a tank.** Both are driven by you as one unit ([D55]); enemies
+  get them too ([D44]).
+- **[D64] Simple compass controls, vehicle-style turning.** Push north, go north; push east, go
+  east. The vehicle has to turn to face that way first. A **tank** turns on the spot and only
+  accelerates once it points roughly the right way. A **truck** can't turn on the spot: it
+  rolls forward slowly while turning, and reaches full speed once it points the right way.
+- **[D65] Small arms do very little to vehicles,** through **one unified armor system** shared
+  with soldiers (the Shotgunner, the Shield) and anything else: no per-unit special cases.
+  (How it works: [Q39].)
+- **[D66] Vehicles run people over,** ours included. The damage comes from speed and weight: the
+  tank crushes slowly, the truck has to hit hard and only hurts at low speed.
+- **[D67] Vehicle wrecks block paths.**
+- **[D68] Vehicles can capture points,** behind a setting so it can be turned off later.
+- **[D69] Longer levels.** Missions need more room for vehicles and everything else. A new,
+  longer mission shows vehicles off (Breach stays the short template): wider (1.5–2 phone
+  screens), much taller, more enemy variety, several capture points (to test money too).
+- **[D70] Unified armor (was Q39).** Armor reduces damage by a percentage and can be
+  directional; some weapons pierce armor. One rule for everything:
+  `damage taken = hit × (1 − max(0, armor from that direction − pierce))`. Shotgunner 10 %,
+  Shield 80 % (front), truck 60 %, tank 99 % (front and sides) / 90 % (rear). Pierce: sniper
+  5 %, rockets and tank shells 50 %, being run over 100 % (armor doesn't stop a tank running you
+  over; a truck smashing into a tank damages the truck too).
+- **[D71] Grenades have two damage sets.** The explosion: small area, decent damage, 50 % pierce
+  (a Shield right next to it gets hurt). The shrapnel: reaches much further, many pieces, a
+  little damage each, 0 % pierce (a grenade going off well in front of a Shield does little).
+- **[D72] The tank has just a cannon,** for now. It fires slowly, giving people a chance to kill
+  the tank. Vehicles reverse when you pull back.
+- **[E12] Bullets through walls, later.** The armor rule can cover it (a wall's armor and a
+  weapon's pierce; walls themselves stay unbreakable). Deferred; every damage path already goes
+  through `src/sim/combat/armor.ts`, so it stays open.
+
+## Respawn screen (owner session 2026-11)
+
+- **[D73] A lean respawn screen that gets you back in fast.** No header (attempt number,
+  soldiers used, time reached, objective), no "History changed" captions, the key behind an ℹ️
+  button. Spawn points are the first timeline rows (short), with a marker at each point's next
+  entry that moves right as soldiers spawn there; soldier rows show a role icon and number
+  (placeholder icons, real ones from the owner later), and inert rows are shorter. One role
+  button sits beside DEPLOY (same height, narrower) and opens a menu of roles; on an existing
+  soldier it's locked (🔒) and DEPLOY reads REDEPLOY. The map runs full height beside the
+  timeline. The screen opens on the quick-redeploy choice, so DEPLOY is one tap back in. (The
+  role menu is where "certain roles only at certain spawn points" would go, if wanted later.)
+
+## Owner playtest gripes (2026-11)
+
+- **[D74] Doors are open-only (was Q8).** Opening only opens; closing is its own recorded action.
+  If two soldiers open the same door, the second keeps it open. (`echo.replayInteract:
+  'restoreState'`, now the default: an echo's replayed press only brings the door to the state
+  its original press produced.)
+- **[D75] No endless sideways traffic.** It wasted time. Roads get enemy gun trucks driving a
+  patrol loop instead (an oval or a figure 8): Breach's road two, Mission 5's highway two and
+  its service road one. (The traffic code stays for maps that want it; none use it now.)
+- **[D76] Resume HP.** The respawn screen shows how much HP a saved soldier has where their
+  recording ends (a bar under the O, and its tooltip). A soldier with less than 10 % left
+  (`spawn.minResumeHp`) doesn't count as saved: their O shows dimmed and isn't offered.
+- **[D77] The timeline groups soldiers under their spawn point,** with branch lines from the
+  spawn row down to each soldier (like a git graph). Within a spawn point, soldiers you can
+  resume come first, earliest resume first; the rest follow (by spawn time). Each spawn point
+  can be folded: its soldiers become thin unlabeled lines with a dot for how they end.
+- **[D78] Readable soldiers, safer rockets.** Every soldier wears its role icon on its circle.
+  Rocket and tank-shell auto-aim go for vehicles first and lead moving vehicles (the AI too).
+  Auto-aim never fires an explosive (rocket, shell, grenade) when one of ours would be in the
+  blast. Auto-aim can be turned off per role (Controls settings), and on touch you can aim by
+  hand: touch the battlefield where you want to aim and hold to fire (it overrides auto-aim
+  while you hold it; the old aim stick is a setting).
+
+## Sharing (owner session 2026-11)
+
+- **[D79] Shareable replays, no server.** A run (finished or in progress) packs into a link:
+  every recording plus the timeline, compressed into the URL after `#replay=` (a 3-life Breach
+  win is ~3.5k characters; long runs make long links). Links point at the exact deploy they
+  came from (Netlify's per-deploy URL), so updates never break them. Opening one plays the
+  whole thing; a finished run offers "Play this mission", an in-progress one "Continue from
+  here" (it becomes your save for that mission, after a confirm if you already have one). The
+  title screen lists missions in progress (Watch / Share / Continue) and the last 3 wins per
+  mission (Watch / Share), kept in localStorage. Short links via a server are for later
+  (PHASE15).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -254,6 +388,11 @@ revise with justification in a PR).
   the same cover gets the same answer in every replay, however much else in history changed;
   a shared PRNG stream would reshuffle every later roll after any change. Recordings store the
   final shot angle and throw (angle + distance), so spread is never re-rolled for echoes ([E1]).
+- **[E11] Seeds carry a version (PHASE13/15).** A seed fixes the map, but a recording replays
+  correctly only on the same generator, sim and tuning. Every seed, save and shared recording
+  stores a content version (generator + sim + tuning). A weekly challenge is locked to the
+  version it shipped with; old generator versions stay runnable (or old builds stay hosted) so
+  last week's recordings still replay.
 
 ---
 
@@ -273,7 +412,7 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q7] Is traffic already running at battle start (PHASE02-a)?** `tuning.vehicle.prewarm`:
   `true` (default: lanes start full, as if traffic had always run) or `false` (empty road at 0:00,
   first vehicle enters at each lane's offset).
-- **[Q8] How does an echo replay a lever press (PHASE03-a)?** `tuning.echo.replayInteract`:
+- **[Q8] (Resolved: [D74], 'restoreState' is the default.)** How does an echo replay a lever press (PHASE03-a)? `tuning.echo.replayInteract`:
   `'toggle'` (default: it presses the lever again, so if a later soldier already opened the gate,
   the echo's replayed press *closes* it, possibly blocking itself) or `'restoreState'` (it only
   presses if that brings the gate/bridge to the state its original press produced; an
@@ -353,7 +492,9 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   the loss never spawn ([D26]). The capture truth and the respawn screen don't show losses yet
   (they assume a captured point stays captured), so a forward spawn may still be offered after
   the point would be lost; deploying there bounces with "History shifted". Wanted: a "point
-  lost at t" entry that closes the forward option from that tick.
+  lost at t" entry that closes the forward option from that tick. *(PHASE11: built; a forward
+  spawn and its income now end when the point is lost. A point retaken later doesn't reopen
+  yet.)*
 - **[Q26] Dormancy is by distance, not camera (PHASE07-d).** "Inactive when far off camera" is
   implemented as "no soldier of ours (live or echo) within `ai.wakeRadius` (900)", sleeping
   again beyond `ai.sleepRadius` (1300). The camera isn't part of the sim, and background resolves
@@ -366,6 +507,68 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q29] Turrets vs moving targets (PHASE07-e).** Only AI soldiers get the moving-target penalty
   ([D50]); turrets still track and hit perfectly (their telegraph is the counterplay). Should
   turrets miss moving targets too?
+- **[Q30] What can you spend at time t (PHASE11)?** Built as proposed: the **lowest balance from t to
+  the end of the mission**, not the balance at t. With a forward point, purchases aren't in
+  time order: buy a $100 tank at 60 s, then a new beach soldier at 26 s sees $126 at that
+  moment, but spending $50 there would leave the tank unpaid. So the respawn screen shows
+  "$76 available" while the line reads $126. (Debt, [D54], still covers money lost to history
+  changes.)
+- **[Q31] Who pays for a soldier who never spawns (PHASE11)?** Built as proposed: you're only charged
+  for soldiers who actually spawn in the current truth. A soldier from a lost capture point
+  ([D26]) is refunded automatically, and charged again if the point is retaken in time.
+- **[Q32] Money in the score (PHASE11/14).** Economy is part of scoring ([Q23]'s Economy axis),
+  but how (money spent, left over, soldiers used) is still open. Owner: discuss later.
+- **[Q33] Weekly challenge fairness (PHASE15).** Campaign progress raises income ([D57]), so two
+  players on the same weekly seed aren't equal. Proposed: the weekly challenge has a fixed
+  starting state that is part of the seed.
+- **[Q34] Another player's echoes and your money (PHASE15).** In async co-op ([D58]), do their
+  bounties and captures fund you? Do their purchases spend from your pool, or come free?
+- **[Q35] Sniper set-up details (PHASE12-a).** Implemented: set-up takes 0.8 s of standing
+  still; while it fills, the Sniper can fire its pistol; firing doesn't interrupt it; any
+  movement drops back to the pistol at once. The rifle's camera looks 1.8× further ahead.
+  Alternatives: no firing while setting up, or a slower turn rate with the rifle up.
+- **[Q36] (Resolved by [D70]/[D71]: pierce decides; the `shield.blocksExplosions` flag is
+  gone.)** Does the Shield block explosions (PHASE12-a)? [D60] says damage from the arc it
+  faces; implemented literally, so a grenade or rocket going off in front is blocked too
+  (`shield.blocksExplosions`, default on). Off makes explosives the counter to a Shield.
+  The Shield only protects others by standing in the way (shots stop at the first soldier);
+  a wider "moving cover" shield would be a new mechanic.
+- **[Q37] Bazooka accuracy by target (PHASE12-a).** "Very inaccurate against people, accurate
+  against vehicles" is implemented as aim error for the AI and auto-aim (`rocket.soldierAimError`
+  against soldiers, none against vehicles/structures; auto-aim goes for vehicles first). A
+  player aiming by hand gets the rocket's plain spread whatever the target. Rockets pass through
+  our own soldiers; only the blast hurts them.
+- **[Q38] Shotgunner "armor" (PHASE12-a).** Implemented as more HP (1.5×), not damage
+  reduction. Say if you want armor as its own number (e.g. less damage from pistols/fragments).
+- **[Q39] (Became [D70].)** Unified armor (PHASE12-b) — the first proposal, kept for history. See the PHASE12-b doc.
+  One rule for everything that takes damage: `damage = max(hit − armor, hit × chip)`, where
+  `armor` is a flat number per target (optionally higher in a front arc) and `chip` is a small
+  share (e.g. 5 %) that always gets through. Soldiers 0, Shotgunner 3, Shield 20 front, truck
+  ~10, tank ~35 (front 50), cover by material. Big single hits (sniper, rocket, shell, crush)
+  punch through; many small ones (pistol, MG, pellets, fragments) barely scratch.
+- **[Q40] Breakable cover (PHASE12-b) — built as proposed.** Cover pieces get HP and armor by material;
+  bullets they stop and blasts damage them; vehicles crush light cover by driving into it; a
+  destroyed piece is gone for the rest of that attempt. Walls and bunkers stay unbreakable.
+- **[Q41] (Resolved: reverse, [D72].)** Reversing (PHASE12-b). Pulling the stick opposite to the vehicle's heading: turn
+  all the way round ([D64] read literally), or reverse when it's nearly behind you?
+- **[Q42] (Resolved: a new mission, [D69].)** Longer levels: extend Breach or add a mission? Extending Breach moves
+  its objective (the scripted dev stories would need re-recording); a new, longer mission
+  keeps Breach as the short template.
+- **[Q43] "1.5–2 phone screens wide" (PHASE12-b).** At camera zoom 1 the view is as wide in
+  world units as the screen in CSS pixels: a landscape phone shows ~850, a portrait one ~390.
+  Mission 5 is 1800 wide (~2 landscape phone screens; Breach is 1600) and 12000 tall (Breach
+  5450). Say if you meant something else; `M5_W` / `M5_H` in `mission-05.ts`.
+- **[Q44] Vehicle details (PHASE12-b).** Implemented, all tunable: vehicles are round for
+  collisions (truck r 26, tank r 32) and drawn as boxes; they spawn at the normal spawn points
+  and cost $120 / $250 (Mission 5 starts with $150, so a truck early and a tank after a capture
+  or two); traffic cars can't hurt a tank much (their contact damage goes through armor) and
+  aren't hurt by being rammed; the enemy AI drives with the soldiers' pathfinding (it doesn't
+  know a vehicle is wider, and it doesn't path through cover it has destroyed).
+- **[Q45] Playtest-gripe details (PHASE12-d).** Implemented: tap-to-aim is the default touch
+  aiming (`input.touchAim`), and the move stick shrinks to the bottom-left corner so the rest
+  of the screen is "aim here"; folded soldiers can't be tapped to resume (unfold first); the
+  friendly-fire guard counts our live soldier and echoes (not static figures) within the blast
+  radius plus a soldier's width; patrols ignore their leash along their own route.
 - **[Q21] Turret sight through partial cover in Breach.** Breach's turrets now see (and shoot) a
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the

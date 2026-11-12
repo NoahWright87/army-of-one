@@ -138,7 +138,19 @@ export class ResultsScreen {
     return !this.root.hidden;
   }
 
-  show(d: ResultsData, actions: { onWatchAgain(): void; onPlayAgain(): void }): void {
+  show(
+    d: ResultsData,
+    actions: {
+      onWatchAgain(): void;
+      onPlayAgain(): void;
+      /** (PHASE12-e) Share this run as a link ([D79]). */
+      onShare?(): void;
+      /** (PHASE12-e) Viewer mode: a different heading and main button, plus "Main menu". */
+      title?: string;
+      playLabel?: string;
+      onMenu?(): void;
+    },
+  ): void {
     this.marks = d.marks;
     const s = d.stats;
     this.card.replaceChildren();
@@ -179,10 +191,21 @@ export class ResultsScreen {
     const btns = el('div', 'btns');
     const watch = el('button', '', str('results.watchAgain'));
     watch.onclick = () => actions.onWatchAgain();
-    const again = el('button', 'primary', str('complete.playAgain'));
+    const again = el('button', 'primary', actions.playLabel ?? str('complete.playAgain'));
     again.onclick = () => actions.onPlayAgain();
-    btns.append(watch, again);
-    this.card.append(toggle, el('h1', '', str('complete.title')), dl);
+    btns.append(watch);
+    if (actions.onShare) {
+      const share = el('button', '', str('replay.share'));
+      share.onclick = () => actions.onShare?.();
+      btns.append(share);
+    }
+    if (actions.onMenu) {
+      const menu = el('button', '', str('replay.menu'));
+      menu.onclick = () => actions.onMenu?.();
+      btns.append(menu);
+    }
+    btns.append(again);
+    this.card.append(toggle, el('h1', '', actions.title ?? str('complete.title')), dl);
     if (d.radar) {
       const wrap = el('div');
       wrap.innerHTML = radarSvg(d.radar);

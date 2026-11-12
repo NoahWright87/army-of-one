@@ -15,8 +15,8 @@ import { borderWalls, type CoverDef, type MapDef, type SquadDef } from '../../si
  *    1500  │               ▀▀▀▀    ▀▀▀▀              │  sandbags (peek cover)
  *    1880  │ ~~~~~~~~~~~~~~~~~[DB]~~~~~~~~~~~~~~~~~~ │  canal + drawbridge (starts up; levers)
  *    2450  │       ▀▀▀       ( P )       ▀▀▀         │  Forward Post (capture → forward spawn)
- *    2900  │ ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ │  road: two traffic lanes (frogger)
- *    3020  │ ⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠ │
+ *    2900  │ ╭────────── gun truck patrol ──────────╮ │  road: two enemy gun trucks driving
+ *    3020  │ ╰───────────────────────────────────────╯ │  an oval ([D75])
  *    3400  │ ████████  *  *  *  *  *  *  *  ████████ │  mine strip (3 staggered rows) in a channel
  *    4100  │ █████████████████[GATE]█████████████████│  wall + gate (a lever on each side)
  *    4650  │ ███    T1                      T2   ███ │  first turret line (contact in ~2 s)
@@ -30,7 +30,7 @@ import { borderWalls, type CoverDef, type MapDef, type SquadDef } from '../../si
  *    Every route north passes within range of one of them, so at least one has to go.
  * 2. The gate: closed, a lever on each side. Shutting it again strands echoes ([D16]).
  * 3. Mine strip: weave between the staggered rows, or shoot a path open.
- * 4. Road: two lanes of traffic. Time the gap, or shoot a car into a wreck so traffic stops.
+ * 4. Road: two enemy gun trucks patrol an oval ([D75]). Slip between them, or knock one out.
  * 5. Forward Post: capture it (well out of the nest's range) to open a forward spawn ([D8]).
  * 6. Canal: lower the drawbridge (raising it again strands echoes on the far side).
  * 7. Turret nest: three turrets. The outer two can be sniped from below; the centre one sits
@@ -77,6 +77,24 @@ const mineRow = (y: number, xs: number[], row: number) =>
   xs.map((x, i) => ({ id: `m3-mine-${row}-${i + 1}`, position: { x, y } }));
 const ROW_A = [480, 640, 800, 960, 1120];
 const ROW_B = [420, 560, 720, 880, 1040, 1180];
+
+/** (PHASE12-d) The oval the road's gun trucks drive ([D75]), clockwise from the north-west. */
+const ROAD_LOOP = [
+  { x: 260, y: M3.roadNorthY - 60 },
+  { x: M3_W - 260, y: M3.roadNorthY - 60 },
+  { x: M3_W - 260, y: M3.roadSouthY + 60 },
+  { x: 260, y: M3.roadSouthY + 60 },
+];
+
+/** A gun truck driving the road loop, starting at corner `from`. */
+function truckPatrol(id: string, from: number): SquadDef {
+  const route = [...ROAD_LOOP.slice(from), ...ROAD_LOOP.slice(0, from)];
+  return {
+    id,
+    members: [{ role: 'truck', position: route[0]!, facing: 0 }],
+    order: { kind: 'patrol', route },
+  };
+}
 
 export const MISSION_03: MapDef = {
   id: 'mission-03',
@@ -164,19 +182,6 @@ export const MISSION_03: MapDef = {
     ...mineRow(M3.mineRowsY[1], ROW_B, 2),
     ...mineRow(M3.mineRowsY[2], ROW_A, 3),
   ],
-  trafficLanes: [
-    {
-      id: 'm3-lane-east',
-      from: { x: -100, y: M3.roadNorthY },
-      to: { x: M3_W + 100, y: M3.roadNorthY },
-    },
-    {
-      id: 'm3-lane-west',
-      from: { x: M3_W + 100, y: M3.roadSouthY },
-      to: { x: -100, y: M3.roadSouthY },
-      offsetSeconds: 1.1,
-    },
-  ],
   gates: [
     {
       id: 'm3-gate',
@@ -255,6 +260,9 @@ export const MISSION_03: MapDef = {
       ...squad('m3-sq-post', M3.captureY - 110, [520, 680, 800, 920, 1080], ['gunner', 'rifleman']),
       capturePointId: 'cp-forward',
     },
+    // (PHASE12-d) The road: two gun trucks driving an oval, half a lap apart ([D75]).
+    truckPatrol('m3-sq-road-a', 0),
+    truckPatrol('m3-sq-road-b', 2),
     // Along the canal.
     squad('m3-sq-canal', M3.canalY[0] - 90, [300, 520, 1080, 1300], ['grenadier', 'rifleman']),
     // The nest: dug in behind its sandbags.

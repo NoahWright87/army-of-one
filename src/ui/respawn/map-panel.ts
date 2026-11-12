@@ -111,15 +111,10 @@ export class MapPanel {
     const ratio = tall ? '' : `${p.map.width} / ${p.map.height}`;
     if (this.body.style.aspectRatio !== ratio) this.body.style.aspectRatio = ratio;
     if (tall) {
-      const barH = 34 + (this.legend.hidden ? 0 : this.legend.offsetHeight);
+      const barH = this.bar.offsetHeight + (this.legend.hidden ? 0 : this.legend.offsetHeight);
       const avail = this.root.clientHeight - barH;
       const phone = window.innerWidth <= 760;
-      const w = tallMapWidth(
-        p.map,
-        avail,
-        phone ? 84 : 150,
-        phone ? window.innerWidth * 0.42 : 320,
-      );
+      const w = tallMapWidth(p.map, avail, phone ? 84 : 150, phone ? window.innerWidth * 0.3 : 320);
       const css = `${w + 2}px`;
       if (this.root.style.width !== css) this.root.style.width = css;
     } else if (this.root.style.width) {
@@ -184,6 +179,22 @@ export class MapPanel {
       );
     }
     this.marks.innerHTML = parts.join('');
+  }
+
+  /** The map's own symbols for the screen's key popover (X and O are in the timeline's part). */
+  legendHtml(): string {
+    const sw = (inner: string) =>
+      `<svg width="16" height="16" viewBox="-8 -8 16 16" aria-hidden="true">${inner}</svg>`;
+    const item = (icon: string, label: string) =>
+      `<span class="lg">${sw(icon)}${esc(label)}</span>`;
+    return [
+      item(spawnIcon(0, 0, 1, false, false), str('respawn.map.legend.spawn')),
+      item(turretIcon(0, 0, 1, false), str('respawn.map.legend.threat')),
+      item(
+        '<rect x="-7" y="-6" width="14" height="12" rx="2" class="mp-fog-sw"/>',
+        str('respawn.map.legend.fog'),
+      ),
+    ].join('');
   }
 
   private renderLegend(): void {

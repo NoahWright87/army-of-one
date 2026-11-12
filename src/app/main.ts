@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { MISSIONS, missionOrDefault } from '../content/maps';
+import { findMap, MISSIONS, missionOrDefault } from '../content/maps';
+import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
+import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
 import type { SpawnOption } from '../contracts/mission';
 import { formatBattleTime } from '../sim/core/time';
@@ -21,6 +23,7 @@ import {
   setTransitionMs,
   TimelineJsonPanel,
   TitleScreen,
+  type TitleLibraryItem,
 } from '../ui/flow/flow-screens';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
@@ -44,7 +47,13 @@ import {
 } from '../ui/settings/display-settings';
 import { SettingsStore } from '../ui/settings/registry';
 import { SettingsPanel } from '../ui/settings/settings-panel';
-import { effectiveTuning, tuningSettingDefs } from '../ui/settings/tuning-settings';
+import {
+  effectiveTuning,
+  tuningOverrides,
+  tuningSettingDefs,
+} from '../ui/settings/tuning-settings';
+import { addToLibrary, readLibrary } from './replay-library';
+import { offerLink, packedFromHash, packRun, shareUrl, unpackRun, type SharedRun } from './share';
 import { Autopilot } from './autoplay';
 import { AUTO_LIVES, parseAutoplay } from './autoplay-lives';
 import { createDefaultSession } from './battle-setup';
@@ -71,6 +80,7 @@ import {
   GAME_SETTING_IDS,
   gameSettingDefs,
   INPUT_SETTING_IDS,
+  autoAimRoleSetting,
   inputSettingDefs,
   resolvePace,
 } from './game-settings';
@@ -126,6 +136,7 @@ function pickMission(id: string): void {
   }
   const url = new URL(window.location.href);
   url.searchParams.set('mission', id);
+  url.hash = ''; // (PHASE12-e) leaving a shared replay's viewer
   window.location.assign(url.toString());
 }
 
@@ -191,10 +202,24 @@ function makeControls(
   liveId: string,
 ): InputSource {
   const sc = scheme();
-  touchControls.setAimStick(!sc.autoAim);
+  // (PHASE12-d) Touch aiming: tap-to-aim (touch the field; also overrides auto-aim while held),
+  // or the old aim stick when auto-aim is off.
+  const tap = settings.getString(INPUT_SETTING_IDS.touchAim) !== 'stick';
+  touchControls.setTapAim(tap);
+  touchControls.setAimStick(!tap && !sc.autoAim);
   touchControls.setVisible(sc.touch);
+  const toWorld = (cx: number, cy: number) => {
+    const canvas = scene.game.canvas;
+    const r = canvas.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    const p = scene.cameras.main.getWorldPoint(
+      ((cx - r.left) * scene.scale.width) / r.width,
+      ((cy - r.top) * scene.scale.height) / r.height,
+    );
+    return { x: p.x, y: p.y };
+  };
   const base: InputSource = sc.touch
-    ? new TouchInput(touchControls, { tuning })
+    ? new TouchInput(touchControls, { tuning, toWorld })
     : new KeyboardMouseInput(scene);
   if (!sc.autoAim) return base;
   return new AutoAimInput(base, {
@@ -202,6 +227,8 @@ function makeControls(
     tuning,
     liveId,
     fireMode: () => settings.getString(INPUT_SETTING_IDS.autoFire) as AutoFireMode,
+    // (PHASE12-d) Auto-aim per role.
+    enabledFor: (r) => settings.getBool(autoAimRoleSetting(r ?? 'rifleman')),
   });
 }
 // (06-b) In-game minimap ([D29]).
@@ -336,7 +363,8 @@ async function startGame(): Promise<void> {
     if (isRespawnSetting(id)) respawn?.setSettings(readRespawnSettings(settings));
   });
   const ui: GameUi = {
-    showTitle: (p) =>
+    showTitle: (p) => {
+      void refreshLibrary();
       title.show({
         ...p,
         missionNameKey: MISSION.nameKey,
@@ -346,7 +374,8 @@ async function startGame(): Promise<void> {
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'
           : 'title.new',
-      }),
+      });
+    },
     showRespawn: (props, onDeploy, n): RespawnHandle => {
       respawn?.destroy();
       const screen = RespawnScreen.mount(uiRoot, props, {
@@ -354,13 +383,13 @@ async function startGame(): Promise<void> {
         settings: readRespawnSettings(settings),
       });
       respawn = screen;
-      // (06-c) The quick-redeploy hint sits under the Deploy button (falls back to floating).
-      quickHint.dock(uiRoot.querySelector<HTMLElement>('.rs-deploy-bar'));
+      // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
+      // the separate hint stays hidden while the screen is up.
+      quickHint.set(null);
       notice.show(n === 'historyShifted' ? str('notice.historyShifted') : null);
       return {
         update: (u) => screen.update(u),
         destroy: () => {
-          quickHint.dock(null);
           screen.destroy();
           if (respawn === screen) respawn = null;
           notice.show(null);
@@ -383,7 +412,8 @@ async function startGame(): Promise<void> {
     showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
-      const on = option && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
+      const on =
+        option && !respawn && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
       quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
@@ -456,6 +486,20 @@ async function startGame(): Promise<void> {
       ...(m.completed ? { winnerId: m.completed.bySoldierId } : {}),
     });
     let controls: ReplayControls | null = null;
+    // (PHASE12-e) Keep this win in the replay library ([D79]) and offer it as a link.
+    const shared: SharedRun = { missionId: m.missionId, state: m, tuning: currentOverrides() };
+    const packedP = packRun(shared).catch(() => null);
+    void packedP.then((packed) => {
+      if (!packed) return;
+      addToLibrary(safeLocalStorage(), {
+        id: `${m.missionId}@${Date.now()}`,
+        missionId: m.missionId,
+        savedAt: Date.now(),
+        soldiers: m.soldiers.length,
+        battleTicks: m.completed?.tick ?? 0,
+        packed,
+      });
+    });
     results.show(
       {
         stats,
@@ -465,6 +509,10 @@ async function startGame(): Promise<void> {
         marks: scrubMarks(m),
       },
       {
+        onShare: () =>
+          void packedP.then((packed) => {
+            if (packed) void shareLink(packed);
+          }),
         onWatchAgain: () => controls?.restart(),
         onPlayAgain: () => {
           stopReplay();
@@ -472,21 +520,162 @@ async function startGame(): Promise<void> {
         },
       },
     );
+    playReplay(r.map, player, (c) => (controls = c));
+  };
+
+  /** Starts the replay scene for `player` under the results card. */
+  const playReplay = (
+    map: MapDef,
+    player: ReplayPlayer,
+    onControls: (c: ReplayControls) => void,
+  ) => {
     void assetsReady.then(() => {
       if (!results.visible) return;
       wakeLoop();
       game.scene.start('replay', {
         player,
-        objectives: (r.map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
+        objectives: (map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
         insets: () => results.insets(),
         onReady: (c: ReplayControls) => {
-          controls = c;
+          onControls(c);
           c.setSkipQuiet(settings.getBool(GAME_SETTING_IDS.replaySkipQuiet));
           results.attach(c);
         },
       });
     });
   };
+
+  // ---------- (PHASE12-e) Shareable replays and the replay library ([D79]) ----------
+
+  const currentOverrides = () => tuningOverrides(settings, DEFAULT_TUNING);
+
+  const shareLink = async (packed: string) => {
+    const res = await offerLink(shareUrl(packed), str('title.name'));
+    notice.show(
+      str(
+        res === 'copied' ? 'replay.copied' : res === 'shared' ? 'replay.shared' : 'replay.failed',
+      ),
+      2500,
+    );
+  };
+
+  const backToMenu = () => {
+    stopReplay();
+    const url = new URL(window.location.href);
+    url.hash = '';
+    window.location.assign(url.toString());
+  };
+
+  /** Plays a run as a viewer: watch it; continue from it (in progress) or play the mission. */
+  const openViewer = (run: SharedRun) => {
+    const map = findMap(run.missionId);
+    if (!map) {
+      notice.show(str('replay.broken'));
+      return;
+    }
+    const m = run.state;
+    const done = !!m.completed;
+    const endTick = done
+      ? m.completed!.tick + 2 * 60
+      : m.soldiers.reduce((t, s) => Math.max(t, recordedTo(s)), 0);
+    const tuning = withTuning(DEFAULT_TUNING, run.tuning);
+    const player = new ReplayPlayer(map, tuning, {
+      version: REPLAY_VERSION,
+      missionId: m.missionId,
+      soldiers: m.soldiers,
+      endTick,
+      ...(m.completed ? { winnerId: m.completed.bySoldierId } : {}),
+    });
+    const stats = resultStats(m, 0, done ? m.completed!.tick : endTick);
+    let controls: ReplayControls | null = null;
+    title.hide();
+    results.show(
+      {
+        stats,
+        radar: done && settings.getBool(GAME_SETTING_IDS.resultsRadar) ? radarAxes(stats, m) : null,
+        bests: parseBests(null),
+        improved: [],
+        marks: scrubMarks(m),
+      },
+      {
+        title: str(done ? 'replay.title' : 'replay.titleProgress'),
+        playLabel: str(done ? 'replay.playMission' : 'replay.continue'),
+        onWatchAgain: () => controls?.restart(),
+        onShare: () => void packRun(run).then(shareLink),
+        onMenu: backToMenu,
+        onPlayAgain: () => void (done ? pickMission(run.missionId) : continueFrom(run)),
+      },
+    );
+    playReplay(map, player, (c) => (controls = c));
+  };
+
+  /** Adopts a shared in-progress run as this browser's save for its mission, then plays it. */
+  const continueFrom = async (run: SharedRun) => {
+    const existing = await loadMission(store, run.missionId);
+    if (
+      existing.ok &&
+      existing.state.soldiers.length > 0 &&
+      !window.confirm(str('replay.replaceSave'))
+    ) {
+      return;
+    }
+    await clearMission(store, run.missionId);
+    await new MissionSaver(store, run.missionId).save(run.state);
+    pickMission(run.missionId);
+  };
+
+  /** The title screen's list: finished runs from the library, missions in progress. */
+  const refreshLibrary = async () => {
+    const items: TitleLibraryItem[] = [];
+    for (const mission of MISSIONS) {
+      const res = await loadMission(store, mission.id);
+      if (!res.ok || res.state.soldiers.length === 0 || res.state.completed) continue;
+      const state = res.state;
+      const run = (): SharedRun => ({ missionId: mission.id, state, tuning: currentOverrides() });
+      items.push({
+        label: str('library.progress', {
+          mission: strDynamic(mission.nameKey),
+          soldiers: state.soldiers.length,
+        }),
+        actions: [
+          { label: str('library.watch'), run: () => openViewer(run()) },
+          { label: str('library.share'), run: () => void packRun(run()).then(shareLink) },
+          {
+            label: str('library.continue'),
+            primary: true,
+            run: () =>
+              mission.id === MISSION.id
+                ? void controller.continueMission()
+                : pickMission(mission.id),
+          },
+        ],
+      });
+    }
+    for (const e of readLibrary(safeLocalStorage())) {
+      const map = findMap(e.missionId);
+      if (!map) continue;
+      items.push({
+        label: str('library.won', {
+          mission: strDynamic(map.nameKey),
+          soldiers: e.soldiers,
+          time: formatBattleTime(e.battleTicks),
+        }),
+        actions: [
+          {
+            label: str('library.watch'),
+            primary: true,
+            run: () =>
+              void unpackRun(e.packed)
+                .then(openViewer)
+                .catch(() => notice.show(str('replay.broken'))),
+          },
+          { label: str('library.share'), run: () => void shareLink(e.packed) },
+        ],
+      });
+    }
+    title.setLibrary(items);
+  };
+
   const startScene = (run: LiveRun) => {
     wakeLoop();
     hud.setVisible(true);
@@ -694,6 +883,24 @@ async function startGame(): Promise<void> {
     return;
   }
   await controller.boot();
+  // (PHASE12-e) Opened from a shared link: watch it over the title screen ([D79]).
+  const packed = packedFromHash(window.location.hash);
+  if (packed) {
+    try {
+      openViewer(await unpackRun(packed));
+    } catch {
+      notice.show(str('replay.broken'));
+    }
+  }
+}
+
+/** localStorage, or null where it's blocked (private mode). */
+function safeLocalStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 /** (06-c) "R / Space: redeploy at Road (0:04)". */

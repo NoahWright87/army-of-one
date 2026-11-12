@@ -3,7 +3,9 @@
  * make it a setting". Gameplay numbers live in tuning.ts (spawn.*, deathBeatSeconds,
  * autosaveIntervalSeconds); these are presentation / convenience choices.
  */
+import { ROLES } from '../content/roles';
 import { str } from '../content/strings';
+import type { RoleId } from '../contracts/mission';
 import { TICKS_PER_SECOND } from '../sim/core/time';
 import type { SettingDef, SettingsStore } from '../ui/settings/registry';
 
@@ -41,7 +43,12 @@ export const INPUT_SETTING_IDS = {
   autoAim: 'input.autoAim',
   /** Auto-aim fires by itself ('auto') or only while you hold fire ('hold'). */
   autoFire: 'input.autoFire',
+  /** (PHASE12-d) Touch aiming without auto-aim: 'tap' (touch the field) or 'stick'. */
+  touchAim: 'input.touchAim',
 } as const;
+
+/** (PHASE12-d) Auto-aim per role (on by default for every role). */
+export const autoAimRoleSetting = (roleId: RoleId) => `input.autoAim.${roleId}`;
 
 export function inputSettingDefs(): SettingDef[] {
   const G = 'settings.group.input';
@@ -81,6 +88,25 @@ export function inputSettingDefs(): SettingDef[] {
         { value: 'hold', label: str('settings.input.autoFire.hold') },
       ],
     },
+    {
+      id: INPUT_SETTING_IDS.touchAim,
+      group: G,
+      label: str('settings.input.touchAim'),
+      type: 'choice',
+      default: 'tap',
+      options: [
+        { value: 'tap', label: str('settings.input.touchAim.tap') },
+        { value: 'stick', label: str('settings.input.touchAim.stick') },
+      ],
+    },
+    // (PHASE12-d) Auto-aim per role: turn it off for, say, the Bazooka and aim by hand.
+    ...ROLES.map((r): SettingDef => ({
+      id: autoAimRoleSetting(r.id),
+      group: G,
+      label: str('settings.input.autoAimRole', { role: str(r.nameKey) }),
+      type: 'boolean',
+      default: true,
+    })),
   ];
 }
 
