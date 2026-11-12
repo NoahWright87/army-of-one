@@ -149,6 +149,11 @@ export const STRINGS = {
   'respawn.scrubber.unconfirmed': 'Unconfirmed',
   'respawn.entry.marker': '{point} {time}',
   // Legend
+  'respawn.deploy.go': 'DEPLOY',
+  'respawn.deploy.redeploy': 'REDEPLOY',
+  'respawn.deploy.where': '{place} · {time}',
+  'respawn.timeline.soldierShort': '{n}',
+  'respawn.spawn.rowTip': '{place}: next soldier enters at {time}',
   'respawn.legend.title': 'Key',
   'respawn.legend.alive': 'Alive',
   'respawn.legend.death': 'Died',

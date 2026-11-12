@@ -4,7 +4,6 @@ import type { LaneSpan, SpawnOption } from '../../../contracts/mission';
 import { secondsToTicks } from '../../../sim/core/time';
 import { MemoryStorage, SettingsStore } from '../../settings/registry';
 import { buildFixture } from '../__fixtures__/respawn-fixtures';
-import { mapThumbSvg } from '../map-thumb';
 import {
   changedRanges,
   cycleSelection,
@@ -14,8 +13,10 @@ import {
   endTooltip,
   findOption,
   isEventMarker,
+  initialSelection,
   isUnconfirmed,
   laneRows,
+  timelineRows,
   markerTooltip,
   optionKey,
   optionLabel,
@@ -278,16 +279,6 @@ describe('options and selection', () => {
   });
 });
 
-describe('map thumbnail', () => {
-  it('draws walls, water and marks the chosen point', () => {
-    const svg = mapThumbSvg(MISSION_03, { pointId: 'east', width: 84, height: 58 });
-    expect(svg.match(/class="th-wall"/g)?.length).toBe(MISSION_03.walls.length);
-    expect(svg.match(/class="th-water"/g)?.length).toBe(MISSION_03.water.length);
-    expect(svg.match(/th-pt on/g)?.length).toBe(1);
-    expect(svg).toContain('cx="1140" cy="5250"');
-  });
-});
-
 describe('respawn settings', () => {
   it('registers with defaults and reads back typed values', () => {
     const store = new SettingsStore(new MemoryStorage(), 'k');
@@ -298,5 +289,31 @@ describe('respawn settings', () => {
     const r = readRespawnSettings(store);
     expect(r.rowHeight).toBe(72);
     expect(r.wheel).toBe('scroll');
+  });
+});
+
+describe('timeline rows (PHASE12-c)', () => {
+  it('spawn points come first, short; resumable soldiers are taller than inert ones', () => {
+    const p = buildFixture('rescue')!.props;
+    const rows = timelineRows(p, null, 44);
+    const spawnRows = rows.filter((r) => r.kind === 'spawn');
+    expect(spawnRows.length).toBe(p.options.filter((o) => o.kind === 'new').length);
+    expect(rows.slice(0, spawnRows.length).every((r) => r.kind === 'spawn')).toBe(true);
+    const lanes = rows.filter((r) => r.kind === 'lane');
+    const open = lanes.find((r) => r.kind === 'lane' && r.row.lane.end.kind === 'open');
+    const dead = lanes.find((r) => r.kind === 'lane' && r.row.lane.end.kind === 'death');
+    if (open && dead) expect(open.h).toBeGreaterThan(dead.h);
+    expect(spawnRows[0]!.h).toBeLessThan(44);
+    // Rows stack without gaps.
+    for (let i = 1; i < rows.length; i++) expect(rows[i]!.y).toBe(rows[i - 1]!.y + rows[i - 1]!.h);
+  });
+
+  it('opens on the preferred option (quick redeploy) when it is still offered', () => {
+    const p = buildFixture('rescue')!.props;
+    const last = p.options[p.options.length - 1]!;
+    expect(initialSelection(p.options, last)).toBe(
+      last.kind === 'new' ? `new:${last.spawnPointId}` : `resume:${last.soldierId}`,
+    );
+    expect(initialSelection(p.options, null)).toBe(defaultSelection(p.options));
   });
 });

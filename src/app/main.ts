@@ -354,13 +354,13 @@ async function startGame(): Promise<void> {
         settings: readRespawnSettings(settings),
       });
       respawn = screen;
-      // (06-c) The quick-redeploy hint sits under the Deploy button (falls back to floating).
-      quickHint.dock(uiRoot.querySelector<HTMLElement>('.rs-deploy-bar'));
+      // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
+      // the separate hint stays hidden while the screen is up.
+      quickHint.set(null);
       notice.show(n === 'historyShifted' ? str('notice.historyShifted') : null);
       return {
         update: (u) => screen.update(u),
         destroy: () => {
-          quickHint.dock(null);
           screen.destroy();
           if (respawn === screen) respawn = null;
           notice.show(null);
@@ -383,7 +383,8 @@ async function startGame(): Promise<void> {
     showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
-      const on = option && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
+      const on =
+        option && !respawn && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
       quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };

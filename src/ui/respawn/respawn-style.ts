@@ -12,10 +12,10 @@ export const RESPAWN_CSS = `
 
 
 .rs-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; }
-.rs-tl, .rs-spawn { background: rgba(16,20,24,.94); border: 1px solid #39424c; border-radius: 6px;
+.rs-tl { background: rgba(16,20,24,.94); border: 1px solid #39424c; border-radius: 6px;
   min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rs-tl-bar { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 12px; }
-.rs-tl-bar h2, .rs-spawn h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+.rs-tl-bar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
   color: #9fb3c8; margin: 0; white-space: nowrap; }
 .rs-tools { display: flex; gap: 6px; margin-left: auto; }
 .rs-tool { min-width: 44px; height: 44px; font: 600 20px system-ui, sans-serif; background: #222a32;
@@ -31,8 +31,6 @@ export const RESPAWN_CSS = `
 .capline { stroke: #4ade80; stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; }
 .mk-capture .flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
 .mk-capture .pole { stroke: #d6f5e0; stroke-width: 1.5; }
-.rs-opt.forward .t::before { content: '⚑ '; color: #4ade80; }
-.rs-opt .c { font-size: 11px; color: #8fe3ae; }
 
 .rs-tl-frame { position: relative; flex: 1; min-height: 0; border-top: 1px solid #2b333b; }
 .rs-tl-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y;
@@ -71,7 +69,7 @@ export const RESPAWN_CSS = `
 .sp-unresolved { opacity: .75; animation: rs-shimmer 1.6s ease-in-out infinite alternate; }
 @keyframes rs-shimmer { from { opacity: .45; } to { opacity: .9; } }
 .start { stroke: #d5e2f0; stroke-width: 2; }
-.mk .hit, .end .hit { fill: transparent; }
+.mk .hit, .end .hit, .sp-next .hit { fill: transparent; }
 .mk .dot { fill: #8597aa; opacity: .7; }
 .mk-kill .dot, .mk-hazardDestroyed .dot { fill: #c3d0dd; }
 .mk-damaged .dot { fill: #c77b78; }
@@ -109,78 +107,8 @@ export const RESPAWN_CSS = `
 .flash.fl-alive { fill: #8ff0ad; }
 @keyframes rs-flash { 0% { opacity: .65; } 100% { opacity: 0; } }
 
-/* Spawn panel */
-.rs-spawn h2 { padding: 12px 12px 8px; }
-.rs-opts { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 10px 8px; display: flex; flex-direction: column;
-  gap: 8px; overscroll-behavior: contain; }
-.rs-opt { display: flex; align-items: center; gap: 10px; min-height: 66px; padding: 6px 10px 6px 6px;
-  text-align: left; background: #1b2229; color: #e6e9ec; border: 2px solid #2f3842; border-radius: 6px;
-  cursor: pointer; font: inherit; flex-shrink: 0; width: 100%; }
-.rs-opt:hover { border-color: #56626e; }
-.rs-opt.sel { border-color: #ffd34d; background: #2a2611; }
-.rs-opt:focus { outline: none; }
-.rs-opt:focus-visible { outline: 2px solid #35e0ff; outline-offset: 2px; }
-.rs-opt-icon { flex: 0 0 84px; display: flex; justify-content: center; align-items: center; }
-.rs-opt-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rs-opt .t { font-size: 15px; font-weight: 700; }
-.rs-opt .d { font-size: 12px; color: #9aa7b6; }
-.rs-opt .u { font-size: 11px; color: #35e0ff; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
-.rs-opt.resume .t { color: #8ff0ad; }
-.rs-opt.appear { animation: rs-appear .7s ease-out both; }
-@keyframes rs-appear { 0% { opacity: 0; transform: translateX(18px); border-color: #5ee38a; } 100% { opacity: 1; transform: none; } }
-.rs-opt.leaving { animation: rs-leave .6s ease-in both; pointer-events: none; }
-@keyframes rs-leave { 0% { opacity: 1; border-color: #ff4d5e; } 100% { opacity: 0; transform: translateX(-18px); } }
-.rs-o-icon .g-o { filter: drop-shadow(0 0 4px #5ee38a); }
-.thumb { border-radius: 3px; display: block; background: #1a2119; }
-.th-bg { fill: #2c3829; }
-.th-wall { fill: #707a86; }
-.th-cover { fill: #8c7a58; }
-.th-water { fill: #2f6390; }
-.th-pt { fill: #c8d0d8; opacity: .55; }
-.th-pt.on { fill: #ffd34d; opacity: 1; }
-.th-ring { fill: none; stroke: #ffd34d; }
-.rs-none { color: #8a96a3; padding: 10px; }
-.rs-deploy-bar { padding: 10px 12px 12px; border-top: 1px solid #2b333b; display: flex; flex-direction: column; gap: 6px; }
-.rs-deploy { min-height: 52px; font: 700 17px system-ui, sans-serif; background: #ffd34d; color: #1a1406;
-  border: 0; border-radius: 6px; cursor: pointer; padding: 0 12px; }
-.rs-deploy:hover:not(:disabled) { background: #ffe07a; }
-.rs-deploy:disabled { background: #3a3f45; color: #8a96a3; cursor: default; }
-.rs-keys { font-size: 11px; color: #6f7b88; text-align: center; }
-/* (07-c) Role picker. */
-.rs-roles-label { font-size: 11px; color: #8a96a3; margin-bottom: 4px; }
-.rs-roles-row { display: flex; gap: 6px; }
-.rs-role { flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px;
-  background: #1d242b; color: #d8e0e8; border: 1px solid #3a444e; border-radius: 6px; cursor: pointer;
-  font: 600 14px system-ui, sans-serif; padding: 0 8px; }
-.rs-role .k { font-size: 11px; color: #6f7b88; }
-.rs-role.sel { border-color: #ffd34d; background: #2c2a1c; color: #ffe07a; }
-.rs-role:disabled { cursor: default; opacity: 0.7; }
-
-@media (max-width: 760px) {
-  .aoo-respawn { padding: 8px 16px 12px; gap: 8px; }
-            .rs-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(160px, 1fr) auto; gap: 8px; }
-  .rs-spawn { max-height: 40vh; }
-  .rs-spawn h2 { padding: 8px 12px 6px; }
-  .rs-keys { display: none; }
-  .rs-opt { min-height: 56px; }
-  .rs-opt-icon { flex-basis: 64px; }
-  .rs-opt-icon .thumb { width: 64px; height: 44px; }
-  .rs-deploy-bar { padding: 8px 10px 10px; }
-  /* (07-c/b) Role picker fits a phone: no key numbers, smaller, wraps if it must. */
-  .rs-roles-row { flex-wrap: wrap; gap: 4px; }
-  .rs-role { min-height: 34px; font-size: 13px; padding: 0 6px; }
-  .rs-role .k { display: none; }
-}
-
 /* (06-b) Revealed map panel ([D29]). Wide maps sit above the spawn list; tall maps (a vertical
    strip, forward = up) get their own column, sized from the height by map-panel.ts. */
-.rs-main.with-map > .rs-tl { grid-area: tl; }
-.rs-main.with-map > .rs-map { grid-area: map; }
-.rs-main.with-map > .rs-spawn { grid-area: spawn; }
-.rs-main.with-map.map-wide { grid-template-columns: minmax(0, 1fr) 360px;
-  grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "tl map" "tl spawn"; }
-.rs-main.with-map.map-tall { grid-template-columns: minmax(0, 1fr) auto 320px;
-  grid-template-rows: minmax(0, 1fr); grid-template-areas: "tl map spawn"; }
 .rs-map { background: rgba(16,20,24,.94); border: 1px solid #39424c; border-radius: 6px; min-width: 0;
   min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rs-map-bar { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px 6px; height: 34px; flex-shrink: 0;
@@ -242,24 +170,6 @@ export const RESPAWN_CSS = `
 .mp-bang-t { fill: #1a1206; font-weight: 800; text-anchor: middle; font-family: system-ui, sans-serif; }
 .rs-map-legend .mp-o { filter: none; }
 
-@media (max-width: 760px) {
-  /* Wide map on a phone: the map shares the timeline's area (toggle buttons swap them). */
-  .rs-main.with-map.map-wide { grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(160px, 1fr) auto; grid-template-areas: "tl" "spawn"; }
-  .rs-main.with-map.map-wide > .rs-map { grid-area: tl; }
-  .rs-main.with-map.map-wide:not(.phone-map) > .rs-map,
-  .rs-main.with-map.map-wide.phone-map > .rs-tl { display: none; }
-  .rs-main.with-map.map-wide .rs-view-toggle { display: inline-block; }
-  .rs-main.with-map.map-wide .rs-map-body { flex: 1 1 auto; max-height: none; aspect-ratio: auto !important; }
-  .rs-main.with-map.map-wide .rs-map-bar { height: 52px; align-items: center; }
-  .rs-main.with-map.map-tall { grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: minmax(130px, 1fr) auto; grid-template-areas: "tl tl" "map spawn"; }
-  .rs-main.with-map .rs-spawn { max-height: 36vh; }
-  /* The map shows where each spawn is, so the option thumbnails go (more room for text). */
-  .rs-main.with-map .rs-opt-icon { display: none; }
-  .rs-main.with-map .rs-opt { padding-left: 10px; }
-  .rs-map-bar { padding: 6px 10px 4px; height: 28px; }
-  .rs-map-legend { display: none; }
 }
 .aoo-respawn .rs-money { border-top: 1px solid #2c3742; background: #141b22; flex: none; }
 .aoo-respawn .rs-money[hidden] { display: none; }
@@ -273,12 +183,72 @@ export const RESPAWN_CSS = `
 .aoo-respawn .rs-money .mn-sel circle { fill: #fff; stroke: #9ee59a; stroke-width: 2; }
 .aoo-respawn .rs-money .mn-sel text { fill: #fff; font: 700 12px system-ui, sans-serif; paint-order: stroke; stroke: #141b22; stroke-width: 3px; }
 .aoo-respawn .rs-money .guide { stroke: #fff; stroke-opacity: .35; stroke-dasharray: 4 3; }
-.aoo-respawn .rs-opt .m { color: #9ee59a; font-size: 12px; }
-.aoo-respawn .rs-opt .m.debt { color: #ff8a80; }
-.aoo-respawn .rs-roles-row { flex-wrap: wrap; }
-.aoo-respawn .rs-role { flex: 1 1 22%; font-size: 13px; flex-wrap: wrap; row-gap: 0; min-width: 0; line-height: 1.15; padding-top: 3px; padding-bottom: 3px; }
-.aoo-respawn .rs-role .p { flex-basis: 100%; text-align: center; font-size: 11px; color: #9ee59a; font-variant-numeric: tabular-nums; }
-.aoo-respawn .rs-role.poor { opacity: .55; }
-.aoo-respawn .rs-role.poor .p { color: #ff8a80; text-decoration: line-through; }
-.aoo-respawn .rs-roles-poor { color: #ff8a80; font-size: 12px; margin-top: 4px; }
+
+/* (PHASE12-c) Layout: the timeline and a full-height map side by side, the role button and
+   DEPLOY in a bar under your thumb. */
+.rs-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "tl" "bar"; gap: 8px; }
+.rs-main.with-map { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tl map" "bar bar"; }
+.rs-main > .rs-tl { grid-area: tl; }
+.rs-main > .rs-map { grid-area: map; }
+.rs-main > .rs-deploy-bar { grid-area: bar; }
+.rs-main.map-wide > .rs-map { width: min(30vw, 420px); }
+.rs-map-bar { display: none; }
+.rs-map-body { flex: 1 1 auto; max-height: none; }
+.rs-main.map-wide .rs-map-body { flex: 0 1 auto; }
+
+/* Spawn rows: a short track per spawn point, a chevron at its next entry. */
+.row.spawnrow .row-bg { fill: rgba(79,209,255,.05); }
+.row.spawnrow.sel .row-bg { fill: rgba(255,211,77,.12); }
+.sp-track { stroke: #2f6f86; stroke-width: 2; }
+.sp-entry { stroke: #4fd1ff; stroke-width: 1.5; opacity: .6; }
+.sp-chev { fill: #4fd1ff; stroke: #07090c; stroke-width: 1; }
+.sp-next { cursor: pointer; }
+.sp-next.sel .sp-chev { fill: #ffd34d; }
+.lbl.spawn { cursor: pointer; }
+.lbl.spawn rect { fill: #11202a; }
+.lbl.spawn.sel rect { fill: #2a2611; }
+.lbl.spawn .name { fill: #9fdcf2; font: 600 11px system-ui, sans-serif; }
+.lbl.spawn.sel .name { fill: #ffe07a; }
+.lbl .rs-ricon { fill: #c9d3dc; }
+.lbl.inert .rs-ricon, .lbl.inert .name { opacity: .6; }
+.lbl.sel .rs-ricon { fill: #8ff0ad; }
+
+/* Bottom bar. */
+.rs-deploy-bar { display: flex; gap: 8px; align-items: stretch; }
+.rs-role-btn { flex: 0 0 76px; position: relative; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; min-height: 60px; background: #1d242b; color: #e6e9ec;
+  border: 1px solid #3a444e; border-radius: 8px; cursor: pointer; padding: 0; }
+.rs-role-btn .p { font: 600 12px system-ui, sans-serif; color: #9ee59a; font-variant-numeric: tabular-nums; }
+.rs-role-btn.poor .p { color: #ff8a80; text-decoration: line-through; }
+.rs-role-btn.locked { background: #161b20; color: #7f8b97; cursor: default; }
+.rs-role-btn .lock { position: absolute; font-size: 20px; opacity: .55; }
+.rs-deploy { flex: 1; min-height: 60px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0; background: #ffd34d; color: #1a1406; border: 0; border-radius: 8px;
+  cursor: pointer; padding: 0 12px; }
+.rs-deploy .go { font: 800 20px system-ui, sans-serif; letter-spacing: .06em; }
+.rs-deploy .where { font: 600 12px system-ui, sans-serif; opacity: .75; }
+.rs-deploy:hover:not(:disabled) { background: #ffe07a; }
+.rs-deploy:disabled { background: #3a3f45; color: #8a96a3; cursor: default; }
+
+/* The role menu, above the bar. */
+.rs-role-menu { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 30; max-width: 520px;
+  background: #161c22; border: 1px solid #4a5560; border-radius: 8px; padding: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.6); }
+.rs-rm-money { font-size: 12px; color: #9ee59a; padding: 2px 4px 8px; }
+.rs-rm-money.debt { color: #ff8a80; }
+.rs-rm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.rs-rm-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 4px 6px; background: #1d242b; color: #e6e9ec; border: 1px solid #3a444e;
+  border-radius: 6px; cursor: pointer; font: 600 12px system-ui, sans-serif; }
+.rs-rm-item .p { font-size: 11px; color: #9ee59a; }
+.rs-rm-item .k { position: absolute; top: 3px; left: 5px; font-size: 10px; color: #6f7b88; }
+.rs-rm-item.sel { border-color: #ffd34d; background: #2c2a1c; color: #ffe07a; }
+.rs-rm-item.poor { opacity: .45; cursor: default; }
+.rs-rm-item.poor .p { color: #ff8a80; text-decoration: line-through; }
+
+@media (max-width: 760px) {
+  .aoo-respawn { padding: 8px 10px 10px; }
+  .rs-rm-item .k { display: none; }
+}
 `;

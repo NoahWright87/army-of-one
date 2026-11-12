@@ -65,6 +65,11 @@ export interface RespawnProps {
    */
   roleId?: RoleId;
   onRole?: (roleId: RoleId) => void;
+  /**
+   * The option selected when the screen opens: the quick-redeploy choice (last spawn point's
+   * next slot), so DEPLOY is one tap back into the action. Absent: the first option.
+   */
+  preferred?: SpawnOption | null;
   /** (PHASE11) Money on the timeline ([D51]); absent = no money shown (fixtures, economy off). */
   economy?: Ledger;
 }
@@ -90,6 +95,8 @@ export interface LaneRow {
   soldierId: SoldierId;
   ordinal: number;
   label: string;
+  /** The soldier's role (an icon replaces the name, PHASE12-c). */
+  roleId: RoleId;
   spawnName: string;
   lane: LaneTruth;
   neverSpawned: boolean;
@@ -110,6 +117,7 @@ export function laneRows(
         soldierId: lane.soldierId,
         ordinal,
         label: str('respawn.timeline.soldier', { n: ordinal }),
+        roleId: s?.roleId ?? 'rifleman',
         spawnName: s ? spawnPointName(map, s.spawnPointId) : '',
         lane,
         neverSpawned: lane.end.kind === 'neverSpawned',
@@ -537,4 +545,97 @@ export function moneyTip(l: Ledger, t: Tick): string {
     time: formatBattleTime(t),
     rate: str('money.rate', { n: Math.round(rateAt(l, t) * 10) / 10 }),
   });
+}
+
+// ---------- Timeline rows (PHASE12-c: spawn points on the timeline) ----------
+
+/** A spawn point's row: its marker sits at its next entry slot ([D7]). */
+export interface SpawnTimelineRow {
+  kind: 'spawn';
+  key: OptionKey;
+  option: Extract<SpawnOption, { kind: 'new' }>;
+  name: string;
+  /** When the point opened (0 for initial points, the capture tick for forward ones). */
+  openTick: Tick;
+  /** Earlier entries at this point (the queue so far). */
+  entries: Tick[];
+  y: number;
+  h: number;
+}
+
+export interface LaneTimelineRow {
+  kind: 'lane';
+  row: LaneRow;
+  /** Resumable (an O) or selected: full height. Everything else is shorter. */
+  interactive: boolean;
+  y: number;
+  h: number;
+}
+
+export type TimelineRow = SpawnTimelineRow | LaneTimelineRow;
+
+/** Row heights from the base row height: spawn rows and inert lanes are shorter. */
+export function rowHeights(rowH: number): { spawn: number; lane: number; inert: number } {
+  return {
+    spawn: Math.max(22, Math.round(rowH * 0.6)),
+    lane: rowH,
+    inert: Math.max(22, Math.round(rowH * 0.62)),
+  };
+}
+
+/**
+ * Every timeline row top to bottom: one per open spawn point first (map order), then one per
+ * soldier lane. Each row has its y and height.
+ */
+export function timelineRows(
+  p: Pick<RespawnProps, 'map' | 'lanes' | 'soldiers' | 'options' | 'captures'>,
+  selected: OptionKey | null,
+  rowH: number,
+): TimelineRow[] {
+  const hs = rowHeights(rowH);
+  const out: TimelineRow[] = [];
+  let y = 0;
+  for (const sp of p.map.spawnPoints) {
+    const option = p.options.find(
+      (o): o is Extract<SpawnOption, { kind: 'new' }> =>
+        o.kind === 'new' && o.spawnPointId === sp.id,
+    );
+    if (!option) continue;
+    const cap =
+      sp.kind === 'capture'
+        ? (p.captures ?? []).find((c) => c.pointId === sp.capturePointId && c.stage === 'ours')
+        : undefined;
+    const openTick = cap?.tick ?? 0;
+    const entries = p.soldiers
+      .filter((s) => s.spawnPointId === sp.id && s.spawnTick >= openTick)
+      .map((s) => s.spawnTick)
+      .sort((a, b) => a - b);
+    out.push({
+      kind: 'spawn',
+      key: optionKey(option),
+      option,
+      name: spawnPointName(p.map, sp.id),
+      openTick,
+      entries,
+      y,
+      h: hs.spawn,
+    });
+    y += hs.spawn;
+  }
+  for (const row of laneRows(p.lanes, p.soldiers, p.map)) {
+    const interactive = row.lane.end.kind === 'open' || selected === `resume:${row.soldierId}`;
+    const h = interactive ? hs.lane : hs.inert;
+    out.push({ kind: 'lane', row, interactive, y, h });
+    y += h;
+  }
+  return out;
+}
+
+/** The option to select when the screen opens: `preferred` if still offered, else the first. */
+export function initialSelection(
+  options: readonly SpawnOption[],
+  preferred: SpawnOption | null | undefined,
+): OptionKey | null {
+  if (preferred && findOption(options, optionKey(preferred))) return optionKey(preferred);
+  return defaultSelection(options);
 }

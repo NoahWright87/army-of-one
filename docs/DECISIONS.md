@@ -299,6 +299,18 @@ revise with justification in a PR).
   weapon's pierce; walls themselves stay unbreakable). Deferred; every damage path already goes
   through `src/sim/combat/armor.ts`, so it stays open.
 
+## Respawn screen (owner session 2026-11)
+
+- **[D73] A lean respawn screen that gets you back in fast.** No header (attempt number,
+  soldiers used, time reached, objective), no "History changed" captions, the key behind an ℹ️
+  button. Spawn points are the first timeline rows (short), with a marker at each point's next
+  entry that moves right as soldiers spawn there; soldier rows show a role icon and number
+  (placeholder icons, real ones from the owner later), and inert rows are shorter. One role
+  button sits beside DEPLOY (same height, narrower) and opens a menu of roles; on an existing
+  soldier it's locked (🔒) and DEPLOY reads REDEPLOY. The map runs full height beside the
+  timeline. The screen opens on the quick-redeploy choice, so DEPLOY is one tap back in. (The
+  role menu is where "certain roles only at certain spawn points" would go, if wanted later.)
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

@@ -862,6 +862,8 @@ export class GameController {
         resolvedUntil: this.resolvedUntil,
         reveal: revealOptions(this.tuning), // (06-b) revealed map
         roleId: this.roleId, // (07-c) role picker
+        // (PHASE12-c) Opens on the quick-redeploy choice: DEPLOY is one tap back in.
+        preferred: quickRedeployOption(options, this.lastSpawnPointId),
         economy: this.ledger(), // (PHASE11) money
         onRole: (r) => {
           this.roleId = r;

@@ -111,15 +111,10 @@ export class MapPanel {
     const ratio = tall ? '' : `${p.map.width} / ${p.map.height}`;
     if (this.body.style.aspectRatio !== ratio) this.body.style.aspectRatio = ratio;
     if (tall) {
-      const barH = 34 + (this.legend.hidden ? 0 : this.legend.offsetHeight);
+      const barH = this.bar.offsetHeight + (this.legend.hidden ? 0 : this.legend.offsetHeight);
       const avail = this.root.clientHeight - barH;
       const phone = window.innerWidth <= 760;
-      const w = tallMapWidth(
-        p.map,
-        avail,
-        phone ? 84 : 150,
-        phone ? window.innerWidth * 0.42 : 320,
-      );
+      const w = tallMapWidth(p.map, avail, phone ? 84 : 150, phone ? window.innerWidth * 0.3 : 320);
       const css = `${w + 2}px`;
       if (this.root.style.width !== css) this.root.style.width = css;
     } else if (this.root.style.width) {
