@@ -19,6 +19,7 @@ import type { SimEvent } from '../events';
 import type { World } from '../state';
 import { simPerf } from '../perf';
 import { soldierIndex } from '../sim';
+import { soldierMaxHp } from '../entities/soldier';
 import type { EchoController, EchoTransition } from '../recording/echo-controller';
 
 /** String keys (into src/content/strings.ts) for each marker kind's tooltip. */
@@ -258,9 +259,11 @@ function laneFate(
   const s = byId ? byId.get(id) : world.state.soldiers.find((x) => x.id === id);
   if (!s || !existed) return null; // not spawned in the window, or already dead at its start
   if (!s.alive) return { kind: 'died', tick: s.deathTick!, cause: s.deathCause ?? 'unknown' };
-  if (echo?.mode === 'static') return { kind: 'static', tick: echo.fateTick! };
+  // (PHASE12-d) How hurt they are where the recording ends (resume HP).
+  const hp = Math.max(0, Math.min(1, s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId))));
+  if (echo?.mode === 'static') return { kind: 'static', tick: echo.fateTick!, hp };
   if (echo?.mode === 'interrupted') {
     return { kind: 'interrupted', tick: echo.fateTick!, reason: echo.reason ?? '' };
   }
-  return { kind: 'alive' };
+  return { kind: 'alive', hp };
 }

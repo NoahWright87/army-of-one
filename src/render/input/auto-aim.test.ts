@@ -9,6 +9,8 @@ import { knobOffset, looksLikeTouch, stickVector } from '../../ui/touch/stick-ma
 import {
   AutoAimInput,
   autoAimError,
+  friendlyInBlast,
+  leadPoint,
   autoAimRange,
   pickTarget,
   rankTargets,
@@ -184,5 +186,52 @@ describe('auto-aim and armor (PHASE12-b)', () => {
       damageShare(T, 'rocket', r),
     );
     expect(view.soldiers.find((s) => s.id === rockets[0]!.id)!.roleId).toBe('tank');
+  });
+});
+
+describe('rocket auto-aim (PHASE12-d)', () => {
+  it('leads a moving target so the projectile meets it', () => {
+    // Target 300 to the east moving north 2/tick; projectile 10/tick: it meets it ~30 ticks on.
+    const p = leadPoint({ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 0, y: -2 }, 10);
+    const t = Math.hypot(p.x, p.y) / 10;
+    expect(p.y).toBeCloseTo(-2 * t, 1);
+    expect(leadPoint({ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 0, y: 0 }, 10)).toEqual({
+      x: 300,
+      y: 0,
+    });
+  });
+
+  it('holds an explosive when one of ours would be in the blast; per-role off passes through', () => {
+    const w = createWorld(arena(), { ...T, ai: { ...T.ai, enabled: false } });
+    spawnSoldier(w, 'a', { position: { x: 100, y: 500 }, roleId: 'bazooka' });
+    spawnSoldier(w, 'a', { position: { x: 400, y: 500 }, roleId: 'tank', team: 'enemy' });
+    const buddy = spawnSoldier(w, 'a', { position: { x: 420, y: 540 } });
+    const base: InputSource = {
+      read: () => ({ move: { x: 0, y: 0 }, aim: 2, fire: false, interact: false }),
+      pointerWorld: () => null,
+      destroy: () => {},
+    };
+    const a = new AutoAimInput(base, {
+      map: arena(),
+      tuning: T,
+      liveId: 'S1',
+      fireMode: () => 'auto',
+    });
+    a.observe(getView(w));
+    expect(a.read({ x: 100, y: 500 }).fire).toBe(false); // the buddy is next to the tank
+    w.state.soldiers.find((s) => s.id === buddy)!.x = 100; // the buddy moves well away from the target
+    w.state.soldiers.find((s) => s.id === buddy)!.y = 300;
+    a.observe(getView(w));
+    expect(a.read({ x: 100, y: 500 }).fire).toBe(true);
+    expect(friendlyInBlast(getView(w), { x: 100, y: 300 }, 30)).toBe(true);
+    const off = new AutoAimInput(base, {
+      map: arena(),
+      tuning: T,
+      liveId: 'S1',
+      fireMode: () => 'auto',
+      enabledFor: (r) => r !== 'bazooka',
+    });
+    off.observe(getView(w));
+    expect(off.read({ x: 100, y: 500 }).aim).toBe(2);
   });
 });

@@ -82,9 +82,11 @@ export interface SoldierRecord {
 // ---------- Observation (produced by 03-a's attempt runner, consumed by 03-b) ----------
 
 export type LaneFate =
-  | { kind: 'alive' } // alive at obs.toTick; recording continues past it
+  /** alive at obs.toTick; recording continues past it. (PHASE12-d) `hp`: share of max HP then. */
+  | { kind: 'alive'; hp?: number }
   | { kind: 'died'; tick: Tick; cause: string }
-  | { kind: 'static'; tick: Tick } // reached end of recording alive → O
+  /** reached end of recording alive → O. (PHASE12-d) `hp`: share of max HP left then. */
+  | { kind: 'static'; tick: Tick; hp?: number }
   | { kind: 'interrupted'; tick: Tick; reason: string } // could not follow its schedule; froze [D24]
   | { kind: 'neverSpawned'; reason: string }; // spawn point not ours at spawnTick [D26]
 
@@ -197,7 +199,8 @@ export interface LaneSpan {
 
 export type LaneEnd =
   | { kind: 'death'; tick: Tick } // X
-  | { kind: 'open'; tick: Tick } // O: alive at end of recording, resumable
+  /** O: alive at end of recording, resumable. (PHASE12-d) `hp`: share of max HP left. */
+  | { kind: 'open'; tick: Tick; hp?: number }
   | { kind: 'interrupted'; tick: Tick } // !  not resumable [D24]
   | { kind: 'neverSpawned' } // whole lane greyed [D26]
   | { kind: 'unresolved' } // scrubber hasn't caught up [D23]

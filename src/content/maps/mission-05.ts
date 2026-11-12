@@ -15,13 +15,13 @@ import { borderWalls, type CoverDef, type MapDef, type SquadDef } from '../../si
  *     1900 │    ▀▀▀    ▀▀▀   ( D Depot )   ▀▀▀    ▀▀▀  │  capture D (forward spawn)
  *     2700 │ ~~~~~~~~~~~[ B1 ]~~~~~~~~~~~~~[ B2 ]~~~~~~ │  river: drawbridge + destructible bridge
  *     3500 │    T5    ▀▀    ( C Crossroads )    ▀▀   T6 │  capture C, shotguns + bazookas
- *     4400 │ ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ highway ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ │  traffic + an enemy gun truck
- *     4520 │ ⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠⇠ │
+ *     4400 │   ╲╱ highway: two gun trucks drive a figure 8 ╲╱   │
+ *     4520 │   ╱╲                                          ╱╲   │
  *     5400 │  * * *  TANK  * * *   ▄▄ ▄▄ ▄▄   * * *       │  minefield, half walls, a tank
  *     6300 │      ▀▀▀      ( B Fuel Farm )      ▀▀▀      │  capture B
  *     7300 │ ████████████████[GATE]████████████████████ │  checkpoint wall + gate (levers)
  *     8100 │   T3   ⊞ ⊞      ( A Checkpoint )     ⊞ ⊞  T4 │  capture A, crates, a truck
- *     9700 │ ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ service road ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ │  one traffic lane
+ *     9700 │ ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ service road ⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢⇢ │  a gun truck driving an oval
  *    10950 │    T1        ▀▀▀  ┼┼┼┼  ▀▀▀          T2      │  outer line: turrets, fence, squads
  *    11650 │      W                C                E     │  three initial spawns, facing up
  *    12000 └────────────────────────────────────────────┘
@@ -95,6 +95,32 @@ const forwardSpawn = (id: string, nameKey: string, cpId: string, y: number) => (
 
 const mines = (y: number, xs: number[], tag: string) =>
   xs.map((x, i) => ({ id: `m5-mine-${tag}-${i + 1}`, position: { x, y: y + (i % 2) * 70 } }));
+
+/** (PHASE12-d) Patrol loops for the gun trucks ([D75]). */
+const HIGHWAY_EIGHT = [
+  { x: 260, y: M5.highwayY[0] - 80 },
+  { x: M5_W / 2, y: (M5.highwayY[0] + M5.highwayY[1]) / 2 },
+  { x: M5_W - 260, y: M5.highwayY[1] + 80 },
+  { x: M5_W - 260, y: M5.highwayY[0] - 80 },
+  { x: M5_W / 2, y: (M5.highwayY[0] + M5.highwayY[1]) / 2 },
+  { x: 260, y: M5.highwayY[1] + 80 },
+];
+const SERVICE_OVAL = [
+  { x: 280, y: M5.serviceRoadY - 70 },
+  { x: M5_W - 280, y: M5.serviceRoadY - 70 },
+  { x: M5_W - 280, y: M5.serviceRoadY + 70 },
+  { x: 280, y: M5.serviceRoadY + 70 },
+];
+
+/** A gun truck driving `loop`, starting at point `from`. */
+function patrol(id: string, loop: readonly { x: number; y: number }[], from: number): SquadDef {
+  const route = [...loop.slice(from), ...loop.slice(0, from)];
+  return {
+    id,
+    members: [{ role: 'truck', position: route[0]!, facing: 0 }],
+    order: { kind: 'patrol', route },
+  };
+}
 
 export const MISSION_05: MapDef = {
   id: 'mission-05',
@@ -215,25 +241,6 @@ export const MISSION_05: MapDef = {
     ...mines(M5.minefieldY - 40, [1080, 1160, 1240, 1460, 1540, 1620], 'e'),
     ...mines(M5.minefieldY + 360, [400, 520, 640, 1160, 1280, 1400], 's'),
   ],
-  trafficLanes: [
-    {
-      id: 'm5-hw-east',
-      from: { x: -100, y: M5.highwayY[0] },
-      to: { x: M5_W + 100, y: M5.highwayY[0] },
-    },
-    {
-      id: 'm5-hw-west',
-      from: { x: M5_W + 100, y: M5.highwayY[1] },
-      to: { x: -100, y: M5.highwayY[1] },
-      offsetSeconds: 0.9,
-    },
-    {
-      id: 'm5-service',
-      from: { x: -100, y: M5.serviceRoadY },
-      to: { x: M5_W + 100, y: M5.serviceRoadY },
-      offsetSeconds: 0.4,
-    },
-  ],
   gates: [
     {
       id: 'm5-gate-checkpoint',
@@ -335,18 +342,11 @@ export const MISSION_05: MapDef = {
       ['rifleman', CX - 200],
       ['bazooka', CX + 200],
     ]),
-    // Highway patrol: a gun truck driving the road between the lanes.
-    {
-      id: 'm5-sq-highway',
-      members: [{ role: 'truck', position: { x: 300, y: M5.highwayY[0] - 140 }, facing: 0 }],
-      order: {
-        kind: 'patrol',
-        route: [
-          { x: 260, y: M5.highwayY[0] - 140 },
-          { x: M5_W - 260, y: M5.highwayY[0] - 140 },
-        ],
-      },
-    },
+    // (PHASE12-d) The highway: two gun trucks driving a figure 8 ([D75]); the service road:
+    // one driving an oval.
+    patrol('m5-sq-highway-a', HIGHWAY_EIGHT, 0),
+    patrol('m5-sq-highway-b', HIGHWAY_EIGHT, 3),
+    patrol('m5-sq-service', SERVICE_OVAL, 0),
     // Crossroads: holds point C, close-range heavy.
     {
       ...guard('m5-sq-cross', M5.crossroadsY - 160, [

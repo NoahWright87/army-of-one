@@ -52,3 +52,17 @@ export function wrapAngle(radians: number): number {
   if (a > Math.PI) a -= 2 * Math.PI;
   return a;
 }
+
+/**
+ * (PHASE12-d) Where to aim a projectile so it meets a target moving at `vel` (units per tick):
+ * a few fixed-point steps of "time to reach it, then where it will be by then".
+ */
+export function leadPoint(from: Vec2, target: Vec2, vel: Vec2, speedPerTick: number): Vec2 {
+  if (speedPerTick <= 0 || (vel.x === 0 && vel.y === 0)) return { x: target.x, y: target.y };
+  let p = { x: target.x, y: target.y };
+  for (let i = 0; i < 4; i++) {
+    const t = Math.hypot(p.x - from.x, p.y - from.y) / speedPerTick;
+    p = { x: target.x + vel.x * t, y: target.y + vel.y * t };
+  }
+  return p;
+}

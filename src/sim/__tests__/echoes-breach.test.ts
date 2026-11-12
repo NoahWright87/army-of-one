@@ -136,13 +136,13 @@ describe('rescue chain: X → rescue → O → resume', () => {
     const kill = o.markers.find((m) => m.kind === 'kill')!;
     expect(kill).toMatchObject({ soldierId: 'S2', refId: 't1', stringKey: 'marker.kill' });
     expect(kill.tick).toBeLessThan(s1End);
-    expect(o.lanes['S1']).toEqual({ kind: 'static', tick: s1End });
+    expect(o.lanes['S1']).toMatchObject({ kind: 'static', tick: s1End });
     expect(o.markers).toContainEqual(
       expect.objectContaining({ soldierId: 'S1', kind: 'open', tick: s1End }),
     );
     // S2 stayed alive past S1's recording end.
     expect(o.toTick).toBeGreaterThan(s1End);
-    expect(o.lanes['S2']).toEqual({ kind: 'alive' });
+    expect(o.lanes['S2']).toMatchObject({ kind: 'alive' });
     // The static S1 is frozen and out of play.
     const s1 = soldier(a2.attempt.world, 'S1');
     expect(isEligible(s1)).toBe(false);
@@ -166,7 +166,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
     );
     expect(a3.attempt.world.state.gates[0]!.open).toBe(true);
     expect(soldier(a3.attempt.world, 'S1').y).toBeLessThan(M3.mineRowsY[2]);
-    expect(o.lanes['S1']).toEqual({ kind: 'alive' });
+    expect(o.lanes['S1']).toMatchObject({ kind: 'alive' });
     expect(a3.liveSegment!.endReason).toBe('suspended');
   });
 
@@ -262,8 +262,8 @@ describe('ignore the O / make history worse', () => {
         expect(hit.target?.kind).not.toBe('soldier');
       },
     });
-    expect(res.observation.lanes['S1']).toEqual({ kind: 'static', tick: s1End });
-    expect(res.observation.lanes['S3']).toEqual({ kind: 'alive' });
+    expect(res.observation.lanes['S1']).toMatchObject({ kind: 'static', tick: s1End });
+    expect(res.observation.lanes['S3']).toMatchObject({ kind: 'alive' });
   });
 
   it('history made worse: S3 sets off a mine next to the resumed S1, who dies earlier', () => {
@@ -382,7 +382,7 @@ describe('resolve pass', () => {
   it('the attempt itself only knows S1 is alive at its end ([D3])', () => {
     expect(att.observation.toTick).toBe(s2Dead);
     expect(att.observation.toTick).toBeLessThan(s1End);
-    expect(att.observation.lanes['S1']).toEqual({ kind: 'alive' });
+    expect(att.observation.lanes['S1']).toMatchObject({ kind: 'alive' });
     expect(att.observation.lanes['S2']).toMatchObject({ kind: 'died', tick: s2Dead });
   });
 
@@ -404,7 +404,7 @@ describe('resolve pass', () => {
     expect(o).toMatchObject({ kind: 'resolve', attempt: 2, fromTick: s2Dead, toTick: s1End });
     expect(o.live).toBeUndefined();
     expect(o.endReason).toBe('resolved');
-    expect(o.lanes['S1']).toEqual({ kind: 'static', tick: s1End });
+    expect(o.lanes['S1']).toMatchObject({ kind: 'static', tick: s1End });
     expect(o.lanes['S2']).toBeUndefined(); // already dead when the pass started
     expect(progress.length).toBeGreaterThan(5);
     for (let i = 1; i < progress.length; i++) {

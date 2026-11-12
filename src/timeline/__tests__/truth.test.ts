@@ -107,7 +107,7 @@ describe('applyObservation', () => {
 
   it('rescue: X becomes O and is reported as a change', () => {
     const { a2 } = rescueStory();
-    expect(lane(a2.lanes, 'S1').end).toEqual({ kind: 'open', tick: 500 });
+    expect(lane(a2.lanes, 'S1').end).toMatchObject({ kind: 'open', tick: 500 });
     expect(lane(a2.lanes, 'S2').end).toEqual({ kind: 'death', tick: 700 });
     expect(a2.changes).toEqual([
       { soldierId: 'S1', before: { kind: 'death', tick: 500 }, after: { kind: 'open', tick: 500 } },

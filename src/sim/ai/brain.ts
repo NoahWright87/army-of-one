@@ -23,7 +23,7 @@ import type { RoleId } from '../../contracts/mission';
 import { hash01 } from '../core/hash';
 import { compareIds } from '../core/ids';
 import { secondsToTicks, type Tick } from '../core/time';
-import { distance, distanceSq, type Vec2 } from '../core/vec';
+import { distance, distanceSq, leadPoint, type Vec2 } from '../core/vec';
 import { hasLineOfSight } from '../combat/shots';
 import { attackKind, currentSpread, gunOf } from '../combat/guns';
 import { damageShare, WORTH_SHOOTING } from '../combat/armor';
@@ -75,6 +75,14 @@ export interface AiState {
 }
 
 const BEHAVIOR_ARRIVE = 10;
+
+/**
+ * (PHASE12-d) How close counts as "there": vehicles can't stop on a point (a truck can't even
+ * turn on the spot), so they arrive within a few body radii.
+ */
+function arriveRadius(s: SoldierState, soldier: number): number {
+  return s.drive ? Math.max(soldier, 70) : soldier;
+}
 /** (perf) A destination has to move this far to be worth a new path. */
 const REPLAN_MOVE = 64;
 /** (perf) Paths longer than this aren't searched (the chase leash is shorter anyway). */
@@ -320,7 +328,10 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   const p = perceive(world, s, ai, ours);
   const range = weaponRange(world, s);
   const squad = (world.map.squads ?? []).find((q) => q.id === ai.squad);
-  const leashOk = (pt: Vec2) => distance(pt, ai.home) <= prof.leash + 1;
+  // (PHASE12-d) A patrol's "post" is its whole route, not where it started.
+  const posts: readonly Vec2[] =
+    squad?.order.kind === 'patrol' && squad.order.route.length > 0 ? squad.order.route : [ai.home];
+  const leashOk = (pt: Vec2) => posts.some((h) => distance(pt, h) <= prof.leash + 1);
   const underFire = p.hurt || tick - ai.hurtTick < secondsToTicks(1.5);
   const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId));
 
@@ -417,7 +428,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       const route = squad?.order.kind === 'patrol' ? squad.order.route : [];
       if (route.length > 0) {
         let pt = route[ai.patrolIdx % route.length]!;
-        if (distance(s, pt) < 24) {
+        if (distance(s, pt) < arriveRadius(s, 24)) {
           ai.patrolIdx = (ai.patrolIdx + 1) % route.length;
           pt = route[ai.patrolIdx]!;
         }
@@ -429,7 +440,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       dest = null;
       break;
     case 'hold':
-      dest = distance(s, ai.home) > 24 ? ai.home : null;
+      dest = distance(s, ai.home) > arriveRadius(s, 24) ? ai.home : null;
       break;
   }
   setDest(world, s, ai, dest);
@@ -515,7 +526,8 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;
   let move = { x: 0, y: 0 };
   if (ai.path && ai.pathIdx < ai.path.length) {
-    while (ai.pathIdx < ai.path.length && distance(s, ai.path[ai.pathIdx]!) <= BEHAVIOR_ARRIVE) {
+    const arrive = arriveRadius(s, BEHAVIOR_ARRIVE);
+    while (ai.pathIdx < ai.path.length && distance(s, ai.path[ai.pathIdx]!) <= arrive) {
       ai.pathIdx++;
     }
     const wp = ai.path[ai.pathIdx];
@@ -530,7 +542,19 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   let aim = s.facing;
   let aimDistance: number | undefined;
   if (aimAt) {
-    aim = Math.atan2(aimAt.y - s.y, aimAt.x - s.x) + ai.aimErr;
+    // (PHASE12-d) A rocket or shell leads a moving vehicle so it meets it.
+    const proj = roleDef(s.roleId).weapon;
+    let at: Vec2 = aimAt;
+    if (live?.drive && (proj === 'rocket' || proj === 'shell')) {
+      const v = live.drive.speed / 60;
+      at = leadPoint(
+        s,
+        live,
+        { x: Math.cos(live.facing) * v, y: Math.sin(live.facing) * v },
+        world.tuning[proj].speed / 60,
+      );
+    }
+    aim = Math.atan2(at.y - s.y, at.x - s.x) + ai.aimErr;
     // (07-e) Moving targets are harder to hit ([D50]): jitter that grows with their speed.
     if (live && live.moveFrac > 0) {
       const jitter = hash01(`${s.id}@${tick}:moving`) * 2 - 1;

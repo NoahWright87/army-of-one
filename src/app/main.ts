@@ -71,6 +71,7 @@ import {
   GAME_SETTING_IDS,
   gameSettingDefs,
   INPUT_SETTING_IDS,
+  autoAimRoleSetting,
   inputSettingDefs,
   resolvePace,
 } from './game-settings';
@@ -191,10 +192,24 @@ function makeControls(
   liveId: string,
 ): InputSource {
   const sc = scheme();
-  touchControls.setAimStick(!sc.autoAim);
+  // (PHASE12-d) Touch aiming: tap-to-aim (touch the field; also overrides auto-aim while held),
+  // or the old aim stick when auto-aim is off.
+  const tap = settings.getString(INPUT_SETTING_IDS.touchAim) !== 'stick';
+  touchControls.setTapAim(tap);
+  touchControls.setAimStick(!tap && !sc.autoAim);
   touchControls.setVisible(sc.touch);
+  const toWorld = (cx: number, cy: number) => {
+    const canvas = scene.game.canvas;
+    const r = canvas.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    const p = scene.cameras.main.getWorldPoint(
+      ((cx - r.left) * scene.scale.width) / r.width,
+      ((cy - r.top) * scene.scale.height) / r.height,
+    );
+    return { x: p.x, y: p.y };
+  };
   const base: InputSource = sc.touch
-    ? new TouchInput(touchControls, { tuning })
+    ? new TouchInput(touchControls, { tuning, toWorld })
     : new KeyboardMouseInput(scene);
   if (!sc.autoAim) return base;
   return new AutoAimInput(base, {
@@ -202,6 +217,8 @@ function makeControls(
     tuning,
     liveId,
     fireMode: () => settings.getString(INPUT_SETTING_IDS.autoFire) as AutoFireMode,
+    // (PHASE12-d) Auto-aim per role.
+    enabledFor: (r) => settings.getBool(autoAimRoleSetting(r ?? 'rifleman')),
   });
 }
 // (06-b) In-game minimap ([D29]).

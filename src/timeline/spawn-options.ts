@@ -17,6 +17,8 @@ export interface SpawnRules {
   spawnIntervalTicks: Tick;
   /** Lead-in before control ([D5], [D25]). */
   leadInTicks: Tick;
+  /** (PHASE12-d) Minimum share of max HP to offer a resume ([D76]); 0 = any. */
+  minResumeHp?: number;
 }
 
 /** The spawn rules a mission is played with, from `tuning.spawn` (PHASE04). */
@@ -24,6 +26,7 @@ export function spawnRules(tuning: Pick<Tuning, 'spawn'>): SpawnRules {
   return {
     spawnIntervalTicks: secondsToTicks(tuning.spawn.intervalSeconds),
     leadInTicks: secondsToTicks(tuning.spawn.leadInSeconds),
+    minResumeHp: tuning.spawn.minResumeHp,
   };
 }
 
@@ -93,8 +96,10 @@ export function deriveSpawnOptions(
     options.push({ kind: 'new', spawnPointId: p.id, entryTick });
   }
 
+  // (PHASE12-d) Too hurt to be worth resuming ([D76]): not offered.
+  const minHp = rules.minResumeHp ?? 0;
   const resumable = lanes
-    .filter((l) => l.end.kind === 'open')
+    .filter((l) => l.end.kind === 'open' && (l.end.hp === undefined || l.end.hp >= minHp))
     .sort((a, b) => compareIds(a.soldierId, b.soldierId));
   for (const l of resumable) {
     if (l.end.kind !== 'open') continue;

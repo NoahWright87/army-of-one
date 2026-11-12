@@ -19,7 +19,8 @@ import type { Tuning } from '../../content/tuning';
 import { roleDef } from '../../content/roles';
 import { hash01 } from '../../sim/core/hash';
 import { damageShare, WORTH_SHOOTING } from '../../sim/combat/armor';
-import type { Vec2 } from '../../sim/core/vec';
+import { leadPoint, type Vec2 } from '../../sim/core/vec';
+export { leadPoint };
 import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierView, WorldView } from '../../sim/view';
 import { rayRect } from '../../sim/world/collision';
@@ -164,6 +165,19 @@ export function pickTarget(
 
 export type AutoFireMode = 'auto' | 'hold';
 
+/**
+ * (PHASE12-d) Would an explosive landing at `at` catch one of ours (the shooter included) in
+ * its blast? Auto-aim holds fire then, so the Bazooka doesn't blow up its friends.
+ */
+export function friendlyInBlast(view: WorldView, at: Vec2, radius: number): boolean {
+  return view.soldiers.some(
+    (s) =>
+      s.alive &&
+      (s.role === 'live' || s.role === 'echo') &&
+      Math.hypot(s.x - at.x, s.y - at.y) <= radius,
+  );
+}
+
 /** The reticle stops this far short of an auto-aim target (world units). */
 export const RETICLE_SHORT_OF_TARGET = 36;
 
@@ -173,6 +187,8 @@ export interface AutoAimOptions {
   liveId: string;
   /** 'auto': fire whenever there's a target; 'hold': fire only while the base source fires. */
   fireMode(): AutoFireMode;
+  /** (PHASE12-d) Auto-aim on for this role? (settings per role; default every role.) */
+  enabledFor?(roleId: SoldierView['roleId']): boolean;
 }
 
 /**
@@ -184,8 +200,9 @@ export class AutoAimInput implements InputSource {
   private target: AimTarget | null = null;
   private view: WorldView | null = null;
   private lastPos: Vec2 | null = null;
-  /** (PHASE12-a) Soldier positions one view ago (target speed for the Sniper's error). */
+  /** (PHASE12-a) Positions one view ago (target speed: the Sniper's error, rocket leading). */
   private prevSoldiers = new Map<string, Vec2>();
+  private prevTicks = 1;
 
   constructor(
     private readonly base: InputSource,
@@ -203,6 +220,11 @@ export class AutoAimInput implements InputSource {
     const view = this.view;
     const me = view?.soldiers.find((s) => s.id === this.opts.liveId);
     if (!view || !me || !me.alive) {
+      this.target = null;
+      return input;
+    }
+    // (PHASE12-d) Off for this role, or the player is aiming by hand (tap-to-aim): pass through.
+    if (this.opts.enabledFor?.(me.roleId) === false || this.base.manualAim?.()) {
       this.target = null;
       return input;
     }
@@ -224,17 +246,43 @@ export class AutoAimInput implements InputSource {
     const sv = view.soldiers.find((s) => s.id === tgt.id);
     const prev = this.prevSoldiers.get(tgt.id);
     const walk = this.opts.tuning.soldier.speed / 60;
-    const speedFrac = sv && prev ? Math.hypot(sv.x - prev.x, sv.y - prev.y) / walk : 0;
+    const vel = prev
+      ? { x: (tgt.x - prev.x) / this.prevTicks, y: (tgt.y - prev.y) / this.prevTicks }
+      : { x: 0, y: 0 };
+    const speedFrac = sv ? Math.hypot(vel.x, vel.y) / walk : 0;
+    const isVehicle = sv
+      ? sv.roleId === 'truck' || sv.roleId === 'tank'
+      : view.vehicles.some((v) => v.id === tgt.id);
+    // (PHASE12-d) A rocket or shell is slow: lead a moving vehicle so it meets it.
+    const projectile =
+      me.gun === 'rocket' ? tuning.rocket.speed : me.gun === 'shell' ? tuning.shell.speed : 0;
+    const aimAt =
+      projectile > 0 && isVehicle
+        ? leadPoint(me, tgt, vel, projectile / 60)
+        : { x: tgt.x, y: tgt.y };
     const err = autoAimError(
       this.opts.tuning,
       me.gun,
       // (PHASE12-b) Vehicles aren't "people" for the Bazooka's error ([D62]).
-      { id: tgt.id, soldier: !!sv && sv.roleId !== 'truck' && sv.roleId !== 'tank', speedFrac },
+      { id: tgt.id, soldier: !!sv && !isVehicle, speedFrac },
       view.tick,
     );
-    const aim = Math.atan2(tgt.y - me.y, tgt.x - me.x) + err;
-    const aimDistance = Math.hypot(this.target.x - me.x, this.target.y - me.y);
+    const aim = Math.atan2(aimAt.y - me.y, aimAt.x - me.x) + err;
+    const aimDistance = Math.hypot(aimAt.x - me.x, aimAt.y - me.y);
     let fire = this.opts.fireMode() === 'auto' ? true : input.fire;
+    // (PHASE12-d) Never set off an explosive on our own soldiers (or ourselves).
+    const weapon = roleDef(me.roleId).weapon;
+    const blast =
+      weapon === 'rocket'
+        ? tuning.rocket.blastRadius
+        : weapon === 'shell'
+          ? tuning.shell.blastRadius
+          : weapon === 'grenade'
+            ? tuning.grenade.blastRadius * 1.5
+            : 0;
+    if (fire && blast > 0 && friendlyInBlast(view, aimAt, blast + tuning.soldier.hitboxRadius)) {
+      fire = false;
+    }
     // Throws need a release: once the wind-up is full, let go for a tick (that throws).
     if (fire && roleDef(me.roleId).weapon === 'grenade' && (me.windup ?? 0) >= 1) fire = false;
     return { ...input, aim, aimDistance, fire };
@@ -257,7 +305,11 @@ export class AutoAimInput implements InputSource {
 
   observe(view: WorldView): void {
     if (this.view && this.view.tick !== view.tick) {
-      this.prevSoldiers = new Map(this.view.soldiers.map((s) => [s.id, { x: s.x, y: s.y }]));
+      this.prevSoldiers = new Map([
+        ...this.view.soldiers.map((s) => [s.id, { x: s.x, y: s.y }] as const),
+        ...this.view.vehicles.map((v) => [v.id, { x: v.x, y: v.y }] as const),
+      ]);
+      this.prevTicks = Math.max(1, view.tick - this.view.tick);
     }
     this.view = view;
     this.base.observe?.(view);

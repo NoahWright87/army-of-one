@@ -155,6 +155,7 @@ export const STRINGS = {
   'respawn.timeline.soldierShort': '{n}',
   'respawn.spawn.rowTip': '{place}: next soldier enters at {time}',
   'respawn.legend.title': 'Key',
+  'respawn.end.openHp': 'Soldier {n} survives to {time} with {hp}% HP',
   'respawn.legend.alive': 'Alive',
   'respawn.legend.death': 'Died',
   'respawn.legend.open': 'Can resume',
@@ -223,6 +224,10 @@ export const STRINGS = {
   'settings.input.autoFire': 'Auto-aim fires',
   'settings.input.autoFire.auto': 'By itself',
   'settings.input.autoFire.hold': 'While you hold fire',
+  'settings.input.touchAim': 'Touch aiming (no auto-aim)',
+  'settings.input.touchAim.tap': 'Touch where to aim (hold to fire)',
+  'settings.input.touchAim.stick': 'Aim stick',
+  'settings.input.autoAimRole': 'Auto-aim: {role}',
   // (07-a) Results screen + replay ([D42])
   'results.deaths': 'Deaths',
   'results.captures': 'Points captured',

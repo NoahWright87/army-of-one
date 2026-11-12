@@ -26,6 +26,12 @@ const CSS = `
   margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,0.45); }
 .aoo-touch .stick.aim { border-color: rgba(255,211,77,0.55); }
 .aoo-touch .stick.aim .knob { background: rgba(255,211,77,0.6); }
+/* (PHASE12-d) Tap-to-aim: the move stick lives in the bottom-left corner; touch anywhere else
+   to aim there (hold to fire). */
+.aoo-touch.tap .zone.left { top: 42%; width: 46%; z-index: 1; }
+.aoo-touch.tap .zone.right { left: 0; width: 100%; }
+.aoo-touch .tapmark { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  border-radius: 50%; border: 3px solid rgba(255,211,77,0.85); pointer-events: none; }
 .aoo-touch button { position: absolute; pointer-events: auto; touch-action: none; border: 0;
   border-radius: 50%; font: 700 15px system-ui, sans-serif; color: #111; }
 .aoo-touch .fire { right: 22px; bottom: 26px; width: 84px; height: 84px; background: rgba(255,90,60,0.8); }
@@ -52,6 +58,11 @@ export class TouchControls {
   move: Vec2 = { x: 0, y: 0 };
   /** Aim stick output while touched, else null. */
   aim: Vec2 | null = null;
+  /** (PHASE12-d) Tap-to-aim: the touched screen point (client px) while held, else null. */
+  tap: Vec2 | null = null;
+  private tapEl: HTMLDivElement | null = null;
+  private tapPointer: number | null = null;
+  private tapAimOn = false;
   fireHeld = false;
   /** (07-e) Sprint button held ([D49]). */
   sprintHeld = false;
@@ -121,6 +132,23 @@ export class TouchControls {
     return !this.root.hidden;
   }
 
+  /**
+   * (PHASE12-d) Tap-to-aim instead of the aim stick: touching the field (anywhere but the move
+   * corner and the buttons) aims there and fires while held.
+   */
+  setTapAim(on: boolean): void {
+    this.tapAimOn = on;
+    this.root.classList.toggle('tap', on);
+    if (!on) this.endTap();
+  }
+
+  private endTap(): void {
+    this.tapEl?.remove();
+    this.tapEl = null;
+    this.tap = null;
+    this.tapPointer = null;
+  }
+
   /** The right-hand aim stick (off while auto-aim aims for you). */
   setAimStick(on: boolean): void {
     this.aimStickOn = on;
@@ -142,10 +170,22 @@ export class TouchControls {
     this.fireBtn.classList.remove('held');
     this.sprintHeld = false;
     this.sprintBtn.classList.remove('held');
+    this.endTap();
   }
 
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {
     zone.addEventListener('pointerdown', (e) => {
+      if (side === 'right' && this.tapAimOn) {
+        if (this.tapPointer !== null) return;
+        e.preventDefault();
+        zone.setPointerCapture?.(e.pointerId);
+        this.tapPointer = e.pointerId;
+        this.tap = { x: e.clientX, y: e.clientY };
+        this.tapEl = el('div', 'tapmark');
+        this.root.append(this.tapEl);
+        this.placeTap();
+        return;
+      }
       if (side === 'right' && !this.aimStickOn) return;
       if (this[side]) return;
       e.preventDefault();
@@ -160,17 +200,32 @@ export class TouchControls {
       this.update(side);
     });
     zone.addEventListener('pointermove', (e) => {
+      if (side === 'right' && this.tapPointer === e.pointerId) {
+        this.tap = { x: e.clientX, y: e.clientY };
+        this.placeTap();
+        return;
+      }
       const a = this[side];
       if (!a || a.pointerId !== e.pointerId) return;
       a.thumb = { x: e.clientX, y: e.clientY };
       this.update(side);
     });
     const end = (e: PointerEvent) => {
+      if (side === 'right' && this.tapPointer === e.pointerId) {
+        this.endTap();
+        return;
+      }
       const a = this[side];
       if (a && a.pointerId === e.pointerId) this.endStick(side);
     };
     zone.addEventListener('pointerup', end);
     zone.addEventListener('pointercancel', end);
+  }
+
+  private placeTap(): void {
+    if (!this.tapEl || !this.tap) return;
+    this.tapEl.style.left = `${this.tap.x}px`;
+    this.tapEl.style.top = `${this.tap.y}px`;
   }
 
   private update(side: 'left' | 'right'): void {

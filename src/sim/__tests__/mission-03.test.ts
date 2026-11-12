@@ -73,7 +73,13 @@ describe('mission-03 layout', () => {
   it('has every entity type (it is the template mission)', () => {
     expect(MISSION_03.turrets!.length).toBeGreaterThan(0);
     expect(MISSION_03.mines!.length).toBeGreaterThan(0);
-    expect(MISSION_03.trafficLanes!.length).toBeGreaterThan(0);
+    // (PHASE12-d) No traffic: gun trucks patrol the road instead ([D75]).
+    expect(MISSION_03.trafficLanes ?? []).toHaveLength(0);
+    const trucks = (MISSION_03.squads ?? []).filter((q) =>
+      q.members.some((m) => m.role === 'truck'),
+    );
+    expect(trucks.length).toBe(2);
+    expect(trucks.every((q) => q.order.kind === 'patrol' && q.order.route.length >= 4)).toBe(true);
     expect(MISSION_03.gates!.length).toBeGreaterThan(0);
     expect(MISSION_03.levers!.length).toBeGreaterThan(0);
     expect(MISSION_03.bridges!.some((b) => b.kind === 'draw')).toBe(true);
@@ -235,7 +241,7 @@ describe('mission-03 scripted lives', () => {
 });
 
 describe('mission-03 world (ported from mission-01)', () => {
-  /** A live soldier walking up and firing, plus traffic and turrets: exercises most of the state. */
+  /** A live soldier walking up and firing at the turrets: exercises most of the state. */
   const input = (t: number): SoldierInput => ({
     move: { x: t % 400 < 200 ? 0.3 : -0.3, y: -1 },
     aim: t * 0.01,
@@ -267,7 +273,7 @@ describe('mission-03 world (ported from mission-01)', () => {
     expect(v.soldiers).toHaveLength(2);
     expect(v.turrets).toHaveLength(MISSION_03.turrets!.length);
     expect(v.mines).toHaveLength(MISSION_03.mines!.length);
-    expect(v.vehicles.length).toBeGreaterThan(0); // prewarmed traffic
+    expect(v.vehicles).toHaveLength(0); // (PHASE12-d) no traffic ([D75])
     expect(v.gates).toEqual([expect.objectContaining({ id: 'm3-gate', open: false })]);
     expect(v.levers.map((l) => l.on)).toEqual([false, false, false, false]);
     expect(v.bridges.map((b) => [b.id, b.state, b.raised])).toEqual([['m3-drawbridge', 'up', 1]]);
@@ -382,5 +388,26 @@ describe('mission-03 bots', () => {
     const again = new ArmyBuilder({ map: MISSION_03, tuning: T, seed: 7, lifeSeconds: [10, 30] });
     again.growTo(15);
     expect(again.observations.at(-1)!.lanes).toEqual(last.lanes);
+  });
+});
+
+describe('mission-03 road patrol (PHASE12-d, [D75])', () => {
+  it('a gun truck drives its whole loop', () => {
+    const w = createWorld(MISSION_03, {
+      ...DEFAULT_TUNING,
+      ai: { ...DEFAULT_TUNING.ai, enabled: true, sightRange: 1 }, // blind: it just drives
+    });
+    spawnSoldier(w, 'centre', { position: { x: 800, y: M3.roadSouthY + 300 } });
+    const truck = w.state.soldiers.find((s) => s.team === 'enemy' && s.roleId === 'truck')!;
+    const squad = MISSION_03.squads!.find((q) => q.members[0]!.role === 'truck')!;
+    const route = squad.order.kind === 'patrol' ? squad.order.route : [];
+    const reached = new Set<number>();
+    for (let t = 0; t < 60 * 40; t++) {
+      step(w, new Map());
+      route.forEach((p, i) => {
+        if (Math.hypot(truck.x - p.x, truck.y - p.y) < 60) reached.add(i);
+      });
+    }
+    expect(reached.size).toBe(route.length);
   });
 });

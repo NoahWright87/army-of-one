@@ -229,7 +229,13 @@ export function endTooltip(end: LaneEnd, ordinal: number): string {
     case 'death':
       return str('respawn.end.death', { n, time: formatBattleTime(end.tick) });
     case 'open':
-      return str('respawn.end.open', { n, time: formatBattleTime(end.tick) });
+      return end.hp === undefined
+        ? str('respawn.end.open', { n, time: formatBattleTime(end.tick) })
+        : str('respawn.end.openHp', {
+            n,
+            time: formatBattleTime(end.tick),
+            hp: Math.round(end.hp * 100),
+          });
     case 'interrupted':
       return str('respawn.end.interrupted', { n, time: formatBattleTime(end.tick) });
     case 'complete':
@@ -623,7 +629,10 @@ export function timelineRows(
     y += hs.spawn;
   }
   for (const row of laneRows(p.lanes, p.soldiers, p.map)) {
-    const interactive = row.lane.end.kind === 'open' || selected === `resume:${row.soldierId}`;
+    // (PHASE12-d) Interactive = actually offered (a too-hurt O isn't, [D76]) or selected.
+    const interactive =
+      p.options.some((o) => o.kind === 'resume' && o.soldierId === row.soldierId) ||
+      selected === `resume:${row.soldierId}`;
     const h = interactive ? hs.lane : hs.inert;
     out.push({ kind: 'lane', row, interactive, y, h });
     y += h;

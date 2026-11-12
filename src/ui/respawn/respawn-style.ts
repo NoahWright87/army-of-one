@@ -251,4 +251,7 @@ export const RESPAWN_CSS = `
   .aoo-respawn { padding: 8px 10px 10px; }
   .rs-rm-item .k { display: none; }
 }
+.hp-bg { fill: #2a3138; }
+.hp.hp-ok { fill: #5ee38a; } .hp.hp-low { fill: #ffae42; } .hp.hp-crit { fill: #ff4d5e; }
+.end.weak .g-o { stroke: #3f7a52; filter: none; opacity: .7; }
 `;

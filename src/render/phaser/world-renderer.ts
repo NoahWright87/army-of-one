@@ -7,6 +7,8 @@
  */
 import { DEFAULT_TUNING } from '../../content/tuning';
 import Phaser from 'phaser';
+import { ICON_ROLES, roleIconDocument } from '../../content/role-icons';
+import type { RoleId } from '../../contracts/mission';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
 import type { Vec2 } from '../../sim/core/vec';
@@ -28,15 +30,17 @@ const VEHICLE_BODY = {
   tank: DEFAULT_TUNING.drive.tank.bodyRadius,
 } as const;
 
-/** PLACEHOLDER role badge colours ([D36], PHASE12-a). */
-const ROLE_BADGE: Partial<Record<string, number>> = {
-  grenadier: 0x6b8f3a,
-  gunner: 0xb0532a,
-  sniper: 0x3a6fb0,
-  shield: 0x9aa4ae,
-  shotgun: 0x8a3ab0,
-  bazooka: 0xd0b020,
-};
+/** (PHASE12-d) Role icon textures, rasterised from the PLACEHOLDER SVGs in content/role-icons. */
+const ROLE_ICON_PX = 64;
+const roleIconKey = (roleId: RoleId) => `role_icon_${roleId}`;
+function ensureRoleIconTextures(scene: Phaser.Scene): void {
+  for (const roleId of ICON_ROLES) {
+    const key = roleIconKey(roleId);
+    if (scene.textures.exists(key)) continue;
+    const svg = roleIconDocument(roleId, ROLE_ICON_PX, '#f4f6f8');
+    scene.textures.addBase64(key, `data:image/svg+xml;base64,${btoa(svg)}`);
+  }
+}
 
 export interface RendererOptions {
   /** tuning.soldier.spriteRadius ([D14]: the largest of the three soldier sizes). */
@@ -158,6 +162,8 @@ export class WorldRenderer {
   private readonly shields: KeyedPool<Img>;
   private readonly staticOverlays: KeyedPool<Img>;
   private readonly icons: KeyedPool<Img>;
+  /** (PHASE12-d) A role icon on every soldier's circle (PLACEHOLDER art, content/role-icons). */
+  private readonly roleIcons: KeyedPool<Img>;
   private readonly labels: KeyedPool<Txt>;
   private readonly turretBases: KeyedPool<Img>;
   private readonly turretGuns: KeyedPool<Img>;
@@ -218,6 +224,8 @@ export class WorldRenderer {
     this.shields = new KeyedPool(img(DEPTH.shield));
     this.staticOverlays = new KeyedPool(img(DEPTH.static + 0.5));
     this.icons = new KeyedPool(img(DEPTH.icons));
+    this.roleIcons = new KeyedPool(img(DEPTH.liveMarker + 0.5));
+    ensureRoleIconTextures(scene);
     this.labels = new KeyedPool(text(DEPTH.labels, 11));
     this.turretBases = new KeyedPool(img(DEPTH.turrets));
     this.turretGuns = new KeyedPool(img(DEPTH.turrets + 0.5));
@@ -247,6 +255,7 @@ export class WorldRenderer {
       this.shields,
       this.staticOverlays,
       this.icons,
+      this.roleIcons,
       this.labels,
       this.turretBases,
       this.turretGuns,
@@ -513,15 +522,6 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
-    // PLACEHOLDER role badges ([D36]): a small coloured square per role (none for Riflemen).
-    for (const s of this.cur.soldiers) {
-      if (!s.alive || !s.roleId || s.roleId === 'rifleman') continue;
-      const p = s.role === 'live' && this.livePos ? this.livePos : s;
-      g.fillStyle(ROLE_BADGE[s.roleId] ?? 0xb0532a, 1);
-      g.fillRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
-      g.lineStyle(1, 0x111111, 1);
-      g.strokeRect(p.x - 4, p.y + this.opts.spriteRadius - 2, 8, 8);
-    }
     // (PHASE12-a) PLACEHOLDER rockets: a pale body with a flame trail ([D62]).
     const prevR = this.prev.rockets ?? [];
     for (const r of this.cur.rockets ?? []) {
@@ -756,6 +756,17 @@ export class WorldRenderer {
       const scale = ((vBody > 0 ? vBody : r) * 2) / fitPx(v.texture);
       if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
       if (spr.alpha !== v.alpha) spr.setAlpha(v.alpha);
+      // (PHASE12-d) The role icon on the circle, upright so it reads at a glance.
+      if (vBody === 0 && s.alive) {
+        const key = roleIconKey(s.roleId ?? 'rifleman');
+        if (this.scene.textures.exists(key)) {
+          const ic = this.roleIcons.get(s.id);
+          if (ic.texture.key !== key) ic.setTexture(key);
+          ic.setPosition(px, py)
+            .setScale((r * 1.25) / ROLE_ICON_PX)
+            .setAlpha(v.alpha);
+        }
+      }
       if (!this.applyHitFlash(spr, s.id, now)) this.clearTint(spr);
       if (s.role === 'live' && s.alive && (f.liveId === null || s.id === f.liveId)) {
         this.livePosBuf.x = px;

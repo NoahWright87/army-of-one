@@ -483,6 +483,11 @@ export interface Tuning {
     intervalSeconds: number;
     /** Countdown before control on every deploy ([D5], [D25]). */
     leadInSeconds: number;
+    /**
+     * (PHASE12-d) A saved soldier is offered for resume only with at least this share of max HP
+     * left where their recording ends ([D76]). 0 = any.
+     */
+    minResumeHp: number;
   };
   /** (04) Real-time pause on the frozen battlefield with a "KIA" caption after the live soldier dies. */
   deathBeatSeconds: number;
@@ -855,7 +860,7 @@ export const DEFAULT_TUNING: Tuning = {
     lateToleranceSeconds: 0.75, // TUNE
     lateGraceSeconds: 1, // TUNE
     actionTolerance: 12, // TUNE: about a hitbox radius
-    replayInteract: 'toggle', // TUNE
+    replayInteract: 'restoreState', // [D74]: opening only opens, closing only closes
     autoAimReplay: 'recorded',
   },
   attempt: {
@@ -867,6 +872,7 @@ export const DEFAULT_TUNING: Tuning = {
   spawn: {
     intervalSeconds: 2, // TUNE [D7]
     leadInSeconds: 5, // TUNE [D5]
+    minResumeHp: 0.1, // TUNE [D76]
   },
   deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
   autosaveIntervalSeconds: 5, // TUNE

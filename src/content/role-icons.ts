@@ -3,7 +3,7 @@
  * `currentColor`. The owner will supply real icons; each entry's comment is the replacement
  * brief. To swap one: replace its path data (or turn this into an <image> of a manifest asset).
  */
-import type { RoleId } from '../../contracts/mission';
+import type { RoleId } from '../contracts/mission';
 
 const ICONS: Record<RoleId, string> = {
   // A single rifle bullet, pointing up.
@@ -47,3 +47,19 @@ export function roleIconG(roleId: RoleId | undefined, x: number, y: number, size
   const s = size / 16;
   return `<g class="rs-ricon" transform="translate(${x} ${y}) scale(${s})">${ICONS[roleId ?? 'rifleman']}</g>`;
 }
+
+/**
+ * A standalone SVG document of an icon (for turning into a texture): `px` square, filled with
+ * `color`, with a dark outline so it reads on any soldier colour.
+ */
+export function roleIconDocument(roleId: RoleId, px: number, color: string): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="-1 -1 18 18" ` +
+    `fill="${color}" color="${color}" stroke="#101418" stroke-width="0.9" paint-order="stroke">` +
+    ICONS[roleId] +
+    `</svg>`
+  );
+}
+
+/** Every role that has an icon. */
+export const ICON_ROLES = Object.keys(ICONS) as RoleId[];

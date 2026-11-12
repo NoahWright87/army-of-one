@@ -95,7 +95,7 @@ describe('interruption and detours', () => {
     ]);
     const w = second.attempt.world;
     expect(w.state.gates[0]!.open).toBe(false);
-    expect(second.observation.lanes['S1']).toEqual({ kind: 'static', tick: sched.endTick });
+    expect(second.observation.lanes['S1']).toMatchObject({ kind: 'static', tick: sched.endTick });
     const end = sched.waypoints.at(-1)!;
     expect([soldier(w, 'S1').x, soldier(w, 'S1').y]).toEqual([end.x, end.y]);
   });
@@ -146,7 +146,7 @@ describe('never early', () => {
     const ys = first.records[0]!.segments[0]!.waypoints.map((w) => w.y);
     expect(Math.min(...ys) < 380 || Math.max(...ys) > 620).toBe(true);
     expect(second.attempt.world.state.gates[0]!.open).toBe(true);
-    expect(second.observation.lanes['S1']).toEqual({ kind: 'static', tick: sched.endTick });
+    expect(second.observation.lanes['S1']).toMatchObject({ kind: 'static', tick: sched.endTick });
   });
 
   it('knocked off schedule, it pathfinds (taking the new shortcut) but never arrives early', () => {
@@ -176,7 +176,7 @@ describe('never early', () => {
     expect(offTicks[0]).toBe(knockAt + 1);
     // It rejoined and finished on schedule.
     expect(second.attempt.echoes.echo('S1')!.mode).toBe('static');
-    expect(second.observation.lanes['S1']).toEqual({ kind: 'static', tick: sched.endTick });
+    expect(second.observation.lanes['S1']).toMatchObject({ kind: 'static', tick: sched.endTick });
     const end = sched.waypoints.at(-1)!;
     const s1 = soldier(second.attempt.world, 'S1');
     expect([s1.x, s1.y]).toEqual([end.x, end.y]);
@@ -256,7 +256,10 @@ describe('crowd', () => {
     });
     expect([...wasOff].sort()).toEqual(knocked);
     for (const r of records) {
-      expect(res.observation.lanes[r.id], r.id).toEqual({ kind: 'static', tick: recordedTo(r) });
+      expect(res.observation.lanes[r.id], r.id).toMatchObject({
+        kind: 'static',
+        tick: recordedTo(r),
+      });
       const s = soldier(res.attempt.world, r.id);
       const end = buildSchedule(r).waypoints.at(-1)!;
       expect([s.x, s.y], r.id).toEqual([end.x, end.y]);
@@ -280,7 +283,7 @@ describe('static figures, actions', () => {
         { kind: 'walkStraight', to: { x: 400, y: 500 } },
       ],
     });
-    expect(first.observation.lanes['S1']).toEqual({ kind: 'alive' });
+    expect(first.observation.lanes['S1']).toMatchObject({ kind: 'alive' });
     const a = new Attempt({
       map,
       tuning: T,
@@ -291,7 +294,7 @@ describe('static figures, actions', () => {
     });
     a.runHeadless(recordedTo(first.records[0]!) + secondsToTicks(5));
     const o = a.finish().observation;
-    expect(o.lanes['S1']).toEqual({ kind: 'static', tick: recordedTo(first.records[0]!) });
+    expect(o.lanes['S1']).toMatchObject({ kind: 'static', tick: recordedTo(first.records[0]!) });
     expect(soldier(a.world, 'S1')).toMatchObject({ alive: true, hp: T.soldier.maxHp });
     expect(a.world.state.turrets[0]!.mode).toBe('idle');
   });
@@ -373,7 +376,7 @@ describe('chain of 20 attempts (mission-03)', () => {
     last.runHeadless(end + 1);
     const o = last.finish().observation;
     for (const r of records)
-      expect(o.lanes[r.id], r.id).toEqual({ kind: 'static', tick: recordedTo(r) });
+      expect(o.lanes[r.id], r.id).toMatchObject({ kind: 'static', tick: recordedTo(r) });
   });
 });
 
@@ -422,5 +425,9 @@ describe('replaying lever presses (tuning.echo.replayInteract)', () => {
 
   it("'restoreState' leaves a target already in the recorded resulting state alone", () => {
     expect(run('restoreState')).toBe(true);
+  });
+
+  it('[D74] doors are open-only by default: a replayed open never closes', () => {
+    expect(T.echo.replayInteract).toBe('restoreState');
   });
 });

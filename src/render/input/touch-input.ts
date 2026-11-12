@@ -28,15 +28,29 @@ export class TouchInput implements InputSource {
 
   constructor(
     private readonly controls: TouchControls,
-    private readonly opts: { tuning: Tuning },
+    private readonly opts: {
+      tuning: Tuning;
+      /** (PHASE12-d) Screen (client px) → world, for tap-to-aim. */
+      toWorld?: (clientX: number, clientY: number) => Vec2 | null;
+    },
   ) {}
+
+  /** (PHASE12-d) Aiming by hand (a finger on the field): auto-aim yields. */
+  manualAim(): boolean {
+    return this.controls.tap !== null;
+  }
 
   read(soldierPos: Vec2): SoldierInput {
     const c = this.controls;
     this.lastPos = soldierPos;
     const a = c.aim;
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
-    if (aLen > 0.2 && a) {
+    // (PHASE12-d) Tap-to-aim: aim at the touched point and fire while it's held.
+    const tapped = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
+    if (tapped) {
+      this.aim = Math.atan2(tapped.y - soldierPos.y, tapped.x - soldierPos.x);
+      this.aimDistance = Math.max(30, Math.hypot(tapped.x - soldierPos.x, tapped.y - soldierPos.y));
+    } else if (aLen > 0.2 && a) {
       this.aim = Math.atan2(a.y, a.x);
       this.aimDistance = Math.max(60, aLen * this.opts.tuning.grenade.maxRange);
     } else if (Math.hypot(c.move.x, c.move.y) > 0.3) {
@@ -48,7 +62,7 @@ export class TouchInput implements InputSource {
       move: { x: c.move.x, y: c.move.y },
       aim: this.aim,
       aimDistance: this.aimDistance,
-      fire: c.fireHeld || aLen >= AIM_FIRE,
+      fire: c.fireHeld || aLen >= AIM_FIRE || !!tapped,
       interact: c.interactLatch.consume(),
       ...(c.sprintHeld ? { sprint: true } : {}),
     };

@@ -53,7 +53,7 @@ import {
   type LaneTimelineRow,
   type SpawnTimelineRow,
 } from './respawn-model';
-import { roleIconG, roleIconSvg } from './role-icons';
+import { roleIconG, roleIconSvg } from '../../content/role-icons';
 import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
 import { DEFAULT_RESPAWN_SETTINGS, type RespawnViewSettings } from './respawn-settings';
 import { RESPAWN_CSS } from './respawn-style';
@@ -997,6 +997,23 @@ export class RespawnScreen {
     }
     // End glyph: X and O dominate.
     const es = endStyle(lane.end);
+    // (PHASE12-d) Only an O that's actually offered can be picked (too hurt: [D76]).
+    if (es.selectable) {
+      es.selectable = this.props.options.some(
+        (o) => o.kind === 'resume' && o.soldierId === r.soldierId,
+      );
+      if (!es.selectable) es.cls += ' weak';
+    }
+    // (PHASE12-d) HP left at the O: a small bar under it.
+    if (lane.end.kind === 'open' && lane.end.hp !== undefined && es.tick !== null) {
+      const hx = x(es.tick);
+      const w = 22;
+      const hpc = lane.end.hp > 0.5 ? 'hp-ok' : lane.end.hp > 0.25 ? 'hp-low' : 'hp-crit';
+      s.push(
+        `<rect class="hp-bg" x="${r1(hx - w / 2)}" y="${r1(cy + rowH * 0.32)}" width="${w}" height="3" rx="1.5"/>` +
+          `<rect class="hp ${hpc}" x="${r1(hx - w / 2)}" y="${r1(cy + rowH * 0.32)}" width="${r1(w * lane.end.hp)}" height="3" rx="1.5"/>`,
+      );
+    }
     if (es.glyph && es.tick !== null) {
       const gx = x(es.tick);
       const g = Math.max(8, Math.min(15, rowH * 0.34));
