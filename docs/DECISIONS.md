@@ -669,4 +669,14 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q52] A generated level's shape (PHASE13-b).** Until the world map exists: 2 blocks wide,
   4 tall, budget 360 by default, the top row getting 3× the bottom row's share
   (`BLOCK_TUNING.level`). Win by capturing the objective in the top row ([Q46]).
+- **[Q53] The base in a random level (PHASE13-b).** Implemented: before the world map exists, a
+  random level's top row is the enemy base (base blocks only, wall facing south) and the rest
+  is filled top-down from it. With 1 base row the yard and HQ blocks don't appear yet (they need
+  2+ base rows, which needs inner wall corners). Tunable (`BLOCK_TUNING.level.baseRows`).
+- **[Q54] Groups and movement (PHASE13, under discussion).** Owner's idea: instead of patrol
+  routes, a group has **rally points**; idle soldiers wander between them (emptier points
+  first), each role with its own temperament (gunners and snipers settle, riflemen float,
+  trucks roam), vehicles maybe with their own points; arriving means taking a sensible spot
+  *near* the point, not stacking on it; retreat weighs position as well as health. More AI,
+  less map specification.
 

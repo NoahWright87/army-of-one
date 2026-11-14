@@ -36,8 +36,8 @@ from them by seed ([D80]–[D86]).
 
 ## Not yet
 
-Group templates (stamped copies), patrol routes, bridges, concrete/base blocks (no starter
-block uses concrete edges yet), level size options, the world map (13-c).
+Group templates (stamped copies), how groups move ([Q54]: rally points instead of routes is
+under discussion), bridges, inner base corners, level size options, the world map (13-c).
 
 ## Notes from implementation
 
@@ -50,3 +50,17 @@ block uses concrete edges yet), level size options, the world map (13-c).
 - Generated levels use the official blocks plus the player's own valid blocks, so a
   `gen-<seed>` id only means the same map with the same block library ([Q51]).
 - Runtime maps (Play, generated) resolve on the main thread (the worker can't see them).
+- **Mirrored edge tags** ([D81]): profiles read clockwise around the block, so turning never
+  reverses one; a flip swaps each tag for its `mirror`, and neighbours match on the mirror.
+  `#` in a profile is a wall crossing the edge (painted concrete; walls may sit on it). First
+  pair: `perimeter` / `perimeter-r`, a base wall across a side.
+- **Base blocks** (`starter-base-*`: gate, wall, corner, yard, HQ): any block with a base edge
+  (`concrete`, `perimeter*`) is a base block. Until the world map frames bases (13-c), a random
+  level puts base blocks in its top row (`BLOCK_TUNING.level.baseRows`), wall facing south, and
+  fills the rest top-down from there ([Q53]). Generated maps changed with this, so an old
+  `gen-<seed>` save no longer matches its map.
+- Coverage with 17 blocks: 500 seeds, every cell matched exactly; about one reroll per level,
+  mostly a base row with no gate sealing the objective in. Every level ended reachable.
+- `src/content/blocks/*.json` is excluded from Prettier so committed blocks keep the editor's
+  download format (one item per line).
+

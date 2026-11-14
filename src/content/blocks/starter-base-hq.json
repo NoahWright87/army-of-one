@@ -1,0 +1,43 @@
+{
+  "v": 1,
+  "id": "starter-base-hq",
+  "name": "Starter: base HQ",
+  "edges": {"n":"concrete","e":"concrete","s":"concrete","w":"concrete"},
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCDDDDDDDCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC"
+  ],
+  "items": [
+    {"id":"w1","kind":"wall","rect":[3.5,1.5,8,0.5],"priority":0},
+    {"id":"w2","kind":"wall","rect":[3.5,1.5,0.5,7.5],"priority":0},
+    {"id":"w3","kind":"wall","rect":[11,1.5,0.5,7.5],"priority":0},
+    {"id":"w4","kind":"wall","rect":[3.5,8.5,2.5,0.5],"priority":0},
+    {"id":"w5","kind":"wall","rect":[9,8.5,2.5,0.5],"priority":0},
+    {"id":"hq-win-w","kind":"cover","rect":[3.5,4,0.5,1.5],"material":"window","priority":0},
+    {"id":"hq-win-e","kind":"cover","rect":[11,4,0.5,1.5],"material":"window","priority":0},
+    {"id":"c6","kind":"cover","rect":[5.5,10.5,2,0.5],"material":"sandbags","priority":0},
+    {"id":"c7","kind":"cover","rect":[8,11.5,2,0.5],"material":"crate","priority":0},
+    {"id":"s8","kind":"soldier","at":[7.5,7.5],"role":"gunner","facing":90,"priority":1,"group":"hq","anchor":true},
+    {"id":"s9","kind":"soldier","at":[5,4],"role":"rifleman","facing":90,"priority":2,"group":"hq"},
+    {"id":"s10","kind":"soldier","at":[10,4],"role":"rifleman","facing":90,"priority":2,"group":"hq"},
+    {"id":"s11","kind":"soldier","at":[7.5,3],"role":"shotgun","facing":90,"priority":3,"group":"hq"},
+    {"id":"s12","kind":"soldier","at":[6,10],"role":"rifleman","facing":90,"priority":3,"group":"porch","anchor":true},
+    {"id":"s13","kind":"soldier","at":[9,11],"role":"grenadier","facing":90,"priority":4,"group":"porch"},
+    {"id":"t14","kind":"turret","at":[1.5,12.5],"facing":45,"priority":5},
+    {"id":"t15","kind":"turret","at":[13.5,12.5],"facing":90,"priority":5},
+    {"id":"obj16","kind":"objective","at":[7.5,5],"priority":0}
+  ]
+}

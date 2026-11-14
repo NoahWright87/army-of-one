@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OFFICIAL_BLOCKS } from '../../content/blocks';
-import { BLOCK_CELLS, EDGE_TAGS } from '../../content/ground';
+import { BLOCK_CELLS, EDGE_TAGS, mirrorTag } from '../../content/ground';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../../content/tuning';
 import { hashState } from '../../sim/core/hash';
 import { createWorld, step } from '../../sim/sim';
@@ -162,8 +162,8 @@ describe('generateLevel', () => {
       };
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          if (r < rows - 1) expect(edges(r, c).s).toBe(edges(r + 1, c).n);
-          if (c > 0) expect(edges(r, c).w).toBe(edges(r, c - 1).e);
+          if (r < rows - 1) expect(edges(r, c).s).toBe(mirrorTag(edges(r + 1, c).n));
+          if (c > 0) expect(edges(r, c).w).toBe(mirrorTag(edges(r, c - 1).e));
         }
         expect(EDGE_TAGS[edges(rows - 1, 0).s].passable).toBe(true);
       }

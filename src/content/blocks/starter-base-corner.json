@@ -1,0 +1,38 @@
+{
+  "v": 1,
+  "id": "starter-base-corner",
+  "name": "Starter: base corner",
+  "edges": {"n":"perimeter-r","e":"perimeter","s":"grass","w":"grass"},
+  "ground": [
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGCCCCCCCC",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {"id":"w1","kind":"wall","rect":[7.25,7.25,2.75,0.5],"priority":0},
+    {"id":"slit2","kind":"cover","rect":[10,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
+    {"id":"w3","kind":"wall","rect":[11.5,7.25,3.5,0.5],"priority":0},
+    {"id":"w4","kind":"wall","rect":[7.25,0,0.5,3],"priority":0},
+    {"id":"slit-w","kind":"cover","rect":[7.25,3,0.5,1.5],"material":"bunkerWindow","priority":0},
+    {"id":"w5","kind":"wall","rect":[7.25,4.5,0.5,2.75],"priority":0},
+    {"id":"t6","kind":"turret","at":[9.5,5],"facing":135,"priority":2},
+    {"id":"s7","kind":"soldier","at":[10.75,6.6],"role":"gunner","facing":90,"priority":1,"group":"corner","anchor":true},
+    {"id":"s8","kind":"soldier","at":[8,3.75],"role":"rifleman","facing":90,"priority":2,"group":"corner"},
+    {"id":"c9","kind":"cover","rect":[3,9,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"s10","kind":"soldier","at":[4.2,8.4],"role":"rifleman","facing":90,"priority":3},
+    {"id":"s11","kind":"soldier","at":[2,4],"role":"sniper","facing":90,"priority":5},
+    {"id":"obj12","kind":"objective","at":[11,3],"priority":0}
+  ]
+}

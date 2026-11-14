@@ -37,14 +37,23 @@ export function isGroundKind(c: string): c is GroundKind {
 }
 
 /**
- * An edge tag ([D81]): what the side looks like (`profile`, one letter per cell along the side,
- * west→east or north→south) and whether you can cross it. Profiles are palindromes for now, so
- * rotating or flipping a block never reverses one (asymmetric tags come in mirrored pairs later).
+ * An edge tag ([D81]): what the side looks like and whether you can cross it.
+ *
+ * `profile` has one letter per cell along the side, read **clockwise around the block**
+ * (north: west→east, east: north→south, south: east→west, west: south→north), so turning a
+ * block never reverses a profile. A `#` is a cell where a wall crosses the edge: painted as
+ * concrete, and walls may sit on it. Two blocks join where one side's tag is the `mirror` of the
+ * other's (they read the shared edge in opposite directions); symmetric tags are their own
+ * mirror. Flipping a block swaps each tag for its mirror.
  */
 export interface EdgeTagDef {
   nameKey: string;
   profile: string;
   passable: boolean;
+  /** The same edge read the other way (default: itself, for symmetric profiles). */
+  mirror?: string;
+  /** (PHASE13-b) Part of an enemy base: blocks with such an edge go in the base rows ([D83]). */
+  base?: boolean;
 }
 
 export const EDGE_TAGS = {
@@ -52,7 +61,23 @@ export const EDGE_TAGS = {
   road: { nameKey: 'edge.road', profile: 'GGGGGGRRRGGGGGG', passable: true },
   stream: { nameKey: 'edge.stream', profile: 'GGGGGGWWWGGGGGG', passable: true },
   water: { nameKey: 'edge.water', profile: 'WWWWWWWWWWWWWWW', passable: false },
-  concrete: { nameKey: 'edge.concrete', profile: 'CCCCCCCCCCCCCCC', passable: true },
+  concrete: { nameKey: 'edge.concrete', profile: 'CCCCCCCCCCCCCCC', passable: true, base: true },
+  // (PHASE13-b) A base wall crossing the side: concrete (inside) first, then grass, reading
+  // clockwise; `perimeter-r` is the same edge read the other way.
+  perimeter: {
+    nameKey: 'edge.perimeter',
+    profile: 'CCCCCCC#GGGGGGG',
+    passable: true,
+    mirror: 'perimeter-r',
+    base: true,
+  },
+  'perimeter-r': {
+    nameKey: 'edge.perimeterR',
+    profile: 'GGGGGGG#CCCCCCC',
+    passable: true,
+    mirror: 'perimeter',
+    base: true,
+  },
 } as const satisfies Record<string, EdgeTagDef>;
 
 export type EdgeTag = keyof typeof EDGE_TAGS;
@@ -61,4 +86,18 @@ export const EDGE_TAG_IDS = Object.keys(EDGE_TAGS) as EdgeTag[];
 
 export function isEdgeTag(t: string): t is EdgeTag {
   return Object.prototype.hasOwnProperty.call(EDGE_TAGS, t);
+}
+
+/** The tag the neighbouring block needs on the shared side (see `EdgeTagDef.mirror`). */
+export function mirrorTag(t: EdgeTag): EdgeTag {
+  const def: EdgeTagDef = EDGE_TAGS[t];
+  return (def.mirror as EdgeTag | undefined) ?? t;
+}
+
+/** Profile letter for a wall crossing the edge. */
+export const WALL_CELL = '#';
+
+/** A tag's definition, with every optional field visible. */
+export function edgeDef(t: EdgeTag): EdgeTagDef {
+  return EDGE_TAGS[t];
 }

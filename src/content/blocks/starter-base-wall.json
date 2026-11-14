@@ -1,0 +1,40 @@
+{
+  "v": 1,
+  "id": "starter-base-wall",
+  "name": "Starter: base wall",
+  "edges": {"n":"concrete","e":"perimeter","s":"grass","w":"perimeter-r"},
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {"id":"w1","kind":"wall","rect":[0,7.25,3,0.5],"priority":0},
+    {"id":"slit2","kind":"cover","rect":[3,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
+    {"id":"w3","kind":"wall","rect":[4.5,7.25,6,0.5],"priority":0},
+    {"id":"slit4","kind":"cover","rect":[10.5,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
+    {"id":"w5","kind":"wall","rect":[12,7.25,3,0.5],"priority":0},
+    {"id":"s6","kind":"soldier","at":[3.75,6.6],"role":"gunner","facing":90,"priority":1,"group":"slits","anchor":true},
+    {"id":"s7","kind":"soldier","at":[11.25,6.6],"role":"rifleman","facing":90,"priority":2,"group":"slits"},
+    {"id":"s8","kind":"soldier","at":[7.5,3.5],"role":"sniper","facing":90,"priority":3,"group":"perch","anchor":true},
+    {"id":"c9","kind":"cover","rect":[6.5,4.5,2,0.5],"material":"halfWall","priority":3,"group":"perch"},
+    {"id":"t10","kind":"turret","at":[2,4],"facing":90,"priority":4},
+    {"id":"s11","kind":"soldier","at":[12,3],"role":"grenadier","facing":90,"priority":5},
+    {"id":"m12","kind":"mine","at":[4,10],"priority":2},
+    {"id":"m13","kind":"mine","at":[7.5,11],"priority":4},
+    {"id":"m14","kind":"mine","at":[11,10],"priority":5},
+    {"id":"obj15","kind":"objective","at":[7.5,2],"priority":0}
+  ]
+}

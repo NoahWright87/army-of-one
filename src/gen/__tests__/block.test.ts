@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_CELLS, EDGE_TAGS, EDGE_TAG_IDS } from '../../content/ground';
+import { BLOCK_CELLS, EDGE_TAGS, EDGE_TAG_IDS, mirrorTag } from '../../content/ground';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { createWorld, step } from '../../sim/sim';
 import { validateMap } from '../../sim/world/map';
@@ -58,12 +58,33 @@ function fort(): BlockDef {
 }
 
 describe('edge tags', () => {
-  it('profiles are one cell per side and palindromes (rotation never reverses one)', () => {
+  it('profiles are one cell per side; a mirror reads the same edge backwards', () => {
     for (const t of EDGE_TAG_IDS) {
       const p = EDGE_TAGS[t].profile;
       expect(p.length, t).toBe(BLOCK_CELLS);
-      expect([...p].reverse().join(''), t).toBe(p);
+      expect([...p].reverse().join(''), t).toBe(EDGE_TAGS[mirrorTag(t)].profile);
+      expect(mirrorTag(mirrorTag(t)), t).toBe(t);
     }
+  });
+
+  it('read clockwise: the south and west edges run backwards across the grid', () => {
+    const edges = { n: 'concrete', e: 'perimeter', s: 'grass', w: 'perimeter-r' } as const;
+    expect(edgeLock(edges, 14, 1)).toBe('C'); // east, near the top: concrete
+    expect(edgeLock(edges, 14, 13)).toBe('G');
+    expect(edgeLock(edges, 0, 1)).toBe('C'); // west, near the top: concrete too
+    expect(edgeLock(edges, 0, 13)).toBe('G');
+    expect(edgeLock(edges, 0, 7)).toBe('C'); // the wall cell paints as concrete
+  });
+
+  it('walls may sit on a wall cell of the edge', () => {
+    const b = applyEdges({
+      ...newBlock(),
+      edges: { n: 'concrete', e: 'perimeter', s: 'grass', w: 'perimeter-r' },
+    });
+    b.items.push({ id: 'w', kind: 'wall', priority: 0, rect: [0, 7.25, 15, 0.5] });
+    expect(keys(b)).toEqual([]);
+    b.items.push({ id: 'w2', kind: 'wall', priority: 0, rect: [0, 3, 1, 0.5] });
+    expect(keys(b)).toContain('editor.problem.blocksEdge');
   });
 
   it('lock the outer ring except the corners', () => {

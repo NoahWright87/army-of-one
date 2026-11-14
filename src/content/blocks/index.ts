@@ -6,6 +6,11 @@
  * To add one: drop `<id>.json` in this folder and import it below.
  */
 import { parseBlockObject, validateBlock, type BlockDef } from '../../gen/block';
+import starterBaseCorner from './starter-base-corner.json';
+import starterBaseGate from './starter-base-gate.json';
+import starterBaseHq from './starter-base-hq.json';
+import starterBaseWall from './starter-base-wall.json';
+import starterBaseYard from './starter-base-yard.json';
 import starterCrossroads from './starter-crossroads.json';
 import starterField from './starter-field.json';
 import starterLakeCorner from './starter-lake-corner.json';
@@ -20,6 +25,11 @@ import starterStream from './starter-stream.json';
 import starterTee from './starter-tee.json';
 
 const RAW: readonly unknown[] = [
+  starterBaseCorner,
+  starterBaseGate,
+  starterBaseHq,
+  starterBaseWall,
+  starterBaseYard,
   starterCrossroads,
   starterField,
   starterLakeCorner,

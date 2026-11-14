@@ -16,6 +16,7 @@ import {
   GROUND,
   isEdgeTag,
   isGroundKind,
+  WALL_CELL,
   type EdgeTag,
   type GroundKind,
 } from '../content/ground';
@@ -113,14 +114,28 @@ export function edgeLock(
   col: number,
   row: number,
 ): GroundKind | null {
+  const ch = edgeProfileChar(edges, col, row);
+  if (ch === null) return null;
+  return ch === WALL_CELL ? 'C' : (ch as GroundKind);
+}
+
+/**
+ * The raw profile letter on cell (col, row) of the edge band (`#` for a wall crossing), or null
+ * off the band and on the corners. Profiles read clockwise ([D81]).
+ */
+export function edgeProfileChar(
+  edges: Record<Side, EdgeTag>,
+  col: number,
+  row: number,
+): string | null {
   const last = BLOCK_CELLS - 1;
   const corner = (col === 0 || col === last) && (row === 0 || row === last);
   if (corner) return null;
-  const at = (side: Side, i: number) => EDGE_TAGS[edges[side]].profile[i] as GroundKind;
+  const at = (side: Side, i: number) => EDGE_TAGS[edges[side]].profile[i]!;
   if (row === 0) return at('n', col);
-  if (row === last) return at('s', col);
-  if (col === 0) return at('w', row);
   if (col === last) return at('e', row);
+  if (row === last) return at('s', last - col);
+  if (col === 0) return at('w', last - row);
   return null;
 }
 
@@ -241,8 +256,8 @@ function blocksPassableEdge(block: BlockDef, rect: CellRect): boolean {
   const r1 = Math.min(n - 1, Math.ceil(y + h) - 1);
   for (let r = r0; r <= r1; r++) {
     for (let c = c0; c <= c1; c++) {
-      const lock = edgeLock(block.edges, c, r);
-      if (lock && GROUND[lock].passable) return true;
+      const ch = edgeProfileChar(block.edges, c, r);
+      if (ch !== null && ch !== WALL_CELL && GROUND[ch as GroundKind].passable) return true;
     }
   }
   return false;

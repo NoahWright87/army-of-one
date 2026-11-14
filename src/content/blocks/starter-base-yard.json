@@ -1,0 +1,40 @@
+{
+  "v": 1,
+  "id": "starter-base-yard",
+  "name": "Starter: base yard",
+  "edges": {"n":"concrete","e":"concrete","s":"concrete","w":"concrete"},
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCCCCCCCCCC"
+  ],
+  "items": [
+    {"id":"w1","kind":"wall","rect":[1.5,1.5,3,2.5],"priority":0},
+    {"id":"w2","kind":"wall","rect":[10.5,1.5,3,2.5],"priority":0},
+    {"id":"w3","kind":"wall","rect":[1.5,10.5,3,3],"priority":0},
+    {"id":"c4","kind":"cover","rect":[10.5,10,2,0.5],"material":"crate","priority":0},
+    {"id":"c5","kind":"cover","rect":[11,12,2,0.5],"material":"crate","priority":0},
+    {"id":"c6","kind":"cover","rect":[3,7,2,0.5],"material":"crate","priority":0},
+    {"id":"cp7","kind":"capture","at":[7.5,7.5],"priority":0,"group":"yard"},
+    {"id":"s8","kind":"soldier","at":[6,6],"role":"rifleman","facing":90,"priority":1,"group":"yard","anchor":true},
+    {"id":"s9","kind":"soldier","at":[9,9],"role":"rifleman","facing":90,"priority":2,"group":"yard"},
+    {"id":"s10","kind":"soldier","at":[9,6],"role":"gunner","facing":90,"priority":3,"group":"yard"},
+    {"id":"s11","kind":"soldier","at":[11.5,7],"role":"truck","facing":90,"priority":3,"group":"motor","anchor":true},
+    {"id":"s12","kind":"soldier","at":[10.5,8.5],"role":"rifleman","facing":90,"priority":4,"group":"motor"},
+    {"id":"s13","kind":"soldier","at":[12.5,8.5],"role":"bazooka","facing":90,"priority":5,"group":"motor"},
+    {"id":"s14","kind":"soldier","at":[3,5.5],"role":"shield","facing":90,"priority":4},
+    {"id":"obj15","kind":"objective","at":[3,9],"priority":0}
+  ]
+}

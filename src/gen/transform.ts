@@ -1,9 +1,9 @@
 /**
  * (PHASE13-b) Rotating and flipping blocks ([D82]): 8 orientations. Orientation `o` is
  * `rot + 4 * flip`: first mirror left↔right if `flip`, then turn `rot` quarter turns clockwise.
- * Edge tags are palindromes ([D81]), so an edge never needs reversing.
+ * Edges read clockwise ([D81]), so turning never reverses one; a flip mirrors every tag.
  */
-import { BLOCK_CELLS } from '../content/ground';
+import { BLOCK_CELLS, mirrorTag } from '../content/ground';
 import {
   isRectItem,
   type BlockDef,
@@ -41,7 +41,16 @@ export function orientRect([x, y, w, h]: CellRect, o: Orientation): CellRect {
 
 /** Which side ends up where: the tag on side `s` of the result. */
 export function orientEdges(edges: BlockDef['edges'], o: Orientation): BlockDef['edges'] {
-  let e = o >= 4 ? { ...edges, e: edges.w, w: edges.e } : { ...edges };
+  // A flip reverses every edge's clockwise reading: swap east/west and mirror each tag.
+  let e =
+    o >= 4
+      ? {
+          n: mirrorTag(edges.n),
+          e: mirrorTag(edges.w),
+          s: mirrorTag(edges.s),
+          w: mirrorTag(edges.e),
+        }
+      : { ...edges };
   for (let i = 0; i < o % 4; i++) e = { n: e.w, e: e.n, s: e.e, w: e.s };
   return e as Record<Side, BlockDef['edges']['n']>;
 }

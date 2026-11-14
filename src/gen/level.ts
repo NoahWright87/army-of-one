@@ -1,26 +1,28 @@
 /**
  * (PHASE13-b) One level from a seed: blocks stitched like Carcassonne tiles ([D80]–[D83], [D85]).
  *
- * 1. Fill `cols` × `rows` cells in scan order, bottom row first (that's where you attack from),
- *    left to right. Each cell takes a block, in one of its 8 orientations, whose south edge
- *    matches the block below and whose west edge matches the block to its left, exactly. The
- *    bottom row's south edge must be crossable. A seeded pick: first a block (each fitting block
- *    is equally likely), then one of its fitting orientations.
- * 2. If nothing matches exactly, take one that matches on crossable/not only, then anything,
+ * 1. Frame ([D83]): if there are base blocks, the top `baseRows` rows are the enemy base (base
+ *    blocks only, the last base row's south edge facing out of the base); the rest are field
+ *    blocks.
+ * 2. Fill top-down, left to right. Each cell takes a block, in one of its 8 orientations, whose
+ *    north edge matches the block above and whose west edge matches the block to its left
+ *    ([D81]: the mirror tag). The bottom row's south edge must be crossable. A seeded pick:
+ *    first a block (each fitting block equally likely), then one of its fitting orientations.
+ * 3. If nothing matches exactly, take one that matches on crossable/not only, then anything,
  *    and say so in `warnings` (that's missing coverage for the block library).
- * 3. Spend the level budget: rows further up get more ([D86]), leftovers carry on.
- * 4. The objective goes at an objective slot in the top row (seeded pick), else the top centre.
- * 5. If the objective can't be reached from the spawns, reroll (same seed, next attempt).
+ * 4. Spend the level budget: rows further up get more ([D86]), leftovers carry on.
+ * 5. The objective goes at an objective slot in the top row (seeded pick), else the top centre.
+ * 6. If the objective can't be reached from the spawns, reroll (same seed, next attempt).
  *
  * Pure and deterministic: same blocks, seed and options → same map.
  */
-import { BLOCK_CELLS, EDGE_TAGS } from '../content/ground';
+import { BLOCK_CELLS, EDGE_TAGS, edgeDef, mirrorTag, type EdgeTag } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import { createRng, nextFloat, type RngState } from '../sim/core/rng';
 import type { Vec2 } from '../sim/core/vec';
 import { rectContains, type MapDef, type Rect } from '../sim/world/map';
 import { assembleMap, type PlacedBlock } from './assemble';
-import type { BlockDef } from './block';
+import { SIDES, type BlockDef } from './block';
 import { spendBudget } from './budget';
 import { ORIENTATIONS, orientBlock, orientEdges, type Orientation } from './transform';
 
@@ -82,17 +84,29 @@ function attemptLevel(
     () => [],
   );
 
-  for (let r = rows - 1; r >= 0; r--) {
+  // Frame ([D83]): the enemy base takes the top row(s), wall facing south. Then everything is
+  // filled top-down, left to right, matching the block above and the block to the left.
+  const basePool = pool.filter(isBaseBlock);
+  const fieldPool = pool.filter((b) => !isBaseBlock(b));
+  const baseRows = basePool.length && fieldPool.length ? Math.min(t.baseRows, rows - 1) : 0;
+  for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const below = r < rows - 1 ? grid[r + 1]![c]! : null;
+      const above = r > 0 ? grid[r - 1]![c]! : null;
       const left = c > 0 ? grid[r]![c - 1]! : null;
-      const want = {
-        s: below ? orientEdges(below.block.edges, below.o).n : null,
-        w: left ? orientEdges(left.block.edges, left.o).e : null,
+      const want: Want = {
+        // The neighbour reads the shared edge the other way round ([D81]).
+        n: above ? mirrorTag(orientEdges(above.block.edges, above.o).s) : null,
+        w: left ? mirrorTag(orientEdges(left.block.edges, left.o).e) : null,
       };
-      const pick = pickBlock(pool, want, r === rows - 1, rng);
-      if (pick.fit !== 'exact')
+      const inBase = r < baseRows;
+      const lastBaseRow = r === baseRows - 1;
+      const bottom = r === rows - 1;
+      const fits = (e: BlockDef['edges']) =>
+        (!lastBaseRow || !edgeDef(e.s).base) && (!bottom || EDGE_TAGS[e.s].passable);
+      const pick = pickBlock(inBase ? basePool : baseRows ? fieldPool : pool, want, fits, rng);
+      if (pick.fit !== 'exact') {
         warnings.push(`row ${r} col ${c}: no exact match for ${JSON.stringify(want)}`);
+      }
       grid[r]![c] = pick;
     }
   }
@@ -135,21 +149,26 @@ function attemptLevel(
   return { map, cells, warnings, spent, attempts: attempt + 1, reachable: objectiveReachable(map) };
 }
 
-type Want = { s: string | null; w: string | null };
+type Want = { n: EdgeTag | null; w: EdgeTag | null };
+
+/** A block with any base edge (concrete, base wall) belongs to an enemy base. */
+export function isBaseBlock(b: BlockDef): boolean {
+  return SIDES.some((sd) => edgeDef(b.edges[sd]).base === true);
+}
 
 function pickBlock(
   pool: readonly BlockDef[],
   want: Want,
-  bottom: boolean,
+  fits: (e: BlockDef['edges']) => boolean,
   rng: RngState,
 ): { block: BlockDef; o: Orientation; fit: LevelCell['fit'] } {
-  const passable = (tag: string) => EDGE_TAGS[tag as keyof typeof EDGE_TAGS]?.passable ?? true;
+  const passable = (tag: EdgeTag) => EDGE_TAGS[tag].passable;
   const tiers: [LevelCell['fit'], (e: BlockDef['edges']) => boolean][] = [
-    ['exact', (e) => (want.s === null || e.s === want.s) && (want.w === null || e.w === want.w)],
+    ['exact', (e) => (want.n === null || e.n === want.n) && (want.w === null || e.w === want.w)],
     [
       'passable',
       (e) =>
-        (want.s === null || passable(e.s) === passable(want.s)) &&
+        (want.n === null || passable(e.n) === passable(want.n)) &&
         (want.w === null || passable(e.w) === passable(want.w)),
     ],
     ['any', () => true],
@@ -160,7 +179,7 @@ function pickBlock(
         block,
         os: ORIENTATIONS.filter((o) => {
           const e = orientEdges(block.edges, o);
-          return ok(e) && (!bottom || passable(e.s));
+          return ok(e) && fits(e);
         }),
       }))
       .filter((x) => x.os.length > 0);

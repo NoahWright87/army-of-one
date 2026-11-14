@@ -971,6 +971,8 @@ export const BLOCK_TUNING = {
     budget: 360, // TUNE
     /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
     ramp: 2, // TUNE
+    /** Top rows given to the enemy base when the block pool has base blocks ([D83]). */
+    baseRows: 1, // TUNE
     /** Rerolls (seeded) when the objective can't be reached. */
     maxAttempts: 30, // TUNE
   },

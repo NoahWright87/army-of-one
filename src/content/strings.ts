@@ -521,6 +521,8 @@ export const STRINGS = {
   'edge.stream': 'Stream',
   'edge.water': 'Water (blocks)',
   'edge.concrete': 'Concrete',
+  'edge.perimeter': 'Base wall (concrete first, clockwise)',
+  'edge.perimeterR': 'Base wall (grass first, clockwise)',
 } as const;
 
 export type StringKey = keyof typeof STRINGS;
