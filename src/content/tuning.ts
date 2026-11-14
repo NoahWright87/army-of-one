@@ -923,3 +923,16 @@ function deepMerge(base: unknown, over: unknown): unknown {
   }
   return out;
 }
+
+/**
+ * (PHASE13-a) Map blocks ([D80]). Not part of the sim's `Tuning`: a block becomes a plain
+ * `MapDef` before any sim starts, so these never change mid-battle.
+ */
+export const BLOCK_TUNING = {
+  /** World units per painted cell; a 15-cell block is 960 units (about two rifle ranges). */
+  cellSize: 64, // TUNE [Q48]
+  /** Empty grass strip under a played block, where the player's spawns go. */
+  stagingCells: 3, // TUNE
+  /** Map edge walls around a played block. */
+  borderThickness: 24, // TUNE
+} as const;

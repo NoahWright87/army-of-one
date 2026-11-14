@@ -11,6 +11,7 @@ export const PURE_MODULES = [
   'src/persistence/**/*.ts',
   'src/contracts/**/*.ts',
   'src/content/**/*.ts',
+  'src/gen/**/*.ts',
 ];
 
 export const purityRules = {

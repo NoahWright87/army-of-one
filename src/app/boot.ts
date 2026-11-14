@@ -1,10 +1,16 @@
 /**
- * Entry point. Dev screens that don't need Phaser (`?screen=respawn`) load on their own;
+ * Entry point. Screens that don't need Phaser (`?screen=respawn`, the `?scene=editor` block
+ * editor) load on their own;
  * everything else boots the game (main.ts).
  */
 const params = new URLSearchParams(window.location.search);
 
-if (params.get('screen') === 'respawn') {
+if (params.get('scene') === 'editor') {
+  // (PHASE13-a) Block editor: plain DOM, no Phaser.
+  void import('./editor-main').then((m) =>
+    m.startEditor(document.getElementById('ui-root') ?? document.body),
+  );
+} else if (params.get('screen') === 'respawn') {
   void import('./respawn-dev').then((m) =>
     m.startRespawnDevPage(params, document.getElementById('ui-root') ?? document.body),
   );

@@ -6,6 +6,7 @@
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
 import { DEFAULT_TUNING } from '../../content/tuning';
+import { GROUND, isGroundKind } from '../../content/ground';
 import Phaser from 'phaser';
 import { ICON_ROLES, roleIconDocument } from '../../content/role-icons';
 import type { RoleId } from '../../contracts/mission';
@@ -294,6 +295,7 @@ export class WorldRenderer {
       .tileSprite(0, 0, map.width, map.height, 'ground_tile')
       .setOrigin(0)
       .setDepth(DEPTH.ground);
+    if (map.ground) drawGround(scene, map.ground);
     for (const w of map.water) {
       scene.add.tileSprite(w.x, w.y, w.w, w.h, 'water_tile').setOrigin(0).setDepth(DEPTH.water);
     }
@@ -1243,4 +1245,54 @@ function ensureDashTexture(scene: Phaser.Scene): void {
 export function vehicleSpriteSize(v: Pick<VehicleView, 'w' | 'h' | 'heading'>): [number, number] {
   const vertical = Math.abs(Math.sin(v.heading)) > Math.SQRT1_2;
   return vertical ? [v.h, v.w] : [v.w, v.h];
+}
+
+/**
+ * (PHASE13-a) Painted ground ([D87]): flat placeholder colours with a short stepped blend into
+ * each different neighbour, standing in for real transition art. Water is drawn by `map.water`.
+ */
+function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['ground']>): void {
+  const g = scene.add.graphics().setDepth(DEPTH.ground + 0.1);
+  const cs = ground.cellSize;
+  const kindAt = (c: number, r: number) => {
+    const ch = ground.rows[r]?.[c];
+    return ch !== undefined && isGroundKind(ch) ? ch : null;
+  };
+  ground.rows.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      const k = kindAt(c, r);
+      if (!k || !GROUND[k].passable) continue;
+      g.fillStyle(GROUND[k].color, 0.85);
+      g.fillRect(c * cs, r * cs, cs, cs);
+    }
+  });
+  // Blend: each land cell takes a fading band of a different land neighbour's colour.
+  const steps = 3;
+  const band = cs * 0.12;
+  ground.rows.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      const k = kindAt(c, r);
+      if (!k || !GROUND[k].passable) continue;
+      const near: [number, number, 'n' | 'e' | 's' | 'w'][] = [
+        [c, r - 1, 'n'],
+        [c + 1, r, 'e'],
+        [c, r + 1, 's'],
+        [c - 1, r, 'w'],
+      ];
+      for (const [nc, nr, side] of near) {
+        const o = kindAt(nc, nr);
+        if (!o || o === k || !GROUND[o].passable) continue;
+        for (let i = 0; i < steps; i++) {
+          g.fillStyle(GROUND[o].color, 0.35 * (1 - i / steps));
+          const d = i * band;
+          const x = c * cs;
+          const y = r * cs;
+          if (side === 'n') g.fillRect(x, y + d, cs, band);
+          else if (side === 's') g.fillRect(x, y + cs - d - band, cs, band);
+          else if (side === 'w') g.fillRect(x + d, y, band, cs);
+          else g.fillRect(x + cs - d - band, y, band, cs);
+        }
+      }
+    }
+  });
 }

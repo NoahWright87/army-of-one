@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { findMap, MISSIONS, missionOrDefault } from '../content/maps';
+import { findMap, MISSIONS, missionOrDefault, registerMap } from '../content/maps';
+import { EDITOR_PREVIEW_ID, editorPreviewMap } from './editor-storage';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -118,7 +119,27 @@ const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
  * [D31]: mission-03 is the only mission, so removed ids (mission-01/02) fall back to it.
  */
 const MISSION_STORAGE_KEY = 'army-of-one.mission';
+// (PHASE13-a) The block editor's Play button: build the map from the editor's saved block.
+if (params.get('mission') === EDITOR_PREVIEW_ID) {
+  const preview = editorPreviewMap();
+  if (preview) registerMap(preview);
+}
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+if (MISSION.id === EDITOR_PREVIEW_ID) {
+  const back = document.createElement('button');
+  back.textContent = str('editor.backToEditor');
+  back.style.cssText =
+    'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
+    'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
+  back.onclick = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mission');
+    url.searchParams.set('scene', 'editor');
+    url.hash = '';
+    window.location.assign(url.toString());
+  };
+  document.body.appendChild(back);
+}
 
 function readStoredMission(): string | null {
   try {
@@ -914,7 +935,12 @@ function quickHintText(option: SpawnOption, touch = false): string {
 }
 
 function makeResolver(): ResolveRunner {
-  if (typeof Worker !== 'undefined' && params.get('resolveWorker') !== '0') {
+  // The worker can't see a runtime map (the editor's Play map), so those resolve inline.
+  if (
+    typeof Worker !== 'undefined' &&
+    params.get('resolveWorker') !== '0' &&
+    MISSION.id !== EDITOR_PREVIEW_ID
+  ) {
     try {
       return createWorkerResolveRunner(
         () => new Worker(new URL('./resolve-worker.ts', import.meta.url), { type: 'module' }),
