@@ -1,0 +1,64 @@
+{
+  "v": 1,
+  "id": "starter-shore-road",
+  "name": "Starter: landing road",
+  "edges": { "n": "water", "e": "grass", "s": "grass", "w": "road" },
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "GWWWWWWWWWWWWWG",
+    "GWWWWWWWWWWWWWG",
+    "GWWWWWWWWWWWWWG",
+    "GGGGGCCCCCGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "RRRRRRRRRGGGGGG",
+    "RRRRRRRRRGGGGGG",
+    "RRRRRRRRRGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    { "id": "c1", "kind": "cover", "rect": [3, 4.5, 2, 0.5], "material": "crate", "priority": 0 },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [10, 5, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "s3",
+      "kind": "soldier",
+      "at": [10.5, 4.4],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 1,
+      "group": "dock",
+      "anchor": true
+    },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [4, 5.5],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "dock"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [12, 6.5],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 3,
+      "group": "dock"
+    },
+    { "id": "t6", "kind": "turret", "at": [11, 10], "facing": 90, "priority": 4 },
+    { "id": "m7", "kind": "mine", "at": [4, 11], "priority": 5 },
+    { "id": "obj8", "kind": "objective", "at": [7.5, 5], "priority": 0 }
+  ]
+}

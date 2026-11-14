@@ -1,0 +1,98 @@
+{
+  "v": 1,
+  "id": "starter-field",
+  "name": "Starter: open field",
+  "edges": { "n": "grass", "e": "grass", "s": "grass", "w": "grass" },
+  "ground": [
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGDDDGG",
+    "GGGGGGGGGGDDDGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGDDDGGGGGGGGGG",
+    "GGDDDGGGGGGGGGG",
+    "GGDDDGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [3, 6, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [9.5, 6, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    { "id": "c3", "kind": "cover", "rect": [6.5, 9, 2, 0.5], "material": "crate", "priority": 0 },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [4.25, 5.4],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 1,
+      "group": "line",
+      "anchor": true
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [11, 5.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1,
+      "group": "line"
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [6, 5],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "line"
+    },
+    {
+      "id": "s7",
+      "kind": "soldier",
+      "at": [9, 5],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 3,
+      "group": "line"
+    },
+    {
+      "id": "s8",
+      "kind": "soldier",
+      "at": [7.5, 3],
+      "role": "grenadier",
+      "facing": 90,
+      "priority": 4
+    },
+    {
+      "id": "s9",
+      "kind": "soldier",
+      "at": [3, 2.5],
+      "role": "sniper",
+      "facing": 90,
+      "priority": 5
+    },
+    { "id": "m10", "kind": "mine", "at": [3, 10.5], "priority": 5 },
+    { "id": "m11", "kind": "mine", "at": [5, 11.5], "priority": 5 },
+    { "id": "m12", "kind": "mine", "at": [10, 11.5], "priority": 5 },
+    { "id": "m13", "kind": "mine", "at": [12, 10.5], "priority": 5 },
+    { "id": "obj14", "kind": "objective", "at": [7.5, 2], "priority": 0 }
+  ]
+}

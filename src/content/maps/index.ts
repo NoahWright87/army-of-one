@@ -17,8 +17,20 @@ export const DEFAULT_MISSION: MapDef = MISSION_03;
 
 const ALL: readonly MapDef[] = [...MISSIONS, TEST_RANGE];
 
+/**
+ * (PHASE13-a) Maps made at runtime, e.g. the block editor's Play map. The app registers them
+ * before the game starts; the same code then finds them like any other map.
+ */
+const RUNTIME: MapDef[] = [];
+
+export function registerMap(map: MapDef): void {
+  const i = RUNTIME.findIndex((m) => m.id === map.id);
+  if (i >= 0) RUNTIME[i] = map;
+  else RUNTIME.push(map);
+}
+
 export function findMap(id: string): MapDef | undefined {
-  return ALL.find((m) => m.id === id);
+  return ALL.find((m) => m.id === id) ?? RUNTIME.find((m) => m.id === id);
 }
 
 /**
@@ -26,5 +38,5 @@ export function findMap(id: string): MapDef | undefined {
  * remembered or linked id of a removed mission (mission-01/02) falls back here too ([D31]).
  */
 export function missionOrDefault(id: string | null | undefined): MapDef {
-  return MISSIONS.find((m) => m.id === id) ?? DEFAULT_MISSION;
+  return MISSIONS.find((m) => m.id === id) ?? RUNTIME.find((m) => m.id === id) ?? DEFAULT_MISSION;
 }

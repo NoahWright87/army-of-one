@@ -25,7 +25,11 @@ for the owner. Base new work on the top of the stack (or on
 **Then (owner session 2026-11):** the owner set the next direction ([D51]–[D58]): an economy
 on the timeline (PHASE11, built: see its notes), four new roles (12-a, built), vehicles + armor + Mission 5 (12-b, built), seeded generation of levels and the
 world map (13), campaign and progression (14), and sharing: weekly seed, leaderboards,
-replays, async co-op (15). PHASE09's missions/art/3D tracks still stand; generated missions
+replays, async co-op (15). A later owner session (2026-11) reshaped 13 ([D80]–[D91]):
+levels are stitched from human-authored 15 × 15 blocks with tagged edges, a budget decides how
+much of each overfilled block spawns, and the world map is a Carcassonne-style board carved
+into levels. 13-a (the block editor) is built first so the owner can author blocks and check
+the direction. PHASE09's missions/art/3D tracks still stand; generated missions
 (13) may replace most hand-made ones.
 
 How work has gone so far: parallel agents per letter part, each verified (lint, purity check,
@@ -74,7 +78,10 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [11](PHASE11.md) | **Economy**: money on the timeline, income, bounties, costs | 07 | — | Built |
 | [12-a](PHASE12-a.md) | More roles: Sniper, Shield, Shotgunner, Bazooka | 11 | — | Built |
 | [12-b](PHASE12-b.md) | Vehicles, unified armor, breakable cover, Mission 5 | 11, 12-a | 13 | Built |
-| [13](PHASE13.md) | Seeded generation: levels + world map | 11 | 12 | Sketch |
+| [13](PHASE13.md) | **Map blocks**, generated levels, world map: overview ([D80]–[D91]) | 11 | — | Planned |
+| [13-a](PHASE13-a.md) | Block format + block editor MVP (`?scene=editor`) | 12-b | — | Built |
+| [13-b](PHASE13-b.md) | Budgets, rotate/flip, one generated level, block library | 13-a | — | Built |
+| [13-c](PHASE13-c.md) | World map board: frame, fill, carve, objectives | 13-b | — | Sketch |
 | [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
 

@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { findMap, MISSIONS, missionOrDefault } from '../content/maps';
+import { findMap, MISSIONS, missionOrDefault, registerMap } from '../content/maps';
+import {
+  EDITOR_PREVIEW_ID,
+  editorPreviewMap,
+  generatedMap,
+  isRuntimeMission,
+} from './editor-storage';
+import { genMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -118,7 +125,30 @@ const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
  * [D31]: mission-03 is the only mission, so removed ids (mission-01/02) fall back to it.
  */
 const MISSION_STORAGE_KEY = 'army-of-one.mission';
+// (PHASE13-a) The block editor's Play button: build the map from the editor's saved block.
+{
+  // (PHASE13-b) A generated mission (`gen-<seed>`): stitched from map blocks. Also the one
+  // remembered from last time.
+  const want = params.get('mission') ?? readStoredMission();
+  if (want) {
+    const gen = generatedMap(want);
+    if (gen) registerMap(gen);
+  }
+}
+if (params.get('mission') === EDITOR_PREVIEW_ID) {
+  const preview = editorPreviewMap();
+  if (preview) registerMap(preview);
+}
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+if (MISSION.id === EDITOR_PREVIEW_ID) {
+  const back = document.createElement('button');
+  back.textContent = str('editor.backToEditor');
+  back.style.cssText =
+    'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
+    'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
+  back.onclick = openEditor;
+  document.body.appendChild(back);
+}
 
 function readStoredMission(): string | null {
   try {
@@ -126,6 +156,24 @@ function readStoredMission(): string | null {
   } catch {
     return null;
   }
+}
+
+/** (PHASE13-b) A known map, or a generated mission made (and registered) on the spot. */
+function findOrGenerate(id: string): MapDef | undefined {
+  const known = findMap(id);
+  if (known) return known;
+  const gen = generatedMap(id);
+  if (gen) registerMap(gen);
+  return gen ?? undefined;
+}
+
+/** (PHASE13-a) The block editor ([D88]): the title screen's link. */
+function openEditor(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('mission');
+  url.searchParams.set('scene', 'editor');
+  url.hash = '';
+  window.location.assign(url.toString());
 }
 
 function pickMission(id: string): void {
@@ -368,9 +416,15 @@ async function startGame(): Promise<void> {
       title.show({
         ...p,
         missionNameKey: MISSION.nameKey,
-        missions: MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
+        missions: [
+          ...MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
+          // (PHASE13) A generated mission or the editor's playtest shows in the picker too.
+          ...(MISSIONS.includes(MISSION) ? [] : [{ id: MISSION.id, nameKey: MISSION.nameKey }]),
+        ],
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
+        onOpenEditor: openEditor,
+        onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'
           : 'title.new',
@@ -568,7 +622,7 @@ async function startGame(): Promise<void> {
 
   /** Plays a run as a viewer: watch it; continue from it (in progress) or play the mission. */
   const openViewer = (run: SharedRun) => {
-    const map = findMap(run.missionId);
+    const map = findOrGenerate(run.missionId);
     if (!map) {
       notice.show(str('replay.broken'));
       return;
@@ -652,7 +706,7 @@ async function startGame(): Promise<void> {
       });
     }
     for (const e of readLibrary(safeLocalStorage())) {
-      const map = findMap(e.missionId);
+      const map = findOrGenerate(e.missionId);
       if (!map) continue;
       items.push({
         label: str('library.won', {
@@ -914,7 +968,12 @@ function quickHintText(option: SpawnOption, touch = false): string {
 }
 
 function makeResolver(): ResolveRunner {
-  if (typeof Worker !== 'undefined' && params.get('resolveWorker') !== '0') {
+  // The worker can't see a runtime map (the editor's Play map), so those resolve inline.
+  if (
+    typeof Worker !== 'undefined' &&
+    params.get('resolveWorker') !== '0' &&
+    !isRuntimeMission(MISSION.id)
+  ) {
     try {
       return createWorkerResolveRunner(
         () => new Worker(new URL('./resolve-worker.ts', import.meta.url), { type: 'module' }),

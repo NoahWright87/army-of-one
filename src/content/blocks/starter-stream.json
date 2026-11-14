@@ -1,0 +1,79 @@
+{
+  "v": 1,
+  "id": "starter-stream",
+  "name": "Starter: stream ford",
+  "edges": { "n": "grass", "e": "stream", "s": "grass", "w": "stream" },
+  "ground": [
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GSSSSSSSSSSSSSG",
+    "WWWWWWDDDWWWWWW",
+    "WWWWWWDDDWWWWWW",
+    "WWWWWWDDDWWWWWW",
+    "GSSSSSSSSSSSSSG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [3, 4.5, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [9.5, 4.5, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "s3",
+      "kind": "soldier",
+      "at": [7.5, 4],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 1,
+      "group": "ford",
+      "anchor": true
+    },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [4, 4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "ford"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [11, 4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "ford"
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [7.5, 2.5],
+      "role": "grenadier",
+      "facing": 90,
+      "priority": 4,
+      "group": "ford"
+    },
+    { "id": "m7", "kind": "mine", "at": [7, 7.5], "priority": 3 },
+    { "id": "m8", "kind": "mine", "at": [8, 7], "priority": 5 },
+    { "id": "obj9", "kind": "objective", "at": [7.5, 2], "priority": 0 }
+  ]
+}

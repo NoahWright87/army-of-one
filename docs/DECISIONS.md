@@ -346,6 +346,70 @@ revise with justification in a PR).
   mission (Watch / Share), kept in localStorage. Short links via a server are for later
   (PHASE15).
 
+## Map blocks, generation and the world map (owner session 2026-11, PHASE13)
+
+These replace the PHASE13 sketch's "chunks along a vertical spine".
+
+- **[D80] Levels are stitched from human-authored blocks.** Like Rogue Legacy, or better,
+  Carcassonne: hand-made pieces of map with their fortifications and soldiers baked in, stitched
+  together at random from a seed. A block is **15 × 15 paintable cells** (odd, so roads and
+  gates centre). Wider blocks (30 × 15) may come later. Hand-made missions can be built from the
+  same blocks.
+- **[D81] Edges are named tags, and each tag paints its edge.** A small vocabulary (grass, road,
+  stream, water, concrete, …). A tag fixes the cells along its side (the corners are free) and
+  says whether that side can be crossed: an edge that is all water, mountain or wall blocks
+  movement. Blocks join only where their tags match exactly; no fuzzy matching, so seams always
+  line up. In the editor, picking a tag paints and locks that edge.
+- **[D82] Rotating and flipping blocks is always allowed.** It's top-down, so nothing has an
+  "up". A fortification that ends up facing away from you is a feature (you came round behind
+  it).
+- **[D83] Generation: frame first, then fill in scan order.** The frame decides the big shape:
+  the enemy base (all-concrete edges) in the northern 2–3 rows, player entries (drop zones,
+  beach landings) in the southern 1–2 rows, and a few impassable seams picked at random while
+  keeping a continuous path (preferably several) from start to end, which creates branches and
+  choice. The frame only says *barrier* or *open*; any barrier tag satisfies a barrier. Then blocks
+  are placed in scan order, matching exact tags against neighbours already placed. Seam tags
+  are **not** decided up front (owner: that over-constrains). Lakes, rivers and mountain
+  ranges come from the blocks themselves. The editor groups blocks by edge layout, so gaps in
+  coverage are visible.
+- **[D84] Emergence over scripting.** Encounters aren't scripted: build a fortification, put
+  soldiers in it, and the AI plus the player's echoes make the story. No timelines or bespoke
+  paths per enemy (the toybox shmup's trap).
+- **[D85] Overfilled blocks and a budget.** Every block lists far more than a reasonable
+  number of enemies, barriers and structures. When a level is generated, each block gets a
+  budget and spawns as much as it can afford. **Priority 0** is free and always spawns
+  (terrain, structures, sniper perches, capture points, mandatory props like signs and lamp
+  posts). **Priorities 1–5** spawn in order while the budget lasts (e.g. perimeter guards first,
+  a second sniper or a tank's support troops last). **Groups:** members only spawn if the
+  group's anchor did. Heavy cover can be low priority and/or high cost. Groups can be saved as
+  templates and stamped into other blocks as copies. The budget is spent once, when the level
+  is made, and never changes between attempts.
+- **[D86] Budgets grow with the campaign.** Enemies gain funds as the campaign goes on, so later
+  blocks are full and early ones much easier. A level can also get one budget spread across
+  it, later parts harder. Enemy costs use the same units and balance as the player's, with a
+  separate threat price where the player's price doesn't fit (the player's Rifleman is free).
+- **[D87] Ground is painted; walls and buildings are placed.** Natural terrain is painted on the
+  cell grid, Warcraft 2 map editor style, with a few basic ground kinds and placeholder gradient
+  transitions. Water painting is impassable; other ground is visual only. Walls, buildings,
+  cover, gates etc. are placed things, free of the grid.
+- **[D88] The block editor is part of the game.** `?scene=editor`, desktop first. The owner's
+  blocks become the official ones (download JSON, send it in, it's committed to the repo).
+  Players get the same editor for custom blocks and missions, shareable with friends later. Play
+  the block straight away in the real game.
+- **[D89] The world map is a Carcassonne board.** 6–9 blocks wide (wider gives more options: you
+  don't have to conquer the whole map), built as in [D83], then **carved** into levels along
+  natural seams (beachhead up to the road, the road to a base, storm the base). The board is
+  rectangular; a level can be an irregular shape with areas blocked off. The world map shows a
+  low-detail view of the levels (their ground), so you know roughly what you're getting into.
+- **[D90] Carve first, then make each level.** Once a level's blocks are known, the generator
+  places its objectives and connections sensibly: entries where it borders the start or land
+  you hold, objectives toward its far side (authors mark objective slots in blocks).
+- **[D91] The world map has no memory of battles.** Each level is self-contained. The campaign
+  passes in tuning values and unlocks: enemy funds grow over the campaign; capturing a fuel
+  depot raises income or starting cash; factories may unlock units; which levels you've taken
+  decides where you can go next and from which side (hold the land beside a base and you can
+  attack it from either side).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -393,6 +457,13 @@ revise with justification in a PR).
   stores a content version (generator + sim + tuning). A weekly challenge is locked to the
   version it shipped with; old generator versions stay runnable (or old builds stay hosted) so
   last week's recordings still replay.
+
+- **[E13] Runtime maps (PHASE13-a).** Maps made at runtime (the editor's Play map, later
+  generated levels) are registered with `registerMap` and found by id like the hand-made ones.
+  The editor's Play map resolves on the main thread (the worker can't see it). Generated levels
+  will be addressed by an id that carries their seed and inputs; per [E11] a save or replay of
+  one needs the same generator version, or should carry the stitched map itself (custom blocks
+  make the second necessary).
 
 ---
 
@@ -573,3 +644,29 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   soldier hugging the sandbags, with half their shots stopped; soldiers can fire over the bags.
   Breach's first turret line may feel easier or harder than before; tune `cover.materials` or the
   sandbag positions if so.
+- **[Q46] What wins a carved level (PHASE13-c).** Proposed: a normal level is won by capturing
+  an exit point in its far block (that marks it as yours on the world map and opens its
+  neighbours); a bonus block's point (fuel depot, factory) is a side objective; the base
+  level(s) are won by destroying the HQ. The editor's Play map already uses "capture the
+  objective slot".
+- **[Q47] A partly spawned group (PHASE13-a/b).** Implemented: soldiers of one group are one
+  squad, whatever subset spawned; a group that contains a capture point holds it.
+- **[Q48] Block size in world units (PHASE13-a).** `BLOCK_TUNING.cellSize` = 64, so a block is
+  960 units (about two rifle ranges); two blocks side by side are a little wider than Breach.
+  Tunable.
+- **[Q49] The Play map's framing (PHASE13-a).** Implemented: the block sits above a 3-cell grass
+  strip with three spawns (West / Centre / East); the first objective slot is a capture-to-win
+  flag (top centre if there's none). Capture points open a forward spawn just south of them.
+- **[Q50] Enemy threat costs (PHASE13-b).** Implemented as a separate table
+  (`BLOCK_TUNING.threat`): unit prices near the player's balance, but riflemen cost 10 (free for
+  the player), turrets 30, mines 3, cover 0–5. Priority 0 is always free. Tunable; or should
+  enemy costs be the player's costs exactly, with a floor?
+- **[Q51] Generated levels and custom blocks (PHASE13-b).** Implemented: `gen-<seed>` stitches
+  the official blocks plus the player's own (valid) blocks. Same seed + same library → same map;
+  a replay link of a generated mission opened by someone with different blocks gets a different
+  map. Options: replays carry the stitched map ([E13]); or generated missions use official
+  blocks only unless you ask for yours.
+- **[Q52] A generated level's shape (PHASE13-b).** Until the world map exists: 2 blocks wide,
+  4 tall, budget 360 by default, the top row getting 3× the bottom row's share
+  (`BLOCK_TUNING.level`). Win by capturing the objective in the top row ([Q46]).
+

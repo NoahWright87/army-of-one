@@ -1,0 +1,75 @@
+{
+  "v": 1,
+  "id": "starter-stream-mouth",
+  "name": "Starter: stream mouth",
+  "edges": { "n": "water", "e": "grass", "s": "grass", "w": "stream" },
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "GWWWWWWWWWWWWWG",
+    "GWWWWWWWWWWWWWG",
+    "GWWWWWWWWWWWWWG",
+    "GGGGGGWWWSSSSSG",
+    "GGGGGGWWWGGGGGG",
+    "WWWWWWWWWGGGGGG",
+    "WWWWWWWWWGGGGGG",
+    "WWWWWWWWWGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [10, 6, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [2, 10, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "s3",
+      "kind": "soldier",
+      "at": [11, 5.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1,
+      "group": "mouth",
+      "anchor": true
+    },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [12.5, 7],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 2,
+      "group": "mouth"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [3, 11],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 3
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [4.5, 4.5],
+      "role": "sniper",
+      "facing": 90,
+      "priority": 4
+    },
+    { "id": "obj7", "kind": "objective", "at": [11.5, 5], "priority": 0 }
+  ]
+}

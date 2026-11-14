@@ -1,0 +1,84 @@
+{
+  "v": 1,
+  "id": "starter-tee",
+  "name": "Starter: T-junction",
+  "edges": { "n": "road", "e": "road", "s": "road", "w": "grass" },
+  "ground": [
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [3, 5, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [10, 4.5, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    { "id": "c3", "kind": "cover", "rect": [3.5, 10, 2, 0.5], "material": "crate", "priority": 0 },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [4, 4.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1,
+      "group": "west",
+      "anchor": true
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [5, 3],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 3,
+      "group": "west"
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [11, 3.9],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2
+    },
+    {
+      "id": "s7",
+      "kind": "soldier",
+      "at": [12, 10],
+      "role": "bazooka",
+      "facing": 90,
+      "priority": 4
+    },
+    {
+      "id": "s8",
+      "kind": "soldier",
+      "at": [10, 12],
+      "role": "shotgun",
+      "facing": 90,
+      "priority": 5
+    },
+    { "id": "obj9", "kind": "objective", "at": [4, 2], "priority": 0 }
+  ]
+}

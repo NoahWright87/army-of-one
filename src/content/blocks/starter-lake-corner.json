@@ -1,0 +1,63 @@
+{
+  "v": 1,
+  "id": "starter-lake-corner",
+  "name": "Starter: lake corner",
+  "edges": { "n": "water", "e": "water", "s": "grass", "w": "grass" },
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "GWWWWWWWWWWWWWW",
+    "GWWWWWWWWWWWWWW",
+    "GWWWWWWWWWWWWWW",
+    "GSSSSSSSSSSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [4, 7, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    { "id": "c2", "kind": "cover", "rect": [6, 10, 2.5, 0.5], "material": "crate", "priority": 0 },
+    {
+      "id": "s3",
+      "kind": "soldier",
+      "at": [5, 6.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1,
+      "group": "nook",
+      "anchor": true
+    },
+    {
+      "id": "s4",
+      "kind": "soldier",
+      "at": [8, 5.5],
+      "role": "grenadier",
+      "facing": 90,
+      "priority": 2,
+      "group": "nook"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [3, 5.5],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 4,
+      "group": "nook"
+    },
+    { "id": "t6", "kind": "turret", "at": [8.5, 8], "facing": 90, "priority": 3 },
+    { "id": "obj7", "kind": "objective", "at": [5, 5.5], "priority": 0 }
+  ]
+}

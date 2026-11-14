@@ -923,3 +923,55 @@ function deepMerge(base: unknown, over: unknown): unknown {
   }
   return out;
 }
+
+/**
+ * (PHASE13-a) Map blocks ([D80]). Not part of the sim's `Tuning`: a block becomes a plain
+ * `MapDef` before any sim starts, so these never change mid-battle.
+ */
+export const BLOCK_TUNING = {
+  /** World units per painted cell; a 15-cell block is 960 units (about two rifle ranges). */
+  cellSize: 64, // TUNE [Q48]
+  /** Empty grass strip under a played block, where the player's spawns go. */
+  stagingCells: 3, // TUNE
+  /** Map edge walls around a played block. */
+  borderThickness: 24, // TUNE
+  /**
+   * (PHASE13-b) What things cost the enemy's budget ([D85], [D86]). Unit prices follow the
+   * player's balance, but nothing is free for the enemy (the player's Rifleman is). Priority 0
+   * is always free whatever it is.
+   */
+  threat: {
+    role: {
+      rifleman: 10, // TUNE
+      grenadier: 15, // TUNE
+      gunner: 20, // TUNE
+      sniper: 20, // TUNE
+      shield: 15, // TUNE
+      shotgun: 15, // TUNE
+      bazooka: 20, // TUNE
+      truck: 60, // TUNE
+      tank: 120, // TUNE
+    },
+    turret: 30, // TUNE
+    mine: 3, // TUNE
+    cover: {
+      sandbags: 3, // TUNE
+      crate: 3, // TUNE
+      halfWall: 5, // TUNE
+      fence: 1, // TUNE
+      window: 0, // TUNE
+      bunkerWindow: 0, // TUNE
+    },
+  },
+  /** (PHASE13-b) A generated level: blocks across and up, and its enemy budget. */
+  level: {
+    cols: 2, // TUNE
+    rows: 4, // TUNE
+    /** Default budget for the whole level ([D86]). */
+    budget: 360, // TUNE
+    /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
+    ramp: 2, // TUNE
+    /** Rerolls (seeded) when the objective can't be reached. */
+    maxAttempts: 30, // TUNE
+  },
+} as const;

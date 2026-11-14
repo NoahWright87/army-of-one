@@ -182,6 +182,12 @@ export interface MapDef {
   capturePoints?: CapturePointDef[];
   /** (07-d) Enemy soldiers ([D44]). */
   squads?: SquadDef[];
+  /**
+   * (PHASE13-a) Painted ground ([D87]), purely visual: rows of ground letters
+   * (`src/content/ground.ts`), each cell `cellSize` units square, from the map's top-left.
+   * Water cells are drawn by `water`, which is what blocks movement.
+   */
+  ground?: { cellSize: number; rows: string[] };
   /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
   economy?: { startMoney?: number; baseIncomePerSecond?: number };
 }

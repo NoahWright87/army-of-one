@@ -7,8 +7,12 @@ progress that carries between levels ([D57]: income goes up between levels).
 something to unlock.
 
 ## Direction
-- A campaign is a run through a world map (generated from a seed, [D56], or hand-made). Each
-  cleared level improves what you start the next one with: income, starting money, maybe
+- A campaign is a run through a world map (generated from a seed, [D56], or hand-made; built
+  like Carcassonne, [D89]). Levels are self-contained ([D91]): the campaign only passes in
+  numbers and unlocks. Enemy funds (the block budget, [D85]/[D86]) grow as the campaign goes on;
+  captured bonus blocks pay out (a fuel depot raises income or starting cash, a factory may
+  unlock units); which levels you hold decides where you can attack next and from which side.
+  Each cleared level improves what you start the next one with: income, starting money, maybe
   unlocked roles and vehicles.
 - Campaign state is persisted (versioned schema, `src/persistence/`), separate from a mission's
   timeline save.

@@ -34,6 +34,9 @@ const CSS = `
 .aoo-screen .mission-pick select { font: 600 15px system-ui, sans-serif; margin-left: 6px; padding: 4px 6px;
   background: #222a32; color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; }
 .aoo-screen button.confirm { background: #ff6b5a; color: #fff; }
+.aoo-screen .card button.link { min-width: 0; min-height: 0; margin-top: 10px; padding: 4px 8px;
+  background: none; color: #9fb3c8; font: 500 14px system-ui, sans-serif; text-decoration: underline; }
+.aoo-screen .card button.link:hover { color: #e6e9ec; }
 .aoo-screen dl { display: grid; grid-template-columns: auto auto; gap: 6px 28px; margin: 4px 0 10px; text-align: left; }
 .aoo-screen dt { color: #8a96a3; text-transform: uppercase; font-size: 12px; letter-spacing: .06em; align-self: center; }
 .aoo-screen dd { margin: 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -106,6 +109,10 @@ export interface TitleProps {
   onPickMission?(id: string): void;
   /** (06-c) Label of the start button when there's no save (default 'title.new'). */
   freshLabelKey?: 'title.new' | 'title.deploy';
+  /** (PHASE13-a) Opens the block editor ([D88]); a link at the bottom of the menu. */
+  onOpenEditor?(): void;
+  /** (PHASE13-b) Starts a new generated mission from a random seed. */
+  onRandomMission?(): void;
 }
 
 /** (PHASE12-e) One row of the title screen's replay list ([D79]). */
@@ -174,6 +181,16 @@ export class TitleScreen {
       ...(p.canContinue ? [cont, fresh] : [fresh]),
       this.libraryEl,
     );
+    if (p.onRandomMission) {
+      const random = el('button', 'link', str('title.random'));
+      random.onclick = () => p.onRandomMission?.();
+      card.append(random);
+    }
+    if (p.onOpenEditor) {
+      const editor = el('button', 'link', str('title.editor'));
+      editor.onclick = () => p.onOpenEditor?.();
+      card.append(editor);
+    }
     root.hidden = false;
     (p.canContinue ? cont : fresh).focus();
   }
