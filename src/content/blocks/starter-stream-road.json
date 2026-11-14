@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-stream-road",
   "name": "Starter: gated causeway",
   "edges": {"n":"road","e":"stream","s":"road","w":"stream"},
@@ -26,10 +26,13 @@
     {"id":"lever-n","kind":"lever","at":[10,4],"target":"gate","priority":0},
     {"id":"c1","kind":"cover","rect":[3,4.5,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c2","kind":"cover","rect":[10,3,2.5,0.5],"material":"sandbags","priority":0},
-    {"id":"s3","kind":"soldier","at":[4,3.9],"role":"rifleman","facing":90,"priority":1,"group":"bank","anchor":true},
-    {"id":"s4","kind":"soldier","at":[11,2.4],"role":"gunner","facing":90,"priority":2,"group":"bank"},
-    {"id":"s5","kind":"soldier","at":[5,2],"role":"grenadier","facing":90,"priority":4,"group":"bank"},
     {"id":"t6","kind":"turret","at":[12,1.5],"facing":90,"priority":3},
-    {"id":"obj7","kind":"objective","at":[7.5,2],"priority":0}
+    {"id":"obj7","kind":"objective","at":[7.5,2],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[4,3.9],"group":"bank","priority":0},
+    {"id":"rally-2","kind":"rally","at":[11,2.4],"group":"bank","priority":0},
+    {"id":"rally-3","kind":"rally","at":[5,2],"group":"bank","priority":0}
+  ],
+  "groups": [
+    {"id":"bank","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":2},{"role":"grenadier","priority":4}]}
   ]
 }

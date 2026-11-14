@@ -22,7 +22,8 @@ import {
 } from '../content/ground';
 import type { CoverMaterial } from '../sim/world/map';
 
-export const BLOCK_VERSION = 1;
+/** 2: squads are groups (a roster + rally points); 1 had placed soldiers (still read). */
+export const BLOCK_VERSION = 2;
 
 export type Side = 'n' | 'e' | 's' | 'w';
 export const SIDES: readonly Side[] = ['n', 'e', 's', 'w'];
@@ -42,10 +43,23 @@ interface ItemBase {
   /** Unique within the block. */
   id: string;
   priority: Priority;
-  /** Spawn group ([D85]): members only spawn if the group's anchor did. */
+  /** The squad a rally point belongs to, or the squad that holds a capture point. */
   group?: string;
-  /** This item is its group's anchor. */
-  anchor?: boolean;
+}
+
+/** (PHASE13) One unit of a squad's roster: bought by the budget like anything else ([D85]). */
+export interface GroupUnit {
+  role: RoleId;
+  priority: Priority;
+}
+
+/**
+ * (PHASE13) A squad ([Q54]): a roster of units and, via `rally` items, the points they roam
+ * between. Each unit spawns at a seeded random rally point of its squad.
+ */
+export interface BlockGroup {
+  id: string;
+  units: GroupUnit[];
 }
 
 export type BlockItem =
@@ -55,7 +69,8 @@ export type BlockItem =
   | (ItemBase & { kind: 'lever'; at: CellPoint; target: string })
   | (ItemBase & { kind: 'turret'; at: CellPoint; facing: number })
   | (ItemBase & { kind: 'mine'; at: CellPoint })
-  | (ItemBase & { kind: 'soldier'; at: CellPoint; role: RoleId; facing: number })
+  /** (PHASE13) A rally point of squad `group` ([Q54]). Free, always there. */
+  | (ItemBase & { kind: 'rally'; at: CellPoint; group: string })
   | (ItemBase & { kind: 'capture'; at: CellPoint })
   /** Where a level objective may go ([D90]). The generator picks one; Play uses the first. */
   | (ItemBase & { kind: 'objective'; at: CellPoint });
@@ -72,13 +87,13 @@ export const ITEM_KINDS: readonly { kind: ItemKind; shape: 'rect' | 'point' }[] 
   { kind: 'lever', shape: 'point' },
   { kind: 'turret', shape: 'point' },
   { kind: 'mine', shape: 'point' },
-  { kind: 'soldier', shape: 'point' },
+  { kind: 'rally', shape: 'point' },
   { kind: 'capture', shape: 'point' },
   { kind: 'objective', shape: 'point' },
 ];
 
 /** Kinds that are always priority 0 ([D85]: capture points and objectives always spawn). */
-export const ALWAYS_KINDS: ReadonlySet<ItemKind> = new Set(['capture', 'objective']);
+export const ALWAYS_KINDS: ReadonlySet<ItemKind> = new Set(['capture', 'objective', 'rally']);
 
 export interface BlockDef {
   v: typeof BLOCK_VERSION;
@@ -89,7 +104,12 @@ export interface BlockDef {
   /** BLOCK_CELLS rows (north first) of BLOCK_CELLS ground letters each. */
   ground: string[];
   items: BlockItem[];
+  /** (PHASE13) Squads: rosters; their rally points are `rally` items. */
+  groups: BlockGroup[];
 }
+
+/** Budget id of a squad's `i`th unit ([D85]). */
+export const unitId = (group: string, i: number) => `${group}#${i}`;
 
 export const isRectItem = (i: BlockItem): i is RectItem => 'rect' in i;
 
@@ -102,6 +122,7 @@ export function newBlock(id = 'block-1', name = 'New block'): BlockDef {
     edges: { n: 'grass', e: 'grass', s: 'grass', w: 'grass' },
     ground: Array.from({ length: BLOCK_CELLS }, () => 'G'.repeat(BLOCK_CELLS)),
     items: [],
+    groups: [],
   });
 }
 
@@ -205,32 +226,33 @@ export function validateBlock(block: BlockDef): BlockProblem[] {
     }
   }
 
-  for (const g of groupIds(block)) {
-    const members = block.items.filter((i) => i.group === g);
-    const anchors = members.filter((i) => i.anchor);
-    if (anchors.length !== 1) {
-      out.push({ key: 'editor.problem.groupAnchor', params: { group: g, n: anchors.length } });
-      continue;
+  const groups = new Set<string>();
+  for (const g of block.groups) {
+    if (!g.id || groups.has(g.id)) {
+      out.push({ key: 'editor.problem.badGroupId', params: { group: g.id } });
     }
-    const anchor = anchors[0]!;
-    for (const m of members) {
-      if (m.priority !== 0 && m.priority < anchor.priority) {
-        out.push({
-          key: 'editor.problem.memberBeforeAnchor',
-          params: { id: m.id, group: g },
-          itemId: m.id,
-        });
-      }
+    groups.add(g.id);
+    if (g.units.length === 0)
+      out.push({ key: 'editor.problem.groupEmpty', params: { group: g.id } });
+    if (!block.items.some((i) => i.kind === 'rally' && i.group === g.id)) {
+      out.push({ key: 'editor.problem.groupNoRally', params: { group: g.id } });
+    }
+  }
+  for (const it of block.items) {
+    if ((it.kind === 'rally' || it.group) && !(it.group && groups.has(it.group))) {
+      out.push({
+        key: 'editor.problem.groupMissing',
+        params: { id: it.id, group: it.group ?? '' },
+        itemId: it.id,
+      });
     }
   }
   return out;
 }
 
-/** Group names in first-use order. */
+/** Squad names, in order. */
 export function groupIds(block: BlockDef): string[] {
-  const out: string[] = [];
-  for (const it of block.items) if (it.group && !out.includes(it.group)) out.push(it.group);
-  return out;
+  return block.groups.map((g) => g.id);
 }
 
 function inside(it: BlockItem): boolean {
@@ -283,7 +305,8 @@ export function parseBlock(text: string): ParseResult {
 export function parseBlockObject(raw: unknown): ParseResult {
   if (!raw || typeof raw !== 'object') return { ok: false, key: 'editor.load.notBlock' };
   const b = raw as Partial<BlockDef>;
-  if (b.v !== BLOCK_VERSION) return { ok: false, key: 'editor.load.version' };
+  const version = (raw as { v?: unknown }).v;
+  if (version !== BLOCK_VERSION && version !== 1) return { ok: false, key: 'editor.load.version' };
   if (typeof b.id !== 'string' || !Array.isArray(b.ground) || !Array.isArray(b.items)) {
     return { ok: false, key: 'editor.load.notBlock' };
   }
@@ -294,19 +317,70 @@ export function parseBlockObject(raw: unknown): ParseResult {
   if (!b.ground.every((r) => typeof r === 'string' && [...r].every(isGroundKind))) {
     return { ok: false, key: 'editor.load.notBlock' };
   }
-  return {
-    ok: true,
-    block: { ...(b as BlockDef), name: typeof b.name === 'string' ? b.name : b.id },
+  const named = { ...(b as BlockDef), name: typeof b.name === 'string' ? b.name : b.id };
+  if (version === 1) return { ok: true, block: migrateV1(named as unknown as V1Block) };
+  if (!Array.isArray(b.groups)) return { ok: false, key: 'editor.load.notBlock' };
+  return { ok: true, block: named };
+}
+
+type V1Item = (BlockItem | { kind: 'soldier'; at: CellPoint; role: RoleId }) & {
+  id: string;
+  priority: Priority;
+  group?: string;
+  anchor?: boolean;
+};
+type V1Block = Omit<BlockDef, 'v' | 'items' | 'groups'> & { v: 1; items: V1Item[] };
+
+/**
+ * Version 1 placed soldiers one by one. Each v1 group (ungrouped soldiers: one squad) becomes a
+ * squad whose roster is its soldiers and whose rally points are where they stood.
+ */
+export function migrateV1(b: V1Block): BlockDef {
+  const groups: BlockGroup[] = [];
+  const rallies: BlockItem[] = [];
+  const used = new Set(b.items.map((i) => i.id));
+  const fresh = (base: string) => {
+    for (let n = 1; ; n++) {
+      if (!used.has(`${base}-${n}`)) {
+        used.add(`${base}-${n}`);
+        return `${base}-${n}`;
+      }
+    }
   };
+  for (const it of b.items) {
+    if (it.kind !== 'soldier') continue;
+    const gid = it.group ?? 'squad';
+    let g = groups.find((x) => x.id === gid);
+    if (!g) groups.push((g = { id: gid, units: [] }));
+    g.units.push({ role: it.role, priority: it.priority });
+    const near = rallies.some(
+      (r) =>
+        r.group === gid && 'at' in r && Math.hypot(r.at[0] - it.at[0], r.at[1] - it.at[1]) < 0.75,
+    );
+    if (!near)
+      rallies.push({ id: fresh('rally'), kind: 'rally', at: it.at, group: gid, priority: 0 });
+  }
+  const kept = new Set(groups.map((g) => g.id));
+  const items: BlockItem[] = [];
+  for (const it of b.items) {
+    if (it.kind === 'soldier') continue;
+    const { anchor: _anchor, group, ...rest } = it;
+    void _anchor;
+    const keepGroup = it.kind === 'capture' && group && kept.has(group);
+    items.push((keepGroup ? { ...rest, group } : rest) as BlockItem);
+  }
+  return { ...b, v: BLOCK_VERSION, items: [...items, ...rallies], groups };
 }
 
 /** Stable, diff-friendly JSON: one ground row and one item per line. */
 export function blockToJson(block: BlockDef): string {
   const rows = block.ground.map((r) => `    ${JSON.stringify(r)}`).join(',\n');
   const items = block.items.map((i) => `    ${JSON.stringify(i)}`).join(',\n');
+  const groups = block.groups.map((g) => `    ${JSON.stringify(g)}`).join(',\n');
   return (
     `{\n  "v": ${block.v},\n  "id": ${JSON.stringify(block.id)},\n` +
     `  "name": ${JSON.stringify(block.name)},\n  "edges": ${JSON.stringify(block.edges)},\n` +
-    `  "ground": [\n${rows}\n  ],\n  "items": [${items ? `\n${items}\n  ` : ''}]\n}\n`
+    `  "ground": [\n${rows}\n  ],\n  "items": [${items ? `\n${items}\n  ` : ''}],\n` +
+    `  "groups": [${groups ? `\n${groups}\n  ` : ''}]\n}\n`
   );
 }

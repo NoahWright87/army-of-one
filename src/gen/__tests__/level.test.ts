@@ -5,8 +5,8 @@ import { BLOCK_TUNING, DEFAULT_TUNING } from '../../content/tuning';
 import { hashState } from '../../sim/core/hash';
 import { createWorld, step } from '../../sim/sim';
 import { validateMap } from '../../sim/world/map';
-import { newBlock, validateBlock, type BlockDef, type BlockItem } from '../block';
-import { blockTotalCost, itemCost, spendBudget } from '../budget';
+import { newBlock, validateBlock, type BlockDef, type BlockItem, type GroupUnit } from '../block';
+import { blockTotalCost, itemCost, spendBudget, unitCost } from '../budget';
 import { generateLevel, objectiveReachable } from '../level';
 import { genMissionId, parseGenMissionId } from '../mission-id';
 import {
@@ -21,62 +21,61 @@ import {
 
 const T = BLOCK_TUNING.threat;
 
-function squadBlock(items: BlockItem[]): BlockDef {
-  return { ...newBlock(), items };
+/** A block with one squad (`units`, rally point at the centre) plus `items`. */
+function squadBlock(units: GroupUnit[], items: BlockItem[] = []): BlockDef {
+  return {
+    ...newBlock(),
+    items: [{ id: 'r', kind: 'rally', at: [7, 7], group: 'g', priority: 0 }, ...items],
+    groups: [{ id: 'g', units }],
+  };
 }
-const soldier = (id: string, priority: number, extra: Partial<BlockItem> = {}): BlockItem =>
-  ({
-    id,
-    kind: 'soldier',
-    at: [7, 7],
-    role: 'rifleman',
-    facing: 90,
-    priority,
-    ...extra,
-  }) as BlockItem;
+const unit = (priority: number, role: GroupUnit['role'] = 'rifleman'): GroupUnit => ({
+  role,
+  priority: priority as GroupUnit['priority'],
+});
+const bought = (b: BlockDef, budget: number | null, seed?: number) =>
+  [...spendBudget(b, budget, seed).spawned].filter((id) => id.startsWith('g#')).sort();
 
 describe('spendBudget', () => {
   it('priority 0 is free and always spawns; nothing is free for the enemy otherwise', () => {
-    const b = squadBlock([soldier('a', 0), soldier('b', 1)]);
-    expect(itemCost(b.items[0]!)).toBe(0);
-    expect(itemCost(b.items[1]!)).toBe(T.role.rifleman);
-    const r = spendBudget(b, 0);
-    expect([...r.spawned]).toEqual(['a']);
-    expect(r.spent).toBe(0);
+    const b = squadBlock([unit(0), unit(1)]);
+    expect(unitCost(b.groups[0]!.units[0]!)).toBe(0);
+    expect(unitCost(b.groups[0]!.units[1]!)).toBe(T.role.rifleman);
+    expect(bought(b, 0)).toEqual(['g#0']);
+    expect(spendBudget(b, 0).spawned.has('r')).toBe(true); // rally points are free
   });
 
-  it('spends breadth-first by priority and skips what does not fit', () => {
-    const b = squadBlock([
-      { id: 'tank', kind: 'soldier', at: [1, 1], role: 'tank', facing: 90, priority: 1 },
-      soldier('r1', 1),
-      soldier('r2', 2),
-      { id: 'mine', kind: 'mine', at: [2, 2], priority: 3 },
-    ]);
-    // Not enough for the tank: the rifleman at the same priority still spawns, then r2, then mine.
-    const r = spendBudget(b, 2 * T.role.rifleman + T.mine);
-    expect([...r.spawned].sort()).toEqual(['mine', 'r1', 'r2']);
-    expect(r.left).toBe(0);
+  it('tank first, riflemen second: low budgets buy riflemen, more the tank, lots both', () => {
+    const b = squadBlock(
+      [unit(1, 'tank'), unit(2), unit(2)],
+      [{ id: 'mine', kind: 'mine', at: [2, 2], priority: 3 }],
+    );
+    expect(bought(b, 2 * T.role.rifleman)).toEqual(['g#1', 'g#2']);
+    expect(bought(b, T.role.tank)).toEqual(['g#0']);
+    expect(bought(b, T.role.tank + 2 * T.role.rifleman)).toEqual(['g#0', 'g#1', 'g#2']);
     expect(blockTotalCost(b)).toBe(T.role.tank + 2 * T.role.rifleman + T.mine);
+    expect(itemCost(b.items[1]!)).toBe(T.mine);
   });
 
-  it('group members need their anchor; levers need their gate', () => {
-    const b = squadBlock([
-      soldier('lead', 2, { group: 'g', anchor: true }),
-      soldier('m', 2, { group: 'g' }),
-      { id: 'gate', kind: 'gate', rect: [5, 5, 3, 0.5], priority: 4 },
-      { id: 'lever', kind: 'lever', at: [4, 6], target: 'gate', priority: 4 },
-    ]);
-    const none = spendBudget(b, T.role.rifleman - 1);
-    expect(none.spawned.has('m')).toBe(false);
-    const all = spendBudget(b, null);
-    expect([...all.spawned].sort()).toEqual(['gate', 'lead', 'lever', 'm']);
+  it('a lever bought before its gate waits for it', () => {
+    const b = squadBlock(
+      [],
+      [
+        { id: 'gate', kind: 'gate', rect: [5, 5, 3, 0.5], priority: 4 },
+        { id: 'lever', kind: 'lever', at: [4, 6], target: 'gate', priority: 3 },
+      ],
+    );
+    // The lever (priority 3) waits for its gate (priority 4), then comes with it.
+    const r = spendBudget(b, 0);
+    expect(r.spawned.has('gate')).toBe(true);
+    expect(r.spawned.has('lever')).toBe(true);
   });
 
   it('is deterministic per seed', () => {
-    const b = squadBlock(Array.from({ length: 8 }, (_, i) => soldier(`s${i}`, 1)));
-    const a = spendBudget(b, 3 * T.role.rifleman, 7);
-    expect([...spendBudget(b, 3 * T.role.rifleman, 7).spawned]).toEqual([...a.spawned]);
-    expect(a.spawned.size).toBe(3);
+    const b = squadBlock(Array.from({ length: 8 }, () => unit(1)));
+    const a = bought(b, 3 * T.role.rifleman, 7);
+    expect(bought(b, 3 * T.role.rifleman, 7)).toEqual(a);
+    expect(a).toHaveLength(3);
   });
 });
 

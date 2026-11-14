@@ -157,7 +157,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   title screen's list. Open any `/#replay=…` link to watch it.
 - Block editor (PHASE13-a, [D80]–[D88]): the title screen's "Block editor" link, or
   `?scene=editor` (no Phaser; "← Main menu" returns). Paint ground, set edge tags, place things
-  with priority 0–5 and groups, Download/Copy/Open JSON, **Play this block** (opens
+  with priority 0–5, squads (rally points + a roster of units, [D92]; they roam between their
+  points, [D93]), Download/Copy/Open JSON, **Play this block** (opens
   `?mission=editor-preview` in the real game at the budget slider's budget; "← Editor" goes
   back). "My blocks…" is the library (yours in localStorage; official ones in
   `src/content/blocks/`, copied to edit). Format: `src/gen/block.ts`; budget: `src/gen/budget.ts`.

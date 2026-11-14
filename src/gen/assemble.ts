@@ -25,7 +25,8 @@ import {
   type SquadDef,
   type TurretDef,
 } from '../sim/world/map';
-import type { BlockDef, BlockItem, CellPoint, CellRect } from './block';
+import { hash01 } from '../sim/core/hash';
+import { unitId, type BlockDef, type BlockItem, type CellPoint, type CellRect } from './block';
 
 export interface PlacedBlock {
   /** Already oriented. */
@@ -137,7 +138,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
           break;
       }
     }
-    squads.push(...blockSquads(items, pt, rad, id));
+    squads.push(...blockSquads(pb.block, items, pb.spawned, pt, id));
   }
   capturePoints.push({
     id: 'blk-objective',
@@ -165,30 +166,44 @@ export function assembleMap(opts: AssembleOptions): MapDef {
   };
 }
 
+/**
+ * (PHASE13) Each squad with units bought and rally points becomes an enemy squad ([Q54]): every
+ * unit starts at a seeded random rally point, fanned out around it so nobody stacks, facing
+ * south (toward the attacker).
+ */
 function blockSquads(
+  block: BlockDef,
   items: BlockItem[],
+  spawned: ReadonlySet<string>,
   pt: (p: CellPoint) => Vec2,
-  rad: (d: number) => number,
   id: (s: string) => string,
 ): SquadDef[] {
   const out: SquadDef[] = [];
-  const keys: string[] = [];
-  for (const it of items) {
-    if (it.kind !== 'soldier') continue;
-    const k = it.group ?? '';
-    if (!keys.includes(k)) keys.push(k);
-  }
-  for (const k of keys) {
-    const members = items.flatMap((i) =>
-      i.kind === 'soldier' && (i.group ?? '') === k
-        ? [{ role: i.role, position: pt(i.at), facing: rad(i.facing) }]
-        : [],
-    );
-    const hold = k ? items.find((i) => i.kind === 'capture' && i.group === k) : undefined;
+  const cs = BLOCK_TUNING.cellSize;
+  for (const g of block.groups) {
+    const rally = items.flatMap((i) => (i.kind === 'rally' && i.group === g.id ? [pt(i.at)] : []));
+    if (rally.length === 0) continue;
+    const members = g.units.flatMap((u, i) => {
+      if (!spawned.has(unitId(g.id, i))) return [];
+      const at = rally[Math.floor(hash01(id(unitId(g.id, i))) * rally.length)]!;
+      // Golden-angle fan around the point.
+      const a = i * 2.399963;
+      const r = cs * (0.35 + 0.25 * Math.floor(i / 6));
+      return [
+        {
+          role: u.role,
+          position: { x: at.x + Math.cos(a) * r, y: at.y + Math.sin(a) * r },
+          facing: Math.PI / 2,
+        },
+      ];
+    });
+    if (members.length === 0) continue;
+    const hold = items.find((i) => i.kind === 'capture' && i.group === g.id);
     out.push({
-      id: id(k ? `sq-${k}` : 'sq-loose'),
+      id: id(`sq-${g.id}`),
       members,
       order: { kind: 'guard' },
+      rally,
       ...(hold ? { capturePointId: id(hold.id) } : {}),
     });
   }

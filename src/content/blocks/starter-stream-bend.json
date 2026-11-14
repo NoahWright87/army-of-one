@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-stream-bend",
   "name": "Starter: stream bend",
   "edges": {"n":"grass","e":"stream","s":"stream","w":"grass"},
@@ -23,11 +23,15 @@
   "items": [
     {"id":"c1","kind":"cover","rect":[2.5,6,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c2","kind":"cover","rect":[9,3.5,2.5,0.5],"material":"crate","priority":0},
-    {"id":"s3","kind":"soldier","at":[3.5,5.4],"role":"rifleman","facing":90,"priority":1,"group":"bend","anchor":true},
-    {"id":"s4","kind":"soldier","at":[10,3],"role":"rifleman","facing":90,"priority":2,"group":"bend"},
-    {"id":"s5","kind":"soldier","at":[5,3],"role":"gunner","facing":90,"priority":3,"group":"bend"},
-    {"id":"s6","kind":"soldier","at":[11.5,11.5],"role":"rifleman","facing":90,"priority":4},
-    {"id":"s7","kind":"soldier","at":[2.5,2],"role":"sniper","facing":90,"priority":5},
-    {"id":"obj8","kind":"objective","at":[7.5,2.5],"priority":0}
+    {"id":"obj8","kind":"objective","at":[7.5,2.5],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[3.5,5.4],"group":"bend","priority":0},
+    {"id":"rally-2","kind":"rally","at":[10,3],"group":"bend","priority":0},
+    {"id":"rally-3","kind":"rally","at":[5,3],"group":"bend","priority":0},
+    {"id":"rally-4","kind":"rally","at":[11.5,11.5],"group":"squad","priority":0},
+    {"id":"rally-5","kind":"rally","at":[2.5,2],"group":"squad","priority":0}
+  ],
+  "groups": [
+    {"id":"bend","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"gunner","priority":3}]},
+    {"id":"squad","units":[{"role":"rifleman","priority":4},{"role":"sniper","priority":5}]}
   ]
 }

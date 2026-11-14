@@ -410,6 +410,29 @@ These replace the PHASE13 sketch's "chunks along a vertical spine".
   decides where you can go next and from which side (hold the land beside a base and you can
   attack it from either side).
 
+## Squads and rally points (owner session 2026-11, PHASE13)
+
+- **[D92] A squad is a roster plus rally points.** No placed soldiers and no routes: a block
+  author places rally points and defines the squad that uses them (units with a role and a
+  priority each). Every unit spawns at a random rally point of its squad (seeded). Turrets,
+  mines, cover and walls are still placed things. Replaces [Q54]'s routes idea and the anchor of
+  [D85]: no anchor units. The budget order gives the progression on its own (a tank at
+  priority 1 with riflemen at 2: early levels get riflemen, later the tank, much later both).
+- **[D93] The idle loop.** Loiter for a random time (min–max per unit type), then score every
+  rally point of the squad, including the one it's at: distance from me (some units like to
+  stay, others to travel), danger there (where fighting is), whether its side is under attack
+  there (some run to help, others keep their distance), friends already there, cover there
+  (snipers love it, trucks and tanks avoid it), plus random variance. Go to the best; walk when
+  patrolling, sprint to reinforce. Repeat on arrival. Because it reacts to the player, enemies
+  reinforce the side you attack, fall back when overwhelmed, and lead you into snipers and MGs.
+- **[D94] Arriving means taking a position**, not standing on the point: near it, spaced from
+  others, behind cover from the front, out of vehicles' way.
+- **[D95] Retreat weighs position as well as health.** Behind cover with friends around:
+  hold on until nearly dead. In the open, shot at by someone in cover: pull back early.
+  Retreat to the best rally point (friends, away from the fight), spread out there.
+- **[D96] Bases are alive before you arrive.** Soldiers far from us keep roaming between rally
+  points (cheaply, without looking for targets) instead of sleeping in place.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -649,8 +672,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   neighbours); a bonus block's point (fuel depot, factory) is a side objective; the base
   level(s) are won by destroying the HQ. The editor's Play map already uses "capture the
   objective slot".
-- **[Q47] A partly spawned group (PHASE13-a/b).** Implemented: soldiers of one group are one
-  squad, whatever subset spawned; a group that contains a capture point holds it.
+- **[Q47] (Resolved by [D92].)** A partly spawned group: the units bought of a squad are the
+  squad; a squad named on a capture point holds it.
 - **[Q48] Block size in world units (PHASE13-a).** `BLOCK_TUNING.cellSize` = 64, so a block is
   960 units (about two rifle ranges); two blocks side by side are a little wider than Breach.
   Tunable.
@@ -673,10 +696,15 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   random level's top row is the enemy base (base blocks only, wall facing south) and the rest
   is filled top-down from it. With 1 base row the yard and HQ blocks don't appear yet (they need
   2+ base rows, which needs inner wall corners). Tunable (`BLOCK_TUNING.level.baseRows`).
-- **[Q54] Groups and movement (PHASE13, under discussion).** Owner's idea: instead of patrol
+- **[Q54] (Resolved: [D92]–[D96].)** Groups and movement (PHASE13). Owner's idea: instead of patrol
   routes, a group has **rally points**; idle soldiers wander between them (emptier points
   first), each role with its own temperament (gunners and snipers settle, riflemen float,
   trucks roam), vehicles maybe with their own points; arriving means taking a sensible spot
   *near* the point, not stacking on it; retreat weighs position as well as health. More AI,
   less map specification.
+- **[Q55] Rally point details (PHASE13).** Implemented: "danger at a point" is our soldiers'
+  threat near it (no heat map); "under attack" is an enemy soldier near it hurt in the last 3 s;
+  the front is the bottom of the map (where we attack from). Role temperaments are first guesses
+  in `roles.ts` (`ai.roam`). Not yet: separate rally points for vehicles, enemies standing on
+  walls and cliffs (a slice of its own).
 

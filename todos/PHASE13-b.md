@@ -36,8 +36,8 @@ from them by seed ([D80]–[D86]).
 
 ## Not yet
 
-Group templates (stamped copies), how groups move ([Q54]: rally points instead of routes is
-under discussion), bridges, inner base corners, level size options, the world map (13-c).
+Group templates (stamped copies), bridges, inner base corners, level size options, vehicle-only
+rally points, enemies on walls and cliffs, the world map (13-c).
 
 ## Notes from implementation
 
@@ -63,4 +63,16 @@ under discussion), bridges, inner base corners, level size options, the world ma
   mostly a base row with no gate sealing the objective in. Every level ended reachable.
 - `src/content/blocks/*.json` is excluded from Prettier so committed blocks keep the editor's
   download format (one item per line).
+- **Squads and rally points** ([D92]–[D96], block format v2): a block's `groups` are rosters
+  (role + priority per unit); `rally` items are their points. Units are bought like anything
+  else (`unitId` = `group#i`), spawn at a seeded random rally point, and roam
+  (`src/sim/ai/brain.ts`: `roam` behaviour, `bestRallyPoint`, `pickSpot`, `coveredFrom`; role
+  temperaments in `roles.ts` `ai.roam`; `tuning.ai.roamSpacing/attackedSeconds/sleepRoamTicks`).
+  Asleep, they keep roaming every `sleepRoamTicks`. Retreat thresholds now depend on cover and
+  friends for every squad; squads without rally points otherwise behave as before (Breach,
+  Compound, Armored Push unchanged).
+- Version 1 blocks still load: each v1 group's soldiers become its roster and where they stood
+  its rally points (`migrateV1`); the starter blocks were converted that way.
+- The anchor is gone ([D92]). A lever whose gate comes later in the budget order waits for it.
+- Cost: roaming adds well under 0.1 ms per sim tick on a generated level (38 enemies).
 

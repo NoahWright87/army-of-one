@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-lake-corner",
   "name": "Starter: lake corner",
   "edges": {"n":"water","e":"water","s":"grass","w":"grass"},
@@ -23,10 +23,13 @@
   "items": [
     {"id":"c1","kind":"cover","rect":[4,7,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c2","kind":"cover","rect":[6,10,2.5,0.5],"material":"crate","priority":0},
-    {"id":"s3","kind":"soldier","at":[5,6.4],"role":"rifleman","facing":90,"priority":1,"group":"nook","anchor":true},
-    {"id":"s4","kind":"soldier","at":[8,5.5],"role":"grenadier","facing":90,"priority":2,"group":"nook"},
-    {"id":"s5","kind":"soldier","at":[3,5.5],"role":"gunner","facing":90,"priority":4,"group":"nook"},
     {"id":"t6","kind":"turret","at":[8.5,8],"facing":90,"priority":3},
-    {"id":"obj7","kind":"objective","at":[5,5.5],"priority":0}
+    {"id":"obj7","kind":"objective","at":[5,5.5],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[5,6.4],"group":"nook","priority":0},
+    {"id":"rally-2","kind":"rally","at":[8,5.5],"group":"nook","priority":0},
+    {"id":"rally-3","kind":"rally","at":[3,5.5],"group":"nook","priority":0}
+  ],
+  "groups": [
+    {"id":"nook","units":[{"role":"rifleman","priority":1},{"role":"grenadier","priority":2},{"role":"gunner","priority":4}]}
   ]
 }

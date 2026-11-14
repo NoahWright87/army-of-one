@@ -306,6 +306,12 @@ export interface Tuning {
     movingTargetError: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
+    /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
+    roamSpacing: number;
+    /** A rally point counts as under attack while a soldier there was hurt this recently. */
+    attackedSeconds: number;
+    /** Asleep (far from us), a roaming soldier re-decides this often (ticks): cheap idling. */
+    sleepRoamTicks: number;
   };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
@@ -782,6 +788,9 @@ export const DEFAULT_TUNING: Tuning = {
     replanSeconds: 1, // TUNE
     movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
     sprints: true, // TUNE
+    roamSpacing: 70, // TUNE
+    attackedSeconds: 3, // TUNE
+    sleepRoamTicks: 20, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE

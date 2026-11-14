@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-base-wall",
   "name": "Starter: base wall",
   "edges": {"n":"concrete","e":"perimeter","s":"grass","w":"perimeter-r"},
@@ -26,15 +26,20 @@
     {"id":"w3","kind":"wall","rect":[4.5,7.25,6,0.5],"priority":0},
     {"id":"slit4","kind":"cover","rect":[10.5,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
     {"id":"w5","kind":"wall","rect":[12,7.25,3,0.5],"priority":0},
-    {"id":"s6","kind":"soldier","at":[3.75,6.6],"role":"gunner","facing":90,"priority":1,"group":"slits","anchor":true},
-    {"id":"s7","kind":"soldier","at":[11.25,6.6],"role":"rifleman","facing":90,"priority":2,"group":"slits"},
-    {"id":"s8","kind":"soldier","at":[7.5,3.5],"role":"sniper","facing":90,"priority":3,"group":"perch","anchor":true},
-    {"id":"c9","kind":"cover","rect":[6.5,4.5,2,0.5],"material":"halfWall","priority":3,"group":"perch"},
+    {"id":"c9","kind":"cover","rect":[6.5,4.5,2,0.5],"material":"halfWall","priority":3},
     {"id":"t10","kind":"turret","at":[2,4],"facing":90,"priority":4},
-    {"id":"s11","kind":"soldier","at":[12,3],"role":"grenadier","facing":90,"priority":5},
     {"id":"m12","kind":"mine","at":[4,10],"priority":2},
     {"id":"m13","kind":"mine","at":[7.5,11],"priority":4},
     {"id":"m14","kind":"mine","at":[11,10],"priority":5},
-    {"id":"obj15","kind":"objective","at":[7.5,2],"priority":0}
+    {"id":"obj15","kind":"objective","at":[7.5,2],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[3.75,6.6],"group":"slits","priority":0},
+    {"id":"rally-2","kind":"rally","at":[11.25,6.6],"group":"slits","priority":0},
+    {"id":"rally-3","kind":"rally","at":[7.5,3.5],"group":"perch","priority":0},
+    {"id":"rally-4","kind":"rally","at":[12,3],"group":"squad","priority":0}
+  ],
+  "groups": [
+    {"id":"slits","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2}]},
+    {"id":"perch","units":[{"role":"sniper","priority":3}]},
+    {"id":"squad","units":[{"role":"grenadier","priority":5}]}
   ]
 }

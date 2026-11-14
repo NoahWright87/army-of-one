@@ -156,6 +156,11 @@ export interface SquadDef {
   fallback?: Vec2;
   /** Hold (and retake) this capture point. */
   capturePointId?: string;
+  /**
+   * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
+   * `roam` temperament), retreat to the best of them, and chase within their leash of any.
+   */
+  rally?: Vec2[];
 }
 
 export interface MapDef {

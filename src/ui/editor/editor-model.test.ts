@@ -34,8 +34,8 @@ describe('EditorModel', () => {
 
   it('a drag is one undo step; undo/redo walk history', () => {
     const m = new EditorModel(newBlock());
-    m.placeKind = 'soldier';
-    const s = m.place(5, 5);
+    m.placeKind = 'rally';
+    const s = m.place(5, 5); // also starts a squad: one undo step with the point
     m.beginGesture();
     m.moveItemTo(s.id, 6, 5);
     m.moveItemTo(s.id, 7, 5);
@@ -46,6 +46,7 @@ describe('EditorModel', () => {
     expect(m.item(s.id)).toMatchObject({ at: [5, 5] });
     m.undo();
     expect(m.item(s.id)).toBeUndefined();
+    expect(m.block.groups).toEqual([]);
     expect(m.selected).toBeNull();
     m.redo();
     m.redo();
@@ -70,15 +71,34 @@ describe('EditorModel', () => {
 
   it('the budget slider decides what spawns, cached per block and budget', () => {
     const m = new EditorModel(newBlock());
-    m.placeKind = 'soldier';
-    const a = m.place(3, 3);
+    m.placeKind = 'rally';
+    m.place(3, 3); // a new squad: two riflemen (priorities 1 and 2)
     m.placeKind = 'turret';
     const t = m.place(9, 3);
-    expect(m.spend().spawned.has(a.id)).toBe(true);
+    const g = m.block.groups[0]!.id;
+    expect(m.spend().spawned.has(`${g}#0`)).toBe(true);
     m.budget = 0;
-    expect(m.spend().spawned.size).toBe(0);
+    expect([...m.spend().spawned].some((id) => id.includes('#') || id === t.id)).toBe(false);
     expect(m.spend()).toBe(m.spend());
     m.budget = m.totalCost();
-    expect([...m.spend().spawned].sort()).toEqual([a.id, t.id].sort());
+    expect(m.spend().spawned.has(t.id)).toBe(true);
+    expect(m.spend().spawned.has(`${g}#1`)).toBe(true);
+  });
+
+  it('squads: rally points join the active squad; rename and delete carry their points', () => {
+    const m = new EditorModel(newBlock());
+    m.placeKind = 'rally';
+    const a = m.place(3, 3);
+    const b = m.place(6, 3);
+    expect(m.block.groups).toHaveLength(1);
+    expect(a.group).toBe(b.group);
+    m.renameGroup(a.group!, 'nest');
+    expect(m.item(a.id)?.group).toBe('nest');
+    m.addGroup();
+    const c = m.place(10, 3);
+    expect(c.group).not.toBe('nest');
+    m.deleteGroup('nest');
+    expect(m.item(a.id)).toBeUndefined();
+    expect(m.item(c.id)).toBeDefined();
   });
 });

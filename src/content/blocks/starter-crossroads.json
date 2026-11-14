@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-crossroads",
   "name": "Starter: crossroads",
   "edges": {"n":"road","e":"road","s":"road","w":"road"},
@@ -26,12 +26,16 @@
     {"id":"w3","kind":"wall","rect":[2,10,3,3],"priority":0},
     {"id":"w4","kind":"wall","rect":[10,10,3,3],"priority":0},
     {"id":"cp5","kind":"capture","at":[7.5,7.5],"priority":0,"group":"cross"},
-    {"id":"s6","kind":"soldier","at":[6,6],"role":"gunner","facing":90,"priority":1,"group":"cross","anchor":true},
-    {"id":"s7","kind":"soldier","at":[9,6],"role":"rifleman","facing":90,"priority":2,"group":"cross"},
-    {"id":"s8","kind":"soldier","at":[6,9],"role":"rifleman","facing":90,"priority":3,"group":"cross"},
-    {"id":"s9","kind":"soldier","at":[9,9],"role":"grenadier","facing":90,"priority":3,"group":"cross"},
     {"id":"t10","kind":"turret","at":[12,5.5],"facing":90,"priority":4},
-    {"id":"s11","kind":"soldier","at":[3.5,6],"role":"rifleman","facing":90,"priority":5},
-    {"id":"obj12","kind":"objective","at":[12,5.5],"priority":0}
+    {"id":"obj12","kind":"objective","at":[12,5.5],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[6,6],"group":"cross","priority":0},
+    {"id":"rally-2","kind":"rally","at":[9,6],"group":"cross","priority":0},
+    {"id":"rally-3","kind":"rally","at":[6,9],"group":"cross","priority":0},
+    {"id":"rally-4","kind":"rally","at":[9,9],"group":"cross","priority":0},
+    {"id":"rally-5","kind":"rally","at":[3.5,6],"group":"squad","priority":0}
+  ],
+  "groups": [
+    {"id":"cross","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"grenadier","priority":3}]},
+    {"id":"squad","units":[{"role":"rifleman","priority":5}]}
   ]
 }

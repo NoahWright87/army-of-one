@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "starter-base-gate",
   "name": "Starter: base gate",
   "edges": {"n":"concrete","e":"perimeter","s":"road","w":"perimeter-r"},
@@ -32,15 +32,18 @@
     {"id":"lever-in","kind":"lever","at":[9.8,6],"target":"gate","priority":0},
     {"id":"c7","kind":"cover","rect":[3,10,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c8","kind":"cover","rect":[9.5,10,2.5,0.5],"material":"sandbags","priority":0},
-    {"id":"s9","kind":"soldier","at":[4.2,9.4],"role":"rifleman","facing":90,"priority":1,"group":"front","anchor":true},
-    {"id":"s10","kind":"soldier","at":[10.8,9.4],"role":"rifleman","facing":90,"priority":1,"group":"front"},
-    {"id":"s11","kind":"soldier","at":[3.5,9.4],"role":"rifleman","facing":90,"priority":3,"group":"front"},
-    {"id":"s12","kind":"soldier","at":[11.5,9.4],"role":"grenadier","facing":90,"priority":4,"group":"front"},
-    {"id":"s13","kind":"soldier","at":[2.75,6.6],"role":"gunner","facing":90,"priority":2,"group":"slits","anchor":true},
-    {"id":"s14","kind":"soldier","at":[12.25,6.6],"role":"gunner","facing":90,"priority":3,"group":"slits"},
     {"id":"t15","kind":"turret","at":[7.5,4.5],"facing":90,"priority":3},
-    {"id":"s16","kind":"soldier","at":[4,3],"role":"rifleman","facing":90,"priority":4},
-    {"id":"s17","kind":"soldier","at":[11,3],"role":"rifleman","facing":90,"priority":5},
-    {"id":"obj18","kind":"objective","at":[7.5,3],"priority":0}
+    {"id":"obj18","kind":"objective","at":[7.5,3],"priority":0},
+    {"id":"rally-1","kind":"rally","at":[4.2,9.4],"group":"front","priority":0},
+    {"id":"rally-2","kind":"rally","at":[10.8,9.4],"group":"front","priority":0},
+    {"id":"rally-3","kind":"rally","at":[2.75,6.6],"group":"slits","priority":0},
+    {"id":"rally-4","kind":"rally","at":[12.25,6.6],"group":"slits","priority":0},
+    {"id":"rally-5","kind":"rally","at":[4,3],"group":"squad","priority":0},
+    {"id":"rally-6","kind":"rally","at":[11,3],"group":"squad","priority":0}
+  ],
+  "groups": [
+    {"id":"front","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":1},{"role":"rifleman","priority":3},{"role":"grenadier","priority":4}]},
+    {"id":"slits","units":[{"role":"gunner","priority":2},{"role":"gunner","priority":3}]},
+    {"id":"squad","units":[{"role":"rifleman","priority":4},{"role":"rifleman","priority":5}]}
   ]
 }

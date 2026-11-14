@@ -22,12 +22,14 @@ import {
   ITEM_KINDS,
   PRIORITIES,
   SIDES,
+  unitId,
   validateBlock,
   type BlockDef,
   type BlockItem,
   type Priority,
   type Side,
 } from '../../gen/block';
+import { unitCost } from '../../gen/budget';
 import { edgeLayout } from '../../gen/transform';
 import type { CoverMaterial } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
@@ -106,6 +108,8 @@ const css = `
 .aoo-ed .ok { color: #8fd18f; }
 .aoo-ed .play { background: #2f7a3d; border-color: #3f9a50; font-weight: 600; padding: 8px; }
 .aoo-ed .play:hover { background: #378a47; }
+.aoo-ed .unit-row { display: grid; grid-template-columns: 1fr 58px 30px; gap: 4px; }
+.aoo-ed .unit-row select { width: 100%; min-width: 0; }
 .aoo-ed .budget input[type=range] { width: 100%; box-sizing: border-box; padding: 0; margin: 4px 0; }
 .aoo-ed .budget-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .aoo-lib { position: fixed; inset: 0; z-index: 10; background: rgba(5,8,11,.72); display: flex;
@@ -518,6 +522,100 @@ export class EditorView {
     document.body.append(overlay);
   }
 
+  /**
+   * (PHASE13) A rally point's squad ([Q54]): which squad it belongs to, and that squad's roster.
+   * Units spawn at a random rally point of their squad and roam between them.
+   */
+  private squadPanel(groupId: string): HTMLElement {
+    const m = this.model;
+    const box = el('div');
+    const NEW = '\u0000new';
+    const sel = el('div', 'col');
+    const it = m.selectedItem;
+    sel.append(
+      field(
+        str('editor.prop.squad'),
+        select(
+          [
+            ...groupIds(m.block).map((g) => [g, g] as [string, string]),
+            [NEW, str('editor.squad.new')],
+          ],
+          groupId,
+          (v) => {
+            if (!it) return;
+            m.beginGesture();
+            const target = v === NEW ? m.addGroup() : v;
+            m.updateItem(it.id, { group: target });
+            m.endGesture();
+            m.select(it.id);
+          },
+        ),
+      ),
+    );
+    box.append(sel);
+    const g = m.group(groupId);
+    if (!g) return box;
+    box.append(
+      field(
+        str('editor.squad.name'),
+        input(g.id, (v) => m.renameGroup(g.id, v.trim())),
+      ),
+    );
+    const units = el('div', 'col');
+    units.append(el('div', 'hint', str('editor.squad.units')));
+    g.units.forEach((u, i) => {
+      const row = el('div', 'unit-row');
+      const role = select(
+        ROLES.map((r) => [r.id, str(r.nameKey)]),
+        u.role,
+        (v) =>
+          m.setGroupUnits(
+            g.id,
+            g.units.map((x, j) => (j === i ? { ...x, role: v as RoleId } : x)),
+          ),
+      );
+      const pri = select(
+        PRIORITIES.map((p) => [String(p), `P${p}`]),
+        String(u.priority),
+        (v) =>
+          m.setGroupUnits(
+            g.id,
+            g.units.map((x, j) => (j === i ? { ...x, priority: Number(v) as Priority } : x)),
+          ),
+      );
+      const del = el('button', '', '✕');
+      del.title = str('editor.delete');
+      del.onclick = () =>
+        m.setGroupUnits(
+          g.id,
+          g.units.filter((_, j) => j !== i),
+        );
+      row.append(role, pri, del);
+      units.append(row);
+    });
+    const add = el('button', '', str('editor.squad.addUnit'));
+    add.onclick = () => {
+      const last = g.units[g.units.length - 1];
+      m.setGroupUnits(g.id, [
+        ...g.units,
+        { role: last?.role ?? 'rifleman', priority: last?.priority ?? 1 },
+      ]);
+    };
+    units.append(add);
+    const cost = g.units.reduce((n, u) => n + unitCost(u), 0);
+    const points = m.block.items.filter((x) => x.kind === 'rally' && x.group === g.id).length;
+    units.append(
+      el('div', 'hint', str('editor.squad.summary', { n: g.units.length, cost, points })),
+    );
+    const delGroup = el('button', '', str('editor.squad.delete'));
+    delGroup.onclick = () => {
+      if (window.confirm(str('editor.squad.deleteConfirm', { name: g.id }))) m.deleteGroup(g.id);
+    };
+    units.append(delGroup);
+    box.append(units);
+    return box;
+  }
+
   private renderProblems(): void {
     const host = this.right.querySelector('.problems-host');
     if (!host) return;
@@ -563,49 +661,21 @@ export class EditorView {
         el('div', 'hint', str('editor.prop.priorityHint')),
       );
     }
-    const groups = groupIds(m.block);
-    const g = input(it.group ?? '', (v) =>
-      m.updateItem(it.id, {
-        group: v.trim() || undefined,
-        anchor: v.trim() ? it.anchor : undefined,
-      }),
-    );
-    const listId = 'aoo-ed-groups';
-    g.setAttribute('list', listId);
-    const dl = el('datalist');
-    dl.id = listId;
-    for (const name of groups) {
-      const o = el('option');
-      o.value = name;
-      dl.append(o);
-    }
-    box.append(field(str('editor.prop.group'), g), dl);
-    if (it.group) {
-      box.append(
-        checkbox(str('editor.prop.anchor'), !!it.anchor, (on) => {
-          // One anchor per group: taking it clears the others.
-          const items = m.block.items.map((i) =>
-            i.group === it.group
-              ? ({ ...i, anchor: i.id === it.id ? on || undefined : undefined } as BlockItem)
-              : i,
-          );
-          m.edit({ ...m.block, items });
-        }),
-      );
-    }
-
-    if (it.kind === 'soldier') {
+    if (it.kind === 'rally') box.append(this.squadPanel(it.group));
+    if (it.kind === 'capture') {
+      // A squad may hold this point (it retakes it, [D45]).
       box.append(
         field(
-          str('editor.prop.role'),
+          str('editor.prop.heldBy'),
           select(
-            ROLES.map((r) => [r.id, str(r.nameKey)]),
-            it.role,
-            (v) => m.updateItem(it.id, { role: v as RoleId }),
+            [['', str('editor.none')], ...groupIds(m.block).map((g) => [g, g] as [string, string])],
+            it.group ?? '',
+            (v) => m.updateItem(it.id, { group: v || undefined }),
           ),
         ),
       );
     }
+
     if (it.kind === 'cover') {
       box.append(
         field(
@@ -618,7 +688,7 @@ export class EditorView {
         ),
       );
     }
-    if (it.kind === 'soldier' || it.kind === 'turret') {
+    if (it.kind === 'turret') {
       box.append(
         field(
           str('editor.prop.facing'),
@@ -769,6 +839,8 @@ export class EditorView {
     for (const it of items) if (isRectItem(it)) drawFaded(it);
     for (const it of items) if (!isRectItem(it)) drawFaded(it);
 
+    this.drawSquads(spawned);
+
     // Lever → gate lines.
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = 'rgba(242,193,78,0.8)';
@@ -836,12 +908,10 @@ export class EditorView {
     const r = Math.max(6, cp * 0.32);
     ctx.lineWidth = 2;
     switch (it.kind) {
-      case 'soldier':
       case 'turret': {
-        ctx.fillStyle = it.kind === 'turret' ? '#8e2b22' : '#c9473f';
+        ctx.fillStyle = '#8e2b22';
         ctx.beginPath();
-        if (it.kind === 'turret') ctx.rect(px - r, py - r, 2 * r, 2 * r);
-        else ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.rect(px - r, py - r, 2 * r, 2 * r);
         ctx.fill();
         const a = (it.facing * Math.PI) / 180;
         ctx.strokeStyle = '#fff';
@@ -849,14 +919,21 @@ export class EditorView {
         ctx.moveTo(px, py);
         ctx.lineTo(px + Math.cos(a) * r * 1.7, py + Math.sin(a) * r * 1.7);
         ctx.stroke();
-        if (it.kind === 'soldier') {
-          ctx.fillStyle = '#fff';
-          ctx.font = `bold ${Math.max(9, Math.round(r * 0.9))}px system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const role = ROLES.find((x) => x.id === it.role);
-          ctx.fillText(role ? str(role.nameKey).slice(0, 2) : '?', px, py + 1);
-        }
+        break;
+      }
+      case 'rally': {
+        // (PHASE13) A rally point: a diamond in its squad's colour ([Q54]).
+        ctx.fillStyle = gc ?? '#c9473f';
+        ctx.beginPath();
+        ctx.moveTo(px, py - r);
+        ctx.lineTo(px + r, py);
+        ctx.lineTo(px, py + r);
+        ctx.lineTo(px - r, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
         break;
       }
       case 'mine':
@@ -889,9 +966,9 @@ export class EditorView {
         star(ctx, px, py, r);
         break;
     }
-    if (gc) {
+    if (gc && it.kind !== 'rally') {
       ctx.strokeStyle = gc;
-      ctx.lineWidth = it.anchor ? 4 : 2;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(px, py, r + 4, 0, Math.PI * 2);
       ctx.stroke();
@@ -906,9 +983,56 @@ export class EditorView {
     this.badge(it, px + r, py - r);
   }
 
-  /** Priority (and an A for a group anchor) next to a thing; nothing for priority 0. */
+  /**
+   * (PHASE13) Each squad: dashed lines joining its rally points, and its roster by the first
+   * point ("squad-1: Ri Ri Ma 2/3": what the budget buys of it).
+   */
+  private drawSquads(spawned: ReadonlySet<string>): void {
+    const ctx = this.ctx;
+    const cp = this.cellPx;
+    for (const g of this.model.block.groups) {
+      const pts = this.model.block.items.flatMap((i) =>
+        i.kind === 'rally' && i.group === g.id ? [i.at] : [],
+      );
+      if (pts.length === 0) continue;
+      const color = groupColor(g.id);
+      if (pts.length > 1) {
+        ctx.save();
+        ctx.setLineDash([3, 5]);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * cp, y * cp) : ctx.moveTo(x * cp, y * cp)));
+        if (pts.length > 2) ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+      const bought = g.units.filter((_, i) => spawned.has(unitId(g.id, i))).length;
+      const roster = g.units
+        .map((u) => {
+          const role = ROLES.find((r) => r.id === u.role);
+          return role ? str(role.nameKey).slice(0, 2) : '?';
+        })
+        .join(' ');
+      const text = `${g.id}: ${roster} ${bought}/${g.units.length}`;
+      const [x, y] = pts[0]!;
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      const w = ctx.measureText(text).width + 8;
+      const lx = x * cp + 10;
+      const ly = y * cp + 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.72)';
+      ctx.fillRect(lx, ly, w, 16);
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, lx + 4, ly + 8);
+    }
+  }
+
+  /** Priority next to a thing; nothing for priority 0. */
   private badge(it: BlockItem, x: number, y: number): void {
-    const text = `${it.priority > 0 ? it.priority : ''}${it.anchor ? 'A' : ''}`;
+    const text = it.priority > 0 ? String(it.priority) : '';
     if (!text) return;
     const ctx = this.ctx;
     ctx.font = 'bold 11px system-ui, sans-serif';

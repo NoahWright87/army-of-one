@@ -27,25 +27,8 @@ function fort(): BlockDef {
     { id: 'wall', kind: 'wall', priority: 0, rect: [2, 3, 3, 0.5] },
     { id: 'bags', kind: 'cover', priority: 0, rect: [6, 4, 3, 0.5], material: 'sandbags' },
     { id: 'cp', kind: 'capture', priority: 0, at: [7.5, 3], group: 'g' },
-    {
-      id: 'lead',
-      kind: 'soldier',
-      priority: 1,
-      at: [7, 2],
-      role: 'gunner',
-      facing: 90,
-      group: 'g',
-      anchor: true,
-    },
-    {
-      id: 'm2',
-      kind: 'soldier',
-      priority: 3,
-      at: [8, 2],
-      role: 'rifleman',
-      facing: 90,
-      group: 'g',
-    },
+    { id: 'r1', kind: 'rally', priority: 0, at: [7, 2], group: 'g' },
+    { id: 'r2', kind: 'rally', priority: 0, at: [9, 2.5], group: 'g' },
     { id: 't', kind: 'turret', priority: 2, at: [11, 2], facing: 90 },
     { id: 'mine', kind: 'mine', priority: 4, at: [3, 11] },
     { id: 'obj', kind: 'objective', priority: 0, at: [7.5, 1.5] },
@@ -54,7 +37,22 @@ function fort(): BlockDef {
   ground[6] = ground[6]!.slice(0, 6) + 'RRR' + ground[6]!.slice(9);
   ground[7] = ground[7]!.slice(0, 6) + 'RRR' + ground[7]!.slice(9);
   ground[8] = ground[8]!.slice(0, 6) + 'RRR' + ground[8]!.slice(9);
-  return applyEdges({ ...b, edges: { ...b.edges, e: 'stream', w: 'stream' }, ground, items });
+  const groups = [
+    {
+      id: 'g',
+      units: [
+        { role: 'gunner' as const, priority: 1 as const },
+        { role: 'rifleman' as const, priority: 3 as const },
+      ],
+    },
+  ];
+  return applyEdges({
+    ...b,
+    edges: { ...b.edges, e: 'stream', w: 'stream' },
+    ground,
+    items,
+    groups,
+  });
 }
 
 describe('edge tags', () => {
@@ -117,24 +115,75 @@ describe('validateBlock', () => {
     expect(keys(wet)).not.toContain('editor.problem.blocksEdge');
   });
 
-  it('checks levers, ids, group anchors and member order', () => {
+  it('checks levers, ids and squads', () => {
     const b = fort();
     const bad = {
       ...b,
       items: b.items.map((i): BlockItem => {
         if (i.kind === 'lever') return { ...i, target: 'nope' };
-        if (i.id === 'm2') return { ...i, priority: 1 };
-        if (i.id === 'lead') return { ...i, priority: 2 };
         if (i.id === 't') return { ...i, id: 'S1' };
+        if (i.id === 'r2') return { ...i, group: 'ghost' };
         return i;
       }),
     };
     const k = keys(bad);
     expect(k).toContain('editor.problem.leverTarget');
-    expect(k).toContain('editor.problem.memberBeforeAnchor');
     expect(k).toContain('editor.problem.badId');
-    const noAnchor = { ...b, items: b.items.map((i) => ({ ...i, anchor: undefined })) };
-    expect(keys(noAnchor)).toContain('editor.problem.groupAnchor');
+    expect(k).toContain('editor.problem.groupMissing');
+    const lonely = { ...b, groups: [...b.groups, { id: 'empty', units: [] }] };
+    expect(keys(lonely)).toEqual(['editor.problem.groupEmpty', 'editor.problem.groupNoRally']);
+  });
+
+  it('reads version 1 blocks: placed soldiers become a squad with rally points', () => {
+    const v1 = {
+      ...newBlock('old'),
+      v: 1,
+      groups: undefined,
+      items: [
+        {
+          id: 'a',
+          kind: 'soldier',
+          at: [3, 3],
+          role: 'gunner',
+          facing: 90,
+          priority: 1,
+          group: 'nest',
+          anchor: true,
+        },
+        {
+          id: 'b',
+          kind: 'soldier',
+          at: [3.2, 3.1],
+          role: 'rifleman',
+          facing: 90,
+          priority: 2,
+          group: 'nest',
+        },
+        { id: 'c', kind: 'soldier', at: [10, 3], role: 'sniper', facing: 90, priority: 4 },
+        { id: 'cp', kind: 'capture', at: [5, 5], priority: 0, group: 'nest' },
+      ],
+    };
+    const res = parseBlock(JSON.stringify(v1));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.block.v).toBe(2);
+    expect(res.block.groups).toEqual([
+      {
+        id: 'nest',
+        units: [
+          { role: 'gunner', priority: 1 },
+          { role: 'rifleman', priority: 2 },
+        ],
+      },
+      { id: 'squad', units: [{ role: 'sniper', priority: 4 }] },
+    ]);
+    // Two nest soldiers stood together: one rally point.
+    expect(res.block.items.filter((i) => i.kind === 'rally').map((i) => i.group)).toEqual([
+      'nest',
+      'squad',
+    ]);
+    expect(res.block.items.find((i) => i.id === 'cp')?.group).toBe('nest');
+    expect(keys(res.block)).toEqual([]);
   });
 });
 

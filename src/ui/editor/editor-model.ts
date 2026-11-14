@@ -31,7 +31,9 @@ export class EditorModel {
   block: BlockDef;
   tool: Tool = 'paint';
   paintKind: GroundKind = 'D';
-  placeKind: ItemKind = 'soldier';
+  placeKind: ItemKind = 'rally';
+  /** (PHASE13) The squad new rally points join (the last one touched). */
+  activeGroup: string | null = null;
   selected: string | null = null;
   /** (13-b) The budget slider ([D85]): null = everything spawns. Not part of the block. */
   budget: number | null = null;
@@ -140,6 +142,8 @@ export class EditorModel {
 
   select(id: string | null): void {
     this.selected = id;
+    const g = id ? this.item(id)?.group : undefined;
+    if (g) this.activeGroup = g;
     this.touch();
   }
 
@@ -168,8 +172,83 @@ export class EditorModel {
 
   // ---- Items
 
+  // ---- Squads ([Q54])
+
+  group(id: string) {
+    return this.block.groups.find((g) => g.id === id);
+  }
+
+  /** A new squad (two riflemen to start) that new rally points join. */
+  addGroup(): string {
+    let n = this.block.groups.length + 1;
+    while (this.group(`squad-${n}`)) n++;
+    const id = `squad-${n}`;
+    this.activeGroup = id;
+    this.edit({
+      ...this.block,
+      groups: [
+        ...this.block.groups,
+        {
+          id,
+          units: [
+            { role: 'rifleman', priority: 1 },
+            { role: 'rifleman', priority: 2 },
+          ],
+        },
+      ],
+    });
+    return id;
+  }
+
+  setGroupUnits(id: string, units: BlockDef['groups'][number]['units']): void {
+    this.edit({
+      ...this.block,
+      groups: this.block.groups.map((g) => (g.id === id ? { ...g, units } : g)),
+    });
+  }
+
+  /** Renames a squad, taking its rally points and held capture point along. */
+  renameGroup(id: string, to: string): void {
+    if (!to || to === id || this.group(to)) return;
+    this.edit({
+      ...this.block,
+      groups: this.block.groups.map((g) => (g.id === id ? { ...g, id: to } : g)),
+      items: this.block.items.map((i) => (i.group === id ? ({ ...i, group: to } as BlockItem) : i)),
+    });
+    if (this.activeGroup === id) this.activeGroup = to;
+  }
+
+  /** Deletes a squad and its rally points (a capture point it held stays, unheld). */
+  deleteGroup(id: string): void {
+    if (this.activeGroup === id) this.activeGroup = null;
+    if (this.selected && this.item(this.selected)?.group === id) this.selected = null;
+    this.edit({
+      ...this.block,
+      groups: this.block.groups.filter((g) => g.id !== id),
+      items: this.block.items.flatMap((i) => {
+        if (i.group !== id) return [i];
+        if (i.kind === 'rally') return [];
+        const { group: _g, ...rest } = i;
+        void _g;
+        return [rest as BlockItem];
+      }),
+    });
+  }
+
   /** Places a new thing of `placeKind` centred on (x, y) and selects it. */
   place(x: number, y: number): BlockItem {
+    // A rally point joins the active squad, or starts one.
+    if (this.placeKind === 'rally' && !(this.activeGroup && this.group(this.activeGroup))) {
+      this.beginGesture();
+      this.addGroup();
+      const it = this.placeItem(x, y);
+      this.endGesture();
+      return it;
+    }
+    return this.placeItem(x, y);
+  }
+
+  private placeItem(x: number, y: number): BlockItem {
     const it = defaultItem(this.placeKind, this.freshId(this.placeKind), snap(x), snap(y), this);
     this.edit({ ...this.block, items: [...this.block.items, it] });
     this.selected = it.id;
@@ -284,8 +363,8 @@ export function defaultItem(
       return { ...base, priority: 2, kind, at: [x, y], facing: 90 };
     case 'mine':
       return { ...base, priority: 3, kind, at: [x, y] };
-    case 'soldier':
-      return { ...base, kind, at: [x, y], role: 'rifleman', facing: 90 };
+    case 'rally':
+      return { ...base, kind, at: [x, y], group: model?.activeGroup ?? 'squad-1' };
     case 'capture':
     case 'objective':
       return { ...base, kind, at: [x, y] };
