@@ -154,10 +154,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
   format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
   title screen's list. Open any `/#replay=…` link to watch it.
-- Block editor (PHASE13-a, [D80]–[D88]): `?scene=editor` (no Phaser). Paint ground, set edge
-  tags, place things with priority 0–5 and groups, Download/Copy/Open JSON, **Play this block**
-  (the title screen links to it: "Block editor" under the buttons; "← Main menu" returns)
-  (opens `?mission=editor-preview` in the real game; "← Editor" goes back). The block autosaves
+- Block editor (PHASE13-a, [D80]–[D88]): the title screen's "Block editor" link, or
+  `?scene=editor` (no Phaser; "← Main menu" returns). Paint ground, set edge tags, place things
+  with priority 0–5 and groups, Download/Copy/Open JSON, **Play this block** (opens
+  `?mission=editor-preview` in the real game; "← Editor" goes back). The block autosaves
   to localStorage. Format and validation: `src/gen/block.ts`; block → map: `src/gen/preview.ts`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
