@@ -156,6 +156,7 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   title screen's list. Open any `/#replay=…` link to watch it.
 - Block editor (PHASE13-a, [D80]–[D88]): `?scene=editor` (no Phaser). Paint ground, set edge
   tags, place things with priority 0–5 and groups, Download/Copy/Open JSON, **Play this block**
+  (the title screen links to it: "Block editor" under the buttons; "← Main menu" returns)
   (opens `?mission=editor-preview` in the real game; "← Editor" goes back). The block autosaves
   to localStorage. Format and validation: `src/gen/block.ts`; block → map: `src/gen/preview.ts`.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene

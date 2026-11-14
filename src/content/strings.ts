@@ -137,6 +137,7 @@ export const STRINGS = {
   'objective.capture': 'Capture {name}',
   'objective.mixed': 'Complete the objectives ({done}/{total})',
   'title.pickMission': 'Mission',
+  'title.editor': 'Block editor: build your own map pieces',
   'respawn.spawn.forwardDetail': 'Forward point · opens {open} · Soldier {n}',
   'respawn.spawn.forwardOpen': 'Captured at {time} by Soldier {by}',
   'respawn.capture.tip': '{point} captured at {time}',
@@ -443,6 +444,7 @@ export const STRINGS = {
   'editor.upload': 'Open JSON…',
   'editor.play': 'Play this block',
   'editor.backToEditor': '← Editor',
+  'editor.exit': '← Main menu',
   'editor.help':
     'Drag to paint or move. Del deletes, R rotates, Ctrl+Z / Ctrl+Y undo and redo, Esc deselects. The striped ring is set by the edge tags.',
   'editor.kind.wall': 'Wall',

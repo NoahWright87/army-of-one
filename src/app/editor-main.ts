@@ -43,6 +43,13 @@ export function startEditor(host: HTMLElement): void {
         else window.alert(str(res.key as Parameters<typeof str>[0]));
       });
     },
+    exit: () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('scene');
+      url.searchParams.delete('mission');
+      url.hash = '';
+      window.location.assign(url.toString());
+    },
     play: () => {
       writeEditorBlock(model.block);
       // Old lives were recorded on the old block: start the playtest from scratch.

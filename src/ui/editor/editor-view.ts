@@ -38,6 +38,8 @@ export interface EditorActions {
   copy(): Promise<boolean>;
   upload(file: File): void;
   play(): void;
+  /** Back to the game's main menu. */
+  exit(): void;
 }
 
 const MATERIALS: CoverMaterial[] = [
@@ -221,6 +223,11 @@ export class EditorView {
     const m = this.model;
     const box = this.left;
     box.replaceChildren();
+    const exit = el('button', '', str('editor.exit'));
+    exit.onclick = () => this.actions.exit();
+    exit.style.width = '100%';
+    exit.style.marginBottom = '12px';
+    box.append(exit);
     box.append(el('h2', '', str('editor.tools')));
     const tools = el('div', 'col');
     const tool = (t: Tool, key: StringKey) => {

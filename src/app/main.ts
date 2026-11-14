@@ -131,13 +131,7 @@ if (MISSION.id === EDITOR_PREVIEW_ID) {
   back.style.cssText =
     'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
     'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
-  back.onclick = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('mission');
-    url.searchParams.set('scene', 'editor');
-    url.hash = '';
-    window.location.assign(url.toString());
-  };
+  back.onclick = openEditor;
   document.body.appendChild(back);
 }
 
@@ -147,6 +141,15 @@ function readStoredMission(): string | null {
   } catch {
     return null;
   }
+}
+
+/** (PHASE13-a) The block editor ([D88]): the title screen's link. */
+function openEditor(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('mission');
+  url.searchParams.set('scene', 'editor');
+  url.hash = '';
+  window.location.assign(url.toString());
 }
 
 function pickMission(id: string): void {
@@ -392,6 +395,7 @@ async function startGame(): Promise<void> {
         missions: MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
+        onOpenEditor: openEditor,
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'
           : 'title.new',
