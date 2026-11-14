@@ -312,6 +312,14 @@ export interface Tuning {
     attackedSeconds: number;
     /** Asleep (far from us), a roaming soldier re-decides this often (ticks): cheap idling. */
     sleepRoamTicks: number;
+    /** After being shaken, a soldier doesn't advance again for this long. */
+    cautiousSeconds: number;
+    /** Squadmates within this of a hurt ally may come to protect it. */
+    protectRadius: number;
+    /** A squad below this share of its strength (HP of everyone it started with) routs… */
+    routStrength: number;
+    /** …and joins the nearest squad still above this share. */
+    healthyStrength: number;
   };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
@@ -791,6 +799,10 @@ export const DEFAULT_TUNING: Tuning = {
     roamSpacing: 70, // TUNE
     attackedSeconds: 3, // TUNE
     sleepRoamTicks: 20, // TUNE
+    cautiousSeconds: 8, // TUNE
+    protectRadius: 450, // TUNE
+    routStrength: 0.4, // TUNE
+    healthyStrength: 0.6, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE

@@ -433,6 +433,22 @@ These replace the PHASE13 sketch's "chunks along a vertical spine".
 - **[D96] Bases are alive before you arrive.** Soldiers far from us keep roaming between rally
   points (cheaply, without looking for targets) instead of sleeping in place.
 
+## Reacting to fire (owner session 2026-11, PHASE13)
+
+- **[D97] Enemies react to being shot.** A hit tells the soldier where it came from (and wakes
+  its squad). Near cover: it takes it. Just out of range: it gets in range. Can't see the
+  shooter: it steps toward it to get a line of sight. Far out of range: it charges in or falls
+  back to friends, by type and health (shields, shotgunners, riflemen and vehicles close in
+  when healthy; grenadiers, snipers, gunners and bazookas fall back).
+- **[D98] No yo-yo.** A badly hurt soldier is wounded for good: it falls back once, makes that
+  spot its post and fights from there; it never advances again. After being shaken, a soldier
+  stays cautious for a while (no advancing, no walking back to its post).
+- **[D99] Squadmates protect each other.** When one is hit, nearby squadmates may step between
+  it and the shooter (shields most of all), which is how shields cover allies.
+- **[D100] A torn-up squad joins a healthy one.** Below `ai.routStrength` of its starting
+  strength, a squad falls back to the nearest squad still above `ai.healthyStrength` and
+  defends that squad's ground from then on, so tension builds toward strongholds.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

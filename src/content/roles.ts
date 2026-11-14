@@ -45,8 +45,16 @@ export interface AiProfile {
   /** Fires while its spread at the target is within this many target hitbox radii. */
   burstTolerance: number;
   /** Threat this unit poses to the other side (others' danger sums). */
-  threat: number; /** (PHASE13) How it wanders between its group's rally points when idle ([Q54]). */
+  threat: number;
+  /** (PHASE13) How it wanders between its group's rally points when idle ([Q54]). */
   roam: RoamProfile;
+  /**
+   * (PHASE13) Shot at from well beyond its own range: close in fast ('charge', when healthy) or
+   * fall back toward its friends ('fallback').
+   */
+  outranged: 'charge' | 'fallback';
+  /** (PHASE13) How keen it is to step between a hurt squadmate and the shooter (0..1). */
+  protect: number;
 }
 
 /**
@@ -107,6 +115,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.6,
         walk: 0.55,
       }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.3, // TUNE
     },
   },
   {
@@ -136,6 +146,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.5,
         walk: 0.55,
       }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0.1, // TUNE
     },
   },
   {
@@ -165,6 +177,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.3,
         walk: 0.5,
       }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0, // TUNE
     },
   },
   // (PHASE12-a) [D59]–[D62]. Costs are first guesses ([D51]).
@@ -195,6 +209,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.2,
         walk: 0.5,
       }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0, // TUNE
     },
   },
   {
@@ -224,6 +240,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.5,
         walk: 0.5,
       }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 1, // TUNE
     },
   },
   {
@@ -253,6 +271,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.6,
         walk: 0.6,
       }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.5, // TUNE
     },
   },
   {
@@ -282,6 +302,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.4,
         walk: 0.5,
       }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0.1, // TUNE
     },
   },
   // (PHASE12-b) Vehicles ([D63]): very expensive, very powerful.
@@ -313,6 +335,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.6,
         walk: 0.6,
       }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.4, // TUNE
     },
   },
   {
@@ -343,6 +367,8 @@ export const ROLES: readonly RoleDef[] = [
         jitter: 0.4,
         walk: 0.6,
       }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.6, // TUNE
     },
   },
 ];

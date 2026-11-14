@@ -210,12 +210,14 @@ export function step(
   const t = world.tuning;
   world.stepping = true;
   st.tick += 1;
+  // (PHASE13) The AI hears about last tick's hits (who shot whom) before they're cleared.
+  const lastEvents = st.events;
   st.events = st.queuedEvents;
   st.queuedEvents = [];
 
   // (07-d) AI soldiers decide on the world as it stood at the end of the last tick, then move
   // and act through exactly the same code as the live soldier ([D44]).
-  const ai = stepAi(world);
+  const ai = stepAi(world, lastEvents);
   if (ai.size > 0) {
     const merged = new Map(inputs);
     for (const [id, input] of ai) if (!merged.has(id)) merged.set(id, input);
