@@ -17,6 +17,7 @@ import {
   type Priority,
   type Side,
 } from '../../gen/block';
+import { blockTotalCost, spendBudget, type SpendResult } from '../../gen/budget';
 
 export type Tool = 'select' | 'paint' | 'place';
 
@@ -32,6 +33,16 @@ export class EditorModel {
   paintKind: GroundKind = 'D';
   placeKind: ItemKind = 'soldier';
   selected: string | null = null;
+  /** (13-b) The budget slider ([D85]): null = everything spawns. Not part of the block. */
+  budget: number | null = null;
+  /** Seed for the order within a priority (Reshuffle). */
+  spendSeed = 1;
+  private spendCache: {
+    block: BlockDef;
+    budget: number | null;
+    seed: number;
+    res: SpendResult;
+  } | null = null;
   private undoStack: BlockDef[] = [];
   private redoStack: BlockDef[] = [];
   private gesture: BlockDef | null = null;
@@ -102,6 +113,21 @@ export class EditorModel {
 
   private dropStaleSelection(): void {
     if (this.selected && !this.item(this.selected)) this.selected = null;
+  }
+
+  /** What spawns at the current budget (cached per block/budget/seed). */
+  spend(): SpendResult {
+    const c = this.spendCache;
+    if (c && c.block === this.block && c.budget === this.budget && c.seed === this.spendSeed) {
+      return c.res;
+    }
+    const res = spendBudget(this.block, this.budget, this.spendSeed);
+    this.spendCache = { block: this.block, budget: this.budget, seed: this.spendSeed, res };
+    return res;
+  }
+
+  totalCost(): number {
+    return blockTotalCost(this.block);
   }
 
   item(id: string): BlockItem | undefined {

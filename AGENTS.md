@@ -95,6 +95,7 @@ npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the money (--lives a,b --enemies)
+npm run gen -- --seed N  # PHASE13-b: print a generated level (--budget B, --ground; --coverage N sweeps seeds)
 npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
@@ -157,8 +158,12 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Block editor (PHASE13-a, [D80]–[D88]): the title screen's "Block editor" link, or
   `?scene=editor` (no Phaser; "← Main menu" returns). Paint ground, set edge tags, place things
   with priority 0–5 and groups, Download/Copy/Open JSON, **Play this block** (opens
-  `?mission=editor-preview` in the real game; "← Editor" goes back). The block autosaves
-  to localStorage. Format and validation: `src/gen/block.ts`; block → map: `src/gen/preview.ts`.
+  `?mission=editor-preview` in the real game at the budget slider's budget; "← Editor" goes
+  back). "My blocks…" is the library (yours in localStorage; official ones in
+  `src/content/blocks/`, copied to edit). Format: `src/gen/block.ts`; budget: `src/gen/budget.ts`.
+- Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
+  + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
+  editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one

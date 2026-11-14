@@ -261,6 +261,11 @@ export function parseBlock(text: string): ParseResult {
   } catch {
     return { ok: false, key: 'editor.load.notJson' };
   }
+  return parseBlockObject(raw);
+}
+
+/** Checks an already-parsed object (e.g. an official block's imported JSON). */
+export function parseBlockObject(raw: unknown): ParseResult {
   if (!raw || typeof raw !== 'object') return { ok: false, key: 'editor.load.notBlock' };
   const b = raw as Partial<BlockDef>;
   if (b.v !== BLOCK_VERSION) return { ok: false, key: 'editor.load.version' };

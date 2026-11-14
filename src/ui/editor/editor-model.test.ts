@@ -67,4 +67,18 @@ describe('EditorModel', () => {
     m.rotateSelected();
     expect(m.item(t.id)).toMatchObject({ facing: 135 });
   });
+
+  it('the budget slider decides what spawns, cached per block and budget', () => {
+    const m = new EditorModel(newBlock());
+    m.placeKind = 'soldier';
+    const a = m.place(3, 3);
+    m.placeKind = 'turret';
+    const t = m.place(9, 3);
+    expect(m.spend().spawned.has(a.id)).toBe(true);
+    m.budget = 0;
+    expect(m.spend().spawned.size).toBe(0);
+    expect(m.spend()).toBe(m.spend());
+    m.budget = m.totalCost();
+    expect([...m.spend().spawned].sort()).toEqual([a.id, t.id].sort());
+  });
 });

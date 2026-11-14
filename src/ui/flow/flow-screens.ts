@@ -111,6 +111,8 @@ export interface TitleProps {
   freshLabelKey?: 'title.new' | 'title.deploy';
   /** (PHASE13-a) Opens the block editor ([D88]); a link at the bottom of the menu. */
   onOpenEditor?(): void;
+  /** (PHASE13-b) Starts a new generated mission from a random seed. */
+  onRandomMission?(): void;
 }
 
 /** (PHASE12-e) One row of the title screen's replay list ([D79]). */
@@ -179,6 +181,11 @@ export class TitleScreen {
       ...(p.canContinue ? [cont, fresh] : [fresh]),
       this.libraryEl,
     );
+    if (p.onRandomMission) {
+      const random = el('button', 'link', str('title.random'));
+      random.onclick = () => p.onRandomMission?.();
+      card.append(random);
+    }
     if (p.onOpenEditor) {
       const editor = el('button', 'link', str('title.editor'));
       editor.onclick = () => p.onOpenEditor?.();

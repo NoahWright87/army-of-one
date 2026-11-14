@@ -657,3 +657,16 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q49] The Play map's framing (PHASE13-a).** Implemented: the block sits above a 3-cell grass
   strip with three spawns (West / Centre / East); the first objective slot is a capture-to-win
   flag (top centre if there's none). Capture points open a forward spawn just south of them.
+- **[Q50] Enemy threat costs (PHASE13-b).** Implemented as a separate table
+  (`BLOCK_TUNING.threat`): unit prices near the player's balance, but riflemen cost 10 (free for
+  the player), turrets 30, mines 3, cover 0–5. Priority 0 is always free. Tunable; or should
+  enemy costs be the player's costs exactly, with a floor?
+- **[Q51] Generated levels and custom blocks (PHASE13-b).** Implemented: `gen-<seed>` stitches
+  the official blocks plus the player's own (valid) blocks. Same seed + same library → same map;
+  a replay link of a generated mission opened by someone with different blocks gets a different
+  map. Options: replays carry the stitched map ([E13]); or generated missions use official
+  blocks only unless you ask for yours.
+- **[Q52] A generated level's shape (PHASE13-b).** Until the world map exists: 2 blocks wide,
+  4 tall, budget 360 by default, the top row getting 3× the bottom row's share
+  (`BLOCK_TUNING.level`). Win by capturing the objective in the top row ([Q46]).
+

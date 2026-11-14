@@ -1,0 +1,96 @@
+{
+  "v": 1,
+  "id": "starter-road",
+  "name": "Starter: road checkpoint",
+  "edges": { "n": "road", "e": "grass", "s": "road", "w": "grass" },
+  "ground": [
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGDRRRDGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    {
+      "id": "c1",
+      "kind": "cover",
+      "rect": [3.5, 7, 2, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [9.5, 7, 2, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "t3",
+      "kind": "turret",
+      "at": [11.5, 4],
+      "facing": 90,
+      "priority": 2,
+      "group": "tower",
+      "anchor": true
+    },
+    {
+      "id": "c4",
+      "kind": "cover",
+      "rect": [10.5, 5, 2, 0.5],
+      "material": "halfWall",
+      "priority": 2,
+      "group": "tower"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [4.5, 6.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1,
+      "group": "check",
+      "anchor": true
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [10.5, 6.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "check"
+    },
+    {
+      "id": "s7",
+      "kind": "soldier",
+      "at": [5, 4],
+      "role": "grenadier",
+      "facing": 90,
+      "priority": 3,
+      "group": "check"
+    },
+    {
+      "id": "s8",
+      "kind": "soldier",
+      "at": [10, 8.6],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 4,
+      "group": "check"
+    },
+    { "id": "m9", "kind": "mine", "at": [7, 10.5], "priority": 5 },
+    { "id": "m10", "kind": "mine", "at": [8, 11.5], "priority": 5 },
+    { "id": "obj11", "kind": "objective", "at": [7.5, 2], "priority": 0 }
+  ]
+}

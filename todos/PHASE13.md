@@ -11,7 +11,7 @@ Read [D80]–[D91] first: they replace this doc's earlier "chunks along a vertic
 | Part | What | Status |
 |---|---|---|
 | [13-a](PHASE13-a.md) | Block format + **block editor MVP** (`?scene=editor`): paint, edge tags, place, priority/groups, JSON download/upload, Play | Built |
-| [13-b](PHASE13-b.md) | Budget spending, rotate/flip, one generated level from a seed (`?mission=gen-<seed>`); editor budget slider, block library, starter blocks | Next |
+| [13-b](PHASE13-b.md) | Budget spending, rotate/flip, one generated level from a seed (`?mission=gen-<seed>`); editor budget slider, block library, starter blocks | Built |
 | [13-c](PHASE13-c.md) | World map board: frame, fill, carve into levels, objectives per level; campaign inputs ([D91]) | Sketch |
 
 The owner asked for a usable UI first so direction can be checked early: each part ends with
@@ -34,8 +34,8 @@ Learned from the toybox shmup editor (per-enemy paths, timing tracks, a separate
 ## Shared conventions
 
 - Pure TS: `src/gen/` (lint-restricted like `src/sim/`). Data: `src/content/ground.ts` (ground
-  kinds, edge tags), `src/content/tuning.ts` (`BLOCK_TUNING`), official blocks will live in
-  `src/content/blocks/*.json`.
+  kinds, edge tags), `src/content/tuning.ts` (`BLOCK_TUNING`), official blocks in
+  `src/content/blocks/*.json` (listed in its `index.ts`).
 - Block JSON: `v` (schema version), `id`, `name`, `edges {n,e,s,w}`, `ground` (15 strings of
   15 letters, north first), `items` (cells; facing in degrees, 90 = south). See
   `src/gen/block.ts`.

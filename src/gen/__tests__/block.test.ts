@@ -145,12 +145,13 @@ describe('blockToPreviewMap', () => {
     expect(map.ground?.rows).toHaveLength(BLOCK_CELLS + 3);
   });
 
-  it("maxPriority drops later items, and a group's members with its anchor", () => {
-    const map = blockToPreviewMap(fort(), { ...opts, maxPriority: 0 });
+  it('a budget spawns priority 0 free, then 1-5 in order while it lasts', () => {
+    const map = blockToPreviewMap(fort(), { ...opts, budget: 0 });
     expect(map.squads).toEqual([]);
     expect(map.turrets).toEqual([]);
     expect(map.capturePoints?.length).toBe(2);
-    const p2 = blockToPreviewMap(fort(), { ...opts, maxPriority: 2 });
+    // Gunner (p1, 20) + turret (p2, 30) = 50; the p3 rifleman doesn't fit.
+    const p2 = blockToPreviewMap(fort(), { ...opts, budget: 50 });
     expect(p2.squads?.[0]?.members).toHaveLength(1);
     expect(p2.turrets).toHaveLength(1);
   });

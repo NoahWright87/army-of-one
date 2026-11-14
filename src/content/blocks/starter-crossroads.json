@@ -1,0 +1,77 @@
+{
+  "v": 1,
+  "id": "starter-crossroads",
+  "name": "Starter: crossroads",
+  "edges": { "n": "road", "e": "road", "s": "road", "w": "road" },
+  "ground": [
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGCCCCCGGGGG",
+    "RRRRRCCCCCRRRRR",
+    "RRRRRCCCCCRRRRR",
+    "RRRRRCCCCCRRRRR",
+    "GGGGGCCCCCGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    { "id": "w1", "kind": "wall", "rect": [2, 2, 3, 3], "priority": 0 },
+    { "id": "w2", "kind": "wall", "rect": [10, 2, 3, 3], "priority": 0 },
+    { "id": "w3", "kind": "wall", "rect": [2, 10, 3, 3], "priority": 0 },
+    { "id": "w4", "kind": "wall", "rect": [10, 10, 3, 3], "priority": 0 },
+    { "id": "cp5", "kind": "capture", "at": [7.5, 7.5], "priority": 0, "group": "cross" },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [6, 6],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 1,
+      "group": "cross",
+      "anchor": true
+    },
+    {
+      "id": "s7",
+      "kind": "soldier",
+      "at": [9, 6],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2,
+      "group": "cross"
+    },
+    {
+      "id": "s8",
+      "kind": "soldier",
+      "at": [6, 9],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 3,
+      "group": "cross"
+    },
+    {
+      "id": "s9",
+      "kind": "soldier",
+      "at": [9, 9],
+      "role": "grenadier",
+      "facing": 90,
+      "priority": 3,
+      "group": "cross"
+    },
+    { "id": "t10", "kind": "turret", "at": [12, 5.5], "facing": 90, "priority": 4 },
+    {
+      "id": "s11",
+      "kind": "soldier",
+      "at": [3.5, 6],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 5
+    },
+    { "id": "obj12", "kind": "objective", "at": [12, 5.5], "priority": 0 }
+  ]
+}

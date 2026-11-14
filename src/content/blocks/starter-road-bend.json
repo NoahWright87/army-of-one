@@ -1,0 +1,77 @@
+{
+  "v": 1,
+  "id": "starter-road-bend",
+  "name": "Starter: road bend",
+  "edges": { "n": "grass", "e": "road", "s": "road", "w": "grass" },
+  "ground": [
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRRRRRRR",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    { "id": "c1", "kind": "cover", "rect": [10, 10.5, 2, 0.5], "material": "crate", "priority": 0 },
+    {
+      "id": "c2",
+      "kind": "cover",
+      "rect": [3, 9, 2.5, 0.5],
+      "material": "sandbags",
+      "priority": 0
+    },
+    {
+      "id": "s3",
+      "kind": "soldier",
+      "at": [3, 3],
+      "role": "sniper",
+      "facing": 90,
+      "priority": 3,
+      "group": "perch",
+      "anchor": true
+    },
+    {
+      "id": "c4",
+      "kind": "cover",
+      "rect": [2, 4, 2, 0.5],
+      "material": "halfWall",
+      "priority": 3,
+      "group": "perch"
+    },
+    {
+      "id": "s5",
+      "kind": "soldier",
+      "at": [10.5, 4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 1
+    },
+    {
+      "id": "s6",
+      "kind": "soldier",
+      "at": [4.5, 8.4],
+      "role": "rifleman",
+      "facing": 90,
+      "priority": 2
+    },
+    {
+      "id": "s7",
+      "kind": "soldier",
+      "at": [12, 4.5],
+      "role": "gunner",
+      "facing": 90,
+      "priority": 4
+    },
+    { "id": "m8", "kind": "mine", "at": [11, 12], "priority": 5 },
+    { "id": "obj9", "kind": "objective", "at": [4, 5], "priority": 0 }
+  ]
+}

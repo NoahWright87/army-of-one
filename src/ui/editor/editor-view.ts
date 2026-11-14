@@ -23,10 +23,12 @@ import {
   PRIORITIES,
   SIDES,
   validateBlock,
+  type BlockDef,
   type BlockItem,
   type Priority,
   type Side,
 } from '../../gen/block';
+import { edgeLayout } from '../../gen/transform';
 import type { CoverMaterial } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import type { EditorModel } from './editor-model';
@@ -40,6 +42,15 @@ export interface EditorActions {
   play(): void;
   /** Back to the game's main menu. */
   exit(): void;
+  /** (13-b) The library: official blocks, the player's own, which is open. */
+  library(): { official: readonly BlockDef[]; custom: readonly BlockDef[]; current: string };
+  /** Open one of the player's blocks; an official one opens as a copy. */
+  openBlock(id: string, official: boolean): void;
+  deleteBlock(id: string): void;
+  /** Play a generated level stitched from the official + the player's blocks. */
+  playLevel(): void;
+  /** The budget slider moved (saved for Play). */
+  budgetChanged(budget: number | null): void;
 }
 
 const MATERIALS: CoverMaterial[] = [
@@ -95,6 +106,28 @@ const css = `
 .aoo-ed .ok { color: #8fd18f; }
 .aoo-ed .play { background: #2f7a3d; border-color: #3f9a50; font-weight: 600; padding: 8px; }
 .aoo-ed .play:hover { background: #378a47; }
+.aoo-ed .budget input[type=range] { width: 100%; box-sizing: border-box; padding: 0; margin: 4px 0; }
+.aoo-ed .budget-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.aoo-lib { position: fixed; inset: 0; z-index: 10; background: rgba(5,8,11,.72); display: flex;
+  align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto;
+  font: 13px/1.35 system-ui, sans-serif; color: #e7e9ec; }
+.aoo-lib .panel { width: min(760px, 100%); background: #181c21; border: 1px solid #2c343d;
+  border-radius: 8px; padding: 16px 18px; }
+.aoo-lib header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.aoo-lib header h1 { font-size: 17px; margin: 0; flex: 1; }
+.aoo-lib button { font: inherit; color: inherit; background: #232930; border: 1px solid #343c46;
+  border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+.aoo-lib button:hover { background: #2c343d; }
+.aoo-lib button.go { background: #2f7a3d; border-color: #3f9a50; font-weight: 600; }
+.aoo-lib h2 { font-size: 12px; color: #9fb3c8; margin: 14px 0 4px; font-weight: 600; }
+.aoo-lib h2 span { color: #7d8792; font-weight: 400; }
+.aoo-lib .row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px;
+  background: #1e242b; margin-bottom: 3px; }
+.aoo-lib .row.current { outline: 1px solid #4a86bd; }
+.aoo-lib .name { flex: 1; }
+.aoo-lib .tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #2b333c; color: #aeb6c0; }
+.aoo-lib .tag.warn { background: #4a3520; color: #f0b37e; }
+.aoo-lib .hint { color: #7d8792; margin: 0 0 6px; }
 `;
 
 export class EditorView {
@@ -314,6 +347,9 @@ export class EditorView {
     }
     box.append(edges);
 
+    box.append(el('h2', '', str('editor.budget')));
+    box.append(this.budgetPanel());
+
     box.append(el('h2', '', str('editor.selected')));
     box.append(this.selectionPanel());
 
@@ -347,8 +383,139 @@ export class EditorView {
     open.onclick = () => up.click();
     const fresh = el('button', '', str('editor.new'));
     fresh.onclick = () => this.actions.newBlock();
-    file.append(play, dl, cp, open, up, fresh);
+    const lib = el('button', '', str('editor.library'));
+    lib.onclick = () => this.openLibrary();
+    const level = el('button', '', str('editor.playLevel'));
+    level.onclick = () => this.actions.playLevel();
+    file.append(play, level, lib, fresh, dl, cp, open, up);
     box.append(file);
+  }
+
+  /**
+   * (13-b) The budget slider ([D85]): drag to see what an enemy budget buys. Far right =
+   * everything. Updates the canvas and its own label in place (no panel rebuild mid-drag).
+   */
+  private budgetPanel(): HTMLElement {
+    const m = this.model;
+    const box = el('div', 'budget');
+    const total = m.totalCost();
+    const max = Math.max(10, total);
+    const range = el('input');
+    range.type = 'range';
+    range.min = '0';
+    range.max = String(max);
+    range.step = '1';
+    range.value = String(m.budget === null ? max : Math.min(m.budget, max));
+    const label = el('div', 'hint');
+    const update = () => {
+      const { spent } = m.spend();
+      label.textContent =
+        m.budget === null
+          ? str('editor.budgetAll', { total })
+          : str('editor.budgetValue', { budget: m.budget, total, spent });
+    };
+    range.oninput = () => {
+      const v = Number(range.value);
+      m.budget = v >= max ? null : v;
+      update();
+      this.draw();
+    };
+    range.onchange = () => this.actions.budgetChanged(m.budget);
+    const row = el('div', 'budget-row');
+    const shuffle = el('button', '', str('editor.reshuffle'));
+    shuffle.title = str('editor.reshuffleHint');
+    shuffle.onclick = () => {
+      m.spendSeed++;
+      update();
+      this.draw();
+    };
+    row.append(label, shuffle);
+    update();
+    box.append(range, row, el('div', 'hint', str('editor.budgetHint')));
+    return box;
+  }
+
+  /** (13-b) The block library: the player's blocks and the official ones, by edge layout. */
+  private openLibrary(): void {
+    const overlay = el('div', 'aoo-lib');
+    const close = () => {
+      overlay.remove();
+      window.removeEventListener('keydown', onKey, true);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
+    const render = () => {
+      const { official, custom, current } = this.actions.library();
+      const panel = el('div', 'panel');
+      const header = el('header');
+      const newB = el('button', '', str('editor.new'));
+      newB.onclick = () => {
+        close();
+        this.actions.newBlock();
+      };
+      const level = el('button', 'go', str('editor.playLevel'));
+      level.onclick = () => this.actions.playLevel();
+      const x = el('button', '', str('editor.close'));
+      x.onclick = close;
+      header.append(el('h1', '', str('editor.libraryTitle')), newB, level, x);
+      panel.append(header, el('p', 'hint', str('editor.libraryHint')));
+
+      const all = [
+        ...custom.map((b) => ({ b, official: false })),
+        ...official.map((b) => ({ b, official: true })),
+      ];
+      const groups = new Map<string, { edges: BlockDef['edges']; rows: typeof all }>();
+      for (const entry of all) {
+        const lay = edgeLayout(entry.b.edges);
+        const g = groups.get(lay.key) ?? { edges: lay.edges, rows: [] };
+        g.rows.push(entry);
+        groups.set(lay.key, g);
+      }
+      for (const [key, g] of [...groups].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+        void key;
+        const tag = (sd: Side) => strDynamic(EDGE_TAGS[g.edges[sd]].nameKey);
+        const h = el('h2', '', `${tag('n')} · ${tag('e')} · ${tag('s')} · ${tag('w')} `);
+        h.append(el('span', '', str('editor.layoutCount', { n: g.rows.length })));
+        panel.append(h);
+        for (const { b, official: isOfficial } of g.rows) {
+          const row = el('div', `row${!isOfficial && b.id === current ? ' current' : ''}`);
+          row.append(el('span', 'name', `${b.name}  (${b.id})`));
+          if (isOfficial) row.append(el('span', 'tag', str('editor.official')));
+          if (!isOfficial && b.id === current) row.append(el('span', 'tag', str('editor.current')));
+          if (!isOfficial && validateBlock(b).length) {
+            row.append(el('span', 'tag warn', str('editor.notInLevels')));
+          }
+          const open = el('button', '', str(isOfficial ? 'editor.openCopy' : 'editor.open'));
+          open.onclick = () => {
+            close();
+            this.actions.openBlock(b.id, isOfficial);
+          };
+          row.append(open);
+          if (!isOfficial) {
+            const del = el('button', '', str('editor.deleteBlock'));
+            del.onclick = () => {
+              if (window.confirm(str('editor.deleteConfirm', { name: b.name }))) {
+                this.actions.deleteBlock(b.id);
+                overlay.replaceChildren(render());
+              }
+            };
+            row.append(del);
+          }
+          panel.append(row);
+        }
+      }
+      return panel;
+    };
+    overlay.append(render());
+    document.body.append(overlay);
   }
 
   private renderProblems(): void {
@@ -592,8 +759,15 @@ export class EditorView {
 
     // Items: rects under points.
     const items = block.items;
-    for (const it of items) if (isRectItem(it)) this.drawItem(it);
-    for (const it of items) if (!isRectItem(it)) this.drawItem(it);
+    const { spawned } = this.model.spend();
+    const drawFaded = (it: BlockItem) => {
+      // (13-b) Things the budget doesn't buy stay visible (and clickable), faded.
+      this.ctx.globalAlpha = spawned.has(it.id) ? 1 : 0.28;
+      this.drawItem(it);
+      this.ctx.globalAlpha = 1;
+    };
+    for (const it of items) if (isRectItem(it)) drawFaded(it);
+    for (const it of items) if (!isRectItem(it)) drawFaded(it);
 
     // Lever → gate lines.
     ctx.setLineDash([4, 4]);
@@ -641,10 +815,11 @@ export class EditorView {
       const [x, y, w, h] = it.rect;
       const fill =
         it.kind === 'wall' ? '#2b2f33' : it.kind === 'gate' ? '#d08a2a' : COVER_COLOR[it.material];
-      ctx.globalAlpha = it.kind === 'gate' && it.open ? 0.45 : 1;
+      const alpha = ctx.globalAlpha;
+      if (it.kind === 'gate' && it.open) ctx.globalAlpha = alpha * 0.45;
       ctx.fillStyle = fill;
       ctx.fillRect(x * cp, y * cp, w * cp, h * cp);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = alpha;
       ctx.lineWidth = gc ? 3 : 1.5;
       ctx.strokeStyle = gc ?? '#111';
       ctx.strokeRect(x * cp, y * cp, w * cp, h * cp);
