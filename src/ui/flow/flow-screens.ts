@@ -113,6 +113,8 @@ export interface TitleProps {
   onOpenEditor?(): void;
   /** (PHASE13-b) Starts a new generated mission from a random seed. */
   onRandomMission?(): void;
+  /** (PHASE13-c) Opens the world map generator viewer. */
+  onOpenWorld?(): void;
 }
 
 /** (PHASE12-e) One row of the title screen's replay list ([D79]). */
@@ -185,6 +187,11 @@ export class TitleScreen {
       const random = el('button', 'link', str('title.random'));
       random.onclick = () => p.onRandomMission?.();
       card.append(random);
+    }
+    if (p.onOpenWorld) {
+      const world = el('button', 'link', str('title.world'));
+      world.onclick = () => p.onOpenWorld?.();
+      card.append(world);
     }
     if (p.onOpenEditor) {
       const editor = el('button', 'link', str('title.editor'));

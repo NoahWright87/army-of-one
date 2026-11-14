@@ -723,4 +723,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   the front is the bottom of the map (where we attack from). Role temperaments are first guesses
   in `roles.ts` (`ai.roam`). Not yet: separate rally points for vehicles, enemies standing on
   walls and cliffs (a slice of its own).
+- **[Q56] World map carving and frame (PHASE13-c).** Implemented: rectangular levels (bands 2
+  rows deep, chunks 2–3 wide); rivers only between bands (so a river is where levels meet, and
+  every level has a crossing on its south edge); every seam the frame didn't mark is crossable.
+  Levels are always attacked from the south for now. Open: irregular shapes, side entries.
 

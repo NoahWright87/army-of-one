@@ -81,7 +81,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [13](PHASE13.md) | **Map blocks**, generated levels, world map: overview ([D80]–[D91]) | 11 | — | Planned |
 | [13-a](PHASE13-a.md) | Block format + block editor MVP (`?scene=editor`) | 12-b | — | Built |
 | [13-b](PHASE13-b.md) | Budgets, rotate/flip, one generated level, block library | 13-a | — | Built |
-| [13-c](PHASE13-c.md) | World map board: frame, fill, carve, objectives | 13-b | — | Sketch |
+| [13-c](PHASE13-c.md) | World map board: frame, fill, carve, objectives; generator viewer | 13-b | — | First slice built |
 | [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
 

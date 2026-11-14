@@ -6,7 +6,7 @@ import {
   generatedMap,
   isRuntimeMission,
 } from './editor-storage';
-import { genMissionId } from '../gen/mission-id';
+import { genMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -140,13 +140,15 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
   if (preview) registerMap(preview);
 }
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
-if (MISSION.id === EDITOR_PREVIEW_ID) {
+// (PHASE13) Playtests get a way back to the tool they came from.
+const worldPlaytest = parseWorldMissionId(MISSION.id);
+if (MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest) {
   const back = document.createElement('button');
-  back.textContent = str('editor.backToEditor');
+  back.textContent = str(worldPlaytest ? 'world.back' : 'editor.backToEditor');
   back.style.cssText =
     'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
     'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
-  back.onclick = openEditor;
+  back.onclick = worldPlaytest ? () => openWorld(worldPlaytest.seed) : openEditor;
   document.body.appendChild(back);
 }
 
@@ -165,6 +167,17 @@ function findOrGenerate(id: string): MapDef | undefined {
   const gen = generatedMap(id);
   if (gen) registerMap(gen);
   return gen ?? undefined;
+}
+
+/** (PHASE13-c) The world map generator viewer, optionally on a seed. */
+function openWorld(seed?: number): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('mission');
+  url.searchParams.set('scene', 'world');
+  if (seed !== undefined) url.searchParams.set('seed', String(seed));
+  else url.searchParams.delete('seed');
+  url.hash = '';
+  window.location.assign(url.toString());
 }
 
 /** (PHASE13-a) The block editor ([D88]): the title screen's link. */
@@ -424,6 +437,7 @@ async function startGame(): Promise<void> {
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
         onOpenEditor: openEditor,
+        onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'

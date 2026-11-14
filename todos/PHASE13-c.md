@@ -27,3 +27,36 @@
 
 - [Q46] What wins a level.
 - Whether hand-made campaign boards (fixed layout, generated levels) come first.
+
+## Notes from implementation (first slice: the generator and its viewer)
+
+Built as a testing tool, not yet a campaign screen:
+
+- **`src/gen/world.ts`** `generateWorld(pool, { seed })`: a 7 × 10 board (`BLOCK_TUNING.world`).
+  Frame: the base in the top 2 rows; up to 4 strokes: **rivers** across the seams *between bands
+  of levels* (with one or two crossings) and **ridges** between columns, each kept only if
+  every block stays reachable from the bottom row. Fill: `fillGrid` (shared with single random
+  levels) with the frame's barriers as hard constraints, and **every seam the frame didn't mark
+  must be crossable** ([D83]: the frame decides the hard edges). A board with an unreachable
+  pocket is rerolled (seeded).
+- **Carving** (rectangles for now): bands 2 rows deep from the bottom, the base rows last,
+  each split into chunks 2–3 blocks wide, cutting at ridges where possible; a chunk whose whole
+  south edge is river is merged into its neighbour so every level has a way in. Budgets rise
+  from `budgetFirst` (first band) to `budgetLast`, base levels × `baseBudgetBonus`, capped at
+  what the level holds.
+- **Level maps** (`worldLevelMap`, via `buildLevelMap` shared with random levels): the level's
+  blocks attacked from the south; the budget split by row (further up weighs more) but never
+  more to a block than it can spend, so a full budget buys everything; the objective at the
+  first *reachable* candidate (top-row objective slots, then other slots, then block centres).
+- **Viewer** (`?scene=world`, title-screen link "World map generator"): the board (ground,
+  walls, frame strokes in red, inexact matches dashed orange, base outlined red, levels with
+  number and budget). R / Regenerate rolls a new seed, ◀ ▶ step seeds, the seed stays in the
+  URL. Click a level: a budget slider with a live sketch of the level (enemies by role,
+  turrets, mines, objective, spawns) and stats; **Playtest at this budget** opens
+  `?mission=world-<seed>-<level>-<budget>` ("← World map" comes back).
+- Stats over 100 seeds with the 17 starter blocks: ~40 ms per world, ~3.4 attempts, every level
+  reachable; ~5 inexact matches per world (gaps in the starter blocks, shown in the viewer).
+
+Not yet: irregular level shapes, entries from the side (rotating a level), campaign state
+([D91]), the world map as a player-facing screen, base interiors deeper than one wall row
+(needs inner corners).

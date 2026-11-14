@@ -23,7 +23,7 @@ import type { Vec2 } from '../sim/core/vec';
 import { rectContains, type MapDef, type Rect } from '../sim/world/map';
 import { assembleMap, type PlacedBlock } from './assemble';
 import { SIDES, type BlockDef } from './block';
-import { spendBudget } from './budget';
+import { blockTotalCost, spendBudget } from './budget';
 import { ORIENTATIONS, orientBlock, orientEdges, type Orientation } from './transform';
 
 export interface LevelOptions {
@@ -77,18 +77,54 @@ function attemptLevel(
   const t = BLOCK_TUNING.level;
   const cols = opts.cols ?? t.cols;
   const rows = opts.rows ?? t.rows;
-  const rng = createRng(mix(opts.seed, attempt));
-  const warnings: string[] = [];
-  const grid: { block: BlockDef; o: Orientation; fit: LevelCell['fit'] }[][] = Array.from(
-    { length: rows },
-    () => [],
-  );
+  const seed = mix(opts.seed, attempt);
+  const rng = createRng(seed);
+  const { grid, warnings } = fillGrid(pool, { rows, cols, baseRows: t.baseRows }, rng);
+  const built = buildLevelMap(grid, {
+    id: opts.id,
+    nameKey: opts.nameKey,
+    seed,
+    budget: opts.budget ?? t.budget,
+  });
+  return { ...built, warnings: [...warnings, ...built.warnings], attempts: attempt + 1 };
+}
 
-  // Frame ([D83]): the enemy base takes the top row(s), wall facing south. Then everything is
-  // filled top-down, left to right, matching the block above and the block to the left.
+/** A block placed on a grid: which block, which way round, how well it matched. */
+export interface GridCell {
+  block: BlockDef;
+  o: Orientation;
+  fit: LevelCell['fit'];
+}
+
+export interface FillOptions {
+  rows: number;
+  cols: number;
+  /** Top rows that are the enemy base (if the pool has base blocks). */
+  baseRows: number;
+  /**
+   * (PHASE13-c) The frame's say on a side of a cell ([D83]): true = must block movement,
+   * false = must be crossable, undefined = free. Only the east and south sides are asked (the
+   * north and west follow from the neighbours already placed).
+   */
+  barrier?: (r: number, c: number, side: 'e' | 's') => boolean | undefined;
+}
+
+/**
+ * Fills a grid top-down, left to right ([D83]): base blocks in the top `baseRows` rows (the
+ * last of them facing out of the base), field blocks below, each matching the block above and
+ * to the left exactly ([D81]), and the frame's barriers. Fallbacks are logged in `warnings`.
+ */
+export function fillGrid(
+  pool: readonly BlockDef[],
+  opts: FillOptions,
+  rng: RngState,
+): { grid: GridCell[][]; warnings: string[] } {
+  const { rows, cols } = opts;
+  const warnings: string[] = [];
+  const grid: GridCell[][] = Array.from({ length: rows }, () => []);
   const basePool = pool.filter(isBaseBlock);
   const fieldPool = pool.filter((b) => !isBaseBlock(b));
-  const baseRows = basePool.length && fieldPool.length ? Math.min(t.baseRows, rows - 1) : 0;
+  const baseRows = basePool.length && fieldPool.length ? Math.min(opts.baseRows, rows - 1) : 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const above = r > 0 ? grid[r - 1]![c]! : null;
@@ -98,23 +134,48 @@ function attemptLevel(
         n: above ? mirrorTag(orientEdges(above.block.edges, above.o).s) : null,
         w: left ? mirrorTag(orientEdges(left.block.edges, left.o).e) : null,
       };
-      const inBase = r < baseRows;
       const lastBaseRow = r === baseRows - 1;
       const bottom = r === rows - 1;
+      const eBar = c < cols - 1 ? opts.barrier?.(r, c, 'e') : undefined;
+      const sBar = r < rows - 1 ? opts.barrier?.(r, c, 's') : undefined;
       const fits = (e: BlockDef['edges']) =>
-        (!lastBaseRow || !edgeDef(e.s).base) && (!bottom || EDGE_TAGS[e.s].passable);
-      const pick = pickBlock(inBase ? basePool : baseRows ? fieldPool : pool, want, fits, rng);
+        (!lastBaseRow || !edgeDef(e.s).base) &&
+        (!bottom || EDGE_TAGS[e.s].passable) &&
+        (eBar === undefined || EDGE_TAGS[e.e].passable === !eBar) &&
+        (sBar === undefined || EDGE_TAGS[e.s].passable === !sBar);
+      const from = r < baseRows ? basePool : baseRows ? fieldPool : pool;
+      const pick = pickBlock(from, want, fits, rng);
       if (pick.fit !== 'exact') {
         warnings.push(`row ${r} col ${c}: no exact match for ${JSON.stringify(want)}`);
       }
       grid[r]![c] = pick;
     }
   }
+  return { grid, warnings };
+}
 
-  // Budget: row weights rise toward the top.
-  const total = opts.budget ?? t.budget;
-  const weight = (r: number) => 1 + (rows > 1 ? (t.ramp * (rows - 1 - r)) / (rows - 1) : 0);
-  const sumW = Array.from({ length: rows }, (_, r) => weight(r)).reduce((a, b) => a + b, 0);
+export interface BuildOptions {
+  id: string;
+  nameKey: string;
+  seed: number;
+  /** Whole-level enemy budget ([D86]): rows further up get more, leftovers carry on. */
+  budget: number;
+}
+
+/**
+ * A playable map from a grid of placed blocks (a generated level, or one level of the world
+ * map): spend the budget, assemble, put the objective at a top-row slot, check reachability.
+ */
+export function buildLevelMap(
+  grid: readonly (readonly GridCell[])[],
+  opts: BuildOptions,
+): Omit<GeneratedLevel, 'attempts'> {
+  const t = BLOCK_TUNING.level;
+  const rows = grid.length;
+  const cols = grid[0]?.length ?? 0;
+  const rng = createRng(mix(opts.seed, 0x51ab));
+  const oriented = grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
+  const shares = budgetShares(oriented, opts.budget, t.ramp);
   const placed: PlacedBlock[] = [];
   const cells: LevelCell[][] = Array.from({ length: rows }, () => []);
   let carry = 0;
@@ -122,9 +183,9 @@ function attemptLevel(
   for (let r = rows - 1; r >= 0; r--) {
     for (let c = 0; c < cols; c++) {
       const g = grid[r]![c]!;
-      const block = orientBlock(g.block, g.o);
-      const share = (total * weight(r)) / sumW / cols + carry;
-      const res = spendBudget(block, Math.floor(share), mix(mix(opts.seed, attempt), r * 97 + c));
+      const block = oriented[r]![c]!;
+      const share = shares[r]![c]! + carry;
+      const res = spendBudget(block, Math.floor(share + 1e-6), mix(opts.seed, r * 97 + c));
       carry = share - res.spent;
       spent += res.spent;
       placed.push({ block, col: c, row: r, spawned: res.spawned, prefix: `r${r}c${c}-` });
@@ -132,21 +193,21 @@ function attemptLevel(
         blockId: g.block.id,
         orientation: g.o,
         fit: g.fit,
-        budget: Math.floor(share),
+        budget: Math.floor(share + 1e-6),
         spent: res.spent,
       };
     }
   }
-
-  const map = assembleMap({
-    id: opts.id,
-    nameKey: opts.nameKey,
-    cols,
-    rows,
-    placed,
-    objective: pickObjective(placed, cols, rng),
-  });
-  return { map, cells, warnings, spent, attempts: attempt + 1, reachable: objectiveReachable(map) };
+  // The objective: the first candidate a soldier can actually walk to.
+  const candidates = objectiveCandidates(placed, cols, rng);
+  let map: MapDef | null = null;
+  for (const objective of candidates) {
+    map = assembleMap({ id: opts.id, nameKey: opts.nameKey, cols, rows, placed, objective });
+    if (objectiveReachable(map)) {
+      return { map, cells, warnings: [], spent, reachable: true };
+    }
+  }
+  return { map: map!, cells, warnings: [], spent, reachable: false };
 }
 
 type Want = { n: EdgeTag | null; w: EdgeTag | null };
@@ -188,23 +249,79 @@ function pickBlock(
     const o = choice.os[Math.floor(nextFloat(rng) * choice.os.length)]!;
     return { block: choice.block, o, fit };
   }
-  return { block: pool[0]!, o: 0, fit: 'any' };
+  // Nothing satisfies the frame either: take anything (logged as a fallback by the caller).
+  const block = pool[Math.floor(nextFloat(rng) * pool.length)]!;
+  return { block, o: 0, fit: 'any' };
 }
 
-function pickObjective(placed: readonly PlacedBlock[], cols: number, rng: RngState): Vec2 {
+/**
+ * Splits a level's budget between its blocks ([D86]): rows further up weigh more (`ramp`), but
+ * no block gets more than it can spend; the excess goes to the others (so a budget at or above
+ * everything's cost buys everything).
+ */
+export function budgetShares(
+  blocks: readonly (readonly BlockDef[])[],
+  total: number,
+  ramp: number,
+): number[][] {
+  const rows = blocks.length;
+  const weight = (r: number) => 1 + (rows > 1 ? (ramp * (rows - 1 - r)) / (rows - 1) : 0);
+  const cap = blocks.map((row) => row.map((b) => blockTotalCost(b)));
+  const share = blocks.map((row) => row.map(() => 0));
+  let left = total;
+  let open = blocks.flatMap((row, r) => row.map((_, c) => [r, c] as const));
+  const EPS = 1e-6;
+  for (let guard = 0; left > EPS && open.length > 0 && guard < 64; guard++) {
+    const sumW = open.reduce((n, [r]) => n + weight(r), 0);
+    let used = 0;
+    const still: (readonly [number, number])[] = [];
+    for (const [r, c] of open) {
+      const want = (left * weight(r)) / sumW;
+      const room = cap[r]![c]! - share[r]![c]!;
+      const give = Math.min(want, room);
+      share[r]![c]! += give;
+      used += give;
+      if (room - give > EPS) still.push([r, c]);
+    }
+    left -= used;
+    if (used <= EPS) break;
+    open = still;
+  }
+  return share;
+}
+
+/**
+ * Where the objective could go, best first: objective slots in the top row (seeded order), then
+ * slots elsewhere, then block centres from the top down. The first reachable one wins.
+ */
+function objectiveCandidates(placed: readonly PlacedBlock[], cols: number, rng: RngState): Vec2[] {
   const cs = BLOCK_TUNING.cellSize;
   const n = BLOCK_CELLS;
-  const slots: Vec2[] = [];
-  for (const pb of placed) {
-    if (pb.row !== 0) continue;
-    for (const it of pb.block.items) {
-      if (it.kind === 'objective') {
-        slots.push({ x: (pb.col * n + it.at[0]) * cs, y: it.at[1] * cs });
+  const slots = (top: boolean) => {
+    const out: Vec2[] = [];
+    for (const pb of placed) {
+      if ((pb.row === 0) !== top) continue;
+      for (const it of pb.block.items) {
+        if (it.kind === 'objective') {
+          out.push({ x: (pb.col * n + it.at[0]) * cs, y: (pb.row * n + it.at[1]) * cs });
+        }
       }
     }
+    return shuffled(out, rng).sort((a, b) => a.y - b.y);
+  };
+  const centres = [...placed]
+    .sort((a, b) => a.row - b.row || a.col - b.col)
+    .map((pb) => ({ x: (pb.col * n + n / 2) * cs, y: (pb.row * n + n / 2) * cs }));
+  return [...slots(true), ...slots(false), { x: (cols * n * cs) / 2, y: 1.5 * cs }, ...centres];
+}
+
+function shuffled<T>(arr: T[], rng: RngState): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(nextFloat(rng) * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
   }
-  if (slots.length) return slots[Math.floor(nextFloat(rng) * slots.length)]!;
-  return { x: (cols * n * cs) / 2, y: 1.5 * cs };
+  return out;
 }
 
 /**

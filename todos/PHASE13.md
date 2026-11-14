@@ -12,7 +12,7 @@ Read [D80]–[D91] first: they replace this doc's earlier "chunks along a vertic
 |---|---|---|
 | [13-a](PHASE13-a.md) | Block format + **block editor MVP** (`?scene=editor`): paint, edge tags, place, priority/groups, JSON download/upload, Play | Built |
 | [13-b](PHASE13-b.md) | Budget spending, rotate/flip, one generated level from a seed (`?mission=gen-<seed>`); editor budget slider, block library, starter blocks | Built |
-| [13-c](PHASE13-c.md) | World map board: frame, fill, carve into levels, objectives per level; campaign inputs ([D91]) | Sketch |
+| [13-c](PHASE13-c.md) | World map board: frame, fill, carve into levels, objectives per level; campaign inputs ([D91]) | Generator + viewer built |
 
 The owner asked for a usable UI first so direction can be checked early: each part ends with
 something to click on.

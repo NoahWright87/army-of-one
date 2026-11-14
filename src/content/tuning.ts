@@ -997,4 +997,23 @@ export const BLOCK_TUNING = {
     /** Rerolls (seeded) when the objective can't be reached. */
     maxAttempts: 30, // TUNE
   },
+  /** (PHASE13-c) The world map board ([D89]). */
+  world: {
+    cols: 7, // TUNE [D89]: 6–9 wide
+    rows: 10, // TUNE
+    /** Top rows that are the enemy base ([D83]: the northernmost 2–3). */
+    baseRows: 2, // TUNE
+    /** Impassable strokes (rivers across, ridges along) laid in the frame. */
+    strokes: 4, // TUNE
+    /** Levels are carved this many rows deep… */
+    levelRows: 2, // TUNE
+    /** …and 2–3 blocks wide. */
+    levelCols: [2, 3] as const, // TUNE
+    /** Enemy budget of the first level and the last field level ([D86]); base levels get more. */
+    budgetFirst: 220, // TUNE
+    budgetLast: 650, // TUNE
+    baseBudgetBonus: 1.3, // TUNE
+    /** Rerolls (seeded) when part of the board can't be reached. */
+    maxAttempts: 20, // TUNE
+  },
 } as const;

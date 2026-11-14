@@ -165,6 +165,9 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
   + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
   editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
+- World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
+  (`src/gen/world.ts`), regenerate at will (R, ◀ ▶), click a level for a budget slider, a sketch
+  and **Playtest** (`?mission=world-<seed>-<level>[-<budget>]`).
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one

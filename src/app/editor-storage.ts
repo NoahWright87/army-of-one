@@ -11,7 +11,8 @@
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { newBlock, parseBlock, parseBlockObject, validateBlock, type BlockDef } from '../gen/block';
 import { generateLevel } from '../gen/level';
-import { parseGenMissionId } from '../gen/mission-id';
+import { parseGenMissionId, parseWorldMissionId } from '../gen/mission-id';
+import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world';
 import { blockToPreviewMap } from '../gen/preview';
 import type { MapDef } from '../sim/world/map';
 
@@ -111,8 +112,34 @@ export function generationPool(): BlockDef[] {
   return [...OFFICIAL_BLOCKS, ...custom];
 }
 
-/** A generated mission's map (`gen-<seed>[-<budget>]`), or null if `id` isn't one. */
+/** (PHASE13-c) A world map from the current block pool (cached per seed). */
+const worlds = new Map<number, GeneratedWorld>();
+export function worldFor(
+  seed: number,
+  pool: readonly BlockDef[] = generationPool(),
+): GeneratedWorld {
+  const cached = worlds.get(seed);
+  if (cached) return cached;
+  const w = generateWorld(pool, { seed });
+  worlds.set(seed, w);
+  return w;
+}
+
+/**
+ * A generated mission's map, or null if `id` isn't one: `gen-<seed>[-<budget>]` (a random
+ * level) or `world-<seed>-<level>[-<budget>]` (one level of a world map).
+ */
 export function generatedMap(id: string): MapDef | null {
+  const wid = parseWorldMissionId(id);
+  if (wid) {
+    const w = worldFor(wid.seed);
+    if (!w.levels[wid.level]) return null;
+    return worldLevelMap(w, wid.level, {
+      id,
+      nameKey: 'map.world.name',
+      ...(wid.budget !== undefined ? { budget: wid.budget } : {}),
+    }).map;
+  }
   const gid = parseGenMissionId(id);
   if (!gid) return null;
   return generateLevel(generationPool(), {
@@ -125,5 +152,7 @@ export function generatedMap(id: string): MapDef | null {
 
 /** Runtime maps resolve on the main thread: the background worker can't see them. */
 export function isRuntimeMission(id: string): boolean {
-  return id === EDITOR_PREVIEW_ID || parseGenMissionId(id) !== null;
+  return (
+    id === EDITOR_PREVIEW_ID || parseGenMissionId(id) !== null || parseWorldMissionId(id) !== null
+  );
 }
