@@ -76,6 +76,8 @@ import {
 export interface RespawnScreenOptions {
   onDeploy?: (option: SpawnOption) => void;
   settings?: RespawnViewSettings;
+  /** (PHASE13-d) A way back (to the campaign map, world viewer or editor): top bar, left. */
+  back?: { label: string; run(): void };
 }
 
 /** (PHASE12-d) Spawn points whose soldiers are folded (kept while the page is open). */
@@ -146,6 +148,8 @@ export class RespawnScreen {
     },
   });
 
+  private readonly back: { label: string; run(): void } | null;
+
   static mount(root: HTMLElement, props: RespawnProps, opts: RespawnScreenOptions = {}) {
     return new RespawnScreen(root, props, opts);
   }
@@ -154,6 +158,7 @@ export class RespawnScreen {
     injectStyle('aoo-respawn-css', RESPAWN_CSS);
     this.props = { ...props };
     this.settings = opts.settings ?? DEFAULT_RESPAWN_SETTINGS;
+    this.back = opts.back ?? null;
     if (opts.onDeploy) this.deployListeners.add(opts.onDeploy);
     this.selected = initialSelection(props.options, props.preferred);
     this.domain = timelineDomain(this.props);
@@ -290,6 +295,16 @@ export class RespawnScreen {
     const info = mk(str('respawn.legend.title'), 'ℹ️', () => this.toggleLegend());
     info.classList.add('rs-info');
     tools.prepend(info);
+    if (this.back) {
+      // An arrow on narrow screens, the full label where there's room.
+      const back = mk(this.back.label, '', () => this.back?.run());
+      back.classList.add('rs-back');
+      back.append(
+        el('span', 'rs-back-ico', '←'),
+        el('span', 'rs-back-lbl', this.back.label.replace(/^←\s*/, '')),
+      );
+      bar.append(back);
+    }
     bar.append(tools);
     this.scroller.append(this.axisWrap, this.rowsWrap);
     this.frame.append(this.scroller, this.emptyEl, this.tip);

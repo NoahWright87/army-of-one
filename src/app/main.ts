@@ -159,21 +159,24 @@ const campaignBattle =
         return c && c.seed === worldPlaytest.seed ? c : null;
       })()
     : null;
-if (MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest) {
-  const back = document.createElement('button');
-  back.textContent = str(
-    campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
-  );
-  back.style.cssText =
-    'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
-    'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
-  back.onclick = campaignBattle
-    ? openCampaignMap
-    : worldPlaytest
-      ? () => openWorld(worldPlaytest.seed)
-      : openEditor;
-  document.body.appendChild(back);
-}
+/**
+ * The way back to where a playtest or campaign battle came from: a button in the respawn
+ * screen's top bar and an action in the settings panel (not a floating button: it covered the
+ * role button).
+ */
+const backTo: { label: string; run(): void } | null =
+  MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+    ? {
+        label: str(
+          campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
+        ),
+        run: campaignBattle
+          ? openCampaignMap
+          : worldPlaytest
+            ? () => openWorld(worldPlaytest.seed)
+            : openEditor,
+      }
+    : null;
 
 function readStoredMission(): string | null {
   try {
@@ -423,6 +426,8 @@ panel.addAction({
   run: () => services.commands.playCountdown?.(),
 });
 
+if (backTo) panel.addAction(backTo);
+
 installHotkeys(window, {
   toggleDebug: () => settings.toggle(SETTING_IDS.debugOverlay),
   toggleSettings: () => panel.toggle(),
@@ -486,6 +491,7 @@ async function startGame(): Promise<void> {
       const screen = RespawnScreen.mount(uiRoot, props, {
         onDeploy,
         settings: readRespawnSettings(settings),
+        ...(backTo ? { back: backTo } : {}),
       });
       respawn = screen;
       // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
