@@ -227,3 +227,43 @@ describe('carving by terrain ([D107]–[D110])', () => {
     expect(after.exits.length).toBeLessThan(before.exits.length);
   });
 });
+
+describe('islands, pockets, exit spawns ([D108], [D111])', () => {
+  const w = generateWorld(OFFICIAL_BLOCKS, { seed: 774454002 });
+
+  it('a walled yard entered from the start edge belongs to a level', () => {
+    // Seed 774454002: a base yard on the south edge, walled off from both neighbours.
+    const y = w.tiles.h - 2;
+    let yard = 0;
+    for (let x = 23; x < 52; x++) if (w.owner[y * w.tiles.w + x]! >= 0) yard++;
+    expect(yard).toBeGreaterThan(20);
+  });
+
+  it('no level is smaller than the merge size', () => {
+    const min = BLOCK_TUNING.carve.mergeBelowBlocks;
+    for (const lv of w.levels) expect(lv.blocks, `level ${lv.index}`).toBeGreaterThanOrEqual(min);
+  });
+
+  it('bridged islands get an optional outpost with a spawn', () => {
+    expect(w.outposts.length).toBeGreaterThan(0);
+    const [y, x] = w.outposts[0]!;
+    const lv = w.owner[y * w.tiles.w + x]!;
+    expect(lv).toBeGreaterThanOrEqual(0);
+    const m = worldLevelMap(w, lv, { id: 'x', nameKey: 'x' }).map;
+    const post = m.capturePoints!.find((c) => c.id.startsWith('outpost-'))!;
+    expect(post.objective).toBeFalsy();
+    expect(m.spawnPoints.some((s) => s.capturePointId === post.id)).toBe(true);
+  });
+
+  it('every exit taken opens a spawn point', () => {
+    for (const lv of w.levels) {
+      const m = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x' });
+      const flags = m.map.capturePoints!.filter((c) => c.id.startsWith('exit-'));
+      for (const f of flags.slice(0, m.exits.length)) {
+        expect(
+          m.map.spawnPoints.some((s) => s.kind === 'capture' && s.capturePointId === f.id),
+        ).toBe(true);
+      }
+    }
+  });
+});

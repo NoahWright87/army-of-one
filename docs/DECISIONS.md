@@ -486,12 +486,18 @@ objectives.
 - **[D108] Every exit is an objective; entries are spawns.** A crossing into ground you don't hold
   is a capture point, and the level is won when every one is ours. A crossing from ground you hold
   (the start edge, or a level taken) is a place to spawn from the start. So the same crossing is
-  an objective from one side and a spawn from the other.
+  an objective from one side and a spawn from the other. Taking an exit also opens a spawn point
+  there straight away (owner, 2026-11).
 - **[D109] Some ground is in no level.** Big water, rocks and walls between levels belong to no
   level (the ocean down one side, a lake): visible from the levels next to it and on the world
   map, never played. A level's map shows the ground around it, but only its own is walkable.
 - **[D110] Levels are sized by ground, not by shape.** About 20 blocks of walkable ground each;
-  long and thin or big and square, whatever the terrain gives.
+  long and thin or big and square, whatever the terrain gives. Levels under 10 blocks merge into
+  a neighbour; a walled-off pocket (a yard entered from the start edge) joins the nearest level
+  instead of being blacked out.
+- **[D111] Islands near the shore get a bridge and an optional outpost** (owner suggestion).
+  The outpost is a capture point that isn't needed to win: taking it gives a spawn point and
+  income like other capture points. Islands too small or too far stay unplayable.
 
 ## Reacting to fire (owner session 2026-11, PHASE13)
 

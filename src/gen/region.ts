@@ -250,14 +250,45 @@ export function worldLevelMap(
       });
     }
   }
-  flags.forEach((f, k) =>
+  // Each exit taken is a place to spawn ([D108]): just inside it, facing on.
+  flags.forEach((f, k) => {
     content.capturePoints.push({
       id: `exit-${k}`,
       nameKey: f.key,
       position: f.pos,
       objective: true,
-    }),
-  );
+    });
+    const c = exits[k];
+    if (!c) return;
+    const [oy, ox] = ourTile(c);
+    const [ty, tx] = theirTile(c);
+    content.spawnPoints.push({
+      id: `exit-spawn-${k}`,
+      nameKey: `spawn.exit.${side(c)}`,
+      position: inward(c, 3),
+      facing: Math.atan2(ty - oy, tx - ox),
+      kind: 'capture',
+      capturePointId: `exit-${k}`,
+    });
+  });
+  // Bridged islands' outposts in this level: optional, a spawn and income once taken ([D111]).
+  world.outposts.forEach(([y, x], k) => {
+    if (owner[y * W + x] !== index) return;
+    const at = centre(y, x);
+    content.capturePoints.push({
+      id: `outpost-${k}`,
+      nameKey: 'capture.cross.outpost',
+      position: at,
+    });
+    content.spawnPoints.push({
+      id: `outpost-spawn-${k}`,
+      nameKey: 'spawn.block.forward',
+      position: { x: at.x, y: at.y + cs },
+      facing: -Math.PI / 2,
+      kind: 'capture',
+      capturePointId: `outpost-${k}`,
+    });
+  });
   // Block spawns (forward posts at block capture points) stay; entries go first.
   content.spawnPoints.unshift(...spawns);
 

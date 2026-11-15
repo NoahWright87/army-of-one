@@ -17,7 +17,14 @@ import { BLOCK_TUNING } from '../content/tuning';
 import { createRng } from '../sim/core/rng';
 import type { BlockDef } from './block';
 import { blockTotalCost } from './budget';
-import { boardTiles, carveBoard, type BoardTiles, type CarvedLevel, type Crossing } from './carve';
+import {
+  boardTiles,
+  bridgeIslands,
+  carveBoard,
+  type BoardTiles,
+  type CarvedLevel,
+  type Crossing,
+} from './carve';
 import { blockTiles, connect, growBoard, Palette, type GrownCell } from './grow';
 import { clipBlock } from './region';
 
@@ -51,6 +58,8 @@ export interface GeneratedWorld {
   crossings: Crossing[];
   /** The level holding the enemy HQ. */
   hq: number;
+  /** Bridged islands' outposts ([y, x] board tiles): optional capture points ([D111]). */
+  outposts: [number, number][];
 }
 
 export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): GeneratedWorld {
@@ -67,7 +76,10 @@ export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): Ge
   const hqCol = hqColumn(grid);
   const cut = connect(grid, blockTiles(rows - 1, startCol), blockTiles(0, hqCol));
 
-  const tiles = boardTiles(grid);
+  let tiles = boardTiles(grid);
+  // Islands near the shore get a bridge, and an outpost to take ([D111]).
+  const outposts = bridgeIslands(grid, tiles);
+  if (outposts.length) tiles = boardTiles(grid);
   const carving = carveBoard(tiles, rng);
   const { owner, crossings } = carving;
   const hq = levelAtBlock(owner, tiles.w, 0, hqCol, carving.levels.length);
@@ -92,7 +104,20 @@ export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): Ge
       maxBudget,
     };
   });
-  return { seed: opts.seed, cols, rows, grid, levels, warnings, cut, tiles, owner, crossings, hq };
+  return {
+    seed: opts.seed,
+    cols,
+    rows,
+    grid,
+    levels,
+    warnings,
+    cut,
+    tiles,
+    owner,
+    crossings,
+    hq,
+    outposts,
+  };
 }
 
 /** The top row's HQ block (else its first enemy block). */

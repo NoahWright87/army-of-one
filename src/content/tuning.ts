@@ -1018,6 +1018,13 @@ export const BLOCK_TUNING = {
     levelBlocks: 20, // TUNE
     /** Less walkable ground than this joins a neighbouring level. */
     minLevelBlocks: 5, // TUNE
+    /** A level with less ground than this merges into its neighbour ([D110]). */
+    mergeBelowBlocks: 10, // TUNE
+    /** A walled-off pocket joins a level up to this many tiles away. */
+    orphanReach: 20, // TUNE
+    /** Islands this big (tiles) get a bridge if one this long (tiles) reaches the mainland. */
+    islandMinTiles: 80, // TUNE
+    maxBridge: 12, // TUNE
     /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
     borderSlack: 3, // TUNE
     /** Borders keep at least this many blocks apart. */

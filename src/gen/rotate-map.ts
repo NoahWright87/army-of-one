@@ -114,7 +114,7 @@ export function rotateMap(map: MapDef, q: number): MapDef {
 
 /** 'spawn.cross.south' → the side it's on after `turns` clockwise quarter turns. */
 function turnSideName(key: string, turns: number): string {
-  const m = /^(spawn\.cross\.)(south|west|north|east)$/.exec(key);
+  const m = /^(spawn\.(?:cross|exit)\.)(south|west|north|east)$/.exec(key);
   if (!m) return key;
   const order = ['south', 'west', 'north', 'east'];
   return m[1]! + order[(order.indexOf(m[2]!) + turns) % 4]!;

@@ -158,3 +158,15 @@ said "Matches its neighbours". Three bugs, all fixed in `src/gen/grow.ts`:
   reachable.
 - Not yet: level shapes are as irregular as the borders make them, but a band's split count is
   fixed by its ground, so a few levels are big (up to ~40 blocks).
+
+## Notes from implementation (pockets, small levels, islands, exit spawns)
+
+- Walled-off pockets that touch no level (e.g. a base yard on the south edge whose openings are
+  bunker windows) join the nearest level within `carve.orphanReach` tiles: they get their own
+  entry from the start edge. Levels under `carve.mergeBelowBlocks` (10) merge into the neighbour
+  they share the most border with.
+- Islands ≥ `carve.islandMinTiles` within `carve.maxBridge` tiles of water from the mainland get
+  a bridge (`bridgeIslands`, cut before carving) and an optional outpost ([D111]):
+  `world.outposts`, a non-objective capture point with a forward spawn.
+- Every exit flag has a capture spawn 3 tiles inside the level ("North exit"…; names turn with the
+  map).

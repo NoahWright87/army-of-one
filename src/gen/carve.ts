@@ -20,7 +20,7 @@ import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import { nextFloat, nextInt, type RngState } from '../sim/core/rng';
 import { isRectItem } from './block';
-import type { GrownCell } from './grow';
+import { connect, type GrownCell } from './grow';
 
 /** The board's tiles: ground letters and what's walkable (joined to the start). */
 export interface BoardTiles {
@@ -30,6 +30,8 @@ export interface BoardTiles {
   ground: string[];
   /** 1: walkable ground reachable from the start. */
   walk: Uint8Array;
+  /** 1: walkable ground, reachable or not (islands too). */
+  open: Uint8Array;
 }
 
 export function boardTiles(grid: readonly (readonly GrownCell[])[]): BoardTiles {
@@ -86,7 +88,51 @@ export function boardTiles(grid: readonly (readonly GrownCell[])[]): BoardTiles 
       }
     }
   }
-  return { w, h, ground, walk };
+  return { w, h, ground, walk, open };
+}
+
+/**
+ * (PHASE13-d) Islands (walkable ground cut off by water) of `carve.islandMinTiles` or more, within
+ * `carve.maxBridge` tiles of water from the mainland, get a bridge (cut into `grid`). Returns a
+ * tile near each bridged island's middle ([y, x]): an outpost to take there.
+ */
+export function bridgeIslands(grid: GrownCell[][], t: BoardTiles): [number, number][] {
+  const tune = BLOCK_TUNING.carve;
+  const { w, h, walk, open, ground } = t;
+  const seen = new Uint8Array(w * h);
+  const out: [number, number][] = [];
+  for (let s = 0; s < w * h; s++) {
+    if (!open[s] || walk[s] || seen[s]) continue;
+    const island = flood([s], w, h, (j) => open[j] === 1 && !walk[j] && !seen[j]);
+    for (const i of island) seen[i] = 1;
+    if (island.length < tune.islandMinTiles) continue;
+    // The nearest mainland across water only, within reach.
+    const dist = new Map<number, number>();
+    let front = [...island];
+    for (const i of island) dist.set(i, 0);
+    let target = -1;
+    for (let step = 1; step <= tune.maxBridge + 1 && front.length && target < 0; step++) {
+      const next: number[] = [];
+      for (const i of front) {
+        for (const j of neighbours4(i, w, h)) {
+          if (dist.has(j)) continue;
+          dist.set(j, step);
+          if (walk[j]) {
+            target = j;
+            break;
+          }
+          if (ground[Math.floor(j / w)]![j % w] === 'W' && step <= tune.maxBridge) next.push(j);
+        }
+        if (target >= 0) break;
+      }
+      front = next;
+    }
+    if (target < 0) continue;
+    const at = (i: number): [number, number] => [Math.floor(i / w), i % w];
+    connect(grid, island.map(at), [at(target)]);
+    out.push(at(middleOf(island, w)));
+  }
+  return out;
 }
 
 export interface CarvedLevel {
@@ -291,6 +337,72 @@ export function carveBoard(t: BoardTiles, rng: RngState): Carving {
     });
   }
   for (let i = 0; i < w * h; i++) if (partOf[i]! >= 0) owner[i] = levelOfPart[partOf[i]!]!;
+
+  // Small parts touching no level (a yard walled off from both sides, entered from the start
+  // edge): join the nearest level within reach, so they're played rather than blacked out.
+  parts.forEach((p, id) => {
+    if (levelOfPart[id] !== -1) return;
+    const seen = new Uint8Array(w * h);
+    let front = [...p.tiles];
+    for (const i of front) seen[i] = 1;
+    for (let step = 0; step < tune.orphanReach && front.length; step++) {
+      const next: number[] = [];
+      for (const i of front) {
+        for (const j of neighbours4(i, w, h)) {
+          if (seen[j]) continue;
+          seen[j] = 1;
+          if (owner[j]! >= 0) {
+            levelOfPart[id] = owner[j]!;
+            break;
+          }
+          next.push(j);
+        }
+        if (levelOfPart[id] !== -1) break;
+      }
+      if (levelOfPart[id] !== -1) break;
+      front = next;
+    }
+    if (levelOfPart[id] !== -1) for (const i of p.tiles) owner[i] = levelOfPart[id]!;
+  });
+
+  // Levels too small to be worth a mission join the neighbour they share the most border with.
+  const minLevel = tune.mergeBelowBlocks * n * n;
+  for (let guard = 0; guard < levelCount; guard++) {
+    const size = new Array<number>(levelCount).fill(0);
+    for (let i = 0; i < w * h; i++) if (owner[i]! >= 0) size[owner[i]!]!++;
+    const small = size
+      .map((sz, lv) => ({ sz, lv }))
+      .filter((x) => x.sz > 0 && x.sz < minLevel)
+      .sort((a, b) => a.sz - b.sz || a.lv - b.lv);
+    let merged = false;
+    for (const { lv } of small) {
+      const contact = new Map<number, number>();
+      for (let i = 0; i < w * h; i++) {
+        if (owner[i] !== lv) continue;
+        for (const j of neighbours4(i, w, h)) {
+          const o = owner[j]!;
+          if (o >= 0 && o !== lv) contact.set(o, (contact.get(o) ?? 0) + 1);
+        }
+      }
+      const best = [...contact].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+      if (!best) continue;
+      for (let i = 0; i < w * h; i++) if (owner[i] === lv) owner[i] = best[0];
+      merged = true;
+      break;
+    }
+    if (!merged) break;
+  }
+  // Number the levels left 0…n-1.
+  {
+    const used = new Map<number, number>();
+    for (let i = 0; i < w * h; i++) {
+      const o = owner[i]!;
+      if (o < 0) continue;
+      if (!used.has(o)) used.set(o, used.size);
+      owner[i] = used.get(o)!;
+    }
+    levelCount = used.size;
+  }
 
   // ---- 4. Order levels by walking distance from the start (the order you'd meet them).
   const dist = new Int32Array(w * h).fill(-1);
