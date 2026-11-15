@@ -8,12 +8,18 @@ import { worldMissionId } from '../gen/mission-id';
 import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world';
 import { clearMission } from '../persistence/mission-store';
 import { WorldView } from '../ui/worldmap/world-view';
-import { generationPool } from './editor-storage';
+import { blockPool } from './editor-storage';
 import { openBestStore } from './storage/indexeddb-store';
 
 export function startWorldViewer(host: HTMLElement, params: URLSearchParams): void {
   document.title = str('world.title');
-  const pool = generationPool();
+  const MINE_KEY = 'army-of-one.world.includeMine';
+  let includeMine = true;
+  try {
+    includeMine = window.localStorage.getItem(MINE_KEY) !== 'false';
+  } catch {
+    // default
+  }
   let world: GeneratedWorld | null = null;
 
   const view = new WorldView(host, {
@@ -30,14 +36,27 @@ export function startWorldViewer(host: HTMLElement, params: URLSearchParams): vo
       void openBestStore()
         .then((store) => clearMission(store, id))
         .catch(() => undefined)
-        .then(() => go({ mission: id, from: 'world' }));
+        .then(() =>
+          go({ mission: id, from: 'world', ...(includeMine ? {} : { pool: 'official' }) }),
+        );
     },
     exit: () => go({}),
+    openBlock: (id) => go({ scene: 'editor', open: id }),
+    includeMine: () => includeMine,
+    setIncludeMine: (on) => {
+      includeMine = on;
+      try {
+        window.localStorage.setItem(MINE_KEY, String(on));
+      } catch {
+        // per-viewer convenience
+      }
+      show(world!.seed);
+    },
   });
 
   function show(seed: number): void {
     const t0 = performance.now();
-    world = generateWorld(pool, { seed });
+    world = generateWorld(blockPool(includeMine), { seed });
     const ms = performance.now() - t0;
     const url = new URL(window.location.href);
     url.searchParams.set('seed', String(seed));
@@ -47,7 +66,9 @@ export function startWorldViewer(host: HTMLElement, params: URLSearchParams): vo
 
   function go(set: Record<string, string>): void {
     const url = new URL(window.location.href);
-    for (const k of ['scene', 'mission', 'seed', 'from']) url.searchParams.delete(k);
+    for (const k of ['scene', 'mission', 'seed', 'from', 'pool', 'open']) {
+      url.searchParams.delete(k);
+    }
     for (const [k, v] of Object.entries(set)) url.searchParams.set(k, v);
     url.hash = '';
     window.location.assign(url.toString());

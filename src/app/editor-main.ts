@@ -1,9 +1,11 @@
 /**
- * (PHASE13-a/b) `?scene=editor`: the block editor ([D88]). No Phaser here.
+ * (PHASE13) `?scene=editor`: the block editor ([D88]). No Phaser here.
  *
- * Keeps the player's blocks in a library (localStorage), opens official blocks as copies, and
- * hands off to the game: Play this block (`?mission=editor-preview`, a fresh save each time) or
- * Play a random level (`?mission=gen-<seed>`, stitched from official + own blocks).
+ * The open block is a draft (kept across reloads). Nothing goes into "My blocks" until you
+ * Save: opening an official block just opens it; new blocks and edited official blocks are saved
+ * as new entries. Opening something else with unsaved changes asks first (Save / Don't save /
+ * Cancel). Play this block plays the draft; Play a random level uses saved blocks only.
+ * `&open=<id>` opens a block on arrival (the world map viewer's "Open in editor").
  */
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { str, type StringKey } from '../content/strings';
@@ -11,20 +13,25 @@ import { blockToJson, newBlock, parseBlock, type BlockDef } from '../gen/block';
 import { genMissionId } from '../gen/mission-id';
 import { clearMission } from '../persistence/mission-store';
 import { EditorModel } from '../ui/editor/editor-model';
-import { EditorView } from '../ui/editor/editor-view';
+import { EditorView, type SaveState } from '../ui/editor/editor-view';
 import {
   EDITOR_PREVIEW_ID,
+  readDraft,
   readLibrary,
   readPlayBudget,
+  writeDraft,
   writeLibrary,
   writePlayBudget,
+  type Draft,
 } from './editor-storage';
 import { openBestStore } from './storage/indexeddb-store';
 
-export function startEditor(host: HTMLElement): void {
+export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
   document.title = str('editor.title');
   const lib = readLibrary();
   const officialIds = new Set(OFFICIAL_BLOCKS.map((b) => b.id));
+  const official = (id: string) => OFFICIAL_BLOCKS.find((b) => b.id === id);
+  const mine = (id: string) => lib.blocks.find((b) => b.id === id);
   const taken = (id: string, except?: string) =>
     officialIds.has(id) || lib.blocks.some((b) => b.id === id && b.id !== except);
   const freeId = (base: string) => {
@@ -32,46 +39,108 @@ export function startEditor(host: HTMLElement): void {
     for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
   };
 
-  const current = lib.blocks.find((b) => b.id === lib.current) ?? lib.blocks[0]!;
-  lib.current = current.id;
-  const model = new EditorModel(current);
-  model.budget = readPlayBudget();
-
-  /** Saves the open block into the library (following a rename of its id). */
-  const save = () => {
-    const b = model.block;
-    if (b.id !== lib.current && taken(b.id, lib.current)) {
-      model.setMeta({ id: freeId(b.id) }); // comes back here with a free id
-      return;
+  let draft: Draft = readDraft();
+  /** What the draft is compared with to know if it has unsaved changes. */
+  const baselineOf = (d: Draft): string => {
+    if (d.source.kind === 'mine') {
+      const saved = mine(d.source.id);
+      return saved ? blockToJson(saved) : '';
     }
-    const i = lib.blocks.findIndex((x) => x.id === lib.current);
+    if (d.source.kind === 'official') {
+      const o = official(d.source.id);
+      return o ? blockToJson(o) : '';
+    }
+    return blockToJson(newBlock(d.source.id, str('editor.newName')));
+  };
+  let baseline = baselineOf(draft);
+
+  const model = new EditorModel(draft.block);
+  model.budget = readPlayBudget();
+  const dirty = () => blockToJson(model.block) !== baseline;
+  const saveState = (): SaveState => {
+    if (draft.source.kind === 'mine') return dirty() ? 'dirty' : 'saved';
+    if (draft.source.kind === 'official') return dirty() ? 'dirty' : 'official';
+    return dirty() ? 'dirty' : 'new';
+  };
+
+  model.onChange(() => {
+    draft = { ...draft, block: model.block };
+    writeDraft(draft);
+  });
+  writeDraft(draft);
+
+  const load = (block: BlockDef, source: Draft['source']) => {
+    draft = { block, source };
+    baseline = baselineOf(draft);
+    writeDraft(draft);
+    model.load(block); // fires onChange → re-renders with the new save state
+  };
+
+  /**
+   * Saves the draft into My blocks. Your own block is updated in place (following a rename); a
+   * new or official one becomes a new entry. Asks for an id if it clashes. False if cancelled.
+   */
+  const save = (): boolean => {
+    let b = model.block;
+    const own = draft.source.kind === 'mine' ? draft.source.id : undefined;
+    if (taken(b.id, own)) {
+      const want = window.prompt(str('editor.saveAsPrompt'), freeId(`${b.id}-copy`));
+      if (!want?.trim()) return false;
+      const id = want.trim();
+      if (taken(id, own)) {
+        window.alert(str('editor.idTaken', { id }));
+        return false;
+      }
+      model.setMeta({ id });
+      b = model.block;
+    }
+    const i = own ? lib.blocks.findIndex((x) => x.id === own) : -1;
     if (i >= 0) lib.blocks[i] = b;
     else lib.blocks.push(b);
-    lib.current = b.id;
     writeLibrary(lib);
+    draft = { block: b, source: { kind: 'mine', id: b.id } };
+    baseline = blockToJson(b);
+    writeDraft(draft);
+    view.refresh();
+    return true;
   };
-  model.onChange(save);
-  save();
 
-  const open = (b: BlockDef) => {
-    if (!lib.blocks.includes(b)) lib.blocks.push(b);
-    lib.current = b.id;
-    model.load(b);
+  /** Runs `then` once the draft is safe to replace: saved, discarded, or not changed. */
+  const guard = (then: () => void) => {
+    if (!dirty()) {
+      then();
+      return;
+    }
+    void view.askUnsaved(model.block.name).then((answer) => {
+      if (answer === 'cancel') return;
+      if (answer === 'save' && !save()) return;
+      then();
+    });
   };
-  const go = (params: Record<string, string>) => {
+
+  const go = (set: Record<string, string>) => {
     const url = new URL(window.location.href);
-    url.searchParams.delete('scene');
-    url.searchParams.delete('mission');
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    for (const k of ['scene', 'mission', 'open']) url.searchParams.delete(k);
+    for (const [k, v] of Object.entries(set)) url.searchParams.set(k, v);
     url.hash = '';
     window.location.assign(url.toString());
   };
 
+  const openById = (id: string) => {
+    const m = mine(id);
+    if (m) return load(m, { kind: 'mine', id });
+    const o = official(id);
+    if (o) load(o, { kind: 'official', id });
+  };
+
   const view = new EditorView(host, model, {
-    newBlock: () => {
-      const id = freeId('block-1');
-      open(newBlock(id, str('editor.newName')));
-    },
+    saveState,
+    save: () => void save(),
+    newBlock: () =>
+      guard(() => {
+        const id = freeId('block-1');
+        load(newBlock(id, str('editor.newName')), { kind: 'new', id });
+      }),
     download: () => {
       const blob = new Blob([blockToJson(model.block)], { type: 'application/json' });
       const a = document.createElement('a');
@@ -95,46 +164,39 @@ export function startEditor(host: HTMLElement): void {
           window.alert(str(res.key as StringKey));
           return;
         }
-        // Re-opening one of your own blocks replaces it; anything else is added.
-        const mine = lib.blocks.findIndex((b) => b.id === res.block.id);
-        if (mine >= 0) {
-          lib.blocks[mine] = res.block;
-          open(res.block);
-        } else open({ ...res.block, id: freeId(res.block.id) });
+        // Opened, not saved: Save adds it to My blocks (or updates yours with the same id).
+        guard(() =>
+          load(
+            res.block,
+            mine(res.block.id)
+              ? { kind: 'mine', id: res.block.id }
+              : { kind: 'new', id: res.block.id },
+          ),
+        );
       });
     },
-    library: () => ({ official: OFFICIAL_BLOCKS, custom: lib.blocks, current: lib.current }),
-    openBlock: (id, official) => {
-      if (official) {
-        const src = OFFICIAL_BLOCKS.find((b) => b.id === id);
-        if (src) {
-          open({
-            ...src,
-            id: freeId(`${src.id}-copy`),
-            name: str('editor.copyName', { name: src.name }),
-          });
-        }
-        return;
-      }
-      const b = lib.blocks.find((x) => x.id === id);
-      if (b) open(b);
-    },
+    library: () => ({
+      official: OFFICIAL_BLOCKS,
+      custom: lib.blocks,
+      current: draft.source,
+    }),
+    openBlock: (id) => guard(() => openById(id)),
     deleteBlock: (id) => {
       lib.blocks = lib.blocks.filter((b) => b.id !== id);
-      if (lib.current === id) {
-        const next = lib.blocks[0] ?? newBlock(freeId('block-1'), str('editor.newName'));
-        open(next);
-      }
       writeLibrary(lib);
+      // The draft stays open, now unsaved.
+      if (draft.source.kind === 'mine' && draft.source.id === id) {
+        draft = { ...draft, source: { kind: 'new', id } };
+        baseline = '';
+        writeDraft(draft);
+      }
+      view.refresh();
     },
     budgetChanged: (budget) => writePlayBudget(budget),
     exit: () => go({}),
-    playLevel: () => {
-      save();
-      go({ mission: genMissionId(Math.floor(Math.random() * 1e9)) });
-    },
+    playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)) }),
     play: () => {
-      save();
+      writeDraft(draft);
       writePlayBudget(model.budget);
       // Old lives were recorded on the old block: start the playtest from scratch.
       void openBestStore()
@@ -143,5 +205,8 @@ export function startEditor(host: HTMLElement): void {
         .then(() => go({ mission: EDITOR_PREVIEW_ID }));
     },
   });
+
+  const wanted = params?.get('open');
+  if (wanted && wanted !== draft.source.id) guard(() => openById(wanted));
   (window as unknown as { __aoo?: unknown }).__aoo = { editor: model, view, library: lib };
 }

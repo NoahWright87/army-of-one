@@ -36,6 +36,9 @@ import { el, injectStyle } from '../dom';
 import type { EditorModel } from './editor-model';
 import { snap, type Tool } from './editor-model';
 
+/** (PHASE13) Where the open draft stands against My blocks. */
+export type SaveState = 'saved' | 'dirty' | 'new' | 'official';
+
 export interface EditorActions {
   newBlock(): void;
   download(): void;
@@ -45,9 +48,18 @@ export interface EditorActions {
   /** Back to the game's main menu. */
   exit(): void;
   /** (13-b) The library: official blocks, the player's own, which is open. */
-  library(): { official: readonly BlockDef[]; custom: readonly BlockDef[]; current: string };
+  library(): {
+    official: readonly BlockDef[];
+    custom: readonly BlockDef[];
+    /** Where the open draft came from. */
+    current: { kind: 'new' | 'official' | 'mine'; id: string };
+  };
+  /** (PHASE13) Is the draft saved, changed, new, or an untouched official block? */
+  saveState(): SaveState;
+  /** Save the draft into My blocks. */
+  save(): void;
   /** Open one of the player's blocks; an official one opens as a copy. */
-  openBlock(id: string, official: boolean): void;
+  openBlock(id: string): void;
   deleteBlock(id: string): void;
   /** Play a generated level stitched from the official + the player's blocks. */
   playLevel(): void;
@@ -106,6 +118,16 @@ const css = `
 .aoo-ed .problems li { color: #f0b37e; margin-bottom: 4px; cursor: pointer; }
 .aoo-ed .problems { padding-left: 16px; margin: 0; }
 .aoo-ed .ok { color: #8fd18f; }
+.aoo-ed .bad { color: #f0b37e; }
+.aoo-ed button:disabled { opacity: .45; cursor: default; }
+.aoo-ask { position: fixed; inset: 0; z-index: 20; background: rgba(5,8,11,.7); display: flex;
+  align-items: center; justify-content: center; font: 14px/1.4 system-ui, sans-serif; color: #e7e9ec; }
+.aoo-ask .panel { background: #181c21; border: 1px solid #2c343d; border-radius: 8px; padding: 18px;
+  width: min(380px, calc(100% - 32px)); }
+.aoo-ask .btns { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+.aoo-ask button { font: inherit; color: inherit; background: #232930; border: 1px solid #343c46;
+  border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+.aoo-ask button.go { background: #2f7a3d; border-color: #3f9a50; font-weight: 600; }
 .aoo-ed .play { background: #2f7a3d; border-color: #3f9a50; font-weight: 600; padding: 8px; }
 .aoo-ed .play:hover { background: #378a47; }
 .aoo-ed .unit-row { display: grid; grid-template-columns: 1fr 58px 30px; gap: 4px; }
@@ -175,7 +197,7 @@ export class EditorView {
     this.refresh();
   }
 
-  private refresh(): void {
+  refresh(): void {
     this.renderLeft();
     this.renderRight();
     this.draw();
@@ -237,7 +259,10 @@ export class EditorView {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
     const m = this.model;
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key.toLowerCase() === 'z') {
+    if (mod && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      this.actions.save();
+    } else if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) m.redo();
       else m.undo();
@@ -363,6 +388,17 @@ export class EditorView {
 
     box.append(el('h2', '', str('editor.file')));
     const file = el('div', 'col');
+    // (PHASE13) Saved or not: nothing lands in My blocks until you save.
+    const state = this.actions.saveState();
+    file.append(el('div', state === 'dirty' ? 'hint bad' : 'hint', str(`editor.state.${state}`)));
+    const saveBtn = el(
+      'button',
+      state === 'dirty' || state === 'new' ? 'play' : '',
+      str('editor.save'),
+    );
+    saveBtn.disabled = state === 'saved';
+    saveBtn.onclick = () => this.actions.save();
+    file.append(saveBtn);
     const play = el('button', 'play', str('editor.play'));
     play.onclick = () => this.actions.play();
     const dl = el('button', '', str('editor.download'));
@@ -490,17 +526,20 @@ export class EditorView {
         h.append(el('span', '', str('editor.layoutCount', { n: g.rows.length })));
         panel.append(h);
         for (const { b, official: isOfficial } of g.rows) {
-          const row = el('div', `row${!isOfficial && b.id === current ? ' current' : ''}`);
+          const isOpen =
+            current.id === b.id &&
+            (isOfficial ? current.kind === 'official' : current.kind === 'mine');
+          const row = el('div', `row${isOpen ? ' current' : ''}`);
           row.append(el('span', 'name', `${b.name}  (${b.id})`));
           if (isOfficial) row.append(el('span', 'tag', str('editor.official')));
-          if (!isOfficial && b.id === current) row.append(el('span', 'tag', str('editor.current')));
+          if (isOpen) row.append(el('span', 'tag', str('editor.current')));
           if (!isOfficial && validateBlock(b).length) {
             row.append(el('span', 'tag warn', str('editor.notInLevels')));
           }
-          const open = el('button', '', str(isOfficial ? 'editor.openCopy' : 'editor.open'));
+          const open = el('button', '', str('editor.open'));
           open.onclick = () => {
             close();
-            this.actions.openBlock(b.id, isOfficial);
+            this.actions.openBlock(b.id);
           };
           row.append(open);
           if (!isOfficial) {
@@ -614,6 +653,38 @@ export class EditorView {
     units.append(delGroup);
     box.append(units);
     return box;
+  }
+
+  /** (PHASE13) "You have unsaved changes": Save / Don't save / Cancel. */
+  askUnsaved(name: string): Promise<'save' | 'discard' | 'cancel'> {
+    return new Promise((resolve) => {
+      const overlay = el('div', 'aoo-ask');
+      const panel = el('div', 'panel');
+      const done = (a: 'save' | 'discard' | 'cancel') => {
+        overlay.remove();
+        window.removeEventListener('keydown', onKey, true);
+        resolve(a);
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          done('cancel');
+        }
+      };
+      window.addEventListener('keydown', onKey, true);
+      const save = el('button', 'go', str('editor.save'));
+      save.onclick = () => done('save');
+      const discard = el('button', '', str('editor.discard'));
+      discard.onclick = () => done('discard');
+      const cancel = el('button', '', str('editor.cancel'));
+      cancel.onclick = () => done('cancel');
+      const btns = el('div', 'btns');
+      btns.append(cancel, discard, save);
+      panel.append(el('div', '', str('editor.unsaved', { name })), btns);
+      overlay.append(panel);
+      document.body.append(overlay);
+      save.focus();
+    });
   }
 
   private renderProblems(): void {

@@ -1,8 +1,8 @@
 /**
  * (PHASE13-a/b) Where the block editor keeps its work, and how the game gets maps from it.
  *
- * - The library: the player's own blocks plus which one is open, in localStorage. Official
- *   blocks come from the repo (`src/content/blocks/`).
+ * - The library ("My blocks"): the player's saved blocks, in localStorage. Official blocks
+ *   come from the repo (`src/content/blocks/`). The block being edited is a draft until saved.
  * - Play this block: the game opens `EDITOR_PREVIEW_ID`, built from the open block at the
  *   editor's budget.
  * - Generated levels (`gen-<seed>`): stitched from the official blocks plus the player's own
@@ -23,10 +23,23 @@ const PLAY_BUDGET_KEY = 'army-of-one.editor.playBudget';
 const OLD_BLOCK_KEY = 'army-of-one.editor.block.v1';
 
 export interface Library {
-  /** Id of the block open in the editor. */
-  current: string;
+  /** (13-a/b) Which block was open, before drafts existed: only read, to migrate. */
+  current?: string;
+  /** The player's saved blocks ("My blocks"). */
   blocks: BlockDef[];
 }
+
+/**
+ * (PHASE13) The block open in the editor: a draft, kept apart from the library until it's
+ * saved. `source` says where it came from: a fresh block, an official one (opened as is, never
+ * copied until saved), or one of yours (`id` = its library id).
+ */
+export interface Draft {
+  block: BlockDef;
+  source: { kind: 'new' | 'official' | 'mine'; id: string };
+}
+
+const DRAFT_KEY = 'army-of-one.editor.draft.v1';
 
 function storage(): Storage | null {
   try {
@@ -46,10 +59,7 @@ export function readLibrary(): Library {
         const res = parseBlockObject(b);
         return res.ok ? [res.block] : [];
       });
-      if (blocks.length) {
-        const current = typeof data.current === 'string' ? data.current : blocks[0]!.id;
-        return { current, blocks };
-      }
+      return typeof data.current === 'string' ? { current: data.current, blocks } : { blocks };
     }
     const old = s?.getItem(OLD_BLOCK_KEY);
     const res = old ? parseBlock(old) : null;
@@ -57,22 +67,50 @@ export function readLibrary(): Library {
   } catch {
     // corrupt storage: start fresh
   }
-  const b = newBlock();
-  return { current: b.id, blocks: [b] };
+  return { blocks: [] };
 }
 
 export function writeLibrary(lib: Library): void {
   try {
-    storage()?.setItem(LIBRARY_KEY, JSON.stringify(lib));
+    storage()?.setItem(LIBRARY_KEY, JSON.stringify({ blocks: lib.blocks }));
   } catch {
     // blocked or full storage: the work lives until the tab closes; Download still works
   }
 }
 
-/** The block open in the editor. */
-export function readEditorBlock(): BlockDef | null {
+export function readDraft(): Draft {
+  try {
+    const raw = storage()?.getItem(DRAFT_KEY);
+    if (raw) {
+      const data = JSON.parse(raw) as { block?: unknown; source?: Draft['source'] };
+      const res = parseBlockObject(data.block);
+      const kind = data.source?.kind;
+      if (res.ok && (kind === 'new' || kind === 'official' || kind === 'mine')) {
+        return { block: res.block, source: { kind, id: String(data.source!.id ?? '') } };
+      }
+    }
+  } catch {
+    // fall through
+  }
+  // Before drafts: the library's open block was the work in progress.
   const lib = readLibrary();
-  return lib.blocks.find((b) => b.id === lib.current) ?? lib.blocks[0] ?? null;
+  const mine = lib.blocks.find((b) => b.id === lib.current) ?? lib.blocks[0];
+  if (mine) return { block: mine, source: { kind: 'mine', id: mine.id } };
+  const b = newBlock();
+  return { block: b, source: { kind: 'new', id: b.id } };
+}
+
+export function writeDraft(d: Draft): void {
+  try {
+    storage()?.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch {
+    // ignore: Download still works
+  }
+}
+
+/** The block open in the editor (what Play this block plays). */
+export function readEditorBlock(): BlockDef | null {
+  return readDraft().block;
 }
 
 /** The editor's budget slider for Play (null = everything). */
@@ -112,16 +150,19 @@ export function generationPool(): BlockDef[] {
   return [...OFFICIAL_BLOCKS, ...custom];
 }
 
-/** (PHASE13-c) A world map from the current block pool (cached per seed). */
-const worlds = new Map<number, GeneratedWorld>();
-export function worldFor(
-  seed: number,
-  pool: readonly BlockDef[] = generationPool(),
-): GeneratedWorld {
-  const cached = worlds.get(seed);
+/** Official blocks only, or official + your saved ones ("Use my saved blocks too"). */
+export function blockPool(includeMine: boolean): BlockDef[] {
+  return includeMine ? generationPool() : [...OFFICIAL_BLOCKS];
+}
+
+/** (PHASE13-c) A world map from a block pool (cached per seed and pool). */
+const worlds = new Map<string, GeneratedWorld>();
+export function worldFor(seed: number, includeMine = true): GeneratedWorld {
+  const key = `${seed}:${includeMine}`;
+  const cached = worlds.get(key);
   if (cached) return cached;
-  const w = generateWorld(pool, { seed });
-  worlds.set(seed, w);
+  const w = generateWorld(blockPool(includeMine), { seed });
+  worlds.set(key, w);
   return w;
 }
 
@@ -129,10 +170,10 @@ export function worldFor(
  * A generated mission's map, or null if `id` isn't one: `gen-<seed>[-<budget>]` (a random
  * level) or `world-<seed>-<level>[-<budget>]` (one level of a world map).
  */
-export function generatedMap(id: string): MapDef | null {
+export function generatedMap(id: string, opts: { includeMine?: boolean } = {}): MapDef | null {
   const wid = parseWorldMissionId(id);
   if (wid) {
-    const w = worldFor(wid.seed);
+    const w = worldFor(wid.seed, opts.includeMine ?? true);
     if (!w.levels[wid.level]) return null;
     return worldLevelMap(w, wid.level, {
       id,

@@ -3,9 +3,9 @@
  * and the levels carved from it; regenerate at will. Click a level to see it at any budget, and
  * playtest it for real. A testing tool for now: what a campaign's world map will be built on.
  */
-import { BLOCK_CELLS, GROUND, isGroundKind } from '../../content/ground';
+import { BLOCK_CELLS, EDGE_TAGS, GROUND, isGroundKind } from '../../content/ground';
 import { ROLES } from '../../content/roles';
-import { str } from '../../content/strings';
+import { str, strDynamic, type StringKey } from '../../content/strings';
 import { isRectItem } from '../../gen/block';
 import type { GeneratedLevel } from '../../gen/level';
 import { orientBlock } from '../../gen/transform';
@@ -19,7 +19,21 @@ export interface WorldViewActions {
   levelMap(index: number, budget: number): Omit<GeneratedLevel, 'attempts'>;
   playtest(index: number, budget: number): void;
   exit(): void;
+  /** Opens a block in the editor (as is: nothing is copied). */
+  openBlock(id: string): void;
+  /** Whether worlds use your saved blocks as well as the official ones. */
+  includeMine(): boolean;
+  setIncludeMine(on: boolean): void;
 }
+
+/** What's drawn over the board (all off: just the map). */
+interface Overlays {
+  levels: boolean;
+  labels: boolean;
+  frame: boolean;
+  mismatches: boolean;
+}
+const OVERLAYS_KEY = 'army-of-one.world.overlays';
 
 const css = `
 .aoo-wm { position: fixed; inset: 0; display: grid; grid-template-columns: 230px 1fr 400px;
@@ -50,6 +64,14 @@ const css = `
 .aoo-wm canvas.preview { width: 100%; background: #0b0d10; border-radius: 4px; }
 .aoo-wm .legend span { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 4px 0; }
 .aoo-wm .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.aoo-wm label.check { display: flex; align-items: center; gap: 6px; margin: 3px 0; color: #c8d0d8; }
+.aoo-wm label.check input { width: auto; }
+@media (max-width: 900px) {
+  .aoo-wm { display: flex; flex-direction: column; overflow-y: auto; }
+  .aoo-wm > * { flex: none; }
+  .aoo-wm aside.left, .aoo-wm aside.right { border: 0; overflow: visible; }
+  .aoo-wm .stage { height: 150vw; max-height: 90vh; }
+}
 `;
 
 export class WorldView {
@@ -64,6 +86,8 @@ export class WorldView {
   private px = 4;
   private origin = { x: 0, y: 0 };
   private oriented: ReturnType<typeof orientBlock>[][] = [];
+  private picked: { r: number; c: number } | null = null;
+  private overlays: Overlays = loadOverlays();
 
   constructor(
     host: HTMLElement,
@@ -91,8 +115,12 @@ export class WorldView {
       this.drawBoard();
     });
     this.board.addEventListener('click', (e) => {
+      const cell = this.cellAt(e);
+      if (!cell) return;
+      this.picked = cell;
       const lv = this.levelAt(e);
       if (lv !== null) this.select(lv);
+      else this.renderRight();
     });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
@@ -108,6 +136,9 @@ export class WorldView {
     this.genMs = ms;
     this.oriented = world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
     if (this.selected !== null && !world.levels[this.selected]) this.selected = null;
+    if (this.picked && (this.picked.r >= world.rows || this.picked.c >= world.cols)) {
+      this.picked = null;
+    }
     this.renderLeft();
     this.drawBoard();
     if (this.selected !== null) this.select(this.selected);
@@ -141,6 +172,31 @@ export class WorldView {
     box.append(el('div', 'hint', str('world.seed')), seed, regen, nav);
     box.append(el('p', 'hint', str('world.keys')));
 
+    // What's drawn on top of the map (off by default: just the map).
+    box.append(el('h2', '', str('world.show')));
+    const check = (label: string, on: boolean, set: (v: boolean) => void) => {
+      const l = el('label', 'check');
+      const c = el('input');
+      c.type = 'checkbox';
+      c.checked = on;
+      c.onchange = () => set(c.checked);
+      l.append(c, document.createTextNode(label));
+      box.append(l);
+    };
+    const overlay = (k: keyof Overlays, key: StringKey) =>
+      check(str(key), this.overlays[k], (v) => {
+        this.overlays = { ...this.overlays, [k]: v };
+        saveOverlays(this.overlays);
+        this.drawBoard();
+      });
+    overlay('levels', 'world.show.levels');
+    overlay('labels', 'world.show.labels');
+    overlay('frame', 'world.show.frame');
+    overlay('mismatches', 'world.show.mismatches');
+    check(str('world.includeMine'), this.actions.includeMine(), (v) =>
+      this.actions.setIncludeMine(v),
+    );
+
     const fallbacks = w.warnings.filter((x) => x.includes('no exact')).length;
     const other = w.warnings.filter((x) => !x.includes('no exact'));
     box.append(el('h2', '', str('world.stats')));
@@ -168,6 +224,16 @@ export class WorldView {
       x: Math.round((cw - cells.x * this.px) / 2),
       y: Math.round((ch - cells.y * this.px) / 2),
     };
+  }
+
+  private cellAt(e: PointerEvent | MouseEvent): { r: number; c: number } | null {
+    const w = this.world;
+    if (!w) return null;
+    const r = this.board.getBoundingClientRect();
+    const bs = BLOCK_CELLS * this.px;
+    const c = Math.floor((e.clientX - r.left - this.origin.x) / bs);
+    const row = Math.floor((e.clientY - r.top - this.origin.y) / bs);
+    return row >= 0 && c >= 0 && row < w.rows && c < w.cols ? { r: row, c } : null;
   }
 
   private levelAt(e: PointerEvent | MouseEvent): number | null {
@@ -218,7 +284,7 @@ export class WorldView {
           const [x, y, ww, hh] = it.rect;
           ctx.fillRect(ox + x * p, oy + y * p, Math.max(1, ww * p), Math.max(1, hh * p));
         }
-        if (w.grid[br]![bc]!.fit !== 'exact') {
+        if (this.overlays.mismatches && w.grid[br]![bc]!.fit !== 'exact') {
           ctx.strokeStyle = '#ff9f43';
           ctx.lineWidth = 2;
           ctx.setLineDash([4, 3]);
@@ -227,31 +293,47 @@ export class WorldView {
         }
       }),
     );
-    // Levels.
+    // Levels: outlines and labels only when asked; the selected one always.
     for (const lv of w.levels) {
       const x = lv.col * bs;
       const y = lv.row * bs;
       const ww = lv.cols * bs;
       const hh = lv.rows * bs;
       const sel = lv.index === this.selected;
-      const hov = lv.index === this.hover;
-      if (!sel) {
-        ctx.fillStyle = hov ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.18)';
-        ctx.fillRect(x, y, ww, hh);
+      if (this.overlays.levels || sel) {
+        ctx.strokeStyle = sel
+          ? '#ffe14d'
+          : lv.kind === 'base'
+            ? '#ff8a80'
+            : 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = sel ? 3 : 1.5;
+        ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
+      } else if (lv.index === this.hover) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
       }
-      ctx.strokeStyle = sel ? '#ffe14d' : lv.kind === 'base' ? '#ff8a80' : 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = sel ? 4 : 2;
-      ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
-      const label = `${lv.index + 1}  $${lv.budget}`;
-      ctx.font = 'bold 13px system-ui, sans-serif';
-      const tw = ctx.measureText(label).width + 10;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(x + 6, y + 6, tw, 18);
-      ctx.fillStyle = sel ? '#ffe14d' : '#fff';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + 11, y + 15);
+      if (this.overlays.labels) {
+        const label = `${lv.index + 1}  $${lv.budget}`;
+        ctx.font = 'bold 12px system-ui, sans-serif';
+        const tw = ctx.measureText(label).width + 10;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(x + 6, y + 6, tw, 17);
+        ctx.fillStyle = sel ? '#ffe14d' : '#fff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x + 11, y + 14.5);
+      }
+    }
+    if (this.picked) {
+      ctx.strokeStyle = '#4dd0ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.picked.c * bs + 1, this.picked.r * bs + 1, bs - 2, bs - 2);
     }
     // Frame barriers (rivers across, ridges along), on top of the level outlines.
+    if (!this.overlays.frame) {
+      ctx.restore();
+      return;
+    }
     ctx.strokeStyle = '#ff4d4d';
     ctx.lineWidth = 3;
     w.h.forEach((row, r) =>
@@ -289,6 +371,7 @@ export class WorldView {
   private renderRight(): void {
     const box = this.right;
     box.replaceChildren();
+    if (this.picked) box.append(this.blockPanel(this.picked.r, this.picked.c));
     const w = this.world;
     const lv = this.selected !== null ? w?.levels[this.selected] : undefined;
     if (!w || !lv) {
@@ -349,6 +432,38 @@ export class WorldView {
     update();
   }
 
+  /** The clicked block: which one, which way round, its edges; open it in the editor. */
+  private blockPanel(r: number, c: number): HTMLElement {
+    const box = el('div');
+    const g = this.world!.grid[r]![c]!;
+    const turned = (g.o % 4) * 90;
+    const flipped = g.o >= 4;
+    const edges = this.oriented[r]![c]!.edges;
+    box.append(el('h2', '', str('world.block')));
+    const dl = el('dl');
+    const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
+    add(str('world.block.name'), `${g.block.name} (${g.block.id})`);
+    add(
+      str('world.block.turn'),
+      str(flipped ? 'world.block.turnFlipped' : 'world.block.turnPlain', { deg: turned }),
+    );
+    add(
+      str('world.block.edges'),
+      (['n', 'e', 's', 'w'] as const)
+        .map((sd) => `${sd.toUpperCase()} ${strDynamic(EDGE_TAGS[edges[sd]].nameKey)}`)
+        .join(' · '),
+    );
+    add(
+      str('world.block.fit'),
+      str(g.fit === 'exact' ? 'world.block.fitExact' : 'world.block.fitLoose'),
+      g.fit === 'exact' ? 'ok' : 'bad',
+    );
+    const open = el('button', '', str('world.block.open'));
+    open.onclick = () => this.actions.openBlock(g.block.id);
+    box.append(dl, open);
+    return box;
+  }
+
   private drawPreview(c: HTMLCanvasElement, map: GeneratedLevel['map']): void {
     const dpr = window.devicePixelRatio || 1;
     const width = c.clientWidth || 370;
@@ -404,5 +519,23 @@ export class WorldView {
     );
     void lv;
     host.replaceChildren(dl);
+  }
+}
+
+function loadOverlays(): Overlays {
+  const none: Overlays = { levels: false, labels: false, frame: false, mismatches: false };
+  try {
+    const raw = window.localStorage.getItem(OVERLAYS_KEY);
+    return raw ? { ...none, ...(JSON.parse(raw) as Partial<Overlays>) } : none;
+  } catch {
+    return none;
+  }
+}
+
+function saveOverlays(o: Overlays): void {
+  try {
+    window.localStorage.setItem(OVERLAYS_KEY, JSON.stringify(o));
+  } catch {
+    // per-viewer convenience only
   }
 }

@@ -13,7 +13,7 @@ if (params.get('scene') === 'world') {
 } else if (params.get('scene') === 'editor') {
   // (PHASE13-a) Block editor: plain DOM, no Phaser.
   void import('./editor-main').then((m) =>
-    m.startEditor(document.getElementById('ui-root') ?? document.body),
+    m.startEditor(document.getElementById('ui-root') ?? document.body, params),
   );
 } else if (params.get('screen') === 'respawn') {
   void import('./respawn-dev').then((m) =>
