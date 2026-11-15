@@ -1024,6 +1024,8 @@ export const BLOCK_TUNING = {
     minGap: 3, // TUNE
     /** Side-to-side splits move by up to ± half this many blocks at random. */
     splitJitter: 2, // TUNE
+    /** Unwalkable spots (cover, walls, ponds) this close to a level count as inside it. */
+    gapFill: 2, // TUNE
     /** Tiles of the surroundings shown around a level's own ground. */
     mapMargin: 3, // TUNE
     /** A crossing narrower than this many tiles doesn't count. */

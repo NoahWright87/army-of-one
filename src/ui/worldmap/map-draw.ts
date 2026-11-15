@@ -5,6 +5,7 @@
  */
 import { BLOCK_CELLS, GROUND, isGroundKind } from '../../content/ground';
 import { isRectItem, type BlockDef } from '../../gen/block';
+export { fillGaps as displayOwner } from '../../gen/carve';
 import type { MapDef, Rect } from '../../sim/world/map';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;

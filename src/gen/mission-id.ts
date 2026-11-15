@@ -21,26 +21,40 @@ export function genMissionId(seed: number, budget?: number): string {
 }
 
 /**
- * (PHASE13-c) One level of a world map: `world-<seed>-<level>` or
- * `world-<seed>-<level>-<budget>` (the world viewer's playtest).
+ * (PHASE13-c/d) One level of a world map: `world-<seed>-<level>[-<budget>][-h<a>.<b>…][-r<q>]`.
+ * `h` lists the neighbouring levels you hold ([D108]: their crossings are spawns, not
+ * objectives; without it, the neighbours met earlier); `r` turns the map `q` quarter turns to
+ * fit the screen ([D107]). The id is the save slot too.
  */
 export interface WorldMissionId {
   seed: number;
   level: number;
   budget?: number;
+  held?: number[];
+  turns?: number;
 }
 
-const WORLD_ID = /^world-(\d{1,10})-(\d{1,3})(?:-(\d{1,6}))?$/;
+const WORLD_ID = /^world-(\d{1,10})-(\d{1,3})(?:-(\d{1,6}))?(?:-h([\d.]*))?(?:-r([0-3]))?$/;
 
 export function parseWorldMissionId(id: string): WorldMissionId | null {
   const m = WORLD_ID.exec(id);
   if (!m) return null;
   const out: WorldMissionId = { seed: Number(m[1]) >>> 0, level: Number(m[2]) };
   if (m[3] !== undefined) out.budget = Number(m[3]);
+  if (m[4] !== undefined) out.held = m[4] ? m[4].split('.').map(Number) : [];
+  if (m[5] !== undefined) out.turns = Number(m[5]);
   return out;
 }
 
-export function worldMissionId(seed: number, level: number, budget?: number): string {
-  const base = `world-${seed >>> 0}-${level}`;
-  return budget === undefined ? base : `${base}-${budget}`;
+export function worldMissionId(
+  seed: number,
+  level: number,
+  budget?: number,
+  extra: { held?: readonly number[]; turns?: number } = {},
+): string {
+  let id = `world-${seed >>> 0}-${level}`;
+  if (budget !== undefined) id += `-${budget}`;
+  if (extra.held) id += `-h${[...extra.held].sort((p, q) => p - q).join('.')}`;
+  if (extra.turns) id += `-r${extra.turns}`;
+  return id;
 }

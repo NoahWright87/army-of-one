@@ -2,10 +2,9 @@
  * (PHASE13-d) The random campaign in progress ([D106]): one at a time, in localStorage, plus the
  * links between the title screen, the campaign map and a campaign battle.
  */
-import { parseCampaign, type CampaignState } from '../gen/campaign';
-import { worldMissionId } from '../gen/mission-id';
+import { heldSet, parseCampaign, type CampaignState } from '../gen/campaign';
 import type { GeneratedWorld } from '../gen/world';
-import { worldFor } from './editor-storage';
+import { worldFor, worldLevelMissionId } from './editor-storage';
 
 const CAMPAIGN_KEY = 'army-of-one.campaign.v1';
 /** The world viewer's "Use my saved blocks too" (a new campaign follows it). */
@@ -66,7 +65,7 @@ export function openCampaignMap(): void {
 /** A campaign battle: one level of the campaign's world at the campaign's budget. */
 export function openCampaignBattle(c: CampaignState, level: number, budget: number): void {
   const url = freshUrl();
-  url.searchParams.set('mission', worldMissionId(c.seed, level, budget));
+  url.searchParams.set('mission', worldLevelMissionId(campaignWorld(c), level, budget, heldSet(c)));
   url.searchParams.set('from', 'campaign');
   if (c.includeMine) url.searchParams.set('pool', 'mine');
   window.location.assign(url.toString());

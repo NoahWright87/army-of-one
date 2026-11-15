@@ -9,6 +9,7 @@ import {
   attackable,
   campaignBudget,
   campaignWon,
+  heldSet,
   hqLevel,
   newCampaign,
   type CampaignState,
@@ -43,6 +44,7 @@ export function startCampaignMap(host: HTMLElement): void {
         id: worldMissionId(state.seed, index, budget),
         nameKey: 'map.world.name',
         budget,
+        held: heldSet(state),
       });
       const enemies = (level.map.squads ?? []).reduce((n, s) => n + s.members.length, 0);
       return { budget, enemies, map: level.map };

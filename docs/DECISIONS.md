@@ -472,6 +472,27 @@ top, [D102]).
   time; nothing else carries over yet ([D91]). The handmade missions stay on the title screen
   under the campaign button.
 
+## Levels cut to the terrain (owner session 2026-11, PHASE13-d)
+
+The owner: rectangles cut before looking at the terrain made bad levels (a lake in the middle,
+the objective in the lower third, no visible way on), and every level got the same grass strip of
+spawns. Levels follow the terrain now, and the crossings between them decide spawns and
+objectives.
+
+- **[D107] Levels turn to fit the screen.** A level's long side goes along the screen's long side:
+  tall on a phone held upright, wide on a PC, a big window or a phone on its side, to show as much
+  of it as possible. Its main way in ends up at the bottom or the left. You can attack a level
+  from any side (any crossing from ground you hold).
+- **[D108] Every exit is an objective; entries are spawns.** A crossing into ground you don't hold
+  is a capture point, and the level is won when every one is ours. A crossing from ground you hold
+  (the start edge, or a level taken) is a place to spawn from the start. So the same crossing is
+  an objective from one side and a spawn from the other.
+- **[D109] Some ground is in no level.** Big water, rocks and walls between levels belong to no
+  level (the ocean down one side, a lake): visible from the levels next to it and on the world
+  map, never played. A level's map shows the ground around it, but only its own is walkable.
+- **[D110] Levels are sized by ground, not by shape.** About 20 blocks of walkable ground each;
+  long and thin or big and square, whatever the terrain gives.
+
 ## Reacting to fire (owner session 2026-11, PHASE13)
 
 - **[D97] Enemies react to being shot.** A hit tells the soldier where it came from (and wakes
@@ -772,8 +793,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   and fill tiles nothing fits by extending what's around them (grass grows into grass, water
   surrounded by water becomes a lake). Planned as a second pass after 1 × 1 matching.
 
-- **[Q58] Campaign details still open (PHASE13-d).** Attacking a level from the side (a level
-  beside one you hold, rotated so you still attack "up"); whether losing or abandoning a level
+- **[Q58] Campaign details still open (PHASE13-d).** (Attacking from the side: answered by
+  [D107].) Whether losing or abandoning a level
   costs anything; what carries over between levels (money, unlocks, bonus blocks [D91]); whether
   a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
   rebuilt from the current blocks, so editing one can change an unfinished campaign's map).

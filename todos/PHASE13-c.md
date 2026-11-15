@@ -131,3 +131,30 @@ said "Matches its neighbours". Three bugs, all fixed in `src/gen/grow.ts`:
   (was ~135). Base pieces in the open country fell from ~28% to ~16% of blocks as a side effect.
   The leftovers are real content gaps (e.g. a road dead-ending at grass or at a compound wall
   with no gate), visible in the viewer.
+
+## Notes from implementation (levels cut to the terrain, [D107]–[D110])
+
+- **Carving** (`src/gen/carve.ts`) works on the board's tiles. Walkable = passable ground not
+  under a wall or cover, joined to the south edge. Fronts: bands of 6–11 block rows; each border
+  is the cheapest 8-way line across the board near its nominal row, where walkable tiles cost 1
+  and anything else ~0, so it runs along rivers and lakes and through bridges, gates and passes.
+  Each band is split side to side the same way into pieces of ~20 blocks of ground
+  (`tuning.carve`). A piece's walkable parts become a level (or join the level they touch most
+  if small). Levels are numbered by walking distance from the start.
+- **Crossings**: walkable tiles of two levels side by side, in runs ≥ 2 tiles, merged within 24
+  tiles per level pair; plus runs along the south edge (from the start).
+- **Level maps** (`src/gen/region.ts`): the level's bounding box + 3 tiles; ground not its own
+  (with small holes filled, so cover spots stay in) is `map.bounds` (blocks movement, drawn
+  darkened in the game, minimap, respawn map and sketches). Entries from held ground are initial
+  spawns ("South entry"…); each exit is a flag objective (all needed); the HQ level also has the
+  HQ. Budget spent over the blocks clipped to the level, more far from the entries.
+- **Rotation** (`src/gen/rotate-map.ts`): the whole map turns by quarter turns; spawn names turn
+  with it. The quarter turns are chosen when you launch (screen shape), and are part of the
+  mission id, so a save keeps its orientation.
+- Campaign: attackable = a crossing from held ground; the battle's id lists the held neighbours.
+  Save version 2 (old campaigns are dropped). World viewer: regions and crossings overlay.
+- Stats (10 seeds): ~300 ms per world, ~9 ms per level map, ~11 levels per world, median ~26
+  blocks of ground (10th–90th percentile 10–38), ~2 entries and ~2 exits per level, every level
+  reachable.
+- Not yet: level shapes are as irregular as the borders make them, but a band's split count is
+  fixed by its ground, so a few levels are big (up to ~40 blocks).

@@ -501,6 +501,30 @@ function middleOf(tiles: number[], w: number): number {
   return best;
 }
 
+/**
+ * (PHASE13-d) Level per tile with the gaps filled: tiles in no level (walls, cover, a pond) within `gap`
+ * tiles of a level join it, so small holes aren't outlined and levels reach the shore. Big
+ * water and rock stay clear.
+ */
+export function fillGaps(owner: Int16Array, w: number, h: number, gap = 2): Int16Array {
+  const out = owner.slice();
+  let front: number[] = [];
+  for (let i = 0; i < out.length; i++) if (out[i]! >= 0) front.push(i);
+  for (let step = 0; step < gap; step++) {
+    const next: number[] = [];
+    for (const i of front) {
+      const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j < 0 || j >= w * h || out[j] !== -1 || owner[j] !== -1) continue;
+        out[j] = out[i]!;
+        next.push(j);
+      }
+    }
+    front = next;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------
 
 function neighbours4(i: number, w: number, h: number): number[] {

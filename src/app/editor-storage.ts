@@ -11,8 +11,10 @@
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { newBlock, parseBlock, parseBlockObject, validateBlock, type BlockDef } from '../gen/block';
 import { generateLevel } from '../gen/level';
-import { parseGenMissionId, parseWorldMissionId } from '../gen/mission-id';
+import { parseGenMissionId, parseWorldMissionId, worldMissionId } from '../gen/mission-id';
 import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world';
+import { mainEntrySide } from '../gen/region';
+import { fitTurns, rotateMap } from '../gen/rotate-map';
 import { blockToPreviewMap } from '../gen/preview';
 import type { MapDef } from '../sim/world/map';
 
@@ -175,11 +177,13 @@ export function generatedMap(id: string, opts: { includeMine?: boolean } = {}): 
   if (wid) {
     const w = worldFor(wid.seed, opts.includeMine ?? false);
     if (!w.levels[wid.level]) return null;
-    return worldLevelMap(w, wid.level, {
+    const map = worldLevelMap(w, wid.level, {
       id,
       nameKey: 'map.world.name',
       ...(wid.budget !== undefined ? { budget: wid.budget } : {}),
+      ...(wid.held ? { held: new Set(wid.held) } : {}),
     }).map;
+    return wid.turns ? rotateMap(map, wid.turns) : map;
   }
   const gid = parseGenMissionId(id);
   if (!gid) return null;
@@ -196,4 +200,30 @@ export function isRuntimeMission(id: string): boolean {
   return (
     id === EDITOR_PREVIEW_ID || parseGenMissionId(id) !== null || parseWorldMissionId(id) !== null
   );
+}
+
+/**
+ * (PHASE13-d) The mission id for playing one level of a world: with the neighbours held (for a
+ * campaign) and turned to fit this screen's long side ([D107]).
+ */
+export function worldLevelMissionId(
+  world: GeneratedWorld,
+  level: number,
+  budget: number,
+  held?: ReadonlySet<number>,
+): string {
+  const lv = world.levels[level]!;
+  const screen = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape';
+  const turns = fitTurns(lv.box.w, lv.box.h, screen, mainEntrySide(world, level, held));
+  // Only the neighbours matter (the id stays short and the save slot stable).
+  const near = new Set(
+    world.crossings
+      .filter((c) => c.a === level || c.b === level)
+      .map((c) => (c.a === level ? c.b : c.a))
+      .filter((o) => o >= 0),
+  );
+  return worldMissionId(world.seed, level, budget, {
+    ...(held ? { held: [...held].filter((h) => near.has(h)) } : {}),
+    turns,
+  });
 }

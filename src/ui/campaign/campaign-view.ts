@@ -10,6 +10,7 @@ import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import {
   drawBoardGround,
+  displayOwner,
   drawMapSketch,
   levelAnchors,
   levelOverlay,
@@ -72,6 +73,7 @@ export class CampaignView {
   private m: CampaignViewModel | null = null;
   private oriented: ReturnType<typeof orientBlock>[][] = [];
   private selected: number | null = null;
+  private disp: Int16Array = new Int16Array(0);
   private px = 4;
   private readonly pad = 12;
 
@@ -93,6 +95,7 @@ export class CampaignView {
   show(m: CampaignViewModel): void {
     this.m = m;
     this.oriented = m.world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
+    this.disp = displayOwner(m.world.owner, m.world.tiles.w, m.world.tiles.h);
     this.selected = m.attackable[0] ?? m.taken[m.taken.length - 1] ?? null;
     this.draw();
     this.renderSide();
@@ -120,7 +123,7 @@ export class CampaignView {
     const x = Math.floor((e.clientX - r.left - this.pad) / this.px);
     const y = Math.floor((e.clientY - r.top - this.pad) / this.px);
     if (x < 0 || y < 0 || x >= w.tiles.w || y >= w.tiles.h) return undefined;
-    const lv = w.owner[y * w.tiles.w + x]!;
+    const lv = this.disp[y * w.tiles.w + x]!;
     return lv >= 0 ? w.levels[lv] : undefined;
   }
 
@@ -148,7 +151,7 @@ export class CampaignView {
     ctx.translate(this.pad, this.pad);
     drawBoardGround(ctx, this.oriented, p);
     // Levels ([D109]): taken tinted blue, attackable outlined yellow, locked dimmed, the HQ red.
-    const overlay = levelOverlay(w.owner, w.tiles.w, w.tiles.h, (lv) => {
+    const overlay = levelOverlay(this.disp, w.tiles.w, w.tiles.h, (lv) => {
       const taken = m.taken.includes(lv);
       const open = m.attackable.includes(lv);
       const sel = lv === this.selected;

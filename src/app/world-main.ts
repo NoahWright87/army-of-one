@@ -9,7 +9,7 @@ import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world'
 import { clearMission } from '../persistence/mission-store';
 import { openConnectionGraph } from '../ui/worldmap/connection-graph';
 import { WorldView } from '../ui/worldmap/world-view';
-import { blockPool } from './editor-storage';
+import { blockPool, worldLevelMissionId } from './editor-storage';
 import { openBestStore } from './storage/indexeddb-store';
 
 export function startWorldViewer(host: HTMLElement, params: URLSearchParams): void {
@@ -32,7 +32,7 @@ export function startWorldViewer(host: HTMLElement, params: URLSearchParams): vo
         budget,
       }),
     playtest: (index, budget) => {
-      const id = worldMissionId(world!.seed, index, budget);
+      const id = worldLevelMissionId(world!, index, budget);
       // A fresh playtest each time (an old save of this exact level and budget is dropped).
       void openBestStore()
         .then((store) => clearMission(store, id))

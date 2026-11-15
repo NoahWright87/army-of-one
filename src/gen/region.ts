@@ -26,7 +26,7 @@ import {
 } from './assemble';
 import { isRectItem, type BlockDef, type BlockItem } from './block';
 import { blockTotalCost, spendBudget } from './budget';
-import type { Crossing } from './carve';
+import { fillGaps, type Crossing } from './carve';
 import type { GrownCell } from './grow';
 import { mix, objectiveReachable } from './level';
 import type { GeneratedWorld } from './world';
@@ -113,6 +113,10 @@ export function worldLevelMap(
   const w = x1 - x0;
   const h = y1 - y0;
   const own = (x: number, y: number) => owner[(y0 + y) * W + x0 + x] === index;
+  // Out of bounds: walkable ground of other levels, or nobody's beyond a couple of tiles (so
+  // cover spots and wall gaps inside the level stay in it).
+  const filled = fillGaps(owner, W, H, BLOCK_TUNING.carve.gapFill);
+  const inside = (x: number, y: number) => filled[(y0 + y) * W + x0 + x] === index;
 
   // Who's held: by default every neighbour met earlier (you came through them).
   const touching = world.crossings.filter((c) => c.a === index || c.b === index);
@@ -131,7 +135,7 @@ export function worldLevelMap(
   ];
   const bounds = maskRects(w, h, cs, (x, y) => {
     const g = rows[y]![x]!;
-    return isGroundKind(g) && GROUND[g].passable && !own(x, y);
+    return isGroundKind(g) && GROUND[g].passable && !inside(x, y);
   });
 
   // Distance from the entries over our ground: the budget weighs the far end more, and a level
@@ -283,6 +287,26 @@ export function worldLevelMap(
     exits,
     blocks: placed.map((p) => p.pb.block.id),
   };
+}
+
+/**
+ * Which side of the level its main way in is on (the widest entry), given what's held: for
+ * turning the map to fit the screen ([D107]).
+ */
+export function mainEntrySide(
+  world: GeneratedWorld,
+  index: number,
+  held?: ReadonlySet<number>,
+): 'south' | 'north' | 'east' | 'west' {
+  const touching = world.crossings.filter((c) => c.a === index || c.b === index);
+  const other = (c: Crossing) => (c.a === index ? c.b : c.a);
+  const h = held ?? new Set(touching.map(other).filter((o) => o >= 0 && o < index));
+  const entries = touching.filter((c) => other(c) === -1 || h.has(other(c)));
+  if (entries.length === 0) return 'south';
+  const c = entries.reduce((m, x) => (x.width > m.width ? x : m));
+  const [oy, ox] = c.a === index ? c.atA : c.atB;
+  const [ty, tx] = c.a === index ? c.atB : c.atA;
+  return ty > oy ? 'south' : ty < oy ? 'north' : tx > ox ? 'east' : 'west';
 }
 
 /** The HQ block's objective slot (else its centre), in board units. */

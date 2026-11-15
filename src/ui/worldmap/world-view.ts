@@ -13,7 +13,14 @@ import type { WorldLevelMap } from '../../gen/region';
 import { orientBlock } from '../../gen/transform';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { el, injectStyle } from '../dom';
-import { drawBoardGround, drawMapSketch, levelAnchors, levelOverlay, roleColor } from './map-draw';
+import {
+  displayOwner,
+  drawBoardGround,
+  drawMapSketch,
+  levelAnchors,
+  levelOverlay,
+  roleColor,
+} from './map-draw';
 
 export interface WorldViewActions {
   /** Makes a new world from this seed (null: a random one). */
@@ -92,6 +99,7 @@ export class WorldView {
   private px = 4;
   private origin = { x: 0, y: 0 };
   private oriented: ReturnType<typeof orientBlock>[][] = [];
+  private disp: Int16Array = new Int16Array(0);
   private picked: { r: number; c: number } | null = null;
   private shown = false;
   private overlays: Overlays = loadOverlays();
@@ -144,6 +152,7 @@ export class WorldView {
     this.world = world;
     this.genMs = ms;
     this.oriented = world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
+    this.disp = displayOwner(world.owner, world.tiles.w, world.tiles.h);
     if (this.selected !== null && !world.levels[this.selected]) this.selected = null;
     if (this.picked && (this.picked.r >= world.rows || this.picked.c >= world.cols)) {
       this.picked = null;
@@ -263,7 +272,7 @@ export class WorldView {
     const x = Math.floor((e.clientX - r.left - this.origin.x) / this.px);
     const y = Math.floor((e.clientY - r.top - this.origin.y) / this.px);
     if (x < 0 || y < 0 || x >= w.tiles.w || y >= w.tiles.h) return null;
-    const lv = w.owner[y * w.tiles.w + x]!;
+    const lv = this.disp[y * w.tiles.w + x]!;
     return lv >= 0 ? lv : null;
   }
 
@@ -304,7 +313,7 @@ export class WorldView {
       ctx.stroke();
     }
     // Levels ([D109]): outlines when asked, the selected one always (tinted), hover lightly.
-    const overlay = levelOverlay(w.owner, w.tiles.w, w.tiles.h, (lv) => {
+    const overlay = levelOverlay(this.disp, w.tiles.w, w.tiles.h, (lv) => {
       if (lv === this.selected) return { fill: [255, 225, 77, 70], edge: [255, 225, 77, 255] };
       if (this.overlays.levels) {
         return {
