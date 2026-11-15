@@ -108,6 +108,14 @@ import {
 } from './resolve-runner';
 import { openBestStore } from './storage/indexeddb-store';
 import { generateStressMission } from './stress';
+import { attackable, newCampaign, takeLevel } from '../gen/campaign';
+import {
+  campaignIncludesMine,
+  campaignWorld,
+  openCampaignMap,
+  readCampaign,
+  writeCampaign,
+} from './campaign-storage';
 import { browserStorage } from './storage';
 
 export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
@@ -143,13 +151,27 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
+/** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
+const campaignBattle =
+  worldPlaytest && params.get('from') === 'campaign'
+    ? (() => {
+        const c = readCampaign();
+        return c && c.seed === worldPlaytest.seed ? c : null;
+      })()
+    : null;
 if (MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest) {
   const back = document.createElement('button');
-  back.textContent = str(worldPlaytest ? 'world.back' : 'editor.backToEditor');
+  back.textContent = str(
+    campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
+  );
   back.style.cssText =
     'position:fixed;left:10px;bottom:10px;z-index:50;font:600 13px system-ui,sans-serif;' +
     'padding:6px 10px;color:#e7e9ec;background:#2f5b86;border:1px solid #4a86bd;border-radius:4px;cursor:pointer';
-  back.onclick = worldPlaytest ? () => openWorld(worldPlaytest.seed) : openEditor;
+  back.onclick = campaignBattle
+    ? openCampaignMap
+    : worldPlaytest
+      ? () => openWorld(worldPlaytest.seed)
+      : openEditor;
   document.body.appendChild(back);
 }
 
@@ -426,6 +448,12 @@ async function startGame(): Promise<void> {
   });
   const ui: GameUi = {
     showTitle: (p) => {
+      // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
+      if (campaignBattle) {
+        if (p.canContinue) p.onContinue();
+        else p.onNew();
+        return;
+      }
       void refreshLibrary();
       title.show({
         ...p,
@@ -440,6 +468,14 @@ async function startGame(): Promise<void> {
         onOpenEditor: openEditor,
         onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
+        campaign: {
+          inProgress: readCampaign() !== null,
+          onOpen: openCampaignMap,
+          onNew: () => {
+            writeCampaign(newCampaign(Math.floor(Math.random() * 1e9), campaignIncludesMine()));
+            openCampaignMap();
+          },
+        },
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'
           : 'title.new',
@@ -466,6 +502,18 @@ async function startGame(): Promise<void> {
       };
     },
     showComplete: (stats, onPlayAgain, extra) => {
+      if (campaignBattle) {
+        // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
+        takeCampaignLevel();
+        if (!extra) complete.show(stats, openCampaignMap);
+        else {
+          showResults(extra, openCampaignMap, {
+            title: str('campaign.levelWon'),
+            playLabel: str('campaign.backToMap'),
+          });
+        }
+        return;
+      }
       if (!extra) {
         complete.show(stats, onPlayAgain);
         return;
@@ -530,7 +578,11 @@ async function startGame(): Promise<void> {
     if (game.scene.isActive('replay') || game.scene.isPaused('replay')) game.scene.stop('replay');
     sleepLoopSoon();
   };
-  const showResults = (r: CompleteResults, onPlayAgain: () => void) => {
+  const showResults = (
+    r: CompleteResults,
+    onPlayAgain: () => void,
+    labels: { title?: string; playLabel?: string } = {},
+  ) => {
     const m = r.mission;
     const endTick = (m.completed?.tick ?? 0) + 2 * 60;
     const stats = resultStats(m, r.rescues, m.completed?.tick ?? 0);
@@ -578,6 +630,7 @@ async function startGame(): Promise<void> {
         marks: scrubMarks(m),
       },
       {
+        ...labels,
         onShare: () =>
           void packedP.then((packed) => {
             if (packed) void shareLink(packed);
@@ -961,6 +1014,15 @@ async function startGame(): Promise<void> {
       notice.show(str('replay.broken'));
     }
   }
+}
+
+/** (PHASE13-d) Marks this battle's level taken in the campaign (if it could be attacked). */
+function takeCampaignLevel(): void {
+  const c = readCampaign();
+  if (!c || !worldPlaytest || c.seed !== worldPlaytest.seed) return;
+  const world = campaignWorld(c);
+  if (!attackable(world, c).includes(worldPlaytest.level)) return;
+  writeCampaign(takeLevel(world, c, worldPlaytest.level));
 }
 
 /** localStorage, or null where it's blocked (private mode). */

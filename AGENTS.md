@@ -165,6 +165,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
   + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
   editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
+- Campaign (PHASE13-d, [D106]): the title screen's main button. `?scene=campaign` is the campaign
+  map (`src/app/campaign-main.ts`, `src/ui/campaign/`); state is `src/gen/campaign.ts` (one
+  campaign in localStorage). Attack opens `?mission=world-<seed>-<level>-<budget>&from=campaign`:
+  no title screen, "← Campaign" goes back, and a win marks the level taken.
 - World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
   (`src/gen/world.ts`), regenerate at will (R, ◀ ▶), click a block or level for details, a budget
   slider, a sketch and **Playtest** (`?mission=world-<seed>-<level>[-<budget>]`). Overlays are

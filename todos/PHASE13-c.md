@@ -92,3 +92,19 @@ Not yet: irregular level shapes, entries from the side (rotating a level), campa
   the level sketch is capped in height. "Inexact matches" counts loose cells again.
 - Stats (10 seeds, official blocks): ~80 loose matches per 480 blocks (~16%, gaps in the starter
   set), every level reachable, ~83 enemies per level at its default budget.
+
+## Notes from implementation (random campaign, PHASE13-d, [D106])
+
+- **Title screen:** "Start a campaign" / "Continue campaign" is the main button; "New campaign"
+  (asks twice) when one is in progress. The handmade missions sit under it.
+- **State** (`src/gen/campaign.ts`, pure): seed, whether it uses your blocks, levels taken.
+  `attackable` = first band, or directly north of a held level (overlapping columns);
+  `campaignBudget` = the level's own budget × (1 + 0.12 × levels taken), capped at all it holds;
+  `hqLevel` = the top-row level with the HQ block; taking it wins.
+- **Campaign map** (`?scene=campaign`): the board with held levels tinted blue, attackable ones
+  outlined yellow, locked ones dimmed, the HQ red. Click a level: status, size, budget, enemy
+  count and a sketch; **Attack**. Zoomed so about two bands fit on screen.
+- **Battles** (`from=campaign`): skip the title (continue the level's save if there is one),
+  "← Campaign" button, a win marks the level taken and the results card's button returns to
+  the map.
+- Not yet: attacking from the side, losing/retreating, carry-over between levels ([Q58]).

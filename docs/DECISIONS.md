@@ -464,6 +464,13 @@ top, [D102]).
   The world board is 8 × 60 blocks (six bands of levels, about three fronts side by side).
   Enemy budgets are per block (`tuning.world.budgetPerBlockFirst/Last`, `tuning.level.budgetPerBlock`)
   so they scale with level size.
+- **[D106] The main button starts a random campaign** (owner, 2026-11). It generates a world map;
+  you pick which level to attack: any level of the first band, or one directly north of a level
+  you hold (levels are still played attacking north). Winning takes the level, and every level
+  taken raises the next levels' enemy budgets (`tuning.campaign.budgetGrowthPerLevel`, on top
+  of the bands' own ramp). Taking the enemy HQ's level wins the campaign. One campaign at a
+  time; nothing else carries over yet ([D91]). The handmade missions stay on the title screen
+  under the campaign button.
 
 ## Reacting to fire (owner session 2026-11, PHASE13)
 
@@ -765,3 +772,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   and fill tiles nothing fits by extending what's around them (grass grows into grass, water
   surrounded by water becomes a lake). Planned as a second pass after 1 × 1 matching.
 
+- **[Q58] Campaign details still open (PHASE13-d).** Attacking a level from the side (a level
+  beside one you hold, rotated so you still attack "up"); whether losing or abandoning a level
+  costs anything; what carries over between levels (money, unlocks, bonus blocks [D91]); whether
+  a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
+  rebuilt from the current blocks, so editing one can change an unfinished campaign's map).

@@ -3,7 +3,8 @@
  * water, cover, gates, and what's in it (enemy soldiers by role, turrets, mines, capture points,
  * the objective, our spawns). Used by the world map viewer's level preview.
  */
-import { GROUND, isGroundKind } from '../../content/ground';
+import { BLOCK_CELLS, GROUND, isGroundKind } from '../../content/ground';
+import { isRectItem, type BlockDef } from '../../gen/block';
 import type { MapDef, Rect } from '../../sim/world/map';
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
@@ -78,4 +79,35 @@ export function drawMapSketch(ctx: CanvasRenderingContext2D, map: MapDef, k: num
     if (sp.kind !== 'initial') continue;
     dot(sp.position.x, sp.position.y, 3.5, '#4caf50');
   }
+}
+
+/**
+ * (PHASE13-c) A world board's painted ground and placed walls, `px` per tile, at the context's
+ * origin. `oriented` is the board's blocks already turned as placed.
+ */
+export function drawBoardGround(
+  ctx: CanvasRenderingContext2D,
+  oriented: readonly (readonly Pick<BlockDef, 'ground' | 'items'>[])[],
+  px: number,
+): void {
+  const bs = BLOCK_CELLS * px;
+  oriented.forEach((row, br) =>
+    row.forEach((b, bc) => {
+      const ox = bc * bs;
+      const oy = br * bs;
+      b.ground.forEach((line, r) => {
+        for (let col = 0; col < line.length; col++) {
+          const ch = line[col]!;
+          ctx.fillStyle = isGroundKind(ch) ? hex(GROUND[ch].color) : '#000';
+          ctx.fillRect(ox + col * px, oy + r * px, px, px);
+        }
+      });
+      ctx.fillStyle = '#1d2024';
+      for (const it of b.items) {
+        if (it.kind !== 'wall' || !isRectItem(it)) continue;
+        const [x, y, ww, hh] = it.rect;
+        ctx.fillRect(ox + x * px, oy + y * px, Math.max(1, ww * px), Math.max(1, hh * px));
+      }
+    }),
+  );
 }

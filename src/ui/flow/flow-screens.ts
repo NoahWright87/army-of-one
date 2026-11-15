@@ -26,6 +26,7 @@ const CSS = `
   margin-top: 6px; }
 .aoo-screen .library[hidden] { display: none; }
 .aoo-screen .lib-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #9fb3c8; }
+.aoo-screen .lib-title.section { margin-top: 18px; }
 .aoo-screen .lib-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1b2229;
   border: 1px solid #2f3842; border-radius: 6px; }
 .aoo-screen .lib-label { flex: 1; font-size: 13px; color: #d8e0e8; text-align: left; }
@@ -115,6 +116,11 @@ export interface TitleProps {
   onRandomMission?(): void;
   /** (PHASE13-c) Opens the world map generator viewer. */
   onOpenWorld?(): void;
+  /**
+   * (PHASE13-d) The random campaign ([D106]): the main button. The handmade missions move
+   * below it.
+   */
+  campaign?: { inProgress: boolean; onOpen(): void; onNew(): void };
 }
 
 /** (PHASE12-e) One row of the title screen's replay list ([D79]). */
@@ -154,13 +160,14 @@ export class TitleScreen {
   show(p: TitleProps): void {
     const { root, card } = this.s;
     card.replaceChildren();
-    const cont = el('button', '', str('title.continue'));
+    const camp = p.campaign;
+    const cont = el('button', camp ? 'secondary' : '', str('title.continue'));
     cont.disabled = !p.canContinue;
     cont.onclick = () => p.onContinue();
     // (06-c) No save: one click deploys (the empty respawn screen is skipped).
     const fresh = el(
       'button',
-      p.canContinue ? 'secondary' : '',
+      p.canContinue || camp ? 'secondary' : '',
       str(p.canContinue ? 'title.new' : (p.freshLabelKey ?? 'title.new')),
     );
     let armed = false;
@@ -174,9 +181,30 @@ export class TitleScreen {
       }
       p.onNew();
     };
+    card.append(el('h1', '', str('title.name')), el('p', 'sub', str('title.tagline')));
+    let first: HTMLButtonElement | null = null;
+    if (camp) {
+      const open = el('button', '', str(camp.inProgress ? 'campaign.continue' : 'campaign.start'));
+      open.onclick = () => camp.onOpen();
+      card.append(open);
+      first = open;
+      if (camp.inProgress) {
+        const again = el('button', 'secondary', str('campaign.new'));
+        let sure = false;
+        again.onclick = () => {
+          if (!sure) {
+            sure = true;
+            again.className = 'confirm';
+            again.textContent = str('campaign.newConfirm');
+            return;
+          }
+          camp.onNew();
+        };
+        card.append(again);
+      }
+      card.append(el('div', 'lib-title section', str('title.handmade')));
+    }
     card.append(
-      el('h1', '', str('title.name')),
-      el('p', 'sub', str('title.tagline')),
       ...(p.missions && p.missions.length > 1 && p.onPickMission
         ? [missionPicker(p.missions, p.currentMissionId ?? '', p.onPickMission)]
         : [el('p', 'sub', str('title.mission', { name: strDynamic(p.missionNameKey) }))]),
@@ -199,7 +227,7 @@ export class TitleScreen {
       card.append(editor);
     }
     root.hidden = false;
-    (p.canContinue ? cont : fresh).focus();
+    (first ?? (p.canContinue ? cont : fresh)).focus();
   }
 
   hide(): void {

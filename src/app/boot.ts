@@ -5,7 +5,12 @@
  */
 const params = new URLSearchParams(window.location.search);
 
-if (params.get('scene') === 'world') {
+if (params.get('scene') === 'campaign') {
+  // (PHASE13-d) The campaign map: plain DOM, no Phaser.
+  void import('./campaign-main').then((m) =>
+    m.startCampaignMap(document.getElementById('ui-root') ?? document.body),
+  );
+} else if (params.get('scene') === 'world') {
   // (PHASE13-c) World map generator viewer: plain DOM, no Phaser.
   void import('./world-main').then((m) =>
     m.startWorldViewer(document.getElementById('ui-root') ?? document.body, params),

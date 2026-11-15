@@ -3,16 +3,15 @@
  * and the levels carved from it; regenerate at will. Click a level to see it at any budget, and
  * playtest it for real. A testing tool for now: what a campaign's world map will be built on.
  */
-import { BLOCK_CELLS, GROUND, isGroundKind } from '../../content/ground';
+import { BLOCK_CELLS } from '../../content/ground';
 import { sideProfiles } from '../../gen/edges';
 import { ROLES } from '../../content/roles';
 import { str, type StringKey } from '../../content/strings';
-import { isRectItem } from '../../gen/block';
 import type { GeneratedLevel } from '../../gen/level';
 import { orientBlock } from '../../gen/transform';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { el, injectStyle } from '../dom';
-import { drawMapSketch, roleColor } from './map-draw';
+import { drawBoardGround, drawMapSketch, roleColor } from './map-draw';
 
 export interface WorldViewActions {
   /** Makes a new world from this seed (null: a random one). */
@@ -284,34 +283,18 @@ export class WorldView {
     const p = this.px;
     const bs = BLOCK_CELLS * p;
     // Ground and walls, block by block.
-    this.oriented.forEach((row, br) =>
-      row.forEach((b, bc) => {
-        const ox = bc * bs;
-        const oy = br * bs;
-        b.ground.forEach((line, r) => {
-          for (let col = 0; col < line.length; col++) {
-            const ch = line[col]!;
-            ctx.fillStyle = isGroundKind(ch)
-              ? `#${GROUND[ch].color.toString(16).padStart(6, '0')}`
-              : '#000';
-            ctx.fillRect(ox + col * p, oy + r * p, p, p);
-          }
-        });
-        ctx.fillStyle = '#1d2024';
-        for (const it of b.items) {
-          if (it.kind !== 'wall' || !isRectItem(it)) continue;
-          const [x, y, ww, hh] = it.rect;
-          ctx.fillRect(ox + x * p, oy + y * p, Math.max(1, ww * p), Math.max(1, hh * p));
-        }
-        if (this.overlays.mismatches && w.grid[br]![bc]!.fit !== 'exact') {
-          ctx.strokeStyle = '#ff9f43';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 3]);
-          ctx.strokeRect(ox + 2, oy + 2, bs - 4, bs - 4);
-          ctx.setLineDash([]);
-        }
-      }),
-    );
+    drawBoardGround(ctx, this.oriented, p);
+    if (this.overlays.mismatches) {
+      ctx.strokeStyle = '#ff9f43';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      w.grid.forEach((row, br) =>
+        row.forEach((g, bc) => {
+          if (g.fit !== 'exact') ctx.strokeRect(bc * bs + 2, br * bs + 2, bs - 4, bs - 4);
+        }),
+      );
+      ctx.setLineDash([]);
+    }
     // Levels: outlines and labels only when asked; the selected one always.
     for (const lv of w.levels) {
       const x = lv.col * bs;

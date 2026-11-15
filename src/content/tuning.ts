@@ -1001,6 +1001,11 @@ export const BLOCK_TUNING = {
   grow: {
     enemyShare: 0.34, // TUNE
   },
+  /** (PHASE13-d) A random campaign across a world map ([D106]). */
+  campaign: {
+    /** Each level taken raises the next levels' budgets by this fraction of their own. */
+    budgetGrowthPerLevel: 0.12, // TUNE
+  },
   /** (PHASE13-c) The world map board ([D89]). */
   world: {
     /** About three levels side by side (several fronts to attack along). */
