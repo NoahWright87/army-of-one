@@ -21,6 +21,16 @@ export const RESPAWN_CSS = `
 .rs-tool { min-width: 44px; height: 44px; font: 600 20px system-ui, sans-serif; background: #222a32;
   color: #e6e9ec; border: 1px solid #3c4650; border-radius: 4px; cursor: pointer; padding: 0; }
 .rs-tool.wide { font-size: 13px; padding: 0 12px; }
+.rs-tool.rs-back { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px;
+  white-space: nowrap; background: #2f5b86; border-color: #4a86bd; }
+.rs-back-lbl { font-size: 13px; }
+@media (max-width: 760px) {
+  .rs-back-lbl { display: none; }
+  .rs-tl-bar { gap: 4px; padding-left: 6px; }
+  .rs-tools { gap: 4px; }
+  .rs-tool { min-width: 38px; }
+  .rs-tool.wide, .rs-tool.rs-back { padding: 0 8px; }
+}
 .rs-tool:hover { border-color: #66727e; }
 
 .flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
@@ -131,6 +141,7 @@ export const RESPAWN_CSS = `
 .mp-edge { fill: none; stroke: #2f3842; }
 .mp-ground { fill: #3d4f38; }
 .mp-water { fill: #3a76a8; }
+.mp-out { fill: #0b0e11; opacity: .65; }
 .mp-wall { fill: #b4bdc7; }
 .mp-cover { fill: #c9ad7a; }
 .mp-hit { fill: transparent; cursor: default; }

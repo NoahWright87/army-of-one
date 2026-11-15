@@ -1,0 +1,37 @@
+{
+  "v": 3,
+  "id": "starter-base-yard",
+  "name": "Starter: base yard",
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCXXXCCCCCXXXCC",
+    "CCXXXCCCCCXXXCC",
+    "CCXXXCCCCCXXXCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCXXXCCCCCCCCCC",
+    "CCXXXCCCCCCCCCC",
+    "CCXXXCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[10.5,10,2,0.5],"material":"crate","priority":0},
+    {"id":"c2","kind":"cover","rect":[11,12,2,0.5],"material":"crate","priority":0},
+    {"id":"cp3","kind":"capture","at":[7.5,7.5],"priority":0,"group":"yard"},
+    {"id":"rally4","kind":"rally","at":[6,6],"group":"yard","priority":0},
+    {"id":"rally5","kind":"rally","at":[9,9],"group":"yard","priority":0},
+    {"id":"rally6","kind":"rally","at":[9,6],"group":"yard","priority":0},
+    {"id":"rally7","kind":"rally","at":[11.5,7],"group":"motor","priority":0},
+    {"id":"rally8","kind":"rally","at":[7.5,11.5],"group":"motor","priority":0},
+    {"id":"obj9","kind":"objective","at":[3,7.5],"priority":0}
+  ],
+  "groups": [
+    {"id":"yard","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"gunner","priority":3}]},
+    {"id":"motor","units":[{"role":"truck","priority":3},{"role":"rifleman","priority":4},{"role":"bazooka","priority":5}]}
+  ]
+}

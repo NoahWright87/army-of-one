@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-river-bend",
+  "name": "Starter: river bend",
+  "ground": [
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGWWWWWWWWW",
+    "GGGGGGWWWWWWWWW",
+    "GGGGGGWWWWWWWWW",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[2.5,5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[9,3,2.5,0.5],"material":"crate","priority":0},
+    {"id":"rally3","kind":"rally","at":[3.5,4.4],"group":"bend","priority":0},
+    {"id":"rally4","kind":"rally","at":[10,2.4],"group":"bend","priority":0},
+    {"id":"rally5","kind":"rally","at":[11.5,11.5],"group":"bend","priority":0},
+    {"id":"obj6","kind":"objective","at":[4,2.5],"priority":0}
+  ],
+  "groups": [
+    {"id":"bend","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"gunner","priority":3},{"role":"sniper","priority":5}]}
+  ]
+}

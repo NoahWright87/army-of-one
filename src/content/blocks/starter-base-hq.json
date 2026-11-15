@@ -1,0 +1,39 @@
+{
+  "v": 3,
+  "id": "starter-base-hq",
+  "name": "Starter: base HQ",
+  "role": "hq",
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCXXXXXXXXXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXDDDDDDDXCCC",
+    "CCCXXXCCCXXXCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[5.5,11,2,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[8,12,2,0.5],"material":"crate","priority":0},
+    {"id":"rally3","kind":"rally","at":[7.5,7.5],"group":"hq","priority":0},
+    {"id":"rally4","kind":"rally","at":[5,4],"group":"hq","priority":0},
+    {"id":"rally5","kind":"rally","at":[10,4],"group":"hq","priority":0},
+    {"id":"rally6","kind":"rally","at":[6,10.5],"group":"porch","priority":0},
+    {"id":"rally7","kind":"rally","at":[9,11.5],"group":"porch","priority":0},
+    {"id":"t8","kind":"turret","at":[1.5,12.5],"facing":45,"priority":5},
+    {"id":"t9","kind":"turret","at":[13.5,12.5],"facing":135,"priority":5},
+    {"id":"obj10","kind":"objective","at":[7.5,5],"priority":0}
+  ],
+  "groups": [
+    {"id":"hq","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":2},{"role":"shotgun","priority":3}]},
+    {"id":"porch","units":[{"role":"rifleman","priority":3},{"role":"grenadier","priority":4}]}
+  ]
+}

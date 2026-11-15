@@ -1,0 +1,32 @@
+{
+  "v": 3,
+  "id": "starter-landing",
+  "name": "Starter: landing zone",
+  "role": "start",
+  "ground": [
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGDDDDDGGGGG",
+    "GGGGGDDDDDGGGGG",
+    "GGGGGDDDDDGGGGG",
+    "GGGGGDDDDDGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[3,4,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[9.5,4,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally3","kind":"rally","at":[4,3.4],"group":"pickets","priority":0},
+    {"id":"rally4","kind":"rally","at":[10.5,3.4],"group":"pickets","priority":0}
+  ],
+  "groups": [
+    {"id":"pickets","units":[{"role":"rifleman","priority":2},{"role":"rifleman","priority":4}]}
+  ]
+}

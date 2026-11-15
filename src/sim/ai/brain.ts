@@ -17,8 +17,15 @@
  * Dormancy: a soldier sleeps until one of ours comes within `ai.wakeRadius` and sleeps again (at
  * its post) once none is within `ai.sleepRadius`. A stand-in for "off camera" that is part of
  * the sim, so background resolves (which have no camera) agree with what you saw.
+ *
+ * (PHASE13) Rally points ([Q54]): a squad with `rally` points roams between them when idle, even
+ * asleep (cheaply, without looking for targets), so a base is alive before you get there. Each
+ * role loiters, then scores every point (distance, our soldiers near it, its side under attack
+ * there, crowding, cover, rear, a little randomness) and walks to the best; to help, it sprints.
+ * On arrival it takes a spot near the point: spaced from others, behind cover from the front.
+ * Retreats go to the best point too, and depend on position as well as health.
  */
-import { roleDef, type AiProfile } from '../../content/roles';
+import { roleDef, type AiProfile, type RoamProfile } from '../../content/roles';
 import type { RoleId } from '../../contracts/mission';
 import { hash01 } from '../core/hash';
 import { compareIds } from '../core/ids';
@@ -40,9 +47,11 @@ import type { World } from '../state';
 import { seesThroughCover, standingCover } from '../world/cover';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
+import type { SimEvent } from '../events';
 import { soldierIndex } from '../soldier-index';
 
-export type Behavior = 'hold' | 'patrol' | 'approach' | 'engage' | 'cover' | 'retreat' | 'evade';
+export type Behavior =
+  'protect' | 'hold' | 'patrol' | 'roam' | 'approach' | 'engage' | 'cover' | 'retreat' | 'evade';
 
 /** Plain-data AI state, kept on the soldier (so snapshots carry it). */
 export interface AiState {
@@ -72,6 +81,27 @@ export interface AiState {
   hurtTick: Tick;
   /** Overwhelmed until this tick: keeps falling back to regroup instead of re-engaging. */
   shakenUntil?: Tick;
+  /** (PHASE13) Rally point it's heading to or at (index into the squad's `rally`). */
+  roamIdx?: number;
+  /** Where exactly it's going near that point (null: there, loitering). */
+  roamSpot?: Vec2 | null;
+  /** Loitering until this tick (unset while moving). */
+  loiterUntil?: Tick;
+  /** Going to help: sprints. */
+  reinforce?: boolean;
+  /** (PHASE13) Badly hurt once: never advances again; falls back once, then fights from there. */
+  wounded?: boolean;
+  /** Wounded and already at its fallback spot. */
+  fellBack?: boolean;
+  /** Closing in on a shooter who outranges it: sprints. */
+  charging?: boolean;
+  /** Shot at but can't see the shooter: steps toward it to get a line of sight. */
+  seekSight?: boolean;
+  /** A squadmate it may protect, and when that one was hit. */
+  protectAlly?: string;
+  protectTick?: Tick;
+  /** The squad it started in (it may join another when its own routs). */
+  origSquad?: string;
 }
 
 const BEHAVIOR_ARRIVE = 10;
@@ -116,11 +146,12 @@ export function spawnSquads(
       });
       s.ai = {
         squad: sq.id,
+        origSquad: sq.id,
         home: { x: m.position.x, y: m.position.y },
         homeFacing: facing,
         awake: false,
         nextThink: 0,
-        behavior: sq.order.kind === 'patrol' ? 'patrol' : 'hold',
+        behavior: sq.rally?.length ? 'roam' : sq.order.kind === 'patrol' ? 'patrol' : 'hold',
         behaviorSince: 0,
         targetId: null,
         lastSeen: null,
@@ -133,6 +164,10 @@ export function spawnSquads(
         aimErr: 0,
         lastHp: s.hp,
         hurtTick: -9999,
+        // (PHASE13) Everyone starts loitering where they spawned, for a staggered while.
+        ...(sq.rally?.length
+          ? { loiterUntil: loiterTicks(`E${n}`, 0, roleDef(m.role).ai.roam), roamSpot: null }
+          : {}),
       };
     }
   }
@@ -158,15 +193,32 @@ interface Perception {
  * One tick of AI for every awake enemy soldier, in id order. Returns their inputs (dormant ones
  * get none: they stand still at their post).
  */
-export function stepAi(world: World): Map<string, SoldierInput> {
+export function stepAi(
+  world: World,
+  lastEvents: readonly SimEvent[] = [],
+): Map<string, SoldierInput> {
   const out = new Map<string, SoldierInput>();
   const st = world.state;
   const ours = st.soldiers.filter(isOurEligible);
+  // (PHASE13) A hit tells the soldier (and its squad) where the shot came from.
+  for (const e of lastEvents) if (e.kind === 'damaged' && e.by) hearHit(world, e.target, e.by);
+  if (st.tick % 60 === 0) checkRouts(world);
   for (const s of st.soldiers) {
     const ai = s.ai;
     if (!ai || !s.alive) continue;
     updateDormancy(world, s, ai, ours);
-    if (!ai.awake) continue;
+    if (!ai.awake) {
+      // (PHASE13) Asleep but on rally points: keep wandering, cheaply (no perception).
+      const squad = squadOf(world, ai);
+      if (!squad?.rally?.length) continue;
+      const every = Math.max(1, world.tuning.ai.sleepRoamTicks);
+      if ((st.tick + stagger(s.id, every)) % every === 0) {
+        ai.behavior = 'roam';
+        setDest(world, s, ai, roamDest(world, s, ai, squad, ours));
+      }
+      out.set(s.id, execute(world, s, ai));
+      continue;
+    }
     if (st.tick >= ai.nextThink) {
       think(world, s, ai, ours);
       ai.nextThink = st.tick + Math.max(1, secondsToTicks(world.tuning.ai.thinkSeconds));
@@ -191,7 +243,11 @@ function updateDormancy(
   if (near && !ai.awake) {
     ai.awake = true;
     ai.nextThink = world.state.tick + stagger(s.id, secondsToTicks(t.thinkSeconds));
-  } else if (!near && ai.awake && distance(s, ai.home) < 24) {
+  } else if (
+    !near &&
+    ai.awake &&
+    (!!squadOf(world, ai)?.rally?.length || distance(s, ai.home) < 24)
+  ) {
     ai.awake = false;
     ai.targetId = null;
     ai.path = null;
@@ -327,13 +383,18 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   const prof = profileOf(s.roleId);
   const p = perceive(world, s, ai, ours);
   const range = weaponRange(world, s);
-  const squad = (world.map.squads ?? []).find((q) => q.id === ai.squad);
-  // (PHASE12-d) A patrol's "post" is its whole route, not where it started.
-  const posts: readonly Vec2[] =
-    squad?.order.kind === 'patrol' && squad.order.route.length > 0 ? squad.order.route : [ai.home];
+  const squad = squadOf(world, ai);
+  // (PHASE12-d) A patrol's "post" is its whole route, not where it started; (PHASE13) a roaming
+  // squad's, all its rally points.
+  const posts: readonly Vec2[] = squad?.rally?.length
+    ? squad.rally
+    : squad?.order.kind === 'patrol' && squad.order.route.length > 0
+      ? squad.order.route
+      : [ai.home];
   const leashOk = (pt: Vec2) => posts.some((h) => distance(pt, h) <= prof.leash + 1);
   const underFire = p.hurt || tick - ai.hurtTick < secondsToTicks(1.5);
   const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId));
+  const threatD = p.targetPos ? distance(s, p.targetPos) : Infinity;
 
   const scores: Record<Behavior, number> = {
     evade: 0,
@@ -343,14 +404,41 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     approach: 0,
     hold: 0.1,
     patrol: 0,
+    roam: 0,
+    protect: 0,
   };
   let coverSpot: Vec2 | null = null;
   if (p.grenade) scores.evade = 2;
-  if (p.danger > prof.bravery) ai.shakenUntil = tick + secondsToTicks(SHAKEN_SECONDS);
+  // (PHASE13) Position matters as much as health: dug in with friends around, it holds on until
+  // nearly dead; caught in the open by someone behind cover, it pulls back early ([Q54]).
+  let retreatHp = prof.retreatHp;
+  let bravery = prof.bravery;
+  let covered = false;
+  if (p.targetPos) {
+    covered = coveredFrom(world, s, p.targetPos);
+    const theyCovered = p.target ? coveredFrom(world, p.target, s) : false;
+    const friends = alliesNear(world, s, t.allyRadius);
+    if (covered) {
+      retreatHp *= 0.5;
+      bravery *= 1.6;
+    } else if (theyCovered) {
+      retreatHp = Math.min(0.9, retreatHp * 1.5);
+      bravery *= 0.7;
+    }
+    if (friends >= 2) retreatHp *= 0.8;
+  }
+  if (p.danger > bravery) ai.shakenUntil = tick + secondsToTicks(SHAKEN_SECONDS);
   const shaken = (ai.shakenUntil ?? -1) > tick;
-  if (hpFrac < prof.retreatHp) scores.retreat = 1.2;
-  else if (shaken) {
-    scores.retreat = 0.9 + Math.min(0.3, Math.max(0, p.danger - prof.bravery) * 0.1);
+  // (PHASE13) No yo-yo: after being shaken it stays cautious a while (no advancing), and once
+  // badly hurt it's wounded for good: it falls back once, then fights from there.
+  const cautious =
+    ai.shakenUntil !== undefined && tick < ai.shakenUntil + secondsToTicks(t.cautiousSeconds);
+  if (hpFrac < retreatHp) ai.wounded = true;
+  if (ai.wounded && ai.fellBack && underFire && !covered) ai.fellBack = false;
+  if (ai.wounded) {
+    if (!ai.fellBack) scores.retreat = 1.2;
+  } else if (shaken) {
+    scores.retreat = 0.9 + Math.min(0.3, Math.max(0, p.danger - bravery) * 0.1);
   }
   if (p.targetPos && (p.targetVisible || underFire)) {
     coverSpot = findCoverSpot(world, s, p.targetPos);
@@ -368,7 +456,34 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     const d = distance(s, p.targetPos);
     if (d > range * prof.preferredRange) scores.approach = 0.35 + prof.aggression * 0.35;
   }
+  // (PHASE13) Reacting to being shot: get in range, or get a line of sight, or (badly outranged)
+  // charge in or fall back to friends, by type and health.
+  ai.charging = false;
+  ai.seekSight = false;
+  if (underFire && p.targetPos) {
+    if (threatD > range * 1.25) {
+      if (prof.outranged === 'charge' && hpFrac > 0.5 && !ai.wounded) {
+        scores.approach = Math.max(scores.approach, 0.95);
+        ai.charging = true;
+      } else {
+        scores.retreat = Math.max(scores.retreat, 1.0);
+      }
+    } else if (!p.targetVisible && !coverSpot) {
+      scores.approach = Math.max(scores.approach, 0.75);
+      ai.seekSight = true;
+    }
+  }
+  // (PHASE13) A squadmate was just hit nearby: step between it and the shooter.
+  const ally =
+    ai.protectAlly && tick - (ai.protectTick ?? -9999) < secondsToTicks(3)
+      ? soldierIndex(world.state.soldiers).get(ai.protectAlly)
+      : undefined;
+  if (ally?.alive && ally.ai?.lastSeen && prof.protect > 0 && !ai.wounded) {
+    scores.protect = 0.4 + prof.protect * 0.6;
+  }
+  if (ai.wounded || cautious) scores.approach = 0;
   if (squad?.order.kind === 'patrol' && !p.targetPos) scores.patrol = 0.2;
+  if (squad?.rally?.length && !p.targetPos) scores.roam = 0.25;
   // Too far from its post: drop the chase.
   if (!leashOk(s)) {
     scores.approach = 0;
@@ -380,7 +495,17 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   }
 
   let best: Behavior = 'hold';
-  for (const b of ['evade', 'retreat', 'cover', 'engage', 'approach', 'patrol', 'hold'] as const) {
+  for (const b of [
+    'evade',
+    'retreat',
+    'cover',
+    'engage',
+    'protect',
+    'approach',
+    'roam',
+    'patrol',
+    'hold',
+  ] as const) {
     if (scores[b] > scores[best]) best = b;
   }
   if (best !== ai.behavior) {
@@ -407,7 +532,32 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       break;
     }
     case 'retreat':
-      dest = squad?.fallback ?? ai.home;
+      if (squad?.rally?.length) {
+        // (PHASE13) Fall back to the best rally point (friends, away from us), spread out there.
+        if (!ai.roamSpot || ai.behaviorSince === tick) {
+          const i = bestRallyPoint(world, s, ai, squad, ours, 'flee');
+          ai.roamIdx = i;
+          ai.roamSpot = pickSpot(world, s, squad.rally[i]!);
+          ai.loiterUntil = undefined;
+        }
+        dest = ai.roamSpot ?? squad.rally[ai.roamIdx ?? 0]!;
+      } else dest = squad?.fallback ?? ai.home;
+      if (ai.wounded && distance(s, dest) <= arriveRadius(s, 40)) {
+        // Fallen back: this is its post now (holding never walks it back into the fight).
+        ai.fellBack = true;
+        ai.home = { x: s.x, y: s.y };
+      }
+      break;
+    case 'protect': {
+      const threat = ally!.ai!.lastSeen!;
+      const dx = threat.x - ally!.x;
+      const dy = threat.y - ally!.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dest = { x: ally!.x + (dx / len) * 55, y: ally!.y + (dy / len) * 55 };
+      break;
+    }
+    case 'roam':
+      dest = roamDest(world, s, ai, squad!, ours);
       break;
     case 'cover':
       dest = coverSpot;
@@ -415,7 +565,8 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     case 'approach': {
       const tp = p.targetPos!;
       const d = distance(s, tp);
-      const keep = range * prof.preferredRange * 0.8;
+      // Seeking a line of sight: a step toward the shooter, not all the way.
+      const keep = ai.seekSight ? Math.max(0, d - 150) : range * prof.preferredRange * 0.8;
       const k = d > 0 ? Math.max(0, (d - keep) / d) : 0;
       dest = clampToLeash(
         { x: s.x + (tp.x - s.x) * k, y: s.y + (tp.y - s.y) * k },
@@ -440,7 +591,8 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       dest = null;
       break;
     case 'hold':
-      dest = distance(s, ai.home) > arriveRadius(s, 24) ? ai.home : null;
+      // (PHASE13) Shaken lately: hold where it is rather than walk back to its post.
+      dest = !cautious && distance(s, ai.home) > arriveRadius(s, 24) ? ai.home : null;
       break;
   }
   setDest(world, s, ai, dest);
@@ -517,6 +669,351 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
   return best;
 }
 
+// ---------- hits and routs (PHASE13) ----------
+
+/**
+ * One of ours hit an AI soldier: it now knows where the shot came from (and wakes), its squad
+ * hears about it, and squadmates nearby may come to protect it.
+ */
+function hearHit(world: World, targetId: string, byId: string): void {
+  const idx = soldierIndex(world.state.soldiers);
+  const victim = idx.get(targetId);
+  const by = idx.get(byId);
+  const ai = victim?.ai;
+  if (!victim || !ai || !victim.alive || !by || by.ai) return;
+  const tick = world.state.tick;
+  ai.hurtTick = tick;
+  ai.lastSeen = { x: by.x, y: by.y, tick };
+  if (!ai.awake) ai.awake = true;
+  ai.nextThink = Math.min(ai.nextThink, tick + 1);
+  shareWithSquad(world, victim, ai);
+  const r2 = world.tuning.ai.protectRadius ** 2;
+  for (const o of world.state.soldiers) {
+    const oa = o.ai;
+    if (!oa || o === victim || !o.alive || oa.squad !== ai.squad) continue;
+    if (distanceSq(o, victim) > r2) continue;
+    oa.protectAlly = victim.id;
+    oa.protectTick = tick;
+  }
+}
+
+/** Share of a squad's starting strength still standing (HP of everyone it started with). */
+function squadStrength(world: World, sq: SquadDef): { strength: number; alive: SoldierState[] } {
+  const members = world.state.soldiers.filter((o) => o.ai?.origSquad === sq.id);
+  if (members.length === 0) return { strength: 0, alive: [] };
+  const alive = members.filter((o) => o.alive);
+  const sum = alive.reduce(
+    (n, o) => n + o.hp / Math.max(1, soldierMaxHp(world.tuning, o.roleId)),
+    0,
+  );
+  return { strength: sum / members.length, alive };
+}
+
+/**
+ * A squad torn up below `ai.routStrength` falls back to the nearest squad still above
+ * `ai.healthyStrength` and joins it: its soldiers defend (and roam) that squad's ground from
+ * then on. Checked once a second, squads in map order.
+ */
+function checkRouts(world: World): void {
+  const t = world.tuning.ai;
+  const squads = world.map.squads ?? [];
+  if (squads.length < 2) return;
+  const strength = squads.map((sq) => ({ sq, ...squadStrength(world, sq) }));
+  for (const r of strength) {
+    const stay = r.alive.filter((o) => o.ai!.squad === r.sq.id);
+    if (stay.length === 0 || r.strength >= t.routStrength) continue;
+    const at = centroid(stay);
+    let best: { sq: SquadDef; where: Vec2 } | null = null;
+    let bestD = Infinity;
+    for (const h of strength) {
+      if (h === r || h.strength < t.healthyStrength) continue;
+      const theirs = h.alive.filter((o) => o.ai!.squad === h.sq.id);
+      if (theirs.length === 0) continue;
+      const where = centroid(theirs);
+      const d = distance(at, where);
+      if (d < bestD) {
+        bestD = d;
+        best = { sq: h.sq, where };
+      }
+    }
+    if (!best) continue;
+    for (const o of stay) {
+      const oa = o.ai!;
+      oa.squad = best.sq.id;
+      const a = hash01(`${o.id}:rout`) * Math.PI * 2;
+      oa.home = { x: best.where.x + Math.cos(a) * 60, y: best.where.y + Math.sin(a) * 60 };
+      oa.roamSpot = null;
+      oa.roamIdx = undefined;
+      oa.loiterUntil = undefined;
+      oa.behavior = 'retreat';
+      oa.behaviorSince = world.state.tick;
+      oa.awake = true;
+      oa.nextThink = world.state.tick + 1;
+    }
+  }
+}
+
+function centroid(ss: readonly SoldierState[]): Vec2 {
+  let x = 0;
+  let y = 0;
+  for (const o of ss) {
+    x += o.x;
+    y += o.y;
+  }
+  return { x: x / ss.length, y: y / ss.length };
+}
+
+// ---------- rally points (PHASE13, [Q54]) ----------
+
+function squadOf(world: World, ai: AiState): SquadDef | undefined {
+  return (world.map.squads ?? []).find((q) => q.id === ai.squad);
+}
+
+function loiterTicks(id: string, tick: Tick, rp: RoamProfile): Tick {
+  const [lo, hi] = rp.loiter;
+  return tick + secondsToTicks(lo + (hi - lo) * hash01(`${id}@${tick}:loiter`));
+}
+
+/**
+ * The roaming state machine: loiter, pick the best rally point, walk to a spot near it, loiter.
+ * Returns where to go (null = stay). A squad under attack interrupts loitering for those who help.
+ */
+function roamDest(
+  world: World,
+  s: SoldierState,
+  ai: AiState,
+  squad: SquadDef,
+  ours: readonly SoldierState[],
+): Vec2 | null {
+  const tick = world.state.tick;
+  const rp = profileOf(s.roleId).roam;
+  const pts = squad.rally!;
+  if (ai.loiterUntil === undefined) {
+    // Moving: arrived, or no way there?
+    const spot = ai.roamSpot ?? pts[ai.roamIdx ?? 0]!;
+    // A path search that failed leaves no path: settle here instead of standing in limbo.
+    const stuck = ai.dest !== null && ai.path === null;
+    if (distance(s, spot) <= arriveRadius(s, 28) || stuck) {
+      ai.loiterUntil = loiterTicks(s.id, tick, rp);
+      ai.reinforce = false;
+      ai.roamSpot = null;
+      return null;
+    }
+    return spot;
+  }
+  const helpNeeded =
+    !ai.wounded &&
+    rp.assist > 0 &&
+    !ai.reinforce &&
+    pts.some((p, i) => i !== ai.roamIdx && pointAttacked(world, p));
+  if (tick < ai.loiterUntil && !helpNeeded) return null;
+  // (PHASE13) The wounded pick points like they flee: friends, away from the fight.
+  const i = bestRallyPoint(world, s, ai, squad, ours, ai.wounded ? 'flee' : 'roam');
+  const here = ai.roamIdx === i && distance(s, pts[i]!) < 150;
+  ai.roamIdx = i;
+  if (here) {
+    ai.loiterUntil = loiterTicks(s.id, tick, rp);
+    return null;
+  }
+  ai.reinforce = !ai.wounded && rp.assist > 0 && pointAttacked(world, pts[i]!);
+  ai.roamSpot = pickSpot(world, s, pts[i]!);
+  ai.loiterUntil = undefined;
+  return ai.roamSpot;
+}
+
+/** Scores every rally point for this soldier; `flee` is the retreat version. */
+export function bestRallyPoint(
+  world: World,
+  s: SoldierState,
+  ai: AiState,
+  squad: SquadDef,
+  ours: readonly SoldierState[],
+  mode: 'roam' | 'flee',
+): number {
+  const tick = world.state.tick;
+  const rp = profileOf(s.roleId).roam;
+  const pts = squad.rally!;
+  const ys = pts.map((p) => p.y);
+  const minY = Math.min(...ys);
+  const spanY = Math.max(...ys) - minY;
+  let best = 0;
+  let bestScore = -Infinity;
+  pts.forEach((p, i) => {
+    const d = distance(s, p);
+    const danger = dangerAt(world, p, ours);
+    const attacked = pointAttacked(world, p) ? 1 : 0;
+    const crowd = crowdAt(world, s, ai, p, i);
+    const cover = coverAt(world, p);
+    // The front is where we attack from: down the map (higher y).
+    const rear = spanY > 1 ? (spanY - (p.y - minY)) / spanY : 0;
+    const jitter = hash01(`${s.id}@${tick}:rally${i}`) - 0.5;
+    let score: number;
+    if (mode === 'flee') {
+      score = -2 * danger - attacked - 0.4 * crowd + 0.5 * rear + 0.4 * cover + 0.3 * jitter;
+      score -= Math.min(1, d / 1200) * 0.3;
+    } else {
+      score =
+        rp.travel * Math.min(1, d / 1000) +
+        (i === ai.roamIdx && d < 150 ? rp.stay : 0) +
+        rp.danger * danger +
+        rp.assist * attacked -
+        rp.crowd * crowd +
+        rp.cover * cover +
+        rp.rear * rear +
+        rp.jitter * jitter;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/** Our soldiers' threat near a point, 0..1 (distance-weighted, capped). */
+function dangerAt(world: World, p: Vec2, ours: readonly SoldierState[]): number {
+  const R = world.tuning.ai.dangerRadius;
+  let sum = 0;
+  for (const o of ours) {
+    const d = distance(o, p);
+    if (d < R) sum += profileOf(o.roleId).threat * (1 - d / R);
+  }
+  return Math.min(1, sum / 3);
+}
+
+/** Its side is fighting there: an enemy soldier near the point was hurt recently. */
+function pointAttacked(world: World, p: Vec2): boolean {
+  const t = world.tuning.ai;
+  const since = world.state.tick - secondsToTicks(t.attackedSeconds);
+  const r2 = t.allyRadius * t.allyRadius;
+  return world.state.soldiers.some(
+    (a) => a.ai && a.alive && a.ai.hurtTick >= since && distanceSq(a, p) <= r2,
+  );
+}
+
+/** How many others of its side are at (or heading to) the point, 0..1+. */
+function crowdAt(world: World, s: SoldierState, ai: AiState, p: Vec2, i: number): number {
+  let n = 0;
+  for (const a of world.state.soldiers) {
+    if (a === s || !a.ai || !a.alive) continue;
+    const going = a.ai.squad === ai.squad && a.ai.roamIdx === i;
+    if (going || distanceSq(a, p) <= 120 * 120) n++;
+  }
+  return n / 2;
+}
+
+/** Standing cover around a point, 0..1. */
+function coverAt(world: World, p: Vec2): number {
+  let n = 0;
+  for (const c of standingCover(world)) {
+    const r = c.rect;
+    const dx = Math.max(r.x - p.x, 0, p.x - (r.x + r.w));
+    const dy = Math.max(r.y - p.y, 0, p.y - (r.y + r.h));
+    if (dx * dx + dy * dy <= 160 * 160) n++;
+  }
+  return Math.min(1, n / 2);
+}
+
+/**
+ * A spot near a rally point, not the point itself: walkable, spaced from others of its side
+ * (where they are and where they're going), behind cover from the front if it can, clear of
+ * vehicles. Vehicles just take the point.
+ */
+export function pickSpot(world: World, s: SoldierState, p: Vec2): Vec2 {
+  if (s.drive) return p;
+  const t = world.tuning.ai;
+  const space = t.roamSpacing;
+  const rp = profileOf(s.roleId).roam;
+  const turn = hash01(`${s.id}@${world.state.tick}:spot`) * Math.PI * 2;
+  const cands: Vec2[] = [p];
+  for (const [r, n] of [
+    [48, 8],
+    [96, 8],
+  ] as const) {
+    for (let k = 0; k < n; k++) {
+      const a = turn + (k / n) * Math.PI * 2;
+      cands.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r });
+    }
+  }
+  const others: Vec2[] = [];
+  for (const a of world.state.soldiers) {
+    if (a === s || !a.ai || !a.alive) continue;
+    others.push(a);
+    if (a.ai.roamSpot) others.push(a.ai.roamSpot);
+  }
+  const vehicles = world.state.soldiers.filter((a) => a.ai && a.alive && a.drive);
+  let best = p;
+  let bestScore = -Infinity;
+  for (const c of cands) {
+    if (!isWalkable(world, c)) continue;
+    let score = -distance(c, p) / 200;
+    for (const o of others) {
+      const d = distance(c, o);
+      if (d < space) score -= ((space - d) / space) * 1.5;
+    }
+    for (const v of vehicles) if (distance(c, v) < 110) score -= 1;
+    if (coveredFrom(world, c, { x: c.x, y: c.y + 400 })) score += 0.4 + 0.6 * Math.max(0, rp.cover);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/** Is there standing cover close in front of `p` toward `threat` (within ~70 units)? */
+export function coveredFrom(world: World, p: Vec2, threat: Vec2): boolean {
+  const dx = threat.x - p.x;
+  const dy = threat.y - p.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return false;
+  const reach = Math.min(70, len);
+  const ex = p.x + (dx / len) * reach;
+  const ey = p.y + (dy / len) * reach;
+  return standingCover(world).some((c) => segmentHitsRect(p.x, p.y, ex, ey, c.rect));
+}
+
+function segmentHitsRect(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  r: { x: number; y: number; w: number; h: number },
+): boolean {
+  // Liang–Barsky clip.
+  let t0 = 0;
+  let t1 = 1;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const edges: [number, number][] = [
+    [-dx, x0 - r.x],
+    [dx, r.x + r.w - x0],
+    [-dy, y0 - r.y],
+    [dy, r.y + r.h - y0],
+  ];
+  for (const [pp, q] of edges) {
+    if (pp === 0) {
+      if (q < 0) return false;
+    } else {
+      const u = q / pp;
+      if (pp < 0) t0 = Math.max(t0, u);
+      else t1 = Math.min(t1, u);
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
+}
+
+/** Others of its side within `r`. */
+function alliesNear(world: World, s: SoldierState, r: number): number {
+  const r2 = r * r;
+  let n = 0;
+  for (const a of world.state.soldiers) {
+    if (a !== s && a.ai && isEligible(a) && distanceSq(a, s) <= r2) n++;
+  }
+  return n;
+}
+
 // ---------- execution ----------
 
 function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
@@ -572,8 +1069,13 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
     aimDistance = distance(s, aimAt);
   } else if (move.x !== 0 || move.y !== 0) {
     aim = Math.atan2(move.y, move.x);
-  } else if (ai.behavior === 'hold') {
+  } else if (ai.behavior === 'hold' || ai.behavior === 'roam') {
     aim = ai.homeFacing;
+  }
+  // (PHASE13) Roaming is a walk, not a run (unless going to help).
+  if (ai.behavior === 'roam' && !ai.reinforce) {
+    const pace = profileOf(s.roleId).roam.walk;
+    move = { x: move.x * pace, y: move.y * pace };
   }
 
   let fire = false;
@@ -621,6 +1123,9 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
     (move.x !== 0 || move.y !== 0) &&
     (ai.behavior === 'evade' ||
       ai.behavior === 'retreat' ||
+      (ai.behavior === 'roam' && !!ai.reinforce) ||
+      (ai.behavior === 'approach' && !!ai.charging) ||
+      (ai.behavior === 'protect' && !!ai.dest && distance(s, ai.dest) > 200) ||
       (ai.behavior === 'cover' && underFire));
   if (sprint) fire = false;
   return {

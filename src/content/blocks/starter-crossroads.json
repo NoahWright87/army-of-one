@@ -1,0 +1,34 @@
+{
+  "v": 3,
+  "id": "starter-crossroads",
+  "name": "Starter: crossroads",
+  "ground": [
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGGGGGRRRGGGGGG",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "GGGGGGRRRGGGGGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    {"id":"cp1","kind":"capture","at":[7.5,7.5],"priority":0,"group":"cross"},
+    {"id":"rally2","kind":"rally","at":[5.5,5.5],"group":"cross","priority":0},
+    {"id":"rally3","kind":"rally","at":[9.5,5.5],"group":"cross","priority":0},
+    {"id":"rally4","kind":"rally","at":[5.5,9.5],"group":"cross","priority":0},
+    {"id":"rally5","kind":"rally","at":[9.5,9.5],"group":"cross","priority":0},
+    {"id":"t6","kind":"turret","at":[12,7.5],"facing":180,"priority":4},
+    {"id":"obj7","kind":"objective","at":[12.5,5.5],"priority":0}
+  ],
+  "groups": [
+    {"id":"cross","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"grenadier","priority":3},{"role":"rifleman","priority":5}]}
+  ]
+}

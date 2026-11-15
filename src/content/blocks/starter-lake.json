@@ -1,0 +1,24 @@
+{
+  "v": 3,
+  "id": "starter-lake",
+  "name": "Starter: open water",
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW"
+  ],
+  "items": [],
+  "groups": []
+}

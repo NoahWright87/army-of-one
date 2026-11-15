@@ -25,6 +25,11 @@ export interface SpawnPointDef {
   kind: 'initial' | 'capture';
   /** (05-a) kind 'capture' only: the capture point that opens this spawn point. */
   capturePointId?: string;
+  /**
+   * (PHASE13-d) Where a new soldier runs in from during the lead-in countdown, ending here
+   * ([D112]): for show only, the sim never reads it. May start off the map.
+   */
+  approach?: Vec2[];
 }
 
 /** (05-a) Capture stages ([D11]): lower the enemy flag → neutral; raise ours → ours. */
@@ -156,6 +161,11 @@ export interface SquadDef {
   fallback?: Vec2;
   /** Hold (and retake) this capture point. */
   capturePointId?: string;
+  /**
+   * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
+   * `roam` temperament), retreat to the best of them, and chase within their leash of any.
+   */
+  rally?: Vec2[];
 }
 
 export interface MapDef {
@@ -167,6 +177,16 @@ export interface MapDef {
   walls: Rect[];
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
+  /**
+   * (PHASE13-d) The edge of the map inside its rectangle ([D109]): ground too far from this
+   * level to matter. Blocks movement like water, shots cross it; drawn dark.
+   */
+  bounds?: Rect[];
+  /**
+   * (PHASE13-d) Neighbouring levels' ground near this one ([D113]): walkable, drawn with a light
+   * haze. Purely visual.
+   */
+  haze?: Rect[];
   /** (07-c) Partial cover ([D32]): blocks movement, stops a share of shots. */
   cover?: CoverDef[];
   spawnPoints: SpawnPointDef[];
@@ -182,6 +202,12 @@ export interface MapDef {
   capturePoints?: CapturePointDef[];
   /** (07-d) Enemy soldiers ([D44]). */
   squads?: SquadDef[];
+  /**
+   * (PHASE13-a) Painted ground ([D87]), purely visual: rows of ground letters
+   * (`src/content/ground.ts`), each cell `cellSize` units square, from the map's top-left.
+   * Water cells are drawn by `water`, which is what blocks movement.
+   */
+  ground?: { cellSize: number; rows: string[] };
   /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
   economy?: { startMoney?: number; baseIncomePerSecond?: number };
 }

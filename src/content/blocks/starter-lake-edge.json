@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-lake-edge",
+  "name": "Starter: lake edge",
+  "ground": [
+    "GGGGGGGGWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGGWWWWWWW"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[5,3,0.5,2.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[5,9,0.5,2.5],"material":"halfWall","priority":0},
+    {"id":"rally3","kind":"rally","at":[4.4,4],"group":"shore","priority":0},
+    {"id":"rally4","kind":"rally","at":[4.4,10],"group":"shore","priority":0},
+    {"id":"rally5","kind":"rally","at":[2,7],"group":"shore","priority":0},
+    {"id":"obj6","kind":"objective","at":[3,3],"priority":0}
+  ],
+  "groups": [
+    {"id":"shore","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"sniper","priority":4}]}
+  ]
+}

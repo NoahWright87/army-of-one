@@ -1,0 +1,40 @@
+{
+  "v": 3,
+  "id": "starter-base-gate",
+  "name": "Starter: base gate",
+  "ground": [
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "CCCCCCRRRCCCCCC",
+    "XXXXXXRRRXXXXXX",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG",
+    "GGGGGGRRRGGGGGG"
+  ],
+  "items": [
+    {"id":"gate","kind":"gate","rect":[6,7.25,3,0.5],"priority":0},
+    {"id":"lever-out","kind":"lever","at":[5,9],"target":"gate","priority":0},
+    {"id":"lever-in","kind":"lever","at":[10,6],"target":"gate","priority":0},
+    {"id":"c1","kind":"cover","rect":[2.5,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[10,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally3","kind":"rally","at":[3.7,9.4],"group":"front","priority":0},
+    {"id":"rally4","kind":"rally","at":[11.3,9.4],"group":"front","priority":0},
+    {"id":"rally5","kind":"rally","at":[4,4],"group":"inside","priority":0},
+    {"id":"rally6","kind":"rally","at":[11,4],"group":"inside","priority":0},
+    {"id":"rally7","kind":"rally","at":[7.5,3],"group":"inside","priority":0},
+    {"id":"t8","kind":"turret","at":[4.5,5.5],"facing":90,"priority":3},
+    {"id":"obj9","kind":"objective","at":[7.5,2],"priority":0}
+  ],
+  "groups": [
+    {"id":"front","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":1},{"role":"rifleman","priority":3},{"role":"grenadier","priority":4}]},
+    {"id":"inside","units":[{"role":"gunner","priority":2},{"role":"gunner","priority":3},{"role":"rifleman","priority":4},{"role":"rifleman","priority":5}]}
+  ]
+}

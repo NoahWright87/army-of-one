@@ -40,6 +40,8 @@ export interface SessionDriver {
   readonly ended: boolean;
   /** Camera position until the live soldier exists (its spawn point). */
   readonly cameraHome: Vec2;
+  /** (PHASE13-d) Echoes still to spawn: their run-ins are drawn ([D112]). */
+  arrivals?: () => readonly { id: string; spawnPointId: string; spawnTick: number }[];
   /** (PHASE11) Money for the HUD; absent/null = not shown. */
   money?: () => { balance: number; rate: number } | null;
 }

@@ -95,6 +95,7 @@ npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the money (--lives a,b --enemies)
+npm run gen -- --seed N  # PHASE13-b: print a generated level (--budget B, --ground; --coverage N sweeps seeds)
 npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
@@ -154,6 +155,33 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
   format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
   title screen's list. Open any `/#replay=…` link to watch it.
+- Block editor (PHASE13-a, [D80]–[D88]): the title screen's "Block editor" link, or
+  `?scene=editor` (no Phaser; "← Main menu" returns). Paint ground, set edge tags, place things
+  with priority 0–5, squads (rally points + a roster of units, [D92]; they roam between their
+  points, [D93]), Download/Copy/Open JSON, **Play this block** (opens
+  `?mission=editor-preview` in the real game at the budget slider's budget; "← Editor" goes
+  back). "My blocks…" is the library (yours in localStorage; official ones in
+  `src/content/blocks/`, copied to edit). Format: `src/gen/block.ts`; budget: `src/gen/budget.ts`.
+- Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
+  + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
+  editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
+- Campaign (PHASE13-d, [D106]–[D110]): the title screen's main button. `?scene=campaign` is the
+  campaign map (`src/app/campaign-main.ts`, `src/ui/campaign/`); state is `src/gen/campaign.ts`
+  (one campaign in localStorage). Levels are carved by terrain (`src/gen/carve.ts`); crossings
+  between them are spawns (from held ground) and objectives (into the rest), see
+  `src/gen/region.ts`. Attack opens
+  `?mission=world-<seed>-<level>-<budget>-h<held…>-r<turns>&from=campaign` (`h`: neighbours held,
+  `r`: quarter turns to fit the screen, `src/gen/rotate-map.ts`): no title screen, "← Campaign"
+  goes back, and a win marks the level taken. Your saved blocks are only used with `pool=mine`.
+  Spawn points carry an `approach` path: new soldiers and echoes run in along it during the
+  lead-in (`src/render/run-in.ts`, drawn by the battle scene; for show only, [D112]).
+- World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
+  (`src/gen/world.ts`), regenerate at will (R, ◀ ▶), click a block or level for details, a budget
+  slider, a sketch and **Playtest** (`?mission=world-<seed>-<level>[-<budget>]`). Overlays are
+  checkboxes; "Block connections…" opens the graph ([D104]).
+- Tile matching ([D101]–[D103]): blocks join where their edge tiles match (exact types, ±1
+  place; `src/gen/edges.ts`); boards grow from the HQ and the start in turns, and a path is cut
+  where needed (`src/gen/grow.ts`). Rocks and Concrete Wall tiles are solid.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one

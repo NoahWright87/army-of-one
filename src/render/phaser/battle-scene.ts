@@ -14,6 +14,9 @@ import { lerpAngle, smoothFollow } from '../interp';
 import type { BattleSession, SceneServices } from './services';
 import { SoundBank } from './sound-bank';
 import { WorldRenderer } from './world-renderer';
+import { alongPath, approachFor, spawnAt } from '../run-in';
+import { DEPTH } from '../depth';
+import type { Vec2 } from '../../sim/core/vec';
 
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
 const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
@@ -56,6 +59,11 @@ export class BattleScene extends Phaser.Scene {
   private money: { balance: number; rate: number } | null = null;
   private moneyTick: number | null = null;
   private ghostDrawn = false;
+  /** (PHASE13-d) The live soldier's run in during the countdown ([D112]). */
+  private runPath: Vec2[] | null = null;
+  private runTotal = 1;
+  private runnerPos: Vec2 | null = null;
+  private runners = new Map<string, Phaser.GameObjects.Image>();
   private frameMs: number | null = null;
   private frameMax = 0;
   private frameMaxWindow = 0;
@@ -102,6 +110,20 @@ export class BattleScene extends Phaser.Scene {
       map.spawnPoints.find((sp) => sp.position.x === home.x && sp.position.y === home.y)?.facing ??
       -Math.PI / 2;
     this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
+    // (PHASE13-d) A new soldier runs in to its spawn point during the countdown ([D112]).
+    this.runPath = null;
+    this.runnerPos = null;
+    this.runners = new Map();
+    const left0 = driver?.countdown() ?? null;
+    if (driver && !live && left0 !== null && left0 > 0) {
+      const sp = spawnAt(map.spawnPoints, driver.cameraHome);
+      if (sp) {
+        this.runPath = approachFor(sp, this.runDistance());
+        this.runTotal = left0;
+        this.runnerPos = this.runPath[0] ?? null;
+        this.cam = this.lookAhead(this.runnerPos ?? home, this.homeFacing);
+      }
+    }
     this.ghost = this.add.graphics().setDepth(1000);
     this.firstFrame = true;
     this.lookAim = null;
@@ -186,8 +208,12 @@ export class BattleScene extends Phaser.Scene {
     if (cam.zoom !== zoom) cam.setZoom(zoom);
     // Camera first (so the reticle's world position uses this frame's camera), then draw.
     // (06-a) During the frozen pre-battle hold there's no soldier yet: look ahead from home.
+    this.updateRunners(driver, alpha);
     const target =
-      this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? driver?.cameraHome ?? null;
+      this.worldRenderer.soldierRenderPos(this.liveId, alpha) ??
+      this.runnerPos ??
+      driver?.cameraHome ??
+      null;
     if (target) {
       // During the countdown the pointer is still wherever Deploy was clicked, so look the way
       // the soldier faces (forward) instead of toward the reticle.
@@ -309,6 +335,59 @@ export class BattleScene extends Phaser.Scene {
     return { x: pos.x + ahead.x, y: pos.y + ahead.y };
   }
 
+  /** How far a soldier runs in a lead-in (world units). */
+  private runDistance(): number {
+    const t = this.world.tuning;
+    return t.spawn.leadInSeconds * t.soldier.speed;
+  }
+
+  /**
+   * (PHASE13-d) Runners ([D112]): the live soldier during its countdown, and echoes in the
+   * lead-in's worth of ticks before they spawn, each along its spawn point's approach. For show:
+   * the sim knows nothing of them.
+   */
+  private updateRunners(driver: BattleSession['driver'], alpha: number): void {
+    const seen = new Set<string>();
+    const place = (key: string, texture: string, at: { pos: Vec2; facing: number }) => {
+      seen.add(key);
+      let img = this.runners.get(key);
+      if (!img) {
+        img = this.add.image(0, 0, texture).setDepth(key === 'live' ? DEPTH.live : DEPTH.echoes);
+        const src = this.textures.get(texture).getSourceImage() as { width: number };
+        img.setScale((this.world.tuning.soldier.spriteRadius * 2) / Math.max(1, src.width));
+        this.runners.set(key, img);
+      }
+      img.setPosition(at.pos.x, at.pos.y).setRotation(at.facing).setVisible(true);
+    };
+    // The live soldier, until it exists.
+    this.runnerPos = null;
+    const left = driver?.countdown() ?? null;
+    const exists = this.worldRenderer.soldierRenderPos(this.liveId, alpha) !== null;
+    if (this.runPath && !exists && left !== null && left > 0) {
+      const at = alongPath(this.runPath, 1 - left / this.runTotal);
+      this.runnerPos = at.pos;
+      place('live', 'soldier_live', at);
+    } else if (exists) {
+      this.runPath = null;
+    }
+    // Echoes about to spawn.
+    const lead = this.world.tuning.spawn.leadInSeconds * TICKS_PER_SECOND;
+    const tick = this.view.tick + alpha;
+    for (const a of driver?.arrivals?.() ?? []) {
+      const ahead = a.spawnTick - tick;
+      if (ahead <= 0 || ahead > lead) continue;
+      const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
+      if (!sp) continue;
+      place(a.id, 'soldier_echo', alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead));
+    }
+    for (const [key, img] of this.runners) {
+      if (!seen.has(key)) {
+        img.destroy();
+        this.runners.delete(key);
+      }
+    }
+  }
+
   /** Lead-in preview: a ghost arrow for the movement being held ([D5]). */
   private drawGhost(on: boolean, alpha: number): void {
     const g = this.ghost;
@@ -322,7 +401,8 @@ export class BattleScene extends Phaser.Scene {
     }
     g.clear();
     this.ghostDrawn = true;
-    const from = this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? this.cam;
+    const from =
+      this.worldRenderer.soldierRenderPos(this.liveId, alpha) ?? this.runnerPos ?? this.cam;
     const dx = m.x / len;
     const dy = m.y / len;
     const x0 = from.x + dx * 26;

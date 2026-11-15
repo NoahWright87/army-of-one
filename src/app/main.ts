@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { findMap, MISSIONS, missionOrDefault } from '../content/maps';
+import { findMap, MISSIONS, missionOrDefault, registerMap } from '../content/maps';
+import {
+  EDITOR_PREVIEW_ID,
+  editorPreviewMap,
+  generatedMap,
+  isRuntimeMission,
+} from './editor-storage';
+import { genMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -101,6 +108,14 @@ import {
 } from './resolve-runner';
 import { openBestStore } from './storage/indexeddb-store';
 import { generateStressMission } from './stress';
+import { attackable, newCampaign, takeLevel } from '../gen/campaign';
+import {
+  campaignIncludesMine,
+  campaignWorld,
+  openCampaignMap,
+  readCampaign,
+  writeCampaign,
+} from './campaign-storage';
 import { browserStorage } from './storage';
 
 export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
@@ -118,7 +133,50 @@ const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
  * [D31]: mission-03 is the only mission, so removed ids (mission-01/02) fall back to it.
  */
 const MISSION_STORAGE_KEY = 'army-of-one.mission';
+// (PHASE13-a) The block editor's Play button: build the map from the editor's saved block.
+{
+  // (PHASE13-b) A generated mission (`gen-<seed>`): stitched from map blocks. Also the one
+  // remembered from last time.
+  const want = params.get('mission') ?? readStoredMission();
+  if (want) {
+    // Official blocks only, unless `pool=mine` (your saved blocks too; off by default).
+    const gen = generatedMap(want, { includeMine: params.get('pool') === 'mine' });
+    if (gen) registerMap(gen);
+  }
+}
+if (params.get('mission') === EDITOR_PREVIEW_ID) {
+  const preview = editorPreviewMap();
+  if (preview) registerMap(preview);
+}
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+// (PHASE13) Playtests get a way back to the tool they came from.
+const worldPlaytest = parseWorldMissionId(MISSION.id);
+/** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
+const campaignBattle =
+  worldPlaytest && params.get('from') === 'campaign'
+    ? (() => {
+        const c = readCampaign();
+        return c && c.seed === worldPlaytest.seed ? c : null;
+      })()
+    : null;
+/**
+ * The way back to where a playtest or campaign battle came from: a button in the respawn
+ * screen's top bar and an action in the settings panel (not a floating button: it covered the
+ * role button).
+ */
+const backTo: { label: string; run(): void } | null =
+  MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+    ? {
+        label: str(
+          campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
+        ),
+        run: campaignBattle
+          ? openCampaignMap
+          : worldPlaytest
+            ? () => openWorld(worldPlaytest.seed)
+            : openEditor,
+      }
+    : null;
 
 function readStoredMission(): string | null {
   try {
@@ -126,6 +184,35 @@ function readStoredMission(): string | null {
   } catch {
     return null;
   }
+}
+
+/** (PHASE13-b) A known map, or a generated mission made (and registered) on the spot. */
+function findOrGenerate(id: string): MapDef | undefined {
+  const known = findMap(id);
+  if (known) return known;
+  const gen = generatedMap(id);
+  if (gen) registerMap(gen);
+  return gen ?? undefined;
+}
+
+/** (PHASE13-c) The world map generator viewer, optionally on a seed. */
+function openWorld(seed?: number): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('mission');
+  url.searchParams.set('scene', 'world');
+  if (seed !== undefined) url.searchParams.set('seed', String(seed));
+  else url.searchParams.delete('seed');
+  url.hash = '';
+  window.location.assign(url.toString());
+}
+
+/** (PHASE13-a) The block editor ([D88]): the title screen's link. */
+function openEditor(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('mission');
+  url.searchParams.set('scene', 'editor');
+  url.hash = '';
+  window.location.assign(url.toString());
 }
 
 function pickMission(id: string): void {
@@ -339,6 +426,8 @@ panel.addAction({
   run: () => services.commands.playCountdown?.(),
 });
 
+if (backTo) panel.addAction(backTo);
+
 installHotkeys(window, {
   toggleDebug: () => settings.toggle(SETTING_IDS.debugOverlay),
   toggleSettings: () => panel.toggle(),
@@ -364,13 +453,34 @@ async function startGame(): Promise<void> {
   });
   const ui: GameUi = {
     showTitle: (p) => {
+      // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
+      if (campaignBattle) {
+        if (p.canContinue) p.onContinue();
+        else p.onNew();
+        return;
+      }
       void refreshLibrary();
       title.show({
         ...p,
         missionNameKey: MISSION.nameKey,
-        missions: MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
+        missions: [
+          ...MISSIONS.map((m) => ({ id: m.id, nameKey: m.nameKey })),
+          // (PHASE13) A generated mission or the editor's playtest shows in the picker too.
+          ...(MISSIONS.includes(MISSION) ? [] : [{ id: MISSION.id, nameKey: MISSION.nameKey }]),
+        ],
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
+        onOpenEditor: openEditor,
+        onOpenWorld: () => openWorld(),
+        onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
+        campaign: {
+          inProgress: readCampaign() !== null,
+          onOpen: openCampaignMap,
+          onNew: () => {
+            writeCampaign(newCampaign(Math.floor(Math.random() * 1e9), campaignIncludesMine()));
+            openCampaignMap();
+          },
+        },
         freshLabelKey: settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn)
           ? 'title.deploy'
           : 'title.new',
@@ -381,6 +491,7 @@ async function startGame(): Promise<void> {
       const screen = RespawnScreen.mount(uiRoot, props, {
         onDeploy,
         settings: readRespawnSettings(settings),
+        ...(backTo ? { back: backTo } : {}),
       });
       respawn = screen;
       // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
@@ -397,6 +508,18 @@ async function startGame(): Promise<void> {
       };
     },
     showComplete: (stats, onPlayAgain, extra) => {
+      if (campaignBattle) {
+        // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
+        takeCampaignLevel();
+        if (!extra) complete.show(stats, openCampaignMap);
+        else {
+          showResults(extra, openCampaignMap, {
+            title: str('campaign.levelWon'),
+            playLabel: str('campaign.backToMap'),
+          });
+        }
+        return;
+      }
       if (!extra) {
         complete.show(stats, onPlayAgain);
         return;
@@ -461,7 +584,11 @@ async function startGame(): Promise<void> {
     if (game.scene.isActive('replay') || game.scene.isPaused('replay')) game.scene.stop('replay');
     sleepLoopSoon();
   };
-  const showResults = (r: CompleteResults, onPlayAgain: () => void) => {
+  const showResults = (
+    r: CompleteResults,
+    onPlayAgain: () => void,
+    labels: { title?: string; playLabel?: string } = {},
+  ) => {
     const m = r.mission;
     const endTick = (m.completed?.tick ?? 0) + 2 * 60;
     const stats = resultStats(m, r.rescues, m.completed?.tick ?? 0);
@@ -509,6 +636,7 @@ async function startGame(): Promise<void> {
         marks: scrubMarks(m),
       },
       {
+        ...labels,
         onShare: () =>
           void packedP.then((packed) => {
             if (packed) void shareLink(packed);
@@ -568,7 +696,7 @@ async function startGame(): Promise<void> {
 
   /** Plays a run as a viewer: watch it; continue from it (in progress) or play the mission. */
   const openViewer = (run: SharedRun) => {
-    const map = findMap(run.missionId);
+    const map = findOrGenerate(run.missionId);
     if (!map) {
       notice.show(str('replay.broken'));
       return;
@@ -652,7 +780,7 @@ async function startGame(): Promise<void> {
       });
     }
     for (const e of readLibrary(safeLocalStorage())) {
-      const map = findMap(e.missionId);
+      const map = findOrGenerate(e.missionId);
       if (!map) continue;
       items.push({
         label: str('library.won', {
@@ -894,6 +1022,15 @@ async function startGame(): Promise<void> {
   }
 }
 
+/** (PHASE13-d) Marks this battle's level taken in the campaign (if it could be attacked). */
+function takeCampaignLevel(): void {
+  const c = readCampaign();
+  if (!c || !worldPlaytest || c.seed !== worldPlaytest.seed) return;
+  const world = campaignWorld(c);
+  if (!attackable(world, c).includes(worldPlaytest.level)) return;
+  writeCampaign(takeLevel(world, c, worldPlaytest.level));
+}
+
 /** localStorage, or null where it's blocked (private mode). */
 function safeLocalStorage(): Storage | null {
   try {
@@ -914,7 +1051,12 @@ function quickHintText(option: SpawnOption, touch = false): string {
 }
 
 function makeResolver(): ResolveRunner {
-  if (typeof Worker !== 'undefined' && params.get('resolveWorker') !== '0') {
+  // The worker can't see a runtime map (the editor's Play map), so those resolve inline.
+  if (
+    typeof Worker !== 'undefined' &&
+    params.get('resolveWorker') !== '0' &&
+    !isRuntimeMission(MISSION.id)
+  ) {
     try {
       return createWorkerResolveRunner(
         () => new Worker(new URL('./resolve-worker.ts', import.meta.url), { type: 'module' }),

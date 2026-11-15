@@ -306,6 +306,20 @@ export interface Tuning {
     movingTargetError: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
+    /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
+    roamSpacing: number;
+    /** A rally point counts as under attack while a soldier there was hurt this recently. */
+    attackedSeconds: number;
+    /** Asleep (far from us), a roaming soldier re-decides this often (ticks): cheap idling. */
+    sleepRoamTicks: number;
+    /** After being shaken, a soldier doesn't advance again for this long. */
+    cautiousSeconds: number;
+    /** Squadmates within this of a hurt ally may come to protect it. */
+    protectRadius: number;
+    /** A squad below this share of its strength (HP of everyone it started with) routs… */
+    routStrength: number;
+    /** …and joins the nearest squad still above this share. */
+    healthyStrength: number;
   };
   /** Soft soldier-vs-soldier separation ([D14]): spring-like, capped, never a hard stop. */
   separation: {
@@ -782,6 +796,13 @@ export const DEFAULT_TUNING: Tuning = {
     replanSeconds: 1, // TUNE
     movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
     sprints: true, // TUNE
+    roamSpacing: 70, // TUNE
+    attackedSeconds: 3, // TUNE
+    sleepRoamTicks: 20, // TUNE
+    cautiousSeconds: 8, // TUNE
+    protectRadius: 450, // TUNE
+    routStrength: 0.4, // TUNE
+    healthyStrength: 0.6, // TUNE
   },
   separation: {
     stiffness: 0.35, // TUNE
@@ -923,3 +944,117 @@ function deepMerge(base: unknown, over: unknown): unknown {
   }
   return out;
 }
+
+/**
+ * (PHASE13-a) Map blocks ([D80]). Not part of the sim's `Tuning`: a block becomes a plain
+ * `MapDef` before any sim starts, so these never change mid-battle.
+ */
+export const BLOCK_TUNING = {
+  /** World units per painted cell; a 15-cell block is 960 units (about two rifle ranges). */
+  cellSize: 64, // TUNE [Q48]
+  /** Empty grass strip under a played block, where the player's spawns go. */
+  stagingCells: 3, // TUNE
+  /** Map edge walls around a played block. */
+  borderThickness: 24, // TUNE
+  /**
+   * (PHASE13-b) What things cost the enemy's budget ([D85], [D86]). Unit prices follow the
+   * player's balance, but nothing is free for the enemy (the player's Rifleman is). Priority 0
+   * is always free whatever it is.
+   */
+  threat: {
+    role: {
+      rifleman: 10, // TUNE
+      grenadier: 15, // TUNE
+      gunner: 20, // TUNE
+      sniper: 20, // TUNE
+      shield: 15, // TUNE
+      shotgun: 15, // TUNE
+      bazooka: 20, // TUNE
+      truck: 60, // TUNE
+      tank: 120, // TUNE
+    },
+    turret: 30, // TUNE
+    mine: 3, // TUNE
+    cover: {
+      sandbags: 3, // TUNE
+      crate: 3, // TUNE
+      halfWall: 5, // TUNE
+      fence: 1, // TUNE
+      window: 0, // TUNE
+      bunkerWindow: 0, // TUNE
+    },
+  },
+  /** (PHASE13-b) A generated level: blocks across and up, and its enemy budget. */
+  level: {
+    /** (PHASE13) A level is about 10 blocks long and 2–3 wide (owner, 2026-11). */
+    cols: 2, // TUNE
+    rows: 10, // TUNE
+    /** Default enemy budget per block of a random level ([D86]). */
+    budgetPerBlock: 45, // TUNE
+    /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
+    ramp: 2, // TUNE
+  },
+  /**
+   * (PHASE13) Growing a board from both ends ([D102]): the enemy side's share of the turns
+   * (0.5 = strict turns; lower keeps the base smaller and the open country bigger).
+   */
+  grow: {
+    enemyShare: 0.34, // TUNE
+    /** A cell nothing fits clears its neighbours and regrows them up to this many times… */
+    repairsPerCell: 4, // TUNE
+    /** …and at most this many repairs per cell of the board in all. */
+    repairBudget: 2, // TUNE
+  },
+  /** (PHASE13-d) A random campaign across a world map ([D106]). */
+  campaign: {
+    /** Each level taken raises the next levels' budgets by this fraction of their own. */
+    budgetGrowthPerLevel: 0.12, // TUNE
+  },
+  /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
+  carve: {
+    /** Each front (band of levels) is this many block rows deep, at random. */
+    bandBlocks: [6, 11] as const, // TUNE
+    /** A level aims for this many blocks' worth of walkable ground ([D110]). */
+    levelBlocks: 20, // TUNE
+    /** Less walkable ground than this joins a neighbouring level. */
+    minLevelBlocks: 5, // TUNE
+    /** A level with less ground than this merges into its neighbour ([D110]). */
+    mergeBelowBlocks: 10, // TUNE
+    /** A walled-off pocket joins a level up to this many tiles away. */
+    orphanReach: 20, // TUNE
+    /** Islands this big (tiles) get a bridge if one this long (tiles) reaches the mainland. */
+    islandMinTiles: 80, // TUNE
+    maxBridge: 12, // TUNE
+    /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
+    borderSlack: 3, // TUNE
+    /** Borders keep at least this many blocks apart. */
+    minGap: 3, // TUNE
+    /** Side-to-side splits move by up to ± half this many blocks at random. */
+    splitJitter: 2, // TUNE
+    /** Unwalkable spots (cover, walls, ponds) this close to a level count as inside it. */
+    gapFill: 2, // TUNE
+    /** Tiles of the neighbouring ground shown (and walkable) around a level's own ([D113]). */
+    mapMargin: 8, // TUNE
+    /** No enemies, turrets or mines start within this many tiles of an entry ([D114]). */
+    safeEntry: 12, // TUNE
+    /** A crossing narrower than this many tiles doesn't count. */
+    minCrossing: 2, // TUNE
+    /** Crossings between the same two levels within this many tiles are one. */
+    mergeCrossings: 24, // TUNE
+    /** Border line costs: per tile drawn, and per tile of straying from the nominal line. */
+    stepCost: 0.05, // TUNE
+    strayCost: 0.003, // TUNE
+  },
+  /** (PHASE13-c) The world map board ([D89]). */
+  world: {
+    /** About three levels side by side (several fronts to attack along). */
+    cols: 8, // TUNE [D89]
+    /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
+    rows: 60, // TUNE
+    /** Enemy budget per block in the first band and the last field band ([D86]). */
+    budgetPerBlockFirst: 30, // TUNE
+    budgetPerBlockLast: 80, // TUNE
+    /** The enemy base's band gets this much more per block. */
+    baseBudgetBonus: 1.3, // TUNE
+  },
+} as const;

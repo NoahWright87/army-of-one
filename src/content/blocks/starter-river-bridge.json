@@ -1,0 +1,36 @@
+{
+  "v": 3,
+  "id": "starter-river-bridge",
+  "name": "Starter: road bridge over a river",
+  "ground": [
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[10,4.5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[2.5,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c3","kind":"cover","rect":[10.5,9,0.5,2.5],"material":"halfWall","priority":2},
+    {"id":"rally4","kind":"rally","at":[11,3.9],"group":"bridge","priority":0},
+    {"id":"rally5","kind":"rally","at":[12,10],"group":"bridge","priority":0},
+    {"id":"rally6","kind":"rally","at":[3.5,9.4],"group":"bridge","priority":0},
+    {"id":"t7","kind":"turret","at":[12.5,5],"facing":180,"priority":3},
+    {"id":"m8","kind":"mine","at":[4,7],"priority":5},
+    {"id":"obj9","kind":"objective","at":[12,2],"priority":0}
+  ],
+  "groups": [
+    {"id":"bridge","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":2},{"role":"grenadier","priority":3},{"role":"rifleman","priority":4}]}
+  ]
+}

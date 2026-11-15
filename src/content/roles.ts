@@ -46,6 +46,43 @@ export interface AiProfile {
   burstTolerance: number;
   /** Threat this unit poses to the other side (others' danger sums). */
   threat: number;
+  /** (PHASE13) How it wanders between its group's rally points when idle ([Q54]). */
+  roam: RoamProfile;
+  /**
+   * (PHASE13) Shot at from well beyond its own range: close in fast ('charge', when healthy) or
+   * fall back toward its friends ('fallback').
+   */
+  outranged: 'charge' | 'fallback';
+  /** (PHASE13) How keen it is to step between a hurt squadmate and the shooter (0..1). */
+  protect: number;
+}
+
+/**
+ * (PHASE13) Idle temperament ([Q54]): loiter for a while, then score every rally point of the
+ * group (including the one it's at) and walk to the best. Positive weights pull, negative push.
+ * All TUNE.
+ */
+export interface RoamProfile {
+  /** Seconds it stays put after arriving, [min, max]. */
+  loiter: readonly [number, number];
+  /** Likes far points (+) or staying close (−). */
+  travel: number;
+  /** Bonus for staying at the point it's already at. */
+  stay: number;
+  /** Toward (+) or away from (−) points our soldiers are near. */
+  danger: number;
+  /** Toward (+) or away from (−) points where its side is under attack (+ = sprints there). */
+  assist: number;
+  /** Dislikes (+) or likes (−) points other enemy soldiers already hold. */
+  crowd: number;
+  /** Loves (+) or avoids (−) points with cover around them. */
+  cover: number;
+  /** Prefers points far from the front (the side we attack from). */
+  rear: number;
+  /** Random variance, so every rifleman doesn't pick the same point. */
+  jitter: number;
+  /** Walking pace while roaming (share of full speed). */
+  walk: number;
 }
 
 export const DEFAULT_ROLE: RoleId = 'rifleman';
@@ -66,6 +103,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 650, // TUNE
       burstTolerance: 1.2, // TUNE
       threat: 1, // TUNE
+      roam: {
+        loiter: [3, 8],
+        travel: 0.3,
+        stay: 0.1,
+        danger: -0.2,
+        assist: 0.8,
+        crowd: 0.4,
+        cover: 0.3,
+        rear: 0,
+        jitter: 0.6,
+        walk: 0.55,
+      }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.3, // TUNE
     },
   },
   {
@@ -83,6 +134,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 550, // TUNE
       burstTolerance: 1,
       threat: 1, // TUNE
+      roam: {
+        loiter: [4, 9],
+        travel: 0.2,
+        stay: 0.2,
+        danger: -0.2,
+        assist: 0.6,
+        crowd: 0.4,
+        cover: 0.4,
+        rear: 0.1,
+        jitter: 0.5,
+        walk: 0.55,
+      }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0.1, // TUNE
     },
   },
   {
@@ -100,6 +165,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 380, // TUNE
       burstTolerance: 1.8, // TUNE: long bursts (tight when mounted)
       threat: 1.5, // TUNE
+      roam: {
+        loiter: [12, 25],
+        travel: -0.5,
+        stay: 0.6,
+        danger: -0.2,
+        assist: 0.2,
+        crowd: 0.6,
+        cover: 0.9,
+        rear: 0,
+        jitter: 0.3,
+        walk: 0.5,
+      }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0, // TUNE
     },
   },
   // (PHASE12-a) [D59]–[D62]. Costs are first guesses ([D51]).
@@ -118,6 +197,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 350, // TUNE
       burstTolerance: 1, // TUNE
       threat: 1.3, // TUNE
+      roam: {
+        loiter: [20, 40],
+        travel: -0.6,
+        stay: 0.8,
+        danger: -0.8,
+        assist: -0.4,
+        crowd: -0.3,
+        cover: 1,
+        rear: 0.9,
+        jitter: 0.2,
+        walk: 0.5,
+      }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0, // TUNE
     },
   },
   {
@@ -135,6 +228,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 320, // TUNE: stays with its squad
       burstTolerance: 1.5, // TUNE
       threat: 0.7, // TUNE
+      roam: {
+        loiter: [4, 9],
+        travel: 0.2,
+        stay: 0.2,
+        danger: 0,
+        assist: 1,
+        crowd: 0.3,
+        cover: 0,
+        rear: -0.3,
+        jitter: 0.5,
+        walk: 0.5,
+      }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 1, // TUNE
     },
   },
   {
@@ -152,6 +259,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 700, // TUNE: chases
       burstTolerance: 3, // TUNE: the spread is the point
       threat: 1.2, // TUNE
+      roam: {
+        loiter: [3, 7],
+        travel: 0.5,
+        stay: 0,
+        danger: 0.1,
+        assist: 1,
+        crowd: 0.4,
+        cover: 0.2,
+        rear: -0.2,
+        jitter: 0.6,
+        walk: 0.6,
+      }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.5, // TUNE
     },
   },
   {
@@ -169,6 +290,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 450, // TUNE
       burstTolerance: 4, // TUNE
       threat: 1.5, // TUNE: scary for vehicles later
+      roam: {
+        loiter: [6, 12],
+        travel: 0,
+        stay: 0.3,
+        danger: -0.3,
+        assist: 0.5,
+        crowd: 0.4,
+        cover: 0.6,
+        rear: 0.3,
+        jitter: 0.4,
+        walk: 0.5,
+      }, // TUNE
+      outranged: 'fallback', // TUNE
+      protect: 0.1, // TUNE
     },
   },
   // (PHASE12-b) Vehicles ([D63]): very expensive, very powerful.
@@ -188,6 +323,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 900, // TUNE
       burstTolerance: 2, // TUNE
       threat: 3, // TUNE
+      roam: {
+        loiter: [2, 5],
+        travel: 0.8,
+        stay: -0.3,
+        danger: 0,
+        assist: 0.6,
+        crowd: 0.5,
+        cover: -0.8,
+        rear: 0,
+        jitter: 0.6,
+        walk: 0.6,
+      }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.4, // TUNE
     },
   },
   {
@@ -206,6 +355,20 @@ export const ROLES: readonly RoleDef[] = [
       leash: 800, // TUNE
       burstTolerance: 4, // TUNE
       threat: 6, // TUNE: scary ([D46])
+      roam: {
+        loiter: [6, 12],
+        travel: 0.3,
+        stay: 0.2,
+        danger: 0.2,
+        assist: 0.8,
+        crowd: 0.5,
+        cover: -0.8,
+        rear: -0.2,
+        jitter: 0.4,
+        walk: 0.6,
+      }, // TUNE
+      outranged: 'charge', // TUNE
+      protect: 0.6, // TUNE
     },
   },
 ];
