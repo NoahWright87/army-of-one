@@ -124,7 +124,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
 
   const go = (set: Record<string, string>) => {
     const url = new URL(window.location.href);
-    for (const k of ['scene', 'mission', 'open']) url.searchParams.delete(k);
+    for (const k of ['scene', 'mission', 'open', 'pool']) url.searchParams.delete(k);
     for (const [k, v] of Object.entries(set)) url.searchParams.set(k, v);
     url.hash = '';
     window.location.assign(url.toString());
@@ -217,7 +217,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     },
     budgetChanged: (budget) => writePlayBudget(budget),
     exit: () => go({}),
-    playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)) }),
+    playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)), pool: 'mine' }),
     openGraph: () =>
       openConnectionGraph([...OFFICIAL_BLOCKS, ...lib.blocks], {
         openBlock: (id) => {

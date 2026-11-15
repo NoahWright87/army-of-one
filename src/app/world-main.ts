@@ -15,9 +15,9 @@ import { openBestStore } from './storage/indexeddb-store';
 export function startWorldViewer(host: HTMLElement, params: URLSearchParams): void {
   document.title = str('world.title');
   const MINE_KEY = 'army-of-one.world.includeMine';
-  let includeMine = true;
+  let includeMine = false;
   try {
-    includeMine = window.localStorage.getItem(MINE_KEY) !== 'false';
+    includeMine = window.localStorage.getItem(MINE_KEY) === 'true';
   } catch {
     // default
   }
@@ -37,9 +37,7 @@ export function startWorldViewer(host: HTMLElement, params: URLSearchParams): vo
       void openBestStore()
         .then((store) => clearMission(store, id))
         .catch(() => undefined)
-        .then(() =>
-          go({ mission: id, from: 'world', ...(includeMine ? {} : { pool: 'official' }) }),
-        );
+        .then(() => go({ mission: id, from: 'world', ...(includeMine ? { pool: 'mine' } : {}) }));
     },
     exit: () => go({}),
     openBlock: (id) => go({ scene: 'editor', open: id }),

@@ -31,9 +31,9 @@ export function writeCampaign(c: CampaignState): void {
 /** Whether new campaigns use your saved blocks as well as the official ones. */
 export function campaignIncludesMine(): boolean {
   try {
-    return window.localStorage.getItem(INCLUDE_MINE_KEY) !== 'false';
+    return window.localStorage.getItem(INCLUDE_MINE_KEY) === 'true';
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -68,6 +68,6 @@ export function openCampaignBattle(c: CampaignState, level: number, budget: numb
   const url = freshUrl();
   url.searchParams.set('mission', worldMissionId(c.seed, level, budget));
   url.searchParams.set('from', 'campaign');
-  if (!c.includeMine) url.searchParams.set('pool', 'official');
+  if (c.includeMine) url.searchParams.set('pool', 'mine');
   window.location.assign(url.toString());
 }

@@ -139,8 +139,8 @@ const MISSION_STORAGE_KEY = 'army-of-one.mission';
   // remembered from last time.
   const want = params.get('mission') ?? readStoredMission();
   if (want) {
-    // `pool=official`: the world viewer was showing official blocks only.
-    const gen = generatedMap(want, { includeMine: params.get('pool') !== 'official' });
+    // Official blocks only, unless `pool=mine` (your saved blocks too; off by default).
+    const gen = generatedMap(want, { includeMine: params.get('pool') === 'mine' });
     if (gen) registerMap(gen);
   }
 }

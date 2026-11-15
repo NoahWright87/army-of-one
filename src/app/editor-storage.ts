@@ -157,7 +157,7 @@ export function blockPool(includeMine: boolean): BlockDef[] {
 
 /** (PHASE13-c) A world map from a block pool (cached per seed and pool). */
 const worlds = new Map<string, GeneratedWorld>();
-export function worldFor(seed: number, includeMine = true): GeneratedWorld {
+export function worldFor(seed: number, includeMine = false): GeneratedWorld {
   const key = `${seed}:${includeMine}`;
   const cached = worlds.get(key);
   if (cached) return cached;
@@ -173,7 +173,7 @@ export function worldFor(seed: number, includeMine = true): GeneratedWorld {
 export function generatedMap(id: string, opts: { includeMine?: boolean } = {}): MapDef | null {
   const wid = parseWorldMissionId(id);
   if (wid) {
-    const w = worldFor(wid.seed, opts.includeMine ?? true);
+    const w = worldFor(wid.seed, opts.includeMine ?? false);
     if (!w.levels[wid.level]) return null;
     return worldLevelMap(w, wid.level, {
       id,
@@ -183,7 +183,7 @@ export function generatedMap(id: string, opts: { includeMine?: boolean } = {}): 
   }
   const gid = parseGenMissionId(id);
   if (!gid) return null;
-  return generateLevel(generationPool(), {
+  return generateLevel(blockPool(opts.includeMine ?? false), {
     id,
     nameKey: 'map.generated.name',
     seed: gid.seed,
