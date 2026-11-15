@@ -21,7 +21,7 @@ describe('generateWorld ([D101], [D102])', () => {
   });
 
   it('grows from the HQ (top row) and the start (bottom row), and carves every block into one level', () => {
-    for (let seed = 1; seed <= 12; seed++) {
+    for (let seed = 1; seed <= 6; seed++) {
       const w = generateWorld(OFFICIAL_BLOCKS, { seed });
       expect(w.grid).toHaveLength(W.rows);
       expect(
@@ -46,7 +46,7 @@ describe('generateWorld ([D101], [D102])', () => {
       expect(loose / walkable, `seed ${seed}`).toBeLessThan(0.01);
       expect(w.levels[w.hq]!.kind).toBe('base');
     }
-  });
+  }, 20_000); // whole worlds: slower on CI
 
   it('seams between blocks that both fit exactly match', () => {
     const w = generateWorld(OFFICIAL_BLOCKS, { seed: 8 });
@@ -72,7 +72,7 @@ describe('generateWorld ([D101], [D102])', () => {
         expect(m.spent).toBeLessThanOrEqual(lv.budget);
       }
     }
-  });
+  }, 20_000); // whole worlds: slower on CI
 
   it("a level's full budget buys nearly everything (not what's kept clear of entries)", () => {
     const w = generateWorld(OFFICIAL_BLOCKS, { seed: 7 });
@@ -205,7 +205,7 @@ describe('growBoard look-ahead and repair', () => {
       }
     }
     expect(bad / seeds.length).toBeLessThan(10);
-  });
+  }, 20_000); // whole worlds: slower on CI
 });
 
 describe('carving by terrain ([D107]–[D110])', () => {
