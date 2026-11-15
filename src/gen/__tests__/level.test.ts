@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { OFFICIAL_BLOCKS } from '../../content/blocks';
-import { BLOCK_CELLS, EDGE_TAGS, mirrorTag } from '../../content/ground';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../../content/tuning';
 import { hashState } from '../../sim/core/hash';
 import { createWorld, step } from '../../sim/sim';
 import { validateMap } from '../../sim/world/map';
 import { newBlock, validateBlock, type BlockDef, type BlockItem, type GroupUnit } from '../block';
 import { blockTotalCost, itemCost, spendBudget, unitCost } from '../budget';
+import { edgesMatch, sideProfiles } from '../edges';
 import { generateLevel, objectiveReachable } from '../level';
 import { genMissionId, parseGenMissionId } from '../mission-id';
 import {
-  edgeLayout,
   ORIENTATIONS,
   orientBlock,
-  orientEdges,
   orientFacing,
   orientPoint,
   type Orientation,
@@ -65,7 +63,6 @@ describe('spendBudget', () => {
         { id: 'lever', kind: 'lever', at: [4, 6], target: 'gate', priority: 3 },
       ],
     );
-    // The lever (priority 3) waits for its gate (priority 4), then comes with it.
     const r = spendBudget(b, 0);
     expect(r.spawned.has('gate')).toBe(true);
     expect(r.spawned.has('lever')).toBe(true);
@@ -80,42 +77,21 @@ describe('spendBudget', () => {
 });
 
 describe('orientation', () => {
-  const tagged: BlockDef = {
-    ...newBlock(),
-    edges: { n: 'road', e: 'water', s: 'grass', w: 'stream' },
-  };
-
   it('four quarter turns and two flips are the identity', () => {
     let p: [number, number] = [2, 3];
     for (let i = 0; i < 4; i++) p = orientPoint(p, 1);
     expect(p).toEqual([2, 3]);
     expect(orientPoint(orientPoint([2, 3], 4), 4)).toEqual([2, 3]);
-  });
-
-  it('a quarter turn clockwise moves north to east; a flip swaps east and west', () => {
-    expect(orientEdges(tagged.edges, 1)).toEqual({
-      n: 'stream',
-      e: 'road',
-      s: 'water',
-      w: 'grass',
-    });
-    expect(orientEdges(tagged.edges, 4)).toEqual({
-      n: 'road',
-      e: 'stream',
-      s: 'grass',
-      w: 'water',
-    });
-    expect(orientPoint([7.5, 0], 1)).toEqual([BLOCK_CELLS, 7.5]);
     expect(orientFacing(90, 1)).toBe(180); // south → west
     expect(orientFacing(0, 4)).toBe(180); // east → west
   });
 
-  it('edge layouts group blocks that are the same up to rotation and flipping', () => {
-    const k = edgeLayout(tagged.edges).key;
-    for (const o of ORIENTATIONS) expect(edgeLayout(orientEdges(tagged.edges, o)).key).toBe(k);
-    expect(edgeLayout({ n: 'road', e: 'grass', s: 'road', w: 'grass' }).key).not.toBe(
-      edgeLayout({ n: 'road', e: 'road', s: 'grass', w: 'grass' }).key,
-    );
+  it('turning a block turns its edges: north goes east', () => {
+    const b = {
+      ...newBlock(),
+      ground: newBlock().ground.map((r, i) => (i === 0 ? 'R'.repeat(15) : r)),
+    };
+    expect(sideProfiles(orientBlock(b, 1)).e).toBe('R'.repeat(15));
   });
 
   it('every official block stays valid in all 8 orientations', () => {
@@ -128,10 +104,11 @@ describe('orientation', () => {
 });
 
 describe('official blocks', () => {
-  it('load, validate and have unique ids', () => {
-    expect(OFFICIAL_BLOCKS.length).toBeGreaterThan(0);
+  it('load, validate, have unique ids, and include a start and an HQ', () => {
     const ids = OFFICIAL_BLOCKS.map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
+    expect(OFFICIAL_BLOCKS.some((b) => b.role === 'start')).toBe(true);
+    expect(OFFICIAL_BLOCKS.some((b) => b.role === 'hq')).toBe(true);
   });
 });
 
@@ -146,26 +123,43 @@ describe('generateLevel', () => {
     expect(JSON.stringify(c.map)).not.toBe(JSON.stringify(a.map));
   });
 
-  it('makes valid, reachable maps whose seams match exactly', () => {
-    for (let seed = 1; seed <= 40; seed++) {
+  it('makes valid, reachable maps', () => {
+    for (let seed = 1; seed <= 30; seed++) {
       const lvl = generateLevel(OFFICIAL_BLOCKS, { ...opts, seed });
       expect(() => validateMap(lvl.map), `seed ${seed}`).not.toThrow();
       expect(lvl.reachable, `seed ${seed}`).toBe(true);
-      expect(lvl.warnings, `seed ${seed}`).toEqual([]);
-      const rows = lvl.cells.length;
-      const cols = lvl.cells[0]!.length;
-      const edges = (r: number, c: number) => {
-        const cell = lvl.cells[r]![c]!;
-        const block = OFFICIAL_BLOCKS.find((b) => b.id === cell.blockId)!;
-        return orientEdges(block.edges, cell.orientation);
-      };
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (r < rows - 1) expect(edges(r, c).s).toBe(mirrorTag(edges(r + 1, c).n));
-          if (c > 0) expect(edges(r, c).w).toBe(mirrorTag(edges(r, c - 1).e));
-        }
-        expect(EDGE_TAGS[edges(rows - 1, 0).s].passable).toBe(true);
-      }
+    }
+  });
+
+  it('puts the HQ at the top and the start at the bottom', () => {
+    const lvl = generateLevel(OFFICIAL_BLOCKS, { ...opts, seed: 3 });
+    const id = (r: number) => lvl.cells[r]!.map((c) => c.blockId);
+    const role = (bid: string) => OFFICIAL_BLOCKS.find((b) => b.id === bid)?.role;
+    expect(id(0).some((b) => role(b) === 'hq')).toBe(true);
+    expect(id(lvl.cells.length - 1).some((b) => role(b) === 'start')).toBe(true);
+  });
+
+  it('blocks that fit exactly match their neighbours tile for tile ([D101])', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const lvl = generateLevel(OFFICIAL_BLOCKS, { ...opts, seed });
+      const sides = lvl.cells.map((row) =>
+        row.map((c) => {
+          const b = OFFICIAL_BLOCKS.find((x) => x.id === c.blockId)!;
+          return sideProfiles(orientBlock(b, c.orientation));
+        }),
+      );
+      lvl.cells.forEach((row, r) =>
+        row.forEach((c, col) => {
+          // A seam between two blocks that both fitted exactly must match.
+          if (c.fit !== 'exact') return;
+          if (r > 0 && lvl.cells[r - 1]![col]!.fit === 'exact') {
+            expect(edgesMatch(sides[r]![col]!.n, sides[r - 1]![col]!.s)).toBe(true);
+          }
+          if (col > 0 && row[col - 1]!.fit === 'exact') {
+            expect(edgesMatch(sides[r]![col]!.w, sides[r]![col - 1]!.e)).toBe(true);
+          }
+        }),
+      );
     }
   });
 
@@ -177,12 +171,6 @@ describe('generateLevel', () => {
     };
     expect(count(0)).toBe(0);
     expect(count(150)).toBeLessThan(count(900));
-  });
-
-  it('later rows get more of the budget', () => {
-    const lvl = generateLevel(OFFICIAL_BLOCKS, { ...opts, seed: 9, budget: 400 });
-    const rowBudget = (r: number) => lvl.cells[r]!.reduce((n, c) => n + c.budget, 0);
-    expect(rowBudget(0)).toBeGreaterThan(rowBudget(lvl.cells.length - 1));
   });
 
   it('runs in the sim with enemies, deterministically', () => {

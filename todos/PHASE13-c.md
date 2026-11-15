@@ -60,3 +60,23 @@ Built as a testing tool, not yet a campaign screen:
 Not yet: irregular level shapes, entries from the side (rotating a level), campaign state
 ([D91]), the world map as a player-facing screen, base interiors deeper than one wall row
 (needs inner corners).
+
+## Notes from implementation (tile matching, [D101]–[D104])
+
+- **Edge tags are gone** (block format v3; v1/v2 load and keep their painted edges). Matching is
+  `src/gen/edges.ts`: sides read clockwise, exact tile types, ±1 place; `EdgeMatcher` caches pairs.
+  Cost: ~25 ms per 7 × 10 board, ~55 ms with every level's map built.
+- **Growth** (`src/gen/grow.ts`): HQ (role `hq`) top, start (role `start`) bottom, turns
+  (`tuning.grow.enemyShare` = 0.34 to the enemy), each cell taking a block that matches every
+  placed neighbour; otherwise the best partial match (logged, dashed orange in the viewer).
+  `connect` cuts a 3-wide path (Dijkstra over tiles, obstacles cost 40×) where needed; the
+  world cuts start → HQ, and each level cuts south edge → objective if it has no way in.
+- The frame (rivers/ridges strokes) and base rows are gone; carving stays rectangular bands.
+- Tile types: Rocks (`K`) and Concrete Wall (`X`) are solid (become walls); Bridge (`B`) is
+  only painted by cuts.
+- Editor: edges unlocked; each side shows "N blocks fit" (live) and a preset menu; a block's
+  role (start / HQ) is set in the Block panel. Placed walls/cover may not touch edge tiles.
+- 25 new PLACEHOLDER starter blocks (field, roads, rivers, lake edges/corners/inlet/open water,
+  river mouth, ridges, base wall/gate/corners/yard/road/HQ, landing zone).
+- Stats (100 seeds, official blocks): ~10 inexact matches per 70 blocks, a quarter of worlds
+  needed a short cut, every level reachable.

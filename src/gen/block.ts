@@ -10,20 +10,17 @@
  * official blocks. Pure TS: no DOM, no Phaser.
  */
 import type { RoleId } from '../contracts/mission';
-import {
-  BLOCK_CELLS,
-  EDGE_TAGS,
-  GROUND,
-  isEdgeTag,
-  isGroundKind,
-  WALL_CELL,
-  type EdgeTag,
-  type GroundKind,
-} from '../content/ground';
+import { BLOCK_CELLS, isGroundKind, type GroundKind } from '../content/ground';
 import type { CoverMaterial } from '../sim/world/map';
 
-/** 2: squads are groups (a roster + rally points); 1 had placed soldiers (still read). */
-export const BLOCK_VERSION = 2;
+/**
+ * 3: no edge tags, edges are the painted tiles ([D101]); a block may be a player start or an
+ * enemy HQ. 2 had edge tags; 1 had placed soldiers. Both still load.
+ */
+export const BLOCK_VERSION = 3;
+
+/** (PHASE13) What a block is for when a level is grown from both ends ([D102]). */
+export type BlockRole = 'start' | 'hq';
 
 export type Side = 'n' | 'e' | 's' | 'w';
 export const SIDES: readonly Side[] = ['n', 'e', 's', 'w'];
@@ -100,7 +97,8 @@ export interface BlockDef {
   id: string;
   /** Author-facing name (shown in the editor, not in the game). */
   name: string;
-  edges: Record<Side, EdgeTag>;
+  /** (PHASE13) A player start (levels grow from it) or an enemy HQ (the objective). */
+  role?: BlockRole;
   /** BLOCK_CELLS rows (north first) of BLOCK_CELLS ground letters each. */
   ground: string[];
   items: BlockItem[];
@@ -115,57 +113,20 @@ export const isRectItem = (i: BlockItem): i is RectItem => 'rect' in i;
 
 /** A fresh block: all grass, grass on every side. */
 export function newBlock(id = 'block-1', name = 'New block'): BlockDef {
-  return applyEdges({
+  return {
     v: BLOCK_VERSION,
     id,
     name,
-    edges: { n: 'grass', e: 'grass', s: 'grass', w: 'grass' },
     ground: Array.from({ length: BLOCK_CELLS }, () => 'G'.repeat(BLOCK_CELLS)),
     items: [],
     groups: [],
-  });
+  };
 }
 
-/**
- * The ground letter an edge tag forces on cell (col, row), or null if the cell is free: the
- * outer ring is forced by its side's tag, except the four corners ([D81]).
- */
-export function edgeLock(
-  edges: Record<Side, EdgeTag>,
-  col: number,
-  row: number,
-): GroundKind | null {
-  const ch = edgeProfileChar(edges, col, row);
-  if (ch === null) return null;
-  return ch === WALL_CELL ? 'C' : (ch as GroundKind);
-}
-
-/**
- * The raw profile letter on cell (col, row) of the edge band (`#` for a wall crossing), or null
- * off the band and on the corners. Profiles read clockwise ([D81]).
- */
-export function edgeProfileChar(
-  edges: Record<Side, EdgeTag>,
-  col: number,
-  row: number,
-): string | null {
+/** Is (col, row) on the block's outer row of tiles (its edges)? */
+export function onEdge(col: number, row: number): boolean {
   const last = BLOCK_CELLS - 1;
-  const corner = (col === 0 || col === last) && (row === 0 || row === last);
-  if (corner) return null;
-  const at = (side: Side, i: number) => EDGE_TAGS[edges[side]].profile[i]!;
-  if (row === 0) return at('n', col);
-  if (col === last) return at('e', row);
-  if (row === last) return at('s', last - col);
-  if (col === 0) return at('w', last - row);
-  return null;
-}
-
-/** Repaints the edge band from the tags (a copy; the input is untouched). */
-export function applyEdges(block: BlockDef): BlockDef {
-  const ground = block.ground.map((row, r) =>
-    [...row].map((ch, c) => edgeLock(block.edges, c, r) ?? ch).join(''),
-  );
-  return { ...block, ground };
+  return col === 0 || row === 0 || col === last || row === last;
 }
 
 export function groundAt(block: BlockDef, col: number, row: number): GroundKind {
@@ -192,15 +153,6 @@ export function validateBlock(block: BlockDef): BlockProblem[] {
   const n = BLOCK_CELLS;
   if (block.ground.length !== n || block.ground.some((r) => r.length !== n)) {
     out.push({ key: 'editor.problem.groundSize' });
-  } else {
-    let mismatch = 0;
-    for (let r = 0; r < n; r++) {
-      for (let c = 0; c < n; c++) {
-        const lock = edgeLock(block.edges, c, r);
-        if (lock && block.ground[r]![c] !== lock) mismatch++;
-      }
-    }
-    if (mismatch) out.push({ key: 'editor.problem.edgePaint', params: { n: mismatch } });
   }
 
   const ids = new Set<string>();
@@ -212,7 +164,7 @@ export function validateBlock(block: BlockDef): BlockProblem[] {
     if (!inside(it)) {
       out.push({ key: 'editor.problem.outside', params: { id: it.id }, itemId: it.id });
     }
-    if (isRectItem(it) && it.kind !== 'gate' && blocksPassableEdge(block, it.rect)) {
+    if (isRectItem(it) && it.kind !== 'gate' && touchesEdge(it.rect)) {
       out.push({ key: 'editor.problem.blocksEdge', params: { id: it.id }, itemId: it.id });
     }
     if (ALWAYS_KINDS.has(it.kind) && it.priority !== 0) {
@@ -266,23 +218,13 @@ function inside(it: BlockItem): boolean {
 }
 
 /**
- * A wall or cover touching an edge cell its tag says you can cross would break the promise
- * that matching tags join up ([D81]). Water cells on the band are fine to cover.
+ * A placed wall or cover on the outer row of tiles would block what the tiles say is open, and
+ * the neighbour can't see it ([D101]): edges are paint only (use wall or rock tiles there).
  */
-function blocksPassableEdge(block: BlockDef, rect: CellRect): boolean {
+function touchesEdge(rect: CellRect): boolean {
   const [x, y, w, h] = rect;
   const n = BLOCK_CELLS;
-  const c0 = Math.max(0, Math.floor(x));
-  const c1 = Math.min(n - 1, Math.ceil(x + w) - 1);
-  const r0 = Math.max(0, Math.floor(y));
-  const r1 = Math.min(n - 1, Math.ceil(y + h) - 1);
-  for (let r = r0; r <= r1; r++) {
-    for (let c = c0; c <= c1; c++) {
-      const ch = edgeProfileChar(block.edges, c, r);
-      if (ch !== null && ch !== WALL_CELL && GROUND[ch as GroundKind].passable) return true;
-    }
-  }
-  return false;
+  return x < 1 || y < 1 || x + w > n - 1 || y + h > n - 1;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -306,18 +248,24 @@ export function parseBlockObject(raw: unknown): ParseResult {
   if (!raw || typeof raw !== 'object') return { ok: false, key: 'editor.load.notBlock' };
   const b = raw as Partial<BlockDef>;
   const version = (raw as { v?: unknown }).v;
-  if (version !== BLOCK_VERSION && version !== 1) return { ok: false, key: 'editor.load.version' };
-  if (typeof b.id !== 'string' || !Array.isArray(b.ground) || !Array.isArray(b.items)) {
-    return { ok: false, key: 'editor.load.notBlock' };
+  if (version !== BLOCK_VERSION && version !== 1 && version !== 2) {
+    return { ok: false, key: 'editor.load.version' };
   }
-  const edges = b.edges as Record<string, unknown> | undefined;
-  if (!edges || !SIDES.every((s) => typeof edges[s] === 'string' && isEdgeTag(edges[s]))) {
+  if (typeof b.id !== 'string' || !Array.isArray(b.ground) || !Array.isArray(b.items)) {
     return { ok: false, key: 'editor.load.notBlock' };
   }
   if (!b.ground.every((r) => typeof r === 'string' && [...r].every(isGroundKind))) {
     return { ok: false, key: 'editor.load.notBlock' };
   }
-  const named = { ...(b as BlockDef), name: typeof b.name === 'string' ? b.name : b.id };
+  // Versions 1 and 2 had edge tags; their edges were painted to match, so the paint is enough.
+  const { edges: _edges, ...rest } = b as Partial<BlockDef> & { edges?: unknown };
+  void _edges;
+  const named: BlockDef = {
+    ...(rest as BlockDef),
+    v: BLOCK_VERSION,
+    name: typeof b.name === 'string' ? b.name : b.id,
+  };
+  if (b.role !== undefined && b.role !== 'start' && b.role !== 'hq') delete named.role;
   if (version === 1) return { ok: true, block: migrateV1(named as unknown as V1Block) };
   if (!Array.isArray(b.groups)) return { ok: false, key: 'editor.load.notBlock' };
   return { ok: true, block: named };
@@ -379,7 +327,8 @@ export function blockToJson(block: BlockDef): string {
   const groups = block.groups.map((g) => `    ${JSON.stringify(g)}`).join(',\n');
   return (
     `{\n  "v": ${block.v},\n  "id": ${JSON.stringify(block.id)},\n` +
-    `  "name": ${JSON.stringify(block.name)},\n  "edges": ${JSON.stringify(block.edges)},\n` +
+    `  "name": ${JSON.stringify(block.name)},\n` +
+    (block.role ? `  "role": ${JSON.stringify(block.role)},\n` : '') +
     `  "ground": [\n${rows}\n  ],\n  "items": [${items ? `\n${items}\n  ` : ''}],\n` +
     `  "groups": [${groups ? `\n${groups}\n  ` : ''}]\n}\n`
   );

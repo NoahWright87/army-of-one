@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_CELLS, EDGE_TAGS, EDGE_TAG_IDS, mirrorTag } from '../../content/ground';
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { BLOCK_CELLS } from '../../content/ground';
+import { BLOCK_TUNING, DEFAULT_TUNING } from '../../content/tuning';
 import { createWorld, step } from '../../sim/sim';
 import { validateMap } from '../../sim/world/map';
 import {
-  applyEdges,
   blockToJson,
-  edgeLock,
   newBlock,
   parseBlock,
   validateBlock,
@@ -33,10 +31,8 @@ function fort(): BlockDef {
     { id: 'mine', kind: 'mine', priority: 4, at: [3, 11] },
     { id: 'obj', kind: 'objective', priority: 0, at: [7.5, 1.5] },
   ];
-  // Open a crossing through the stream where the gate is.
-  ground[6] = ground[6]!.slice(0, 6) + 'RRR' + ground[6]!.slice(9);
-  ground[7] = ground[7]!.slice(0, 6) + 'RRR' + ground[7]!.slice(9);
-  ground[8] = ground[8]!.slice(0, 6) + 'RRR' + ground[8]!.slice(9);
+  // A crossing through the stream where the gate is.
+  for (const r of [6, 7, 8]) ground[r] = ground[r]!.slice(0, 6) + 'RRR' + ground[r]!.slice(9);
   const groups = [
     {
       id: 'g',
@@ -46,54 +42,8 @@ function fort(): BlockDef {
       ],
     },
   ];
-  return applyEdges({
-    ...b,
-    edges: { ...b.edges, e: 'stream', w: 'stream' },
-    ground,
-    items,
-    groups,
-  });
+  return { ...b, ground, items, groups };
 }
-
-describe('edge tags', () => {
-  it('profiles are one cell per side; a mirror reads the same edge backwards', () => {
-    for (const t of EDGE_TAG_IDS) {
-      const p = EDGE_TAGS[t].profile;
-      expect(p.length, t).toBe(BLOCK_CELLS);
-      expect([...p].reverse().join(''), t).toBe(EDGE_TAGS[mirrorTag(t)].profile);
-      expect(mirrorTag(mirrorTag(t)), t).toBe(t);
-    }
-  });
-
-  it('read clockwise: the south and west edges run backwards across the grid', () => {
-    const edges = { n: 'concrete', e: 'perimeter', s: 'grass', w: 'perimeter-r' } as const;
-    expect(edgeLock(edges, 14, 1)).toBe('C'); // east, near the top: concrete
-    expect(edgeLock(edges, 14, 13)).toBe('G');
-    expect(edgeLock(edges, 0, 1)).toBe('C'); // west, near the top: concrete too
-    expect(edgeLock(edges, 0, 13)).toBe('G');
-    expect(edgeLock(edges, 0, 7)).toBe('C'); // the wall cell paints as concrete
-  });
-
-  it('walls may sit on a wall cell of the edge', () => {
-    const b = applyEdges({
-      ...newBlock(),
-      edges: { n: 'concrete', e: 'perimeter', s: 'grass', w: 'perimeter-r' },
-    });
-    b.items.push({ id: 'w', kind: 'wall', priority: 0, rect: [0, 7.25, 15, 0.5] });
-    expect(keys(b)).toEqual([]);
-    b.items.push({ id: 'w2', kind: 'wall', priority: 0, rect: [0, 3, 1, 0.5] });
-    expect(keys(b)).toContain('editor.problem.blocksEdge');
-  });
-
-  it('lock the outer ring except the corners', () => {
-    const edges = { n: 'road', e: 'grass', s: 'water', w: 'grass' } as const;
-    expect(edgeLock(edges, 0, 0)).toBeNull();
-    expect(edgeLock(edges, 7, 0)).toBe('R');
-    expect(edgeLock(edges, 1, 0)).toBe('G');
-    expect(edgeLock(edges, 7, 14)).toBe('W');
-    expect(edgeLock(edges, 7, 7)).toBeNull();
-  });
-});
 
 describe('validateBlock', () => {
   it('a fresh block and the fort are clean', () => {
@@ -101,18 +51,10 @@ describe('validateBlock', () => {
     expect(keys(fort())).toEqual([]);
   });
 
-  it('flags edge paint that disagrees with the tag', () => {
-    const b = newBlock();
-    b.ground[0] = 'GGGGGGDGGGGGGGG';
-    expect(keys(b)).toContain('editor.problem.edgePaint');
-  });
-
-  it('flags walls across an open edge, but not across water', () => {
+  it('flags placed walls on the edge tiles (edges are paint only, [D101])', () => {
     const b = newBlock();
     b.items.push({ id: 'w', kind: 'wall', priority: 0, rect: [3, 0, 2, 0.5] });
     expect(keys(b)).toContain('editor.problem.blocksEdge');
-    const wet = applyEdges({ ...b, edges: { ...b.edges, n: 'water' } });
-    expect(keys(wet)).not.toContain('editor.problem.blocksEdge');
   });
 
   it('checks levers, ids and squads', () => {
@@ -133,11 +75,36 @@ describe('validateBlock', () => {
     const lonely = { ...b, groups: [...b.groups, { id: 'empty', units: [] }] };
     expect(keys(lonely)).toEqual(['editor.problem.groupEmpty', 'editor.problem.groupNoRally']);
   });
+});
+
+describe('block JSON', () => {
+  it('round-trips through the download format, role included', () => {
+    const b: BlockDef = { ...fort(), role: 'hq' };
+    const res = parseBlock(blockToJson(b));
+    expect(res.ok && res.block).toEqual(b);
+  });
+
+  it('rejects junk with a strings key', () => {
+    expect(parseBlock('nope')).toEqual({ ok: false, key: 'editor.load.notJson' });
+    expect(parseBlock('{"v":99}')).toEqual({ ok: false, key: 'editor.load.version' });
+    expect(parseBlock('{"v":3,"id":"x","ground":["Q"],"items":[],"groups":[]}').ok).toBe(false);
+  });
+
+  it('reads version 2 blocks: their edge tags are dropped (the paint is the edge)', () => {
+    const v2 = { ...fort(), v: 2, edges: { n: 'grass', e: 'stream', s: 'grass', w: 'stream' } };
+    const res = parseBlock(JSON.stringify(v2));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.block.v).toBe(3);
+    expect('edges' in res.block).toBe(false);
+    expect(res.block.ground).toEqual(fort().ground);
+  });
 
   it('reads version 1 blocks: placed soldiers become a squad with rally points', () => {
     const v1 = {
       ...newBlock('old'),
       v: 1,
+      edges: { n: 'grass', e: 'grass', s: 'grass', w: 'grass' },
       groups: undefined,
       items: [
         {
@@ -166,7 +133,7 @@ describe('validateBlock', () => {
     const res = parseBlock(JSON.stringify(v1));
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.block.v).toBe(2);
+    expect(res.block.v).toBe(3);
     expect(res.block.groups).toEqual([
       {
         id: 'nest',
@@ -177,27 +144,12 @@ describe('validateBlock', () => {
       },
       { id: 'squad', units: [{ role: 'sniper', priority: 4 }] },
     ]);
-    // Two nest soldiers stood together: one rally point.
     expect(res.block.items.filter((i) => i.kind === 'rally').map((i) => i.group)).toEqual([
       'nest',
       'squad',
     ]);
     expect(res.block.items.find((i) => i.id === 'cp')?.group).toBe('nest');
     expect(keys(res.block)).toEqual([]);
-  });
-});
-
-describe('block JSON', () => {
-  it('round-trips through the download format', () => {
-    const b = fort();
-    const res = parseBlock(blockToJson(b));
-    expect(res.ok && res.block).toEqual(b);
-  });
-
-  it('rejects junk with a strings key', () => {
-    expect(parseBlock('nope')).toEqual({ ok: false, key: 'editor.load.notJson' });
-    expect(parseBlock('{"v":99}')).toEqual({ ok: false, key: 'editor.load.version' });
-    expect(parseBlock('{"v":1,"id":"x","ground":[],"items":[],"edges":{}}').ok).toBe(false);
   });
 });
 
@@ -213,6 +165,18 @@ describe('blockToPreviewMap', () => {
     expect(map.squads?.[0]?.members).toHaveLength(2);
     expect(map.water.length).toBeGreaterThan(0);
     expect(map.ground?.rows).toHaveLength(BLOCK_CELLS + 3);
+  });
+
+  it('wall and rock tiles become solid walls ([D103])', () => {
+    const b = newBlock();
+    b.ground[5] = 'GGGXXXGGGKKKGGG';
+    const map = blockToPreviewMap(b, opts);
+    const cs = BLOCK_TUNING.cellSize;
+    const solid = map.walls.filter((w) => w.y === 5 * cs && w.h === cs);
+    expect(solid.map((w) => [w.x / cs, w.w / cs])).toEqual([
+      [3, 3],
+      [9, 3],
+    ]);
   });
 
   it('a budget spawns priority 0 free, then 1-5 in order while it lasts', () => {

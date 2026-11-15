@@ -1,30 +1,21 @@
 /**
- * (PHASE13-b) One level from a seed: blocks stitched like Carcassonne tiles ([D80]–[D83], [D85]).
- *
- * 1. Frame ([D83]): if there are base blocks, the top `baseRows` rows are the enemy base (base
- *    blocks only, the last base row's south edge facing out of the base); the rest are field
- *    blocks.
- * 2. Fill top-down, left to right. Each cell takes a block, in one of its 8 orientations, whose
- *    north edge matches the block above and whose west edge matches the block to its left
- *    ([D81]: the mirror tag). The bottom row's south edge must be crossable. A seeded pick:
- *    first a block (each fitting block equally likely), then one of its fitting orientations.
- * 3. If nothing matches exactly, take one that matches on crossable/not only, then anything,
- *    and say so in `warnings` (that's missing coverage for the block library).
- * 4. Spend the level budget: rows further up get more ([D86]), leftovers carry on.
- * 5. The objective goes at an objective slot in the top row (seeded pick), else the top centre.
- * 6. If the objective can't be reached from the spawns, reroll (same seed, next attempt).
+ * (PHASE13) One level from a seed ([D80], [D85], [D101], [D102]): a small board grown from both
+ * ends (`grow.ts`: the enemy HQ at the top, the player's start at the bottom, the sides taking
+ * turns with blocks whose edges match tile for tile), a path cut where there's none, then the
+ * budget spent (rows further up get more, [D86]) and the objective put where you can reach it.
  *
  * Pure and deterministic: same blocks, seed and options → same map.
  */
-import { BLOCK_CELLS, EDGE_TAGS, edgeDef, mirrorTag, type EdgeTag } from '../content/ground';
+import { BLOCK_CELLS } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import { createRng, nextFloat, type RngState } from '../sim/core/rng';
 import type { Vec2 } from '../sim/core/vec';
 import { rectContains, type MapDef, type Rect } from '../sim/world/map';
 import { assembleMap, type PlacedBlock } from './assemble';
-import { SIDES, type BlockDef } from './block';
+import type { BlockDef } from './block';
 import { blockTotalCost, spendBudget } from './budget';
-import { ORIENTATIONS, orientBlock, orientEdges, type Orientation } from './transform';
+import { bottomTiles, connect, growBoard, Palette, type GrownCell } from './grow';
+import type { Orientation } from './transform';
 
 export interface LevelOptions {
   id: string;
@@ -39,8 +30,8 @@ export interface LevelOptions {
 export interface LevelCell {
   blockId: string;
   orientation: Orientation;
-  /** How the block was chosen: an exact match, a crossable-only match, or anything. */
-  fit: 'exact' | 'passable' | 'any';
+  /** Did it match every neighbour, or only the most it could? */
+  fit: 'exact' | 'loose';
   budget: number;
   spent: number;
 }
@@ -51,7 +42,8 @@ export interface GeneratedLevel {
   cells: LevelCell[][];
   warnings: string[];
   spent: number;
-  attempts: number;
+  /** Tiles cut to make a way through ([D102]). */
+  cut: number;
   reachable: boolean;
 }
 
@@ -59,99 +51,19 @@ export interface GeneratedLevel {
 export function generateLevel(pool: readonly BlockDef[], opts: LevelOptions): GeneratedLevel {
   if (pool.length === 0) throw new Error('generateLevel: no blocks');
   const t = BLOCK_TUNING.level;
-  let last: GeneratedLevel | null = null;
-  for (let attempt = 0; attempt < t.maxAttempts; attempt++) {
-    const level = attemptLevel(pool, opts, attempt);
-    if (level.reachable) return level;
-    last = level;
-  }
-  last!.warnings.push(`objective unreachable after ${t.maxAttempts} attempts`);
-  return last!;
-}
-
-function attemptLevel(
-  pool: readonly BlockDef[],
-  opts: LevelOptions,
-  attempt: number,
-): GeneratedLevel {
-  const t = BLOCK_TUNING.level;
-  const cols = opts.cols ?? t.cols;
-  const rows = opts.rows ?? t.rows;
-  const seed = mix(opts.seed, attempt);
-  const rng = createRng(seed);
-  const { grid, warnings } = fillGrid(pool, { rows, cols, baseRows: t.baseRows }, rng);
+  const rng = createRng(opts.seed);
+  const { grid, warnings } = growBoard(
+    new Palette(pool),
+    { rows: opts.rows ?? t.rows, cols: opts.cols ?? t.cols },
+    rng,
+  );
   const built = buildLevelMap(grid, {
     id: opts.id,
     nameKey: opts.nameKey,
-    seed,
+    seed: opts.seed,
     budget: opts.budget ?? t.budget,
   });
-  return { ...built, warnings: [...warnings, ...built.warnings], attempts: attempt + 1 };
-}
-
-/** A block placed on a grid: which block, which way round, how well it matched. */
-export interface GridCell {
-  block: BlockDef;
-  o: Orientation;
-  fit: LevelCell['fit'];
-}
-
-export interface FillOptions {
-  rows: number;
-  cols: number;
-  /** Top rows that are the enemy base (if the pool has base blocks). */
-  baseRows: number;
-  /**
-   * (PHASE13-c) The frame's say on a side of a cell ([D83]): true = must block movement,
-   * false = must be crossable, undefined = free. Only the east and south sides are asked (the
-   * north and west follow from the neighbours already placed).
-   */
-  barrier?: (r: number, c: number, side: 'e' | 's') => boolean | undefined;
-}
-
-/**
- * Fills a grid top-down, left to right ([D83]): base blocks in the top `baseRows` rows (the
- * last of them facing out of the base), field blocks below, each matching the block above and
- * to the left exactly ([D81]), and the frame's barriers. Fallbacks are logged in `warnings`.
- */
-export function fillGrid(
-  pool: readonly BlockDef[],
-  opts: FillOptions,
-  rng: RngState,
-): { grid: GridCell[][]; warnings: string[] } {
-  const { rows, cols } = opts;
-  const warnings: string[] = [];
-  const grid: GridCell[][] = Array.from({ length: rows }, () => []);
-  const basePool = pool.filter(isBaseBlock);
-  const fieldPool = pool.filter((b) => !isBaseBlock(b));
-  const baseRows = basePool.length && fieldPool.length ? Math.min(opts.baseRows, rows - 1) : 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const above = r > 0 ? grid[r - 1]![c]! : null;
-      const left = c > 0 ? grid[r]![c - 1]! : null;
-      const want: Want = {
-        // The neighbour reads the shared edge the other way round ([D81]).
-        n: above ? mirrorTag(orientEdges(above.block.edges, above.o).s) : null,
-        w: left ? mirrorTag(orientEdges(left.block.edges, left.o).e) : null,
-      };
-      const lastBaseRow = r === baseRows - 1;
-      const bottom = r === rows - 1;
-      const eBar = c < cols - 1 ? opts.barrier?.(r, c, 'e') : undefined;
-      const sBar = r < rows - 1 ? opts.barrier?.(r, c, 's') : undefined;
-      const fits = (e: BlockDef['edges']) =>
-        (!lastBaseRow || !edgeDef(e.s).base) &&
-        (!bottom || EDGE_TAGS[e.s].passable) &&
-        (eBar === undefined || EDGE_TAGS[e.e].passable === !eBar) &&
-        (sBar === undefined || EDGE_TAGS[e.s].passable === !sBar);
-      const from = r < baseRows ? basePool : baseRows ? fieldPool : pool;
-      const pick = pickBlock(from, want, fits, rng);
-      if (pick.fit !== 'exact') {
-        warnings.push(`row ${r} col ${c}: no exact match for ${JSON.stringify(want)}`);
-      }
-      grid[r]![c] = pick;
-    }
-  }
-  return { grid, warnings };
+  return { ...built, warnings: [...warnings, ...built.warnings] };
 }
 
 export interface BuildOptions {
@@ -163,95 +75,76 @@ export interface BuildOptions {
 }
 
 /**
- * A playable map from a grid of placed blocks (a generated level, or one level of the world
- * map): spend the budget, assemble, put the objective at a top-row slot, check reachability.
+ * A playable map from a grid of placed blocks (a random level, or one level of the world map):
+ * spend the budget, assemble, put the objective at the first reachable candidate (top-row
+ * objective slots first). If none can be reached from the south edge, a path is cut to the best
+ * one ([D102]) in this level's copy of the blocks.
  */
 export function buildLevelMap(
-  grid: readonly (readonly GridCell[])[],
+  source: readonly (readonly GrownCell[])[],
   opts: BuildOptions,
-): Omit<GeneratedLevel, 'attempts'> {
+): GeneratedLevel {
   const t = BLOCK_TUNING.level;
+  const grid = source.map((row) => row.map((g) => ({ ...g })));
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
-  const rng = createRng(mix(opts.seed, 0x51ab));
-  const oriented = grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
-  const shares = budgetShares(oriented, opts.budget, t.ramp);
-  const placed: PlacedBlock[] = [];
-  const cells: LevelCell[][] = Array.from({ length: rows }, () => []);
-  let carry = 0;
-  let spent = 0;
-  for (let r = rows - 1; r >= 0; r--) {
-    for (let c = 0; c < cols; c++) {
-      const g = grid[r]![c]!;
-      const block = oriented[r]![c]!;
-      const share = shares[r]![c]! + carry;
-      const res = spendBudget(block, Math.floor(share + 1e-6), mix(opts.seed, r * 97 + c));
-      carry = share - res.spent;
-      spent += res.spent;
-      placed.push({ block, col: c, row: r, spawned: res.spawned, prefix: `r${r}c${c}-` });
-      cells[r]![c] = {
-        blockId: g.block.id,
-        orientation: g.o,
-        fit: g.fit,
-        budget: Math.floor(share + 1e-6),
-        spent: res.spent,
-      };
+  const shares = budgetShares(
+    grid.map((row) => row.map((g) => g.placed)),
+    opts.budget,
+    t.ramp,
+  );
+  const spendAll = () => {
+    const placed: PlacedBlock[] = [];
+    const cells: LevelCell[][] = Array.from({ length: rows }, () => []);
+    let carry = 0;
+    let spent = 0;
+    for (let r = rows - 1; r >= 0; r--) {
+      for (let c = 0; c < cols; c++) {
+        const g = grid[r]![c]!;
+        const share = shares[r]![c]! + carry;
+        const budget = Math.floor(share + 1e-6);
+        const res = spendBudget(g.placed, budget, mix(opts.seed, r * 97 + c));
+        carry = share - res.spent;
+        spent += res.spent;
+        placed.push({
+          block: g.placed,
+          col: c,
+          row: r,
+          spawned: res.spawned,
+          prefix: `r${r}c${c}-`,
+        });
+        cells[r]![c] = {
+          blockId: g.block.id,
+          orientation: g.o,
+          fit: g.fit,
+          budget,
+          spent: res.spent,
+        };
+      }
     }
-  }
-  // The objective: the first candidate a soldier can actually walk to.
-  const candidates = objectiveCandidates(placed, cols, rng);
-  let map: MapDef | null = null;
-  for (const objective of candidates) {
-    map = assembleMap({ id: opts.id, nameKey: opts.nameKey, cols, rows, placed, objective });
-    if (objectiveReachable(map)) {
-      return { map, cells, warnings: [], spent, reachable: true };
+    return { placed, cells, spent };
+  };
+
+  let cut = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    const { placed, cells, spent } = spendAll();
+    const candidates = objectiveCandidates(placed, cols, createRng(mix(opts.seed, 0x51ab)));
+    let map: MapDef | null = null;
+    for (const objective of candidates) {
+      map = assembleMap({ id: opts.id, nameKey: opts.nameKey, cols, rows, placed, objective });
+      if (objectiveReachable(map)) {
+        return { map, cells, warnings: [], spent, cut, reachable: true };
+      }
     }
+    if (pass === 1) return { map: map!, cells, warnings: [], spent, cut, reachable: false };
+    // No way in: cut one from the south edge to the best objective spot.
+    const cs = BLOCK_TUNING.cellSize;
+    const goal = candidates[0]!;
+    const gy = Math.min(rows * BLOCK_CELLS - 1, Math.floor(goal.y / cs));
+    const gx = Math.min(cols * BLOCK_CELLS - 1, Math.floor(goal.x / cs));
+    cut = connect(grid, bottomTiles(grid), [[gy, gx]]).length;
   }
-  return { map: map!, cells, warnings: [], spent, reachable: false };
-}
-
-type Want = { n: EdgeTag | null; w: EdgeTag | null };
-
-/** A block with any base edge (concrete, base wall) belongs to an enemy base. */
-export function isBaseBlock(b: BlockDef): boolean {
-  return SIDES.some((sd) => edgeDef(b.edges[sd]).base === true);
-}
-
-function pickBlock(
-  pool: readonly BlockDef[],
-  want: Want,
-  fits: (e: BlockDef['edges']) => boolean,
-  rng: RngState,
-): { block: BlockDef; o: Orientation; fit: LevelCell['fit'] } {
-  const passable = (tag: EdgeTag) => EDGE_TAGS[tag].passable;
-  const tiers: [LevelCell['fit'], (e: BlockDef['edges']) => boolean][] = [
-    ['exact', (e) => (want.n === null || e.n === want.n) && (want.w === null || e.w === want.w)],
-    [
-      'passable',
-      (e) =>
-        (want.n === null || passable(e.n) === passable(want.n)) &&
-        (want.w === null || passable(e.w) === passable(want.w)),
-    ],
-    ['any', () => true],
-  ];
-  for (const [fit, ok] of tiers) {
-    const options = pool
-      .map((block) => ({
-        block,
-        os: ORIENTATIONS.filter((o) => {
-          const e = orientEdges(block.edges, o);
-          return ok(e) && fits(e);
-        }),
-      }))
-      .filter((x) => x.os.length > 0);
-    if (options.length === 0) continue;
-    const choice = options[Math.floor(nextFloat(rng) * options.length)]!;
-    const o = choice.os[Math.floor(nextFloat(rng) * choice.os.length)]!;
-    return { block: choice.block, o, fit };
-  }
-  // Nothing satisfies the frame either: take anything (logged as a fallback by the caller).
-  const block = pool[Math.floor(nextFloat(rng) * pool.length)]!;
-  return { block, o: 0, fit: 'any' };
+  throw new Error('unreachable');
 }
 
 /**

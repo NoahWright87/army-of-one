@@ -1,17 +1,16 @@
 {
-  "v": 2,
+  "v": 3,
   "id": "starter-base-corner",
   "name": "Starter: base corner",
-  "edges": {"n":"perimeter-r","e":"perimeter","s":"grass","w":"grass"},
   "ground": [
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
     "GGGGGGGCCCCCCCC",
     "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
-    "GGGGGGGCCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXXXXXXXX",
     "GGGGGGGGGGGGGGG",
     "GGGGGGGGGGGGGGG",
     "GGGGGGGGGGGGGGG",
@@ -21,22 +20,16 @@
     "GGGGGGGGGGGGGGG"
   ],
   "items": [
-    {"id":"w1","kind":"wall","rect":[7.25,7.25,2.75,0.5],"priority":0},
-    {"id":"slit2","kind":"cover","rect":[10,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
-    {"id":"w3","kind":"wall","rect":[11.5,7.25,3.5,0.5],"priority":0},
-    {"id":"w4","kind":"wall","rect":[7.25,0,0.5,3],"priority":0},
-    {"id":"slit-w","kind":"cover","rect":[7.25,3,0.5,1.5],"material":"bunkerWindow","priority":0},
-    {"id":"w5","kind":"wall","rect":[7.25,4.5,0.5,2.75],"priority":0},
-    {"id":"t6","kind":"turret","at":[9.5,5],"facing":135,"priority":2},
-    {"id":"c9","kind":"cover","rect":[3,9,2.5,0.5],"material":"sandbags","priority":0},
-    {"id":"obj12","kind":"objective","at":[11,3],"priority":0},
-    {"id":"rally-1","kind":"rally","at":[10.75,6.6],"group":"corner","priority":0},
-    {"id":"rally-2","kind":"rally","at":[8,3.75],"group":"corner","priority":0},
-    {"id":"rally-3","kind":"rally","at":[4.2,8.4],"group":"squad","priority":0},
-    {"id":"rally-4","kind":"rally","at":[2,4],"group":"squad","priority":0}
+    {"id":"slit1","kind":"cover","rect":[7.25,3,0.5,2],"material":"bunkerWindow","priority":0},
+    {"id":"t2","kind":"turret","at":[10,4],"facing":135,"priority":2},
+    {"id":"rally3","kind":"rally","at":[10.5,6.2],"group":"corner","priority":0},
+    {"id":"rally4","kind":"rally","at":[8.8,3.5],"group":"corner","priority":0},
+    {"id":"c5","kind":"cover","rect":[2.5,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally6","kind":"rally","at":[3.7,9.4],"group":"outside","priority":0},
+    {"id":"obj7","kind":"objective","at":[11,2.5],"priority":0}
   ],
   "groups": [
     {"id":"corner","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2}]},
-    {"id":"squad","units":[{"role":"rifleman","priority":3},{"role":"sniper","priority":5}]}
+    {"id":"outside","units":[{"role":"rifleman","priority":3}]}
   ]
 }

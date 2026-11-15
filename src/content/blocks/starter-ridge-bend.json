@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "id": "starter-ridge-bend",
+  "name": "Starter: ridge bend",
+  "ground": [
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGKKKKKKKKK",
+    "GGGGGGKKKKKKKKK",
+    "GGGGGGKKKKKKKKK",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[2.5,5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally2","kind":"rally","at":[3.5,4.4],"group":"bend","priority":0},
+    {"id":"rally3","kind":"rally","at":[11.5,11.5],"group":"bend","priority":0},
+    {"id":"obj4","kind":"objective","at":[4,2.5],"priority":0}
+  ],
+  "groups": [
+    {"id":"bend","units":[{"role":"rifleman","priority":1},{"role":"sniper","priority":3}]}
+  ]
+}

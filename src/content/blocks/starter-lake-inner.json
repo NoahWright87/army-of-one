@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "id": "starter-lake-inner",
+  "name": "Starter: lake inlet",
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "SSSSSSSSWWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGSWWWWWW",
+    "GGGGGGGGWWWWWWW"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[2,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally2","kind":"rally","at":[3,9.4],"group":"inlet","priority":0},
+    {"id":"rally3","kind":"rally","at":[5.5,12],"group":"inlet","priority":0},
+    {"id":"obj4","kind":"objective","at":[2.5,12.5],"priority":0}
+  ],
+  "groups": [
+    {"id":"inlet","units":[{"role":"rifleman","priority":2},{"role":"gunner","priority":4}]}
+  ]
+}

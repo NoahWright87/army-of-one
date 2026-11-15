@@ -1,0 +1,36 @@
+{
+  "v": 3,
+  "id": "starter-ridge-pass",
+  "name": "Starter: pass through a ridge",
+  "ground": [
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[10,4.5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[2.5,10,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c3","kind":"cover","rect":[10,9.5,2.5,0.5],"material":"crate","priority":2},
+    {"id":"rally4","kind":"rally","at":[11,3.9],"group":"pass","priority":0},
+    {"id":"rally5","kind":"rally","at":[3.5,9.4],"group":"pass","priority":0},
+    {"id":"rally6","kind":"rally","at":[11,10.5],"group":"pass","priority":0},
+    {"id":"t7","kind":"turret","at":[10.5,7.5],"facing":180,"priority":3},
+    {"id":"m8","kind":"mine","at":[4,7.5],"priority":4},
+    {"id":"obj9","kind":"objective","at":[12,2],"priority":0}
+  ],
+  "groups": [
+    {"id":"pass","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"grenadier","priority":4}]}
+  ]
+}

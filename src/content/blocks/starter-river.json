@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-river",
+  "name": "Starter: river",
+  "ground": [
+    "GGGGGGWWWGGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGSWWWSGGGGG",
+    "GGGGGGWWWGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[2.5,5,2,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[10.5,9,2,0.5],"material":"sandbags","priority":0},
+    {"id":"rally3","kind":"rally","at":[3.5,4.4],"group":"bank","priority":0},
+    {"id":"rally4","kind":"rally","at":[11.5,8.4],"group":"bank","priority":0},
+    {"id":"rally5","kind":"rally","at":[3,11],"group":"bank","priority":0},
+    {"id":"obj6","kind":"objective","at":[12,3],"priority":0}
+  ],
+  "groups": [
+    {"id":"bank","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":2},{"role":"rifleman","priority":3},{"role":"sniper","priority":4}]}
+  ]
+}

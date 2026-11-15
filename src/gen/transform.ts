@@ -1,17 +1,10 @@
 /**
  * (PHASE13-b) Rotating and flipping blocks ([D82]): 8 orientations. Orientation `o` is
  * `rot + 4 * flip`: first mirror left↔right if `flip`, then turn `rot` quarter turns clockwise.
- * Edges read clockwise ([D81]), so turning never reverses one; a flip mirrors every tag.
+ * Edges are just the turned tiles ([D101]), so nothing else needs turning.
  */
-import { BLOCK_CELLS, mirrorTag } from '../content/ground';
-import {
-  isRectItem,
-  type BlockDef,
-  type BlockItem,
-  type CellPoint,
-  type CellRect,
-  type Side,
-} from './block';
+import { BLOCK_CELLS } from '../content/ground';
+import { isRectItem, type BlockDef, type BlockItem, type CellPoint, type CellRect } from './block';
 
 export type Orientation = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export const ORIENTATIONS: readonly Orientation[] = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -39,22 +32,6 @@ export function orientRect([x, y, w, h]: CellRect, o: Orientation): CellRect {
   return [Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay)];
 }
 
-/** Which side ends up where: the tag on side `s` of the result. */
-export function orientEdges(edges: BlockDef['edges'], o: Orientation): BlockDef['edges'] {
-  // A flip reverses every edge's clockwise reading: swap east/west and mirror each tag.
-  let e =
-    o >= 4
-      ? {
-          n: mirrorTag(edges.n),
-          e: mirrorTag(edges.w),
-          s: mirrorTag(edges.s),
-          w: mirrorTag(edges.e),
-        }
-      : { ...edges };
-  for (let i = 0; i < o % 4; i++) e = { n: e.w, e: e.n, s: e.e, w: e.s };
-  return e as Record<Side, BlockDef['edges']['n']>;
-}
-
 export function orientBlock(block: BlockDef, o: Orientation): BlockDef {
   if (o === 0) return block;
   const ground = Array.from({ length: N }, () => new Array<string>(N).fill('G'));
@@ -69,24 +46,5 @@ export function orientBlock(block: BlockDef, o: Orientation): BlockDef {
     const at = orientPoint(it.at, o);
     return 'facing' in it ? { ...it, at, facing: orientFacing(it.facing, o) } : { ...it, at };
   });
-  return {
-    ...block,
-    edges: orientEdges(block.edges, o),
-    ground: ground.map((r) => r.join('')),
-    items,
-  };
-}
-
-/**
- * Blocks with the same edges up to rotation and flipping share a layout ([D83]: the library
- * groups by it). The key is the smallest "n/e/s/w" over the 8 orientations.
- */
-export function edgeLayout(edges: BlockDef['edges']): { key: string; edges: BlockDef['edges'] } {
-  let best: { key: string; edges: BlockDef['edges'] } | null = null;
-  for (const o of ORIENTATIONS) {
-    const e = orientEdges(edges, o);
-    const key = `${e.n}/${e.e}/${e.s}/${e.w}`;
-    if (!best || key < best.key) best = { key, edges: e };
-  }
-  return best!;
+  return { ...block, ground: ground.map((r) => r.join('')), items };
 }

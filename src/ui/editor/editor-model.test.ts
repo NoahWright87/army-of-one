@@ -3,19 +3,22 @@ import { newBlock } from '../../gen/block';
 import { EditorModel } from './editor-model';
 
 describe('EditorModel', () => {
-  it('paints free cells, never edge-locked ones', () => {
+  it('paints any tile, edges included ([D101]: edges are just tiles)', () => {
     const m = new EditorModel(newBlock());
     m.paintKind = 'D';
     expect(m.paint(7, 7)).toBe(true);
     expect(m.block.ground[7]![7]).toBe('D');
-    expect(m.paint(7, 0)).toBe(false);
-    expect(m.paint(0, 0)).toBe(true); // corners are free
+    expect(m.paint(7, 0)).toBe(true);
+    expect(m.paint(7, 0)).toBe(false); // already dirt
   });
 
-  it('changing an edge tag repaints its band', () => {
+  it('an edge preset paints that side, read clockwise', () => {
     const m = new EditorModel(newBlock());
-    m.setEdge('s', 'road');
-    expect(m.block.ground[14]).toBe('GGGGGGRRRGGGGGG');
+    m.applyEdgePreset('n', 'RGGGGGGGGGGGGGW');
+    expect(m.block.ground[0]).toBe('RGGGGGGGGGGGGGW');
+    // The south edge reads east→west, so the same preset comes out reversed on the row.
+    m.applyEdgePreset('s', 'RGGGGGGGGGGGGGW');
+    expect(m.block.ground[14]).toBe('WGGGGGGGGGGGGGR');
   });
 
   it('places with defaults, snaps moves, renames levers along', () => {

@@ -1,41 +1,34 @@
 {
-  "v": 2,
+  "v": 3,
   "id": "starter-crossroads",
   "name": "Starter: crossroads",
-  "edges": {"n":"road","e":"road","s":"road","w":"road"},
   "ground": [
     "GGGGGGRRRGGGGGG",
     "GGGGGGRRRGGGGGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
     "GGGGGGRRRGGGGGG",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
+    "RRRRRRRRRRRRRRR",
     "GGGGGGRRRGGGGGG",
-    "GGGGGGRRRGGGGGG",
-    "GGGGGCCCCCGGGGG",
-    "RRRRRCCCCCRRRRR",
-    "RRRRRCCCCCRRRRR",
-    "RRRRRCCCCCRRRRR",
-    "GGGGGCCCCCGGGGG",
-    "GGGGGGRRRGGGGGG",
-    "GGGGGGRRRGGGGGG",
-    "GGGGGGRRRGGGGGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
+    "GGXXXGRRRGXXXGG",
     "GGGGGGRRRGGGGGG",
     "GGGGGGRRRGGGGGG"
   ],
   "items": [
-    {"id":"w1","kind":"wall","rect":[2,2,3,3],"priority":0},
-    {"id":"w2","kind":"wall","rect":[10,2,3,3],"priority":0},
-    {"id":"w3","kind":"wall","rect":[2,10,3,3],"priority":0},
-    {"id":"w4","kind":"wall","rect":[10,10,3,3],"priority":0},
-    {"id":"cp5","kind":"capture","at":[7.5,7.5],"priority":0,"group":"cross"},
-    {"id":"t10","kind":"turret","at":[12,5.5],"facing":90,"priority":4},
-    {"id":"obj12","kind":"objective","at":[12,5.5],"priority":0},
-    {"id":"rally-1","kind":"rally","at":[6,6],"group":"cross","priority":0},
-    {"id":"rally-2","kind":"rally","at":[9,6],"group":"cross","priority":0},
-    {"id":"rally-3","kind":"rally","at":[6,9],"group":"cross","priority":0},
-    {"id":"rally-4","kind":"rally","at":[9,9],"group":"cross","priority":0},
-    {"id":"rally-5","kind":"rally","at":[3.5,6],"group":"squad","priority":0}
+    {"id":"cp1","kind":"capture","at":[7.5,7.5],"priority":0,"group":"cross"},
+    {"id":"rally2","kind":"rally","at":[5.5,5.5],"group":"cross","priority":0},
+    {"id":"rally3","kind":"rally","at":[9.5,5.5],"group":"cross","priority":0},
+    {"id":"rally4","kind":"rally","at":[5.5,9.5],"group":"cross","priority":0},
+    {"id":"rally5","kind":"rally","at":[9.5,9.5],"group":"cross","priority":0},
+    {"id":"t6","kind":"turret","at":[12,7.5],"facing":180,"priority":4},
+    {"id":"obj7","kind":"objective","at":[12.5,5.5],"priority":0}
   ],
   "groups": [
-    {"id":"cross","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"grenadier","priority":3}]},
-    {"id":"squad","units":[{"role":"rifleman","priority":5}]}
+    {"id":"cross","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"grenadier","priority":3},{"role":"rifleman","priority":5}]}
   ]
 }

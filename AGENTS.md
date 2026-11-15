@@ -166,8 +166,12 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
   editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
 - World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
-  (`src/gen/world.ts`), regenerate at will (R, ◀ ▶), click a level for a budget slider, a sketch
-  and **Playtest** (`?mission=world-<seed>-<level>[-<budget>]`).
+  (`src/gen/world.ts`), regenerate at will (R, ◀ ▶), click a block or level for details, a budget
+  slider, a sketch and **Playtest** (`?mission=world-<seed>-<level>[-<budget>]`). Overlays are
+  checkboxes; "Block connections…" opens the graph ([D104]).
+- Tile matching ([D101]–[D103]): blocks join where their edge tiles match (exact types, ±1
+  place; `src/gen/edges.ts`); boards grow from the HQ and the start in turns, and a path is cut
+  where needed (`src/gen/grow.ts`). Rocks and Concrete Wall tiles are solid.
 - Results (PHASE07-a): winning shows the results card over a full-mission replay (scene
   `replay`). Quickest way there: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win&fast=1`. Breach autoplay: `?dev=1&autoplay=breach-slow,breach-rescue,breach-resume,breach-win`
   (rescue → O → resume → forward capture → win from the Forward Post), or `breach-solo` (one

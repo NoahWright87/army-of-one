@@ -3,9 +3,10 @@
  * and the levels carved from it; regenerate at will. Click a level to see it at any budget, and
  * playtest it for real. A testing tool for now: what a campaign's world map will be built on.
  */
-import { BLOCK_CELLS, EDGE_TAGS, GROUND, isGroundKind } from '../../content/ground';
+import { BLOCK_CELLS, GROUND, isGroundKind } from '../../content/ground';
+import { sideProfiles } from '../../gen/edges';
 import { ROLES } from '../../content/roles';
-import { str, strDynamic, type StringKey } from '../../content/strings';
+import { str, type StringKey } from '../../content/strings';
 import { isRectItem } from '../../gen/block';
 import type { GeneratedLevel } from '../../gen/level';
 import { orientBlock } from '../../gen/transform';
@@ -23,6 +24,8 @@ export interface WorldViewActions {
   openBlock(id: string): void;
   /** Whether worlds use your saved blocks as well as the official ones. */
   includeMine(): boolean;
+  /** Opens the block connection graph ([D104]). */
+  openGraph(): void;
   setIncludeMine(on: boolean): void;
 }
 
@@ -60,6 +63,7 @@ const css = `
 .aoo-wm dt { color: #8b95a1; }
 .aoo-wm dd { margin: 0; }
 .aoo-wm .bad { color: #f0b37e; }
+.aoo-wm dd.mono { font-family: ui-monospace, monospace; white-space: pre; font-size: 12px; }
 .aoo-wm .ok { color: #8fd18f; }
 .aoo-wm canvas.preview { width: 100%; background: #0b0d10; border-radius: 4px; }
 .aoo-wm .legend span { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 4px 0; }
@@ -191,11 +195,14 @@ export class WorldView {
       });
     overlay('levels', 'world.show.levels');
     overlay('labels', 'world.show.labels');
-    overlay('frame', 'world.show.frame');
+    overlay('frame', 'world.show.cuts');
     overlay('mismatches', 'world.show.mismatches');
     check(str('world.includeMine'), this.actions.includeMine(), (v) =>
       this.actions.setIncludeMine(v),
     );
+    const graph = el('button', '', str('world.graph'));
+    graph.onclick = () => this.actions.openGraph();
+    box.append(graph);
 
     const fallbacks = w.warnings.filter((x) => x.includes('no exact')).length;
     const other = w.warnings.filter((x) => !x.includes('no exact'));
@@ -204,7 +211,7 @@ export class WorldView {
     const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
     add(str('world.stat.size'), `${w.cols} × ${w.rows}`);
     add(str('world.stat.levels'), String(w.levels.length));
-    add(str('world.stat.attempts'), String(w.attempts));
+    add(str('world.stat.cut'), String(w.cut.length));
     add(str('world.stat.ms'), `${Math.round(this.genMs)} ms`);
     add(str('world.stat.fallbacks'), String(fallbacks), fallbacks ? 'bad' : 'ok');
     box.append(dl);
@@ -329,31 +336,12 @@ export class WorldView {
       ctx.lineWidth = 2;
       ctx.strokeRect(this.picked.c * bs + 1, this.picked.r * bs + 1, bs - 2, bs - 2);
     }
-    // Frame barriers (rivers across, ridges along), on top of the level outlines.
-    if (!this.overlays.frame) {
-      ctx.restore();
-      return;
+    // Tiles the generator cut to make a way through ([D102]).
+    if (this.overlays.frame) {
+      ctx.strokeStyle = '#ff4d4d';
+      ctx.lineWidth = Math.max(1, p / 3);
+      for (const [y, x] of w.cut) ctx.strokeRect(x * p, y * p, p, p);
     }
-    ctx.strokeStyle = '#ff4d4d';
-    ctx.lineWidth = 3;
-    w.h.forEach((row, r) =>
-      row.forEach((bar, col) => {
-        if (!bar) return;
-        ctx.beginPath();
-        ctx.moveTo(col * bs, (r + 1) * bs);
-        ctx.lineTo((col + 1) * bs, (r + 1) * bs);
-        ctx.stroke();
-      }),
-    );
-    w.v.forEach((row, r) =>
-      row.forEach((bar, col) => {
-        if (!bar) return;
-        ctx.beginPath();
-        ctx.moveTo((col + 1) * bs, r * bs);
-        ctx.lineTo((col + 1) * bs, (r + 1) * bs);
-        ctx.stroke();
-      }),
-    );
     ctx.restore();
   }
 
@@ -438,7 +426,7 @@ export class WorldView {
     const g = this.world!.grid[r]![c]!;
     const turned = (g.o % 4) * 90;
     const flipped = g.o >= 4;
-    const edges = this.oriented[r]![c]!.edges;
+    const edges = sideProfiles(this.oriented[r]![c]!);
     box.append(el('h2', '', str('world.block')));
     const dl = el('dl');
     const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
@@ -449,9 +437,8 @@ export class WorldView {
     );
     add(
       str('world.block.edges'),
-      (['n', 'e', 's', 'w'] as const)
-        .map((sd) => `${sd.toUpperCase()} ${strDynamic(EDGE_TAGS[edges[sd]].nameKey)}`)
-        .join(' · '),
+      (['n', 'e', 's', 'w'] as const).map((sd) => `${sd.toUpperCase()} ${edges[sd]}`).join('\n'),
+      'mono',
     );
     add(
       str('world.block.fit'),

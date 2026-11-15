@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-ridge",
+  "name": "Starter: ridge",
+  "ground": [
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG",
+    "GGGGGGKKKGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[3,5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[10,9,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally3","kind":"rally","at":[4,4.4],"group":"ridge","priority":0},
+    {"id":"rally4","kind":"rally","at":[11,8.4],"group":"ridge","priority":0},
+    {"id":"rally5","kind":"rally","at":[3.5,11],"group":"ridge","priority":0},
+    {"id":"obj6","kind":"objective","at":[11.5,3],"priority":0}
+  ],
+  "groups": [
+    {"id":"ridge","units":[{"role":"rifleman","priority":1},{"role":"sniper","priority":2},{"role":"rifleman","priority":3},{"role":"gunner","priority":4}]}
+  ]
+}

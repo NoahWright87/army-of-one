@@ -1,35 +1,33 @@
 {
-  "v": 2,
+  "v": 3,
   "id": "starter-lake-corner",
   "name": "Starter: lake corner",
-  "edges": {"n":"water","e":"water","s":"grass","w":"grass"},
   "ground": [
-    "WWWWWWWWWWWWWWW",
-    "GWWWWWWWWWWWWWW",
-    "GWWWWWWWWWWWWWW",
-    "GWWWWWWWWWWWWWW",
-    "GSSSSSSSSSSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
-    "GGGGGGGGGGSWWWW",
+    "GGGGGGGGWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSWWWWWWW",
+    "GGGGGGGSSSSSSSG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
+    "GGGGGGGGGGGGGGG",
     "GGGGGGGGGGGGGGG"
   ],
   "items": [
-    {"id":"c1","kind":"cover","rect":[4,7,2.5,0.5],"material":"sandbags","priority":0},
-    {"id":"c2","kind":"cover","rect":[6,10,2.5,0.5],"material":"crate","priority":0},
-    {"id":"t6","kind":"turret","at":[8.5,8],"facing":90,"priority":3},
-    {"id":"obj7","kind":"objective","at":[5,5.5],"priority":0},
-    {"id":"rally-1","kind":"rally","at":[5,6.4],"group":"nook","priority":0},
-    {"id":"rally-2","kind":"rally","at":[8,5.5],"group":"nook","priority":0},
-    {"id":"rally-3","kind":"rally","at":[3,5.5],"group":"nook","priority":0}
+    {"id":"c1","kind":"cover","rect":[3,6,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[9,10,2.5,0.5],"material":"crate","priority":0},
+    {"id":"rally3","kind":"rally","at":[4,5.4],"group":"corner","priority":0},
+    {"id":"rally4","kind":"rally","at":[10,9.4],"group":"corner","priority":0},
+    {"id":"rally5","kind":"rally","at":[3,11],"group":"corner","priority":0},
+    {"id":"obj6","kind":"objective","at":[4,3],"priority":0}
   ],
   "groups": [
-    {"id":"nook","units":[{"role":"rifleman","priority":1},{"role":"grenadier","priority":2},{"role":"gunner","priority":4}]}
+    {"id":"corner","units":[{"role":"rifleman","priority":1},{"role":"grenadier","priority":2},{"role":"gunner","priority":3},{"role":"rifleman","priority":5}]}
   ]
 }

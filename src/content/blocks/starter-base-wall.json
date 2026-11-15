@@ -1,8 +1,7 @@
 {
-  "v": 2,
+  "v": 3,
   "id": "starter-base-wall",
   "name": "Starter: base wall",
-  "edges": {"n":"concrete","e":"perimeter","s":"grass","w":"perimeter-r"},
   "ground": [
     "CCCCCCCCCCCCCCC",
     "CCCCCCCCCCCCCCC",
@@ -11,7 +10,7 @@
     "CCCCCCCCCCCCCCC",
     "CCCCCCCCCCCCCCC",
     "CCCCCCCCCCCCCCC",
-    "CCCCCCCCCCCCCCC",
+    "XXXCCXXXXXCCXXX",
     "GGGGGGGGGGGGGGG",
     "GGGGGGGGGGGGGGG",
     "GGGGGGGGGGGGGGG",
@@ -21,25 +20,20 @@
     "GGGGGGGGGGGGGGG"
   ],
   "items": [
-    {"id":"w1","kind":"wall","rect":[0,7.25,3,0.5],"priority":0},
-    {"id":"slit2","kind":"cover","rect":[3,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
-    {"id":"w3","kind":"wall","rect":[4.5,7.25,6,0.5],"priority":0},
-    {"id":"slit4","kind":"cover","rect":[10.5,7.25,1.5,0.5],"material":"bunkerWindow","priority":0},
-    {"id":"w5","kind":"wall","rect":[12,7.25,3,0.5],"priority":0},
-    {"id":"c9","kind":"cover","rect":[6.5,4.5,2,0.5],"material":"halfWall","priority":3},
-    {"id":"t10","kind":"turret","at":[2,4],"facing":90,"priority":4},
-    {"id":"m12","kind":"mine","at":[4,10],"priority":2},
-    {"id":"m13","kind":"mine","at":[7.5,11],"priority":4},
-    {"id":"m14","kind":"mine","at":[11,10],"priority":5},
-    {"id":"obj15","kind":"objective","at":[7.5,2],"priority":0},
-    {"id":"rally-1","kind":"rally","at":[3.75,6.6],"group":"slits","priority":0},
-    {"id":"rally-2","kind":"rally","at":[11.25,6.6],"group":"slits","priority":0},
-    {"id":"rally-3","kind":"rally","at":[7.5,3.5],"group":"perch","priority":0},
-    {"id":"rally-4","kind":"rally","at":[12,3],"group":"squad","priority":0}
+    {"id":"slit1","kind":"cover","rect":[3,7.25,2,0.5],"material":"bunkerWindow","priority":0},
+    {"id":"slit2","kind":"cover","rect":[10,7.25,2,0.5],"material":"bunkerWindow","priority":0},
+    {"id":"rally3","kind":"rally","at":[4,6.4],"group":"slits","priority":0},
+    {"id":"rally4","kind":"rally","at":[11,6.4],"group":"slits","priority":0},
+    {"id":"rally5","kind":"rally","at":[4,3],"group":"yard","priority":0},
+    {"id":"rally6","kind":"rally","at":[11,3],"group":"yard","priority":0},
+    {"id":"rally7","kind":"rally","at":[7.5,4],"group":"yard","priority":0},
+    {"id":"t8","kind":"turret","at":[7.5,4.5],"facing":90,"priority":3},
+    {"id":"m9","kind":"mine","at":[4,10],"priority":2},
+    {"id":"m10","kind":"mine","at":[11,11],"priority":5},
+    {"id":"obj11","kind":"objective","at":[7.5,2],"priority":0}
   ],
   "groups": [
     {"id":"slits","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2}]},
-    {"id":"perch","units":[{"role":"sniper","priority":3}]},
-    {"id":"squad","units":[{"role":"grenadier","priority":5}]}
+    {"id":"yard","units":[{"role":"sniper","priority":3},{"role":"rifleman","priority":4},{"role":"grenadier","priority":5}]}
   ]
 }

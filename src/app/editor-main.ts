@@ -10,10 +10,13 @@
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { str, type StringKey } from '../content/strings';
 import { blockToJson, newBlock, parseBlock, type BlockDef } from '../gen/block';
+import { countFits, EdgeMatcher, sideProfiles } from '../gen/edges';
+import { ORIENTATIONS, orientBlock } from '../gen/transform';
 import { genMissionId } from '../gen/mission-id';
 import { clearMission } from '../persistence/mission-store';
 import { EditorModel } from '../ui/editor/editor-model';
 import { EditorView, type SaveState } from '../ui/editor/editor-view';
+import { openConnectionGraph } from '../ui/worldmap/connection-graph';
 import {
   EDITOR_PREVIEW_ID,
   readDraft,
@@ -98,6 +101,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     if (i >= 0) lib.blocks[i] = b;
     else lib.blocks.push(b);
     writeLibrary(lib);
+    poolSides = null;
     draft = { block: b, source: { kind: 'mine', id: b.id } };
     baseline = blockToJson(b);
     writeDraft(draft);
@@ -133,8 +137,26 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     if (o) load(o, { kind: 'official', id });
   };
 
+  // (PHASE13) "N blocks fit" per side ([D101]): official + saved blocks in every orientation.
+  const matcher = new EdgeMatcher();
+  let poolSides: { id: string; sides: ReturnType<typeof sideProfiles> }[] | null = null;
+  const sidesOfPool = () => {
+    poolSides ??= [...OFFICIAL_BLOCKS, ...lib.blocks].flatMap((b) =>
+      ORIENTATIONS.map((o) => ({ id: b.id, sides: sideProfiles(orientBlock(b, o)) })),
+    );
+    return poolSides;
+  };
+
   const view = new EditorView(host, model, {
     saveState,
+    edgeFits: (block) =>
+      countFits(
+        block,
+        sidesOfPool()
+          .filter((x) => x.id !== draft.source.id)
+          .map((x) => x.sides),
+        matcher,
+      ),
     save: () => void save(),
     newBlock: () =>
       guard(() => {
@@ -184,6 +206,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     deleteBlock: (id) => {
       lib.blocks = lib.blocks.filter((b) => b.id !== id);
       writeLibrary(lib);
+      poolSides = null;
       // The draft stays open, now unsaved.
       if (draft.source.kind === 'mine' && draft.source.id === id) {
         draft = { ...draft, source: { kind: 'new', id } };
@@ -195,6 +218,13 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     budgetChanged: (budget) => writePlayBudget(budget),
     exit: () => go({}),
     playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)) }),
+    openGraph: () =>
+      openConnectionGraph([...OFFICIAL_BLOCKS, ...lib.blocks], {
+        openBlock: (id) => {
+          document.querySelector('.aoo-graph')?.remove();
+          guard(() => openById(id));
+        },
+      }),
     play: () => {
       writeDraft(draft);
       writePlayBudget(model.budget);

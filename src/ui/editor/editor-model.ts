@@ -3,11 +3,9 @@
  * these calls. Every edit goes through `edit()`, which keeps the undo stack; a drag is one undo
  * step (`beginGesture` … `endGesture`).
  */
-import { BLOCK_CELLS, type EdgeTag, type GroundKind } from '../../content/ground';
+import { BLOCK_CELLS, type GroundKind } from '../../content/ground';
 import {
   ALWAYS_KINDS,
-  applyEdges,
-  edgeLock,
   isRectItem,
   newBlock,
   type BlockDef,
@@ -51,7 +49,7 @@ export class EditorModel {
   private listeners: (() => void)[] = [];
 
   constructor(block: BlockDef = newBlock()) {
-    this.block = applyEdges(block);
+    this.block = block;
   }
 
   onChange(fn: () => void): void {
@@ -65,7 +63,7 @@ export class EditorModel {
 
   /** Replaces the block (new / open): clears history and selection. */
   load(block: BlockDef): void {
-    this.block = applyEdges(block);
+    this.block = block;
     this.undoStack = [];
     this.redoStack = [];
     this.selected = null;
@@ -149,11 +147,10 @@ export class EditorModel {
 
   // ---- Ground and edges
 
-  /** Paints one cell; cells set by an edge tag are locked. Returns whether anything changed. */
+  /** Paints one tile. Returns whether anything changed. */
   paint(col: number, row: number): boolean {
     const n = BLOCK_CELLS;
     if (col < 0 || row < 0 || col >= n || row >= n) return false;
-    if (edgeLock(this.block.edges, col, row)) return false;
     const line = this.block.ground[row]!;
     if (line[col] === this.paintKind) return false;
     const ground = [...this.block.ground];
@@ -162,11 +159,24 @@ export class EditorModel {
     return true;
   }
 
-  setEdge(side: Side, tag: EdgeTag): void {
-    this.edit(applyEdges({ ...this.block, edges: { ...this.block.edges, [side]: tag } }));
+  /**
+   * (PHASE13) Paints a side's outer row of tiles with a preset edge ([D101]), read clockwise:
+   * north west→east, east north→south, south east→west, west south→north.
+   */
+  applyEdgePreset(side: Side, profile: string): void {
+    const n = BLOCK_CELLS;
+    const rows = this.block.ground.map((r) => [...r]);
+    for (let i = 0; i < n; i++) {
+      const ch = profile[i]!;
+      if (side === 'n') rows[0]![i] = ch;
+      else if (side === 'e') rows[i]![n - 1] = ch;
+      else if (side === 's') rows[n - 1]![n - 1 - i] = ch;
+      else rows[n - 1 - i]![0] = ch;
+    }
+    this.edit({ ...this.block, ground: rows.map((r) => r.join('')) });
   }
 
-  setMeta(patch: Partial<Pick<BlockDef, 'id' | 'name'>>): void {
+  setMeta(patch: Partial<Pick<BlockDef, 'id' | 'name' | 'role'>>): void {
     this.edit({ ...this.block, ...patch });
   }
 

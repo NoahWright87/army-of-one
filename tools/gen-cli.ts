@@ -22,7 +22,7 @@ if (coverage > 0) {
   let spent = 0;
   for (let seed = 1; seed <= coverage; seed++) {
     const lvl = generateLevel(OFFICIAL_BLOCKS, { id: 'cov', nameKey: 'x', seed });
-    rerolls += lvl.attempts - 1;
+    rerolls += lvl.cut > 0 ? 1 : 0;
     if (!lvl.reachable) unreachable++;
     spent += lvl.spent;
     for (const w of lvl.warnings) {
@@ -31,7 +31,7 @@ if (coverage > 0) {
     }
   }
   console.log(`${coverage} levels from ${OFFICIAL_BLOCKS.length} blocks`);
-  console.log(`  rerolls (objective unreachable): ${rerolls}, never reachable: ${unreachable}`);
+  console.log(`  levels that needed a path cut: ${rerolls}, never reachable: ${unreachable}`);
   console.log(`  average spent: ${Math.round(spent / coverage)}`);
   console.log(missing.size ? '  missing matches:' : '  every cell matched exactly');
   for (const [k, v] of [...missing].sort((a, b) => b[1] - a[1])) console.log(`    ${v}× ${k}`);
@@ -43,9 +43,7 @@ const budgetArg = arg('budget', '');
 const budget = budgetArg ? Number(budgetArg) : undefined;
 const id = genMissionId(seed, budget);
 const lvl = generateLevel(OFFICIAL_BLOCKS, { id, nameKey: 'map.generated.name', seed, budget });
-console.log(
-  `${id}: ${lvl.map.width}×${lvl.map.height}, attempts ${lvl.attempts}, spent ${lvl.spent}`,
-);
+console.log(`${id}: ${lvl.map.width}×${lvl.map.height}, tiles cut ${lvl.cut}, spent ${lvl.spent}`);
 for (const row of lvl.cells) {
   console.log(
     row

@@ -1,8 +1,7 @@
 {
-  "v": 2,
-  "id": "starter-tee",
+  "v": 3,
+  "id": "starter-road-tee",
   "name": "Starter: T-junction",
-  "edges": {"n":"road","e":"road","s":"road","w":"grass"},
   "ground": [
     "GGGGGGRRRGGGGGG",
     "GGGGGGRRRGGGGGG",
@@ -24,15 +23,14 @@
     {"id":"c1","kind":"cover","rect":[3,5,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c2","kind":"cover","rect":[10,4.5,2.5,0.5],"material":"sandbags","priority":0},
     {"id":"c3","kind":"cover","rect":[3.5,10,2,0.5],"material":"crate","priority":0},
-    {"id":"obj9","kind":"objective","at":[4,2],"priority":0},
-    {"id":"rally-1","kind":"rally","at":[4,4.4],"group":"west","priority":0},
-    {"id":"rally-2","kind":"rally","at":[5,3],"group":"west","priority":0},
-    {"id":"rally-3","kind":"rally","at":[11,3.9],"group":"squad","priority":0},
-    {"id":"rally-4","kind":"rally","at":[12,10],"group":"squad","priority":0},
-    {"id":"rally-5","kind":"rally","at":[10,12],"group":"squad","priority":0}
+    {"id":"rally4","kind":"rally","at":[4,4.4],"group":"west","priority":0},
+    {"id":"rally5","kind":"rally","at":[4.5,9.4],"group":"west","priority":0},
+    {"id":"rally6","kind":"rally","at":[11,3.9],"group":"east","priority":0},
+    {"id":"rally7","kind":"rally","at":[11.5,10.5],"group":"east","priority":0},
+    {"id":"obj8","kind":"objective","at":[4,2],"priority":0}
   ],
   "groups": [
     {"id":"west","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":3}]},
-    {"id":"squad","units":[{"role":"rifleman","priority":2},{"role":"bazooka","priority":4},{"role":"shotgun","priority":5}]}
+    {"id":"east","units":[{"role":"rifleman","priority":2},{"role":"bazooka","priority":4},{"role":"shotgun","priority":5}]}
   ]
 }

@@ -7,6 +7,7 @@ import { str } from '../content/strings';
 import { worldMissionId } from '../gen/mission-id';
 import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world';
 import { clearMission } from '../persistence/mission-store';
+import { openConnectionGraph } from '../ui/worldmap/connection-graph';
 import { WorldView } from '../ui/worldmap/world-view';
 import { blockPool } from './editor-storage';
 import { openBestStore } from './storage/indexeddb-store';
@@ -43,6 +44,10 @@ export function startWorldViewer(host: HTMLElement, params: URLSearchParams): vo
     exit: () => go({}),
     openBlock: (id) => go({ scene: 'editor', open: id }),
     includeMine: () => includeMine,
+    openGraph: () =>
+      openConnectionGraph(blockPool(includeMine), {
+        openBlock: (id) => go({ scene: 'editor', open: id }),
+      }),
     setIncludeMine: (on) => {
       includeMine = on;
       try {

@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-base-inner",
+  "name": "Starter: base inner corner",
+  "ground": [
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCC",
+    "XXXXXXXXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC",
+    "GGGGGGGXCCCCCCC"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[10,10,2.5,0.5],"material":"crate","priority":0},
+    {"id":"t2","kind":"turret","at":[9.5,9.5],"facing":135,"priority":3},
+    {"id":"rally3","kind":"rally","at":[10,5],"group":"inner","priority":0},
+    {"id":"rally4","kind":"rally","at":[5,5],"group":"inner","priority":0},
+    {"id":"rally5","kind":"rally","at":[11.5,11.5],"group":"inner","priority":0},
+    {"id":"obj6","kind":"objective","at":[10,3],"priority":0}
+  ],
+  "groups": [
+    {"id":"inner","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":2},{"role":"rifleman","priority":4}]}
+  ]
+}

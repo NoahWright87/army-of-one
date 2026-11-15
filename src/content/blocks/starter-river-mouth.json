@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "id": "starter-river-mouth",
+  "name": "Starter: river mouth",
+  "ground": [
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWW",
+    "GSSSSSWWWSSSSSG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG",
+    "GGGGGGWWWGGGGGG"
+  ],
+  "items": [
+    {"id":"c1","kind":"cover","rect":[2,9.5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"c2","kind":"cover","rect":[10.5,9.5,2.5,0.5],"material":"sandbags","priority":0},
+    {"id":"rally3","kind":"rally","at":[3,8.9],"group":"mouth","priority":0},
+    {"id":"rally4","kind":"rally","at":[11.5,8.9],"group":"mouth","priority":0},
+    {"id":"rally5","kind":"rally","at":[3,12],"group":"mouth","priority":0},
+    {"id":"obj6","kind":"objective","at":[12,12],"priority":0}
+  ],
+  "groups": [
+    {"id":"mouth","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":2},{"role":"rifleman","priority":4}]}
+  ]
+}

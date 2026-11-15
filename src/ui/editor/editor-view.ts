@@ -3,20 +3,13 @@
  * middle, block settings / the selected thing / problems / file actions on the right.
  * Desktop first (mouse + keyboard). Plays the block in the real game via `actions.play`.
  */
-import {
-  BLOCK_CELLS,
-  EDGE_TAGS,
-  EDGE_TAG_IDS,
-  GROUND,
-  GROUND_KINDS,
-  type EdgeTag,
-} from '../../content/ground';
+import { BLOCK_CELLS, EDGE_PRESETS, GROUND, PAINT_KINDS } from '../../content/ground';
 import { ROLES } from '../../content/roles';
 import { str, strDynamic, type StringKey } from '../../content/strings';
 import type { RoleId } from '../../contracts/mission';
 import {
   ALWAYS_KINDS,
-  edgeLock,
+  onEdge,
   groupIds,
   isRectItem,
   ITEM_KINDS,
@@ -30,7 +23,6 @@ import {
   type Side,
 } from '../../gen/block';
 import { unitCost } from '../../gen/budget';
-import { edgeLayout } from '../../gen/transform';
 import type { CoverMaterial } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import type { EditorModel } from './editor-model';
@@ -58,11 +50,18 @@ export interface EditorActions {
   saveState(): SaveState;
   /** Save the draft into My blocks. */
   save(): void;
+  /**
+   * (PHASE13) How many blocks (in any orientation) could sit against each side of the draft
+   * ([D101]): official ones plus your saved ones.
+   */
+  edgeFits(block: BlockDef): Record<Side, number>;
   /** Open one of the player's blocks; an official one opens as a copy. */
   openBlock(id: string): void;
   deleteBlock(id: string): void;
   /** Play a generated level stitched from the official + the player's blocks. */
   playLevel(): void;
+  /** (PHASE13) The block connection graph ([D104]). */
+  openGraph(): void;
   /** The budget slider moved (saved for Play). */
   budgetChanged(budget: number | null): void;
 }
@@ -197,6 +196,14 @@ export class EditorView {
     this.refresh();
   }
 
+  private fitCache: { block: BlockDef; fits: Record<Side, number> } | null = null;
+
+  private fits(): Record<Side, number> {
+    const b = this.model.block;
+    if (this.fitCache?.block !== b) this.fitCache = { block: b, fits: this.actions.edgeFits(b) };
+    return this.fitCache.fits;
+  }
+
   refresh(): void {
     this.renderLeft();
     this.renderRight();
@@ -307,7 +314,7 @@ export class EditorView {
 
     box.append(el('h2', '', str('editor.ground')));
     const ground = el('div', 'grid2');
-    for (const k of GROUND_KINDS) {
+    for (const k of PAINT_KINDS) {
       const b = el('button', `swatch ${m.tool === 'paint' && m.paintKind === k ? 'on' : ''}`);
       const i = el('i');
       i.style.background = hex(GROUND[k].color);
@@ -360,19 +367,39 @@ export class EditorView {
         input(m.block.id, (v) => v.trim() && m.setMeta({ id: v.trim() })),
       ),
     );
+    box.append(
+      field(
+        str('editor.role'),
+        select(
+          [
+            ['', str('editor.role.none')],
+            ['start', str('editor.role.start')],
+            ['hq', str('editor.role.hq')],
+          ],
+          m.block.role ?? '',
+          (v) => m.setMeta({ role: v === 'start' || v === 'hq' ? v : undefined }),
+        ),
+      ),
+    );
+    // (PHASE13) Edges are the outer row of tiles; they join any block whose touching tiles
+    // match, give or take one place ([D101]). Presets paint a standard edge.
     box.append(el('h2', '', str('editor.edges')));
+    box.append(el('div', 'hint', str('editor.edgesHint')));
+    const fits = this.fits();
     const edges = el('div', 'grid2');
     for (const side of SIDES) {
-      edges.append(
-        field(
-          str(`editor.edge.${side}` as StringKey),
-          select(
-            EDGE_TAG_IDS.map((t) => [t, strDynamic(EDGE_TAGS[t].nameKey)]),
-            m.block.edges[side],
-            (v) => m.setEdge(side as Side, v as EdgeTag),
-          ),
-        ),
+      const sel = select(
+        [
+          ['', str('editor.edgeFits', { n: fits[side] })],
+          ...EDGE_PRESETS.map((p, i) => [String(i), strDynamic(p.nameKey)] as [string, string]),
+        ],
+        '',
+        (v) => {
+          const preset = EDGE_PRESETS[Number(v)];
+          if (preset) m.applyEdgePreset(side, preset.profile);
+        },
       );
+      edges.append(field(str(`editor.edge.${side}` as StringKey), sel));
     }
     box.append(edges);
 
@@ -505,27 +532,27 @@ export class EditorView {
       level.onclick = () => this.actions.playLevel();
       const x = el('button', '', str('editor.close'));
       x.onclick = close;
-      header.append(el('h1', '', str('editor.libraryTitle')), newB, level, x);
+      const graphB = el('button', '', str('world.graph'));
+      graphB.onclick = () => {
+        close();
+        this.actions.openGraph();
+      };
+      header.append(el('h1', '', str('editor.libraryTitle')), newB, graphB, level, x);
       panel.append(header, el('p', 'hint', str('editor.libraryHint')));
 
       const all = [
         ...custom.map((b) => ({ b, official: false })),
         ...official.map((b) => ({ b, official: true })),
       ];
-      const groups = new Map<string, { edges: BlockDef['edges']; rows: typeof all }>();
-      for (const entry of all) {
-        const lay = edgeLayout(entry.b.edges);
-        const g = groups.get(lay.key) ?? { edges: lay.edges, rows: [] };
-        g.rows.push(entry);
-        groups.set(lay.key, g);
-      }
-      for (const [key, g] of [...groups].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
-        void key;
-        const tag = (sd: Side) => strDynamic(EDGE_TAGS[g.edges[sd]].nameKey);
-        const h = el('h2', '', `${tag('n')} · ${tag('e')} · ${tag('s')} · ${tag('w')} `);
-        h.append(el('span', '', str('editor.layoutCount', { n: g.rows.length })));
+      for (const [title, rowsOf] of [
+        [str('editor.mine'), all.filter((x) => !x.official)],
+        [str('editor.officialBlocks'), all.filter((x) => x.official)],
+      ] as const) {
+        if (rowsOf.length === 0) continue;
+        const h = el('h2', '', `${title} `);
+        h.append(el('span', '', str('editor.layoutCount', { n: rowsOf.length })));
         panel.append(h);
-        for (const { b, official: isOfficial } of g.rows) {
+        for (const { b, official: isOfficial } of rowsOf) {
           const isOpen =
             current.id === b.id &&
             (isOfficial ? current.kind === 'official' : current.kind === 'mine');
@@ -533,6 +560,7 @@ export class EditorView {
           row.append(el('span', 'name', `${b.name}  (${b.id})`));
           if (isOfficial) row.append(el('span', 'tag', str('editor.official')));
           if (isOpen) row.append(el('span', 'tag', str('editor.current')));
+          if (b.role) row.append(el('span', 'tag', str(`editor.role.${b.role}`)));
           if (!isOfficial && validateBlock(b).length) {
             row.append(el('span', 'tag warn', str('editor.notInLevels')));
           }
@@ -846,8 +874,8 @@ export class EditorView {
         const k = block.ground[r]?.[col] ?? 'G';
         ctx.fillStyle = hex(GROUND[k as keyof typeof GROUND]?.color ?? 0x000000);
         ctx.fillRect(col * cp, r * cp, cp, cp);
-        if (edgeLock(block.edges, col, r)) {
-          // Locked by the edge tag: light stripes.
+        if (onEdge(col, r)) {
+          // Edge tiles (what neighbours match against): light stripes.
           ctx.save();
           ctx.beginPath();
           ctx.rect(col * cp, r * cp, cp, cp);
@@ -879,12 +907,13 @@ export class EditorView {
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, size, size);
 
-    // Edge tag labels outside the block.
+    // How many blocks fit against each side ([D101]).
     ctx.fillStyle = '#aeb6c0';
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const label = (s: Side) => strDynamic(EDGE_TAGS[block.edges[s]].nameKey);
+    const fitsNow = this.fits();
+    const label = (s: Side) => str('editor.edgeFits', { n: fitsNow[s] });
     ctx.fillText(`▲ ${label('n')}`, size / 2, -MARGIN / 2);
     ctx.fillText(`${label('s')} ▼`, size / 2, size + MARGIN / 2);
     ctx.save();
@@ -935,8 +964,7 @@ export class EditorView {
       if (m.tool === 'paint' && x >= 0 && y >= 0 && x < n && y < n) {
         const col = Math.floor(x);
         const r = Math.floor(y);
-        const locked = !!edgeLock(block.edges, col, r);
-        ctx.strokeStyle = locked ? 'rgba(255,80,80,0.9)' : 'rgba(255,255,255,0.9)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 2;
         ctx.strokeRect(col * cp + 1, r * cp + 1, cp - 2, cp - 2);
       } else if (m.tool === 'place') {

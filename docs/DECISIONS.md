@@ -433,6 +433,33 @@ These replace the PHASE13 sketch's "chunks along a vertical spine".
 - **[D96] Bases are alive before you arrive.** Soldiers far from us keep roaming between rally
   points (cheaply, without looking for targets) instead of sleeping in place.
 
+## Tile matching (owner session 2026-11, PHASE13)
+
+These replace the edge tags of [D81] and the frame of [D83] (the enemy base still grows from the
+top, [D102]).
+
+- **[D101] Edges match by tiles, no tags.** A block's edge is its outer row of tiles. Two blocks
+  can touch when every tile on each side has a tile of the *same type* within one place on the
+  other (straight across or diagonal). Types are exact: grass only meets grass, so every change
+  of ground (grass → sand, grass → concrete) is a transition block, authored on purpose; harder
+  zones (concrete) can be kept apart by having few transitions. Design blocks with features
+  **crossing** edges (a road or river through the middle, a wall cutting across, a shore over
+  half an edge), never running along one. Presets in the editor paint standard edges (grass,
+  grass road, grass river, shore, ridge, concrete, base wall); they're conveniences, not rules.
+- **[D102] Levels grow from both ends, then a path is cut if needed.** The enemy HQ goes in the
+  top row and the player's start in the bottom row (blocks marked with those roles); then the
+  two sides take turns placing matching blocks next to their own, the enemy taking about a third
+  of the turns (`tuning.grow.enemyShare`). Concrete spreads from the HQ, grass from the start;
+  they meet through transition blocks. No frame: lakes, rivers and ridges come from the blocks.
+  If there's no way from the start to the HQ, one is cut (water → bridge, rocks → pass, wall →
+  breach), only where it must; a cut is a natural choke point and level boundary.
+- **[D103] Rocks and Concrete Wall are tile types**, solid for now: they block movement and
+  shots. Later they'll get height (enemies shooting down from walls and cliffs). Placed walls
+  stay for detail inside a block; edges are paint only.
+- **[D104] Rarity comes from connections.** No rarity setting: a block's rarity is how many
+  blocks it can sit next to. The connection graph (world viewer and editor library: "Block
+  connections…") shows it: well-connected blocks in the middle, rare ones at the edge.
+
 ## Reacting to fire (owner session 2026-11, PHASE13)
 
 - **[D97] Enemies react to being shot.** A hit tells the soldier where it came from (and wakes
@@ -727,4 +754,9 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   rows deep, chunks 2–3 wide); rivers only between bands (so a river is where levels meet, and
   every level has a crossing on its south edge); every seam the frame didn't mark is crossable.
   Levels are always attacked from the south for now. Open: irregular shapes, side entries.
+- **[Q57] Irregular blocks (later, noted by the owner).** Since matching is per tile, blocks
+  needn't be 1 × 1 or even rectangles: a long thin bridge, a cross-shaped base, a zigzag cliff.
+  Place larger blocks first (start and HQ levels are the most authored), fill with smaller ones,
+  and fill tiles nothing fits by extending what's around them (grass grows into grass, water
+  surrounded by water becomes a lake). Planned as a second pass after 1 × 1 matching.
 

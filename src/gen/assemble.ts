@@ -9,7 +9,7 @@
  * squad. Capture points get a forward spawn just south of them. One flag objective goes at
  * `objective` (world units): capture it to win.
  */
-import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
+import { BLOCK_CELLS, GROUND, isGroundKind, type GroundKind } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import type { Vec2 } from '../sim/core/vec';
 import {
@@ -69,7 +69,11 @@ export function assembleMap(opts: AssembleOptions): MapDef {
   }
   for (let i = 0; i < staging; i++) groundRows.push('G'.repeat(opts.cols * n));
 
-  const walls: Rect[] = [...borderWalls(width, height, BLOCK_TUNING.borderThickness)];
+  const walls: Rect[] = [
+    ...borderWalls(width, height, BLOCK_TUNING.borderThickness),
+    // (PHASE13) Rock and wall tiles are solid ([D103]).
+    ...solidRects(groundRows, cs),
+  ];
   const cover: CoverDef[] = [];
   const gates: GateDef[] = [];
   const levers: LeverDef[] = [];
@@ -210,8 +214,18 @@ function blockSquads(
   return out;
 }
 
-/** Water cells → rects: runs along each row, merged down while the run below is identical. */
+/** Water tiles (impassable but not solid: shots cross) → rects. */
 export function waterRects(rows: readonly string[], cs: number): Rect[] {
+  return tileRects(rows, cs, (k) => !GROUND[k].passable && !GROUND[k].solid);
+}
+
+/** (PHASE13) Rocks and wall tiles (solid: block movement and shots, [D103]) → wall rects. */
+export function solidRects(rows: readonly string[], cs: number): Rect[] {
+  return tileRects(rows, cs, (k) => GROUND[k].solid);
+}
+
+/** Tiles of some kinds → rects: runs along each row, merged down while the run below matches. */
+function tileRects(rows: readonly string[], cs: number, want: (k: GroundKind) => boolean): Rect[] {
   const open: Rect[] = [];
   const done: Rect[] = [];
   rows.forEach((row, r) => {
@@ -219,7 +233,7 @@ export function waterRects(rows: readonly string[], cs: number): Rect[] {
     let start = -1;
     for (let c = 0; c <= row.length; c++) {
       const ch = row[c];
-      const wet = ch !== undefined && isGroundKind(ch) && !GROUND[ch].passable;
+      const wet = ch !== undefined && isGroundKind(ch) && want(ch);
       if (wet && start < 0) start = c;
       if (!wet && start >= 0) {
         runs.push([start, c]);
