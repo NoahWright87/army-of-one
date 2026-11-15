@@ -189,7 +189,16 @@ describe('generateLevel', () => {
     const lvl = generateLevel(OFFICIAL_BLOCKS, { ...opts, seed: 2 });
     const walled = {
       ...lvl.map,
-      walls: [...lvl.map.walls, { x: 0, y: 1500, w: lvl.map.width, h: 40 }],
+      // A wall right across the map, just south of the objective.
+      walls: [
+        ...lvl.map.walls,
+        {
+          x: 0,
+          y: lvl.map.capturePoints!.find((c) => c.objective)!.position.y + 120,
+          w: lvl.map.width,
+          h: 40,
+        },
+      ],
     };
     expect(objectiveReachable(walled)).toBe(false);
   });

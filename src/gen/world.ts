@@ -87,8 +87,9 @@ function carve(grid: GrownCell[][], rows: number, cols: number, rng: RngState): 
     let col = 0;
     for (const w of splitWidths(cols, rng)) {
       const ramp = bands.length > 2 ? Math.min(1, bi / (bands.length - 2)) : 1;
-      let budget = t.budgetFirst + (t.budgetLast - t.budgetFirst) * ramp;
-      if (base) budget = t.budgetLast * t.baseBudgetBonus;
+      let perBlock = t.budgetPerBlockFirst + (t.budgetPerBlockLast - t.budgetPerBlockFirst) * ramp;
+      if (base) perBlock = t.budgetPerBlockLast * t.baseBudgetBonus;
+      const budget = perBlock * band.rows * w;
       let maxBudget = 0;
       for (let rr = band.row; rr < band.row + band.rows; rr++) {
         for (let cc = col; cc < col + w; cc++) maxBudget += blockTotalCost(grid[rr]![cc]!.placed);

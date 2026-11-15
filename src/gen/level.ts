@@ -10,7 +10,7 @@ import { BLOCK_CELLS } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import { createRng, nextFloat, type RngState } from '../sim/core/rng';
 import type { Vec2 } from '../sim/core/vec';
-import { rectContains, type MapDef, type Rect } from '../sim/world/map';
+import type { MapDef, Rect } from '../sim/world/map';
 import { assembleMap, type PlacedBlock } from './assemble';
 import type { BlockDef } from './block';
 import { blockTotalCost, spendBudget } from './budget';
@@ -21,7 +21,7 @@ export interface LevelOptions {
   id: string;
   nameKey: string;
   seed: number;
-  /** Whole-level enemy budget; default `BLOCK_TUNING.level.budget`. */
+  /** Whole-level enemy budget; default `BLOCK_TUNING.level.budgetPerBlock` × blocks. */
   budget?: number;
   cols?: number;
   rows?: number;
@@ -52,16 +52,14 @@ export function generateLevel(pool: readonly BlockDef[], opts: LevelOptions): Ge
   if (pool.length === 0) throw new Error('generateLevel: no blocks');
   const t = BLOCK_TUNING.level;
   const rng = createRng(opts.seed);
-  const { grid, warnings } = growBoard(
-    new Palette(pool),
-    { rows: opts.rows ?? t.rows, cols: opts.cols ?? t.cols },
-    rng,
-  );
+  const rows = opts.rows ?? t.rows;
+  const cols = opts.cols ?? t.cols;
+  const { grid, warnings } = growBoard(new Palette(pool), { rows, cols }, rng);
   const built = buildLevelMap(grid, {
     id: opts.id,
     nameKey: opts.nameKey,
     seed: opts.seed,
-    budget: opts.budget ?? t.budget,
+    budget: opts.budget ?? t.budgetPerBlock * rows * cols,
   });
   return { ...built, warnings: [...warnings, ...built.warnings] };
 }
@@ -226,10 +224,16 @@ export function objectiveReachable(map: MapDef): boolean {
   const cols = Math.floor(map.width / step);
   const rowsN = Math.floor(map.height / step);
   const blockers: Rect[] = [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
-  const free = (cx: number, cy: number) => {
-    const p = { x: (cx + 0.5) * step, y: (cy + 0.5) * step };
-    return !blockers.some((b) => rectContains(b, p));
-  };
+  // (perf) Paint the blockers onto the grid once: a cell is blocked if a blocker holds its centre.
+  const blocked = new Uint8Array(cols * rowsN);
+  for (const b of blockers) {
+    const x0 = Math.max(0, Math.ceil(b.x / step - 0.5));
+    const x1 = Math.min(cols - 1, Math.floor((b.x + b.w) / step - 0.5));
+    const y0 = Math.max(0, Math.ceil(b.y / step - 0.5));
+    const y1 = Math.min(rowsN - 1, Math.floor((b.y + b.h) / step - 0.5));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) blocked[y * cols + x] = 1;
+  }
+  const free = (cx: number, cy: number) => !blocked[cy * cols + cx];
   const start = map.spawnPoints.find((s) => s.kind === 'initial')!.position;
   const goal = map.capturePoints!.find((c) => c.objective)!.position;
   const sx = Math.floor(start.x / step);
@@ -240,8 +244,8 @@ export function objectiveReachable(map: MapDef): boolean {
   const queue: number[] = [sy * cols + sx];
   seen[sy * cols + sx] = 1;
   const goalR = 2; // within a cell of the flag is close enough to capture it
-  while (queue.length) {
-    const i = queue.shift()!;
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head]!;
     const x = i % cols;
     const y = (i - x) / cols;
     if (Math.abs(x - gx) <= goalR && Math.abs(y - gy) <= goalR) return true;

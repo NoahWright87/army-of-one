@@ -459,6 +459,11 @@ top, [D102]).
 - **[D104] Rarity comes from connections.** No rarity setting: a block's rarity is how many
   blocks it can sit next to. The connection graph (world viewer and editor library: "Block
   connections…") shows it: well-connected blocks in the middle, rare ones at the edge.
+- **[D105] Bigger levels, bigger world.** A level is about 10 blocks long and 2–3 wide; a
+  campaign is 5–6 levels from the start to the base, more when attacking along several fronts.
+  The world board is 8 × 60 blocks (six bands of levels, about three fronts side by side).
+  Enemy budgets are per block (`tuning.world.budgetPerBlockFirst/Last`, `tuning.level.budgetPerBlock`)
+  so they scale with level size.
 
 ## Reacting to fire (owner session 2026-11, PHASE13)
 

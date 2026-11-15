@@ -80,3 +80,15 @@ Not yet: irregular level shapes, entries from the side (rotating a level), campa
   river mouth, ridges, base wall/gate/corners/yard/road/HQ, landing zone).
 - Stats (100 seeds, official blocks): ~10 inexact matches per 70 blocks, a quarter of worlds
   needed a short cut, every level reachable.
+
+## Notes from implementation (bigger levels and world, [D105])
+
+- `tuning.world`: 8 × 60 board, bands 10 rows deep, levels 2–3 wide (~18–19 levels per world).
+  `tuning.level`: random levels are 2 × 10. Budgets are per block, ramping by band (30 → 80 per
+  block, base band × 1.3).
+- Level reachability is rasterized (one bitmap of blockers per level), which took a level map
+  from ~85 ms to ~12 ms. A whole board grows in ~165 ms.
+- Viewer: the board fills the stage width and scrolls (opens at the bottom, the player's start);
+  the level sketch is capped in height. "Inexact matches" counts loose cells again.
+- Stats (10 seeds, official blocks): ~80 loose matches per 480 blocks (~16%, gaps in the starter
+  set), every level reachable, ~83 enemies per level at its default budget.

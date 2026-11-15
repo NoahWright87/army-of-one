@@ -986,16 +986,13 @@ export const BLOCK_TUNING = {
   },
   /** (PHASE13-b) A generated level: blocks across and up, and its enemy budget. */
   level: {
+    /** (PHASE13) A level is about 10 blocks long and 2–3 wide (owner, 2026-11). */
     cols: 2, // TUNE
-    rows: 4, // TUNE
-    /** Default budget for the whole level ([D86]). */
-    budget: 360, // TUNE
+    rows: 10, // TUNE
+    /** Default enemy budget per block of a random level ([D86]). */
+    budgetPerBlock: 45, // TUNE
     /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
     ramp: 2, // TUNE
-    /** Top rows given to the enemy base when the block pool has base blocks ([D83]). */
-    baseRows: 1, // TUNE
-    /** Rerolls (seeded) when the objective can't be reached. */
-    maxAttempts: 30, // TUNE
   },
   /**
    * (PHASE13) Growing a board from both ends ([D102]): the enemy side's share of the turns
@@ -1006,15 +1003,18 @@ export const BLOCK_TUNING = {
   },
   /** (PHASE13-c) The world map board ([D89]). */
   world: {
-    cols: 7, // TUNE [D89]: 6–9 wide
-    rows: 10, // TUNE
+    /** About three levels side by side (several fronts to attack along). */
+    cols: 8, // TUNE [D89]
+    /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
+    rows: 60, // TUNE
     /** Levels are carved this many rows deep… */
-    levelRows: 2, // TUNE
+    levelRows: 10, // TUNE
     /** …and 2–3 blocks wide. */
     levelCols: [2, 3] as const, // TUNE
-    /** Enemy budget of the first level and the last field level ([D86]); base levels get more. */
-    budgetFirst: 220, // TUNE
-    budgetLast: 650, // TUNE
+    /** Enemy budget per block in the first band and the last field band ([D86]). */
+    budgetPerBlockFirst: 30, // TUNE
+    budgetPerBlockLast: 80, // TUNE
+    /** The enemy base's band gets this much more per block. */
     baseBudgetBonus: 1.3, // TUNE
   },
 } as const;

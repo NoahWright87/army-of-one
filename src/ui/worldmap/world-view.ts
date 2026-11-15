@@ -47,8 +47,8 @@ const css = `
 .aoo-wm h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #8b95a1;
   margin: 14px 0 6px; }
 .aoo-wm h2:first-child { margin-top: 0; }
-.aoo-wm .stage { position: relative; overflow: hidden; }
-.aoo-wm canvas.board { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+.aoo-wm .stage { position: relative; overflow: auto; }
+.aoo-wm canvas.board { display: block; cursor: pointer; }
 .aoo-wm button, .aoo-wm input { font: inherit; color: inherit; background: #232930;
   border: 1px solid #343c46; border-radius: 4px; padding: 5px 8px; }
 .aoo-wm button { cursor: pointer; width: 100%; margin-bottom: 4px; }
@@ -74,12 +74,13 @@ const css = `
   .aoo-wm { display: flex; flex-direction: column; overflow-y: auto; }
   .aoo-wm > * { flex: none; }
   .aoo-wm aside.left, .aoo-wm aside.right { border: 0; overflow: visible; }
-  .aoo-wm .stage { height: 150vw; max-height: 90vh; }
+  .aoo-wm .stage { height: 75vh; }
 }
 `;
 
 export class WorldView {
   private board: HTMLCanvasElement;
+  private stage!: HTMLElement;
   private left: HTMLElement;
   private right: HTMLElement;
   private world: GeneratedWorld | null = null;
@@ -91,6 +92,7 @@ export class WorldView {
   private origin = { x: 0, y: 0 };
   private oriented: ReturnType<typeof orientBlock>[][] = [];
   private picked: { r: number; c: number } | null = null;
+  private shown = false;
   private overlays: Overlays = loadOverlays();
 
   constructor(
@@ -102,6 +104,7 @@ export class WorldView {
     this.left = el('aside', 'left');
     this.right = el('aside', 'right');
     const stage = el('div', 'stage');
+    this.stage = stage;
     this.board = el('canvas', 'board');
     stage.append(this.board);
     root.append(this.left, stage, this.right);
@@ -136,6 +139,7 @@ export class WorldView {
   }
 
   show(world: GeneratedWorld, ms: number): void {
+    const fresh = this.world?.seed !== world.seed || !this.shown;
     this.world = world;
     this.genMs = ms;
     this.oriented = world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
@@ -143,8 +147,10 @@ export class WorldView {
     if (this.picked && (this.picked.r >= world.rows || this.picked.c >= world.cols)) {
       this.picked = null;
     }
+    this.shown = true;
     this.renderLeft();
     this.drawBoard();
+    if (fresh) this.stage.scrollTop = this.stage.scrollHeight;
     if (this.selected !== null) this.select(this.selected);
     else this.renderRight();
   }
@@ -204,8 +210,8 @@ export class WorldView {
     graph.onclick = () => this.actions.openGraph();
     box.append(graph);
 
-    const fallbacks = w.warnings.filter((x) => x.includes('no exact')).length;
-    const other = w.warnings.filter((x) => !x.includes('no exact'));
+    const fallbacks = w.grid.flat().filter((g) => g.fit !== 'exact').length;
+    const other = w.warnings.filter((x) => !x.includes('no block matches'));
     box.append(el('h2', '', str('world.stats')));
     const dl = el('dl');
     const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
@@ -221,16 +227,22 @@ export class WorldView {
 
   // ---------------------------------------------------------------- board
 
+  /**
+   * The board fills the stage's width (a world is far taller than wide), at least 2 px per tile,
+   * and the stage scrolls. Sets the canvas's own size.
+   */
   private layout(): void {
     const w = this.world!;
-    const cw = this.board.clientWidth;
-    const ch = this.board.clientHeight;
+    const pad = 12;
     const cells = { x: w.cols * BLOCK_CELLS, y: w.rows * BLOCK_CELLS };
-    this.px = Math.max(1, Math.floor(Math.min((cw - 24) / cells.x, (ch - 24) / cells.y)));
-    this.origin = {
-      x: Math.round((cw - cells.x * this.px) / 2),
-      y: Math.round((ch - cells.y * this.px) / 2),
-    };
+    const room = this.stage.clientWidth - 2 * pad - 14; // leave room for a scrollbar
+    this.px = Math.max(2, Math.floor(room / cells.x));
+    this.origin = { x: pad, y: pad };
+    const width = cells.x * this.px + 2 * pad;
+    const height = cells.y * this.px + 2 * pad;
+    this.board.style.width = `${width}px`;
+    this.board.style.height = `${height}px`;
+    this.board.style.margin = '0 auto';
   }
 
   private cellAt(e: PointerEvent | MouseEvent): { r: number; c: number } | null {
@@ -259,11 +271,11 @@ export class WorldView {
   private drawBoard(): void {
     const w = this.world;
     const c = this.board;
-    if (!w || !c.clientWidth) return;
+    if (!w || !this.stage.clientWidth) return;
+    this.layout();
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(c.clientWidth * dpr);
     c.height = Math.round(c.clientHeight * dpr);
-    this.layout();
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
@@ -454,13 +466,15 @@ export class WorldView {
   private drawPreview(c: HTMLCanvasElement, map: GeneratedLevel['map']): void {
     const dpr = window.devicePixelRatio || 1;
     const width = c.clientWidth || 370;
-    const k = width / map.width;
+    // A level is far taller than wide: fit the width, but no taller than most screens.
+    const k = Math.min(width / map.width, Math.max(400, window.innerHeight * 0.8) / map.height);
     const height = Math.round(map.height * k);
     c.style.height = `${height}px`;
     c.width = Math.round(width * dpr);
     c.height = Math.round(height * dpr);
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(Math.round((width - map.width * k) / 2), 0);
     drawMapSketch(ctx, map, k);
   }
 
