@@ -1000,6 +1000,10 @@ export const BLOCK_TUNING = {
    */
   grow: {
     enemyShare: 0.34, // TUNE
+    /** A cell nothing fits clears its neighbours and regrows them up to this many times… */
+    repairsPerCell: 4, // TUNE
+    /** …and at most this many repairs per cell of the board in all. */
+    repairBudget: 2, // TUNE
   },
   /** (PHASE13-d) A random campaign across a world map ([D106]). */
   campaign: {

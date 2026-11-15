@@ -4,11 +4,14 @@
  * 1. The enemy HQ goes in the top row and the player's start in the bottom row (blocks marked
  *    with those roles; otherwise the likeliest stand-ins).
  * 2. Then the two sides take turns (the enemy `grow.enemyShare` of them): each fills one empty
- *    cell next to its own blocks (the one
- *    touching the most placed blocks first), with a block, in one of its 8 orientations, whose
- *    edges match every placed neighbour tile for tile ([D101]). Concrete spreads from the HQ,
- *    grass from the start; in the middle they need transition blocks to meet.
- * 3. If no block matches every neighbour, the one matching the most sides is used and logged.
+ *    cell next to its own blocks (the one with the fewest blocks that could fit first), with a
+ *    block, in one of its 8 orientations, whose edges match every placed neighbour tile for
+ *    tile ([D101]) and that leaves every empty neighbour something that fits (look-ahead).
+ *    Concrete spreads from the HQ, grass from the start; in the middle they need transition
+ *    blocks to meet.
+ * 3. A cell nothing fits clears the neighbours boxing it in and they grow again (a few tries
+ *    per cell). Only then is the block whose edge tiles agree best used, and logged.
+ * 4. Fit is judged at the end, seam by seam.
  *
  * `connect` then cuts a path where the map has none: water becomes a bridge, rocks a pass,
  * walls a breach ([D102]). The search prefers open ground, so it only cuts where it must.
@@ -19,7 +22,7 @@ import { BLOCK_CELLS, GROUND, isGroundKind, type GroundKind } from '../content/g
 import { BLOCK_TUNING } from '../content/tuning';
 import { nextFloat, type RngState } from '../sim/core/rng';
 import { isRectItem, type BlockDef, type Side } from './block';
-import { EdgeMatcher, OPPOSITE, SIDE_LIST, sidePassable, sideProfiles } from './edges';
+import { EdgeMatcher, edgesMatch, OPPOSITE, SIDE_LIST, sidePassable, sideProfiles } from './edges';
 import { ORIENTATIONS, orientBlock, type Orientation } from './transform';
 
 /** A block placed on the board. */
@@ -82,11 +85,30 @@ export function growBoard(
   const grid: (GrownCell | null)[][] = Array.from({ length: rows }, () =>
     new Array<GrownCell | null>(cols).fill(null),
   );
-  const warnings: string[] = [];
   const m = palette.matcher;
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(nextFloat(rng) * xs.length)]!;
   const middle = (n: number) =>
     Math.floor(n / 2) + (n > 2 ? Math.floor(nextFloat(rng) * 3) - 1 : 0);
+
+  // Candidate sets as bitsets over the fill palette, so look-ahead is cheap.
+  const fill = palette.fill;
+  const words = (fill.length + 31) >>> 5;
+  const wantCache = new Map<string, Uint32Array>();
+  /** Fill candidates whose `side` edge matches `edge` (a neighbour's edge on that side). */
+  const want = (side: Side, edge: string): Uint32Array => {
+    const key = `${side}|${edge}`;
+    let set = wantCache.get(key);
+    if (!set) {
+      set = new Uint32Array(words);
+      for (let i = 0; i < fill.length; i++) {
+        if (m.match(fill[i]!.edges[side], edge)) set[i >>> 5]! |= 1 << (i & 31);
+      }
+      wantCache.set(key, set);
+    }
+    return set;
+  };
+  const all = new Uint32Array(words);
+  for (let i = 0; i < fill.length; i++) all[i >>> 5]! |= 1 << (i & 31);
 
   const neighbours = (r: number, c: number) =>
     SIDE_LIST.flatMap((side) => {
@@ -94,70 +116,184 @@ export function growBoard(
       const cell = grid[nr]?.[nc];
       return cell ? [{ side, cell }] : [];
     });
+  const emptyNeighbours = (r: number, c: number) =>
+    SIDE_LIST.flatMap((side) => {
+      const [nr, nc] = step(r, c, side);
+      return nr >= 0 && nc >= 0 && nr < rows && nc < cols && !grid[nr]![nc]
+        ? [{ side, r: nr, c: nc }]
+        : [];
+    });
+  /** Fill candidates that match every placed neighbour of (r, c). */
+  const domain = (r: number, c: number): Uint32Array => {
+    const d = all.slice();
+    for (const { side, cell } of neighbours(r, c)) {
+      const w = want(side, cell.edges[OPPOSITE[side]]);
+      for (let k = 0; k < words; k++) d[k]! &= w[k]!;
+    }
+    return d;
+  };
+  const members = (d: Uint32Array) => {
+    const out: number[] = [];
+    for (let i = 0; i < fill.length; i++) if (d[i >>> 5]! & (1 << (i & 31))) out.push(i);
+    return out;
+  };
+  const size = (d: Uint32Array) => {
+    let n = 0;
+    for (let k = 0; k < words; k++) {
+      let x = d[k]!;
+      while (x) {
+        x &= x - 1;
+        n++;
+      }
+    }
+    return n;
+  };
+  const overlaps = (a: Uint32Array, b: Uint32Array) => {
+    for (let k = 0; k < words; k++) if (a[k]! & b[k]!) return true;
+    return false;
+  };
 
-  const place = (r: number, c: number, from: readonly Candidate[], side: GrownCell['side']) => {
+  const set = (r: number, c: number, cand: Candidate, side: GrownCell['side']) => {
+    grid[r]![c] = { ...cand, fit: 'exact', side };
+  };
+  /** Each fitting block equally likely, then one of its fitting orientations. */
+  const choose = (cands: readonly Candidate[]): Candidate => {
+    const block = pick([...new Set(cands.map((x) => x.block))]);
+    return pick(cands.filter((x) => x.block === block));
+  };
+
+  // 1. The two ends (never cleared by repairs).
+  const anchors = new Set<string>();
+  const anchor = (r: number, c: number, from: readonly Candidate[], side: GrownCell['side']) => {
+    set(r, c, choose(from), side);
+    anchors.add(`${r},${c}`);
+  };
+  anchor(0, middle(cols), palette.hqs.length ? palette.hqs : palette.all, 'enemy');
+  anchor(rows - 1, middle(cols), palette.starts.length ? palette.starts : palette.all, 'player');
+
+  /**
+   * Fills (r, c): a block matching every placed neighbour and leaving every empty neighbour
+   * something that fits ([D101]). False at a dead end (nothing matches the neighbours).
+   */
+  const fillCell = (r: number, c: number, side: GrownCell['side']): boolean => {
+    const ids = members(domain(r, c));
+    if (ids.length === 0) return false;
+    const around = emptyNeighbours(r, c).map((e) => ({ ...e, d: domain(e.r, e.c) }));
+    const safe = ids.filter((i) =>
+      around.every((e) => overlaps(e.d, want(OPPOSITE[e.side], fill[i]!.edges[e.side]))),
+    );
+    set(r, c, choose((safe.length ? safe : ids).map((i) => fill[i]!)), side);
+    return true;
+  };
+
+  /** Last resort: the block whose edge tiles agree best with the neighbours, tile for tile. */
+  const fallback = (r: number, c: number, side: GrownCell['side']) => {
     const near = neighbours(r, c);
-    const score = (cand: Candidate) =>
-      near.reduce(
-        (n, { side: sd, cell }) => n + (m.match(cand.edges[sd], cell.edges[OPPOSITE[sd]]) ? 1 : 0),
-        0,
-      );
     let best: Candidate[] = [];
     let bestScore = -1;
-    for (const cand of from) {
-      const sc = score(cand);
+    for (const cand of fill) {
+      let sc = 0;
+      for (const { side: sd, cell } of near) {
+        sc += tileAgreement(cand.edges[sd], cell.edges[OPPOSITE[sd]]);
+      }
       if (sc > bestScore) {
         bestScore = sc;
         best = [cand];
       } else if (sc === bestScore) best.push(cand);
     }
-    // Each fitting block equally likely, then one of its fitting orientations.
-    const blocks = [...new Set(best.map((b) => b.block))];
-    const block = pick(blocks);
-    const chosen = pick(best.filter((b) => b.block === block));
-    const exact = bestScore === near.length;
-    if (!exact) warnings.push(`row ${r} col ${c}: no block matches all ${near.length} neighbours`);
-    grid[r]![c] = { ...chosen, fit: exact ? 'exact' : 'loose', side };
+    set(r, c, choose(best), side);
   };
 
-  // 1. The two ends.
-  place(0, middle(cols), palette.hqs.length ? palette.hqs : palette.all, 'enemy');
-  place(rows - 1, middle(cols), palette.starts.length ? palette.starts : palette.all, 'player');
-
-  // 2. Take turns growing from each end.
+  // 2. Take turns growing from each end: the most constrained open cell first.
   const frontier = (side: GrownCell['side']) => {
-    const out: { r: number; c: number; placed: number }[] = [];
+    const out: { r: number; c: number; placed: number; options: number }[] = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (grid[r]![c]) continue;
         const near = neighbours(r, c);
-        if (near.some((n) => n.cell.side === side)) out.push({ r, c, placed: near.length });
+        if (near.some((n) => n.cell.side === side)) {
+          out.push({ r, c, placed: near.length, options: size(domain(r, c)) });
+        }
       }
     }
     return out;
   };
-  // Turns: the enemy side takes `enemyShare` of them (spread evenly), the player side the rest.
   const share = opts.enemyShare ?? BLOCK_TUNING.grow.enemyShare;
+  const repairs = new Map<string, number>();
+  const maxRepairs = BLOCK_TUNING.grow.repairsPerCell;
+  let budget = BLOCK_TUNING.grow.repairBudget * rows * cols;
   let owed = 0;
   let turn: GrownCell['side'] = 'enemy';
-  for (let left = rows * cols - 2; left > 0;) {
+  for (let guard = rows * cols * 50; guard > 0; guard--) {
     let cells = frontier(turn);
     if (cells.length === 0) {
       turn = turn === 'enemy' ? 'player' : 'enemy';
       cells = frontier(turn);
       if (cells.length === 0) break;
     }
-    const most = Math.max(...cells.map((x) => x.placed));
-    const next = pick(cells.filter((x) => x.placed === most));
-    place(next.r, next.c, palette.fill, turn);
-    left--;
+    const fewest = Math.min(...cells.map((x) => x.options));
+    const tight = cells.filter((x) => x.options === fewest);
+    const most = Math.max(...tight.map((x) => x.placed));
+    const next = pick(tight.filter((x) => x.placed === most));
+    if (!fillCell(next.r, next.c, turn)) {
+      // Dead end: clear the neighbours that box it in and grow them again (a few times).
+      const key = `${next.r},${next.c}`;
+      const tries = repairs.get(key) ?? 0;
+      const clearable = SIDE_LIST.map((sd) => step(next.r, next.c, sd)).filter(
+        ([nr, nc]) => grid[nr]?.[nc] && !anchors.has(`${nr},${nc}`),
+      );
+      if (tries < maxRepairs && budget > 0 && clearable.length) {
+        repairs.set(key, tries + 1);
+        budget--;
+        for (const [nr, nc] of clearable) grid[nr]![nc] = null;
+        continue;
+      }
+      fallback(next.r, next.c, turn);
+    }
     owed += share;
     if (owed >= 1) {
       owed -= 1;
       turn = 'enemy';
     } else turn = 'player';
   }
-  return { grid: grid as GrownCell[][], warnings };
+
+  // 3. Fit is judged at the end, seam by seam, against the final neighbours.
+  const warnings: string[] = [];
+  const out = grid as GrownCell[][];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = out[r]![c]!;
+      const bad = neighbours(r, c).filter(
+        ({ side, cell: o }) => !m.match(cell.edges[side], o.edges[OPPOSITE[side]]),
+      );
+      cell.fit = bad.length ? 'loose' : 'exact';
+      if (bad.length) {
+        warnings.push(
+          `row ${r} col ${c}: doesn't match its ${bad.map((b) => SIDE_NAME[b.side]).join(', ')} neighbour`,
+        );
+      }
+    }
+  }
+  return { grid: out, warnings };
+}
+
+const SIDE_NAME: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
+
+/** How many tiles of `mine` find their type within one place on `theirs` (lined up). */
+function tileAgreement(mine: string, theirs: string): number {
+  const t = [...theirs].reverse();
+  let n = 0;
+  for (let i = 0; i < mine.length; i++) {
+    if (t[i] === mine[i] || t[i - 1] === mine[i] || t[i + 1] === mine[i]) n++;
+  }
+  return n;
+}
+
+/** Whether a placed cell's side matches the cell next to it (as the board stands). */
+export function seamMatches(grid: GrownCell[][], r: number, c: number, side: Side): boolean {
+  const [nr, nc] = step(r, c, side);
+  const o = grid[nr]?.[nc];
+  return !o || edgesMatch(grid[r]![c]!.edges[side], o.edges[OPPOSITE[side]]);
 }
 
 function step(r: number, c: number, side: Side): [number, number] {

@@ -5,7 +5,7 @@ import { createRng } from '../../sim/core/rng';
 import { validateMap } from '../../sim/world/map';
 import { newBlock, type BlockDef } from '../block';
 import { edgesMatch, sideProfiles } from '../edges';
-import { blockTiles, connect, growBoard, Palette, type GrownCell } from '../grow';
+import { blockTiles, connect, growBoard, Palette, seamMatches, type GrownCell } from '../grow';
 import { parseWorldMissionId, worldMissionId } from '../mission-id';
 import { generateWorld, worldLevelMap } from '../world';
 
@@ -148,5 +148,32 @@ describe('growBoard', () => {
     expect(grid.flat()).toHaveLength(24);
     expect(grid[0]!.some((g) => g.side === 'enemy')).toBe(true);
     expect(grid[5]!.some((g) => g.side === 'player')).toBe(true);
+  });
+});
+
+describe('growBoard look-ahead and repair', () => {
+  it('marks a cell loose exactly when one of its seams fails against the final board', () => {
+    const w = generateWorld(OFFICIAL_BLOCKS, { seed: 444015314 });
+    for (let r = 0; r < w.rows; r++) {
+      for (let c = 0; c < w.cols; c++) {
+        const ok = (['n', 'e', 's', 'w'] as const).every((sd) => seamMatches(w.grid, r, c, sd));
+        expect(w.grid[r]![c]!.fit).toBe(ok ? 'exact' : 'loose');
+      }
+    }
+  });
+
+  it('rarely leaves a bad seam (was ~70 per world before look-ahead)', () => {
+    let bad = 0;
+    const seeds = [3, 444015314, 77, 1234];
+    for (const seed of seeds) {
+      const w = generateWorld(OFFICIAL_BLOCKS, { seed });
+      for (let r = 0; r < w.rows; r++) {
+        for (let c = 0; c < w.cols; c++) {
+          if (!seamMatches(w.grid, r, c, 'e')) bad++;
+          if (!seamMatches(w.grid, r, c, 's')) bad++;
+        }
+      }
+    }
+    expect(bad / seeds.length).toBeLessThan(10);
   });
 });

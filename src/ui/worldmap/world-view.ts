@@ -4,7 +4,8 @@
  * playtest it for real. A testing tool for now: what a campaign's world map will be built on.
  */
 import { BLOCK_CELLS } from '../../content/ground';
-import { sideProfiles } from '../../gen/edges';
+import { OPPOSITE, SIDE_LIST, sideProfiles } from '../../gen/edges';
+import { seamMatches } from '../../gen/grow';
 import { ROLES } from '../../content/roles';
 import { str, type StringKey } from '../../content/strings';
 import type { GeneratedLevel } from '../../gen/level';
@@ -285,15 +286,23 @@ export class WorldView {
     // Ground and walls, block by block.
     drawBoardGround(ctx, this.oriented, p);
     if (this.overlays.mismatches) {
+      // The seams that don't match, as thick orange lines along the seam.
       ctx.strokeStyle = '#ff9f43';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 3]);
-      w.grid.forEach((row, br) =>
-        row.forEach((g, bc) => {
-          if (g.fit !== 'exact') ctx.strokeRect(bc * bs + 2, br * bs + 2, bs - 4, bs - 4);
-        }),
-      );
-      ctx.setLineDash([]);
+      ctx.lineWidth = Math.max(3, p);
+      ctx.beginPath();
+      for (let br = 0; br < w.rows; br++) {
+        for (let bc = 0; bc < w.cols; bc++) {
+          if (bc + 1 < w.cols && !seamMatches(w.grid, br, bc, 'e')) {
+            ctx.moveTo((bc + 1) * bs, br * bs);
+            ctx.lineTo((bc + 1) * bs, (br + 1) * bs);
+          }
+          if (br + 1 < w.rows && !seamMatches(w.grid, br, bc, 's')) {
+            ctx.moveTo(bc * bs, (br + 1) * bs);
+            ctx.lineTo((bc + 1) * bs, (br + 1) * bs);
+          }
+        }
+      }
+      ctx.stroke();
     }
     // Levels: outlines and labels only when asked; the selected one always.
     for (const lv of w.levels) {
@@ -430,15 +439,24 @@ export class WorldView {
       str('world.block.turn'),
       str(flipped ? 'world.block.turnFlipped' : 'world.block.turnPlain', { deg: turned }),
     );
-    add(
-      str('world.block.edges'),
-      (['n', 'e', 's', 'w'] as const).map((sd) => `${sd.toUpperCase()} ${edges[sd]}`).join('\n'),
-      'mono',
-    );
+    // Each side against the neighbour it touches now (theirs reversed, so the tiles line up).
+    const grid = this.world!.grid;
+    const lines = SIDE_LIST.map((sd) => {
+      const ok = seamMatches(grid, r, c, sd);
+      const [nr, nc] =
+        sd === 'n' ? [r - 1, c] : sd === 's' ? [r + 1, c] : sd === 'e' ? [r, c + 1] : [r, c - 1];
+      const o = grid[nr]?.[nc];
+      const theirs = o ? [...o.edges[OPPOSITE[sd]]].reverse().join('') : '';
+      return `${sd.toUpperCase()} ${edges[sd]} ${!o ? '' : ok ? '✓' : `✗\n  ${theirs}`}`;
+    });
+    add(str('world.block.edges'), lines.join('\n'), 'mono');
+    const bad = SIDE_LIST.filter((sd) => !seamMatches(grid, r, c, sd));
     add(
       str('world.block.fit'),
-      str(g.fit === 'exact' ? 'world.block.fitExact' : 'world.block.fitLoose'),
-      g.fit === 'exact' ? 'ok' : 'bad',
+      bad.length
+        ? str('world.block.fitLoose', { sides: bad.map((sd) => sd.toUpperCase()).join(', ') })
+        : str('world.block.fitExact'),
+      bad.length ? 'bad' : 'ok',
     );
     const open = el('button', '', str('world.block.open'));
     open.onclick = () => this.actions.openBlock(g.block.id);

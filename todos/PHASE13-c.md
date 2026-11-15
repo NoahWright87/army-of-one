@@ -108,3 +108,26 @@ Not yet: irregular level shapes, entries from the side (rotating a level), campa
   "← Campaign" button, a win marks the level taken and the results card's button returns to
   the map.
 - Not yet: attacking from the side, losing/retreating, carry-over between levels ([Q58]).
+
+## Notes from implementation (growth look-ahead and repair)
+
+The owner found blocks that plainly didn't match (concrete against a river) while the viewer
+said "Matches its neighbours". Three bugs, all fixed in `src/gen/grow.ts`:
+
+- **No look-ahead.** A block was checked only against placed neighbours, so it could leave an
+  empty neighbour that nothing could fill (river to the north, compound walls east and west).
+  Now candidate sets are bitsets over the palette; a block is only chosen if every empty
+  neighbour still has something that fits, and the frontier cell with the fewest options goes
+  first.
+- **Dead ends** clear the neighbours boxing a cell in and regrow them (`tuning.grow.repairsPerCell`,
+  `repairBudget`). Only after that does the fallback run, and it now picks the block whose edge
+  *tiles* agree best (it used to count matching sides, so a whole concrete edge against water
+  scored the same as a near miss).
+- **Fit is judged at the end**, seam by seam (`seamMatches`). It used to be recorded when a block
+  was placed, so a block that was fine when placed showed "matches" after a later neighbour broke
+  the seam. The viewer's block panel shows ✓/✗ per side with the neighbour's edge, and the
+  overlay draws the bad seams themselves.
+- Result over 20 seeds (official blocks): bad seams per world 71 → ~3 (of 892), ~106 ms per world
+  (was ~135). Base pieces in the open country fell from ~28% to ~16% of blocks as a side effect.
+  The leftovers are real content gaps (e.g. a road dead-ending at grass or at a compound wall
+  with no gate), visible in the viewer.
