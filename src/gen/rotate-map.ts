@@ -44,9 +44,11 @@ export function rotateMap(map: MapDef, q: number): MapDef {
       nameKey: turnSideName(s.nameKey, turns),
       position: pt(s.position),
       facing: ang(s.facing),
+      ...(s.approach ? { approach: s.approach.map(pt) } : {}),
     })),
   };
   if (map.bounds) out.bounds = rects(map.bounds);
+  if (map.haze) out.haze = rects(map.haze);
   if (map.cover) out.cover = map.cover.map((c) => ({ ...c, rect: rect(c.rect) }));
   if (map.turrets) {
     out.turrets = map.turrets.map((t) => ({

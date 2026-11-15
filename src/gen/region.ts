@@ -13,7 +13,7 @@
  * Pure and deterministic.
  */
 import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
-import { BLOCK_TUNING } from '../content/tuning';
+import { BLOCK_TUNING, DEFAULT_TUNING } from '../content/tuning';
 import type { Vec2 } from '../sim/core/vec';
 import { borderWalls, type MapDef, type SpawnPointDef } from '../sim/world/map';
 import {
@@ -106,17 +106,22 @@ export function worldLevelMap(
   const { w: W, h: H, ground } = world.tiles;
   const owner = world.owner;
   const pad = BLOCK_TUNING.carve.mapMargin;
+  const runTiles = Math.round(
+    (DEFAULT_TUNING.spawn.leadInSeconds * DEFAULT_TUNING.soldier.speed) / BLOCK_TUNING.cellSize,
+  );
   const x0 = Math.max(0, lv.box.x - pad);
   const y0 = Math.max(0, lv.box.y - pad);
   const x1 = Math.min(W, lv.box.x + lv.box.w + pad);
-  const y1 = Math.min(H, lv.box.y + lv.box.h + pad);
+  // A level on the start edge gets a strip of ground beyond the board to run in across ([D112]).
+  const onStart = world.crossings.some((c) => c.a === -1 && c.b === index);
+  const y1 = Math.min(H, lv.box.y + lv.box.h + pad) + (onStart ? pad : 0);
   const w = x1 - x0;
   const h = y1 - y0;
-  const own = (x: number, y: number) => owner[(y0 + y) * W + x0 + x] === index;
+  const own = (x: number, y: number) => y0 + y < H && owner[(y0 + y) * W + x0 + x] === index;
   // Out of bounds: walkable ground of other levels, or nobody's beyond a couple of tiles (so
   // cover spots and wall gaps inside the level stay in it).
   const filled = fillGaps(owner, W, H, BLOCK_TUNING.carve.gapFill);
-  const inside = (x: number, y: number) => filled[(y0 + y) * W + x0 + x] === index;
+  const inside = (x: number, y: number) => y0 + y < H && filled[(y0 + y) * W + x0 + x] === index;
 
   // Who's held: by default every neighbour met earlier (you came through them).
   const touching = world.crossings.filter((c) => c.a === index || c.b === index);
@@ -127,16 +132,23 @@ export function worldLevelMap(
   const entries = touching.filter((c) => other(c) === -1 || held.has(other(c)));
   const exits = touching.filter((c) => other(c) >= 0 && !held.has(other(c)));
 
-  // Ground, solid and water tiles; walkable ground that isn't ours is out of bounds.
-  const rows = ground.slice(y0, y1).map((r) => r.slice(x0, x1));
+  // Ground, solid and water tiles. Neighbouring ground near the level is walkable ([D113]),
+  // with a haze; beyond the margin is the edge of the map.
+  // Beyond the board (the start's strip): the bottom row's ground carries on.
+  const rows = Array.from({ length: y1 - y0 }, (_, k) =>
+    ground[Math.min(H - 1, y0 + k)]!.slice(x0, x1),
+  );
   const walls = [
     ...borderWalls(w * cs, h * cs, BLOCK_TUNING.borderThickness),
     ...solidRects(rows, cs),
   ];
-  const bounds = maskRects(w, h, cs, (x, y) => {
+  const near = withinOf(w, h, inside, pad);
+  const passable = (x: number, y: number) => {
     const g = rows[y]![x]!;
-    return isGroundKind(g) && GROUND[g].passable && !inside(x, y);
-  });
+    return isGroundKind(g) && GROUND[g].passable;
+  };
+  const bounds = maskRects(w, h, cs, (x, y) => passable(x, y) && !near[y * w + x]);
+  const haze = maskRects(w, h, cs, (x, y) => passable(x, y) && !!near[y * w + x] && !inside(x, y));
 
   // Distance from the entries over our ground: the budget weighs the far end more, and a level
   // with no exits puts its objective at the far end.
@@ -154,13 +166,18 @@ export function worldLevelMap(
   const caps: number[] = [];
   const weights: number[] = [];
   const maxFar = Math.max(1, ...far.filter((d) => d >= 0));
-  for (let br = Math.floor(y0 / n); br <= Math.floor((y1 - 1) / n); br++) {
+  for (let br = Math.floor(y0 / n); br <= Math.floor((Math.min(y1, H) - 1) / n); br++) {
     for (let bc = Math.floor(x0 / n); bc <= Math.floor((x1 - 1) / n); bc++) {
-      const clipped = clipBlock(world.grid, owner, W, br, bc, index);
+      const clipped = keepClear(
+        clipBlock(world.grid, owner, W, br, bc, index),
+        br * n,
+        bc * n,
+        entries.map(ourTile),
+      );
       if (!clipped) continue;
       let sum = 0;
       let count = 0;
-      for (let y = Math.max(br * n, y0); y < Math.min((br + 1) * n, y1); y++) {
+      for (let y = Math.max(br * n, y0); y < Math.min((br + 1) * n, y1, H); y++) {
         for (let x = Math.max(bc * n, x0); x < Math.min((bc + 1) * n, x1); x++) {
           const d = far[(y - y0) * w + x - x0]!;
           if (d >= 0) {
@@ -218,15 +235,31 @@ export function worldLevelMap(
     const [ty, tx] = theirTile(c);
     return ty > oy ? 'south' : ty < oy ? 'north' : tx > ox ? 'east' : 'west';
   };
+  /**
+   * The run in through a crossing ([D112]): board tiles from about a lead-in's run away on the
+   * far side up to it, along walkable ground (straight in from beyond the board's edge at the
+   * start).
+   */
+  const runIn = (c: Crossing): [number, number][] => {
+    const [ty, tx] = theirTile(c);
+    if (ty >= H) {
+      const out: [number, number][] = [];
+      for (let d = runTiles; d >= 0; d--) out.push([H + d, tx]);
+      return out;
+    }
+    return approachPath(world, index, [ty, tx], runTiles);
+  };
   const spawns: SpawnPointDef[] = entries.map((c, k) => {
     const [oy, ox] = ourTile(c);
     const [ty, tx] = theirTile(c);
+    const position = inward(c, 1);
     return {
       id: `entry-${k}`,
       nameKey: `spawn.cross.${side(c)}`,
-      position: inward(c, 1),
+      position,
       facing: Math.atan2(oy - ty, ox - tx),
       kind: 'initial' as const,
+      approach: [...runIn(c).map(([y, x]) => centre(y, x)), position],
     };
   });
   const flags: { pos: Vec2; key: string }[] = exits.map((c) => ({
@@ -262,13 +295,15 @@ export function worldLevelMap(
     if (!c) return;
     const [oy, ox] = ourTile(c);
     const [ty, tx] = theirTile(c);
+    const position = inward(c, 3);
     content.spawnPoints.push({
       id: `exit-spawn-${k}`,
       nameKey: `spawn.exit.${side(c)}`,
-      position: inward(c, 3),
+      position,
       facing: Math.atan2(ty - oy, tx - ox),
       kind: 'capture',
       capturePointId: `exit-${k}`,
+      approach: [...runIn(c).map(([y, x]) => centre(y, x)), position],
     });
   });
   // Bridged islands' outposts in this level: optional, a spawn and income once taken ([D111]).
@@ -291,6 +326,19 @@ export function worldLevelMap(
   });
   // Block spawns (forward posts at block capture points) stay; entries go first.
   content.spawnPoints.unshift(...spawns);
+  // Spawns inside the level (forward posts, outposts): run in along the way from the entries.
+  for (const sp of content.spawnPoints) {
+    if (sp.approach) continue;
+    const tx = Math.floor(sp.position.x / cs);
+    const ty = Math.floor(sp.position.y / cs);
+    const back = downhill(far, w, h, tx, ty, runTiles);
+    if (back.length > 1) {
+      sp.approach = [
+        ...back.reverse().map(([y, x]) => ({ x: (x + 0.5) * cs, y: (y + 0.5) * cs })),
+        sp.position,
+      ];
+    }
+  }
 
   const map: MapDef = {
     id: opts.id,
@@ -301,6 +349,7 @@ export function worldLevelMap(
     walls: content.walls,
     water: waterRects(rows, cs),
     bounds,
+    haze,
     cover: content.cover,
     gates: content.gates,
     levers: content.levers,
@@ -352,6 +401,136 @@ function hqObjective(world: GeneratedWorld): Vec2 | null {
   const slot = b.items.find((i) => i.kind === 'objective');
   const [x, y] = slot && !isRectItem(slot) ? slot.at : [n / 2, n / 2];
   return { x: (bc * n + x) * cs, y: y * cs };
+}
+
+/**
+ * A block (its top-left at board tile `oy`, `ox`) without enemies, turrets or mines within
+ * `carve.safeEntry` tiles of an entry ([D114]): you don't spawn on top of them. Squads left with
+ * no rally point go.
+ */
+function keepClear(
+  block: BlockDef | null,
+  oy: number,
+  ox: number,
+  entries: readonly [number, number][],
+): BlockDef | null {
+  if (!block || entries.length === 0) return block;
+  const r = BLOCK_TUNING.carve.safeEntry;
+  const close = (x: number, y: number) =>
+    entries.some(([ey, ex]) => (ex - (ox + x)) ** 2 + (ey - (oy + y)) ** 2 <= r * r);
+  const items = block.items.filter(
+    (it) =>
+      isRectItem(it) ||
+      !(it.kind === 'rally' || it.kind === 'turret' || it.kind === 'mine') ||
+      !close(it.at[0], it.at[1]),
+  );
+  const groups = block.groups.filter((g) =>
+    items.some((it) => it.kind === 'rally' && it.group === g.id),
+  );
+  return { ...block, items, groups };
+}
+
+/**
+ * Board tiles from about `run` tiles away on the far side of a crossing up to `from` (the far
+ * side's tile), over walkable ground that isn't this level: where a soldier runs in from.
+ */
+function approachPath(
+  world: GeneratedWorld,
+  index: number,
+  from: [number, number],
+  run: number,
+): [number, number][] {
+  const { w, h, open } = world.tiles;
+  const start = from[0] * w + from[1];
+  const prev = new Map<number, number>([[start, -1]]);
+  let front = [start];
+  let last = start;
+  for (let d = 0; d < run && front.length; d++) {
+    const next: number[] = [];
+    for (const i of front) {
+      const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j < 0 || j >= w * h || prev.has(j) || !open[j] || world.owner[j] === index) continue;
+        prev.set(j, i);
+        next.push(j);
+      }
+    }
+    if (next.length) last = next[0]!;
+    front = next;
+  }
+  const out: [number, number][] = [];
+  for (let i = last; i >= 0; i = prev.get(i)!) out.push([Math.floor(i / w), i % w]);
+  return out;
+}
+
+/**
+ * Up to `steps` tiles from (x, y) toward lower `dist` (map tiles): the way back toward the
+ * entries. Starts with (x, y).
+ */
+function downhill(
+  dist: readonly number[],
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+  steps: number,
+): [number, number][] {
+  const out: [number, number][] = [[y, x]];
+  let cx = x;
+  let cy = y;
+  for (let k = 0; k < steps; k++) {
+    const here = dist[cy * w + cx] ?? -1;
+    if (here <= 0) break;
+    let best: [number, number] | null = null;
+    for (const [dx, dy] of [
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0],
+    ] as const) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const d = dist[ny * w + nx]!;
+      if (d >= 0 && d < here) best = [nx, ny];
+    }
+    if (!best) break;
+    [cx, cy] = best;
+    out.push([cy, cx]);
+  }
+  return out;
+}
+
+/** 1 for map tiles within `r` steps (4-way, through anything) of an `inside` tile. */
+function withinOf(
+  w: number,
+  h: number,
+  inside: (x: number, y: number) => boolean,
+  r: number,
+): Uint8Array {
+  const near = new Uint8Array(w * h);
+  let front: number[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (inside(x, y)) {
+        near[y * w + x] = 1;
+        front.push(y * w + x);
+      }
+    }
+  }
+  for (let d = 0; d < r; d++) {
+    const next: number[] = [];
+    for (const i of front) {
+      const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j < 0 || j >= w * h || near[j]) continue;
+        near[j] = 1;
+        next.push(j);
+      }
+    }
+    front = next;
+  }
+  return near;
 }
 
 /** 4-way walking distance over `ok` tiles from `from` ([y, x]); -1 where unreached. */

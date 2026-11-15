@@ -305,6 +305,12 @@ export class WorldRenderer {
       out.fillStyle(0x05070a, 0.6);
       for (const b of map.bounds) out.fillRect(b.x, b.y, b.w, b.h);
     }
+    // Neighbouring levels' ground ([D113]): walkable, a light haze.
+    if (map.haze?.length) {
+      const hz = scene.add.graphics().setDepth(DEPTH.water + 0.4);
+      hz.fillStyle(0x0a0d12, 0.22);
+      for (const b of map.haze) hz.fillRect(b.x, b.y, b.w, b.h);
+    }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls) shadow.fillRect(w.x + 5, w.y + 5, w.w, w.h);

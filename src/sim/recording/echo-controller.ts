@@ -208,6 +208,20 @@ export class EchoController {
     return out;
   }
 
+  /**
+   * (PHASE13-d) Echoes not spawned yet: where and when they will. Read-only, for the renderer's
+   * run-ins ([D112]).
+   */
+  pendingArrivals(): { id: SoldierId; spawnPointId: string; spawnTick: Tick }[] {
+    const out: { id: SoldierId; spawnPointId: string; spawnTick: Tick }[] = [];
+    for (const e of this.state.echoes) {
+      if (e.mode !== 'pending') continue;
+      const s = this.schedules.get(e.id)!;
+      out.push({ id: e.id, spawnPointId: s.spawnPointId, spawnTick: s.spawnTick });
+    }
+    return out;
+  }
+
   /** After a step: echoes the world killed become dead. */
   syncDeaths(world: World): void {
     const find = soldierLookup(world);

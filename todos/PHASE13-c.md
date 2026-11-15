@@ -170,3 +170,17 @@ said "Matches its neighbours". Three bugs, all fixed in `src/gen/grow.ts`:
   `world.outposts`, a non-objective capture point with a forward spawn.
 - Every exit flag has a capture spawn 3 tiles inside the level ("North exit"…; names turn with the
   map).
+
+## Notes from implementation (spawning in, [D112]–[D115])
+
+- `SpawnPointDef.approach` (visual only, rotated with the map). Region maps fill it: entries and
+  exit spawns run in through their crossing from about a lead-in's run away on the far side
+  (`approachPath`), start-edge entries straight up from beyond the board, other spawns (forward
+  posts, outposts) along the way back toward the entries (`downhill` over the entry distance).
+  Maps without one (Breach…) run in straight from behind the spawn's facing.
+- Battle scene: the live soldier's runner moves along the approach over the countdown and the
+  camera follows it (the ghost arrow draws from it); echoes in the 5 s before their spawn tick run
+  in too (`SessionDriver.arrivals`, from `EchoController.pendingArrivals`).
+- Level maps: the margin is 8 tiles, walkable, with a light `map.haze`; `map.bounds` is only the
+  map's edge now. Start-edge levels get an 8-row strip beyond the board (the bottom row carried
+  on). Safe zone `carve.safeEntry` = 12 tiles.

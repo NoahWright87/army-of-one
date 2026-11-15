@@ -46,6 +46,8 @@ export function drawMapSketch(ctx: CanvasRenderingContext2D, map: MapDef, k: num
   for (const w of map.water) rect(w);
   ctx.fillStyle = 'rgba(5,7,10,0.6)';
   for (const b of map.bounds ?? []) rect(b);
+  ctx.fillStyle = 'rgba(10,13,18,0.22)';
+  for (const b of map.haze ?? []) rect(b);
   ctx.fillStyle = '#1d2024';
   for (const w of map.walls) rect(w);
   ctx.fillStyle = '#b39b6b';

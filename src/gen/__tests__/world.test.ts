@@ -74,11 +74,39 @@ describe('generateWorld ([D101], [D102])', () => {
     }
   });
 
-  it("a level's full budget buys everything in it", () => {
+  it("a level's full budget buys nearly everything (not what's kept clear of entries)", () => {
     const w = generateWorld(OFFICIAL_BLOCKS, { seed: 7 });
     for (const lv of w.levels.slice(0, 6)) {
       const m = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x', budget: lv.maxBudget });
-      expect(m.spent, `level ${lv.index}`).toBe(lv.maxBudget);
+      expect(m.spent, `level ${lv.index}`).toBeLessThanOrEqual(lv.maxBudget);
+      expect(m.spent, `level ${lv.index}`).toBeGreaterThan(lv.maxBudget * 0.75);
+    }
+  });
+
+  it('no enemy starts near an entry ([D114])', () => {
+    const w = generateWorld(OFFICIAL_BLOCKS, { seed: 7 });
+    const r = BLOCK_TUNING.carve.safeEntry * BLOCK_TUNING.cellSize;
+    for (const lv of w.levels) {
+      const m = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x', budget: lv.maxBudget }).map;
+      const entries = m.spawnPoints.filter((s) => s.kind === 'initial').map((s) => s.position);
+      for (const sq of m.squads ?? []) {
+        for (const p of sq.rally ?? []) {
+          for (const e of entries) {
+            expect(Math.hypot(p.x - e.x, p.y - e.y), `level ${lv.index}`).toBeGreaterThan(
+              r - 2 * BLOCK_TUNING.cellSize,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it('entries have a run-in path from outside the level ([D112])', () => {
+    const w = generateWorld(OFFICIAL_BLOCKS, { seed: 7 });
+    const m = worldLevelMap(w, 0, { id: 'x', nameKey: 'x' }).map;
+    for (const s of m.spawnPoints.filter((sp) => sp.kind === 'initial')) {
+      expect(s.approach!.length).toBeGreaterThan(2);
+      expect(s.approach!.at(-1)).toEqual(s.position);
     }
   });
 

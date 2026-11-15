@@ -165,7 +165,8 @@ export function gameSettingDefs(): SettingDef[] {
       group: G,
       label: str('settings.game.skipEmptyRespawn'),
       type: 'boolean',
-      default: true,
+      // (PHASE13-d) Off: you choose your first soldier too (role and spawn) ([D115]).
+      default: false,
     },
     {
       id: GAME_SETTING_IDS.quickRedeploy,

@@ -25,6 +25,11 @@ export interface SpawnPointDef {
   kind: 'initial' | 'capture';
   /** (05-a) kind 'capture' only: the capture point that opens this spawn point. */
   capturePointId?: string;
+  /**
+   * (PHASE13-d) Where a new soldier runs in from during the lead-in countdown, ending here
+   * ([D112]): for show only, the sim never reads it. May start off the map.
+   */
+  approach?: Vec2[];
 }
 
 /** (05-a) Capture stages ([D11]): lower the enemy flag → neutral; raise ours → ours. */
@@ -173,10 +178,15 @@ export interface MapDef {
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
   /**
-   * (PHASE13-d) Ground outside this level ([D109]): seen but not entered. Blocks movement like
-   * water, shots cross it; drawn darkened.
+   * (PHASE13-d) The edge of the map inside its rectangle ([D109]): ground too far from this
+   * level to matter. Blocks movement like water, shots cross it; drawn dark.
    */
   bounds?: Rect[];
+  /**
+   * (PHASE13-d) Neighbouring levels' ground near this one ([D113]): walkable, drawn with a light
+   * haze. Purely visual.
+   */
+  haze?: Rect[];
   /** (07-c) Partial cover ([D32]): blocks movement, stops a share of shots. */
   cover?: CoverDef[];
   spawnPoints: SpawnPointDef[];

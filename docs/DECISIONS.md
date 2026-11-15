@@ -499,6 +499,23 @@ objectives.
   The outpost is a capture point that isn't needed to win: taking it gives a spawn point and
   income like other capture points. Islands too small or too far stay unplayable.
 
+## Spawning in (owner session 2026-11, PHASE13-d)
+
+- **[D112] New soldiers run in during the lead-in, for show.** Instead of appearing out of thin
+  air when the countdown ends ([D25]), the soldier runs in along its spawn point's approach (from
+  the start edge, through the crossing from a level you hold, along the road at a taken exit, or
+  from your entries to a forward post) and the camera follows; you take control at GO, where it
+  arrived. Echoes run in the same way before their spawn. The sim, recordings and saves are
+  unchanged: nobody can be killed while spawning.
+- **[D113] Neighbouring ground on screen is walkable.** No invisible walls: a level's map shows
+  some of the levels around it (with a light haze) and you can walk there; only ground beyond
+  that margin is the map's edge. Levels on the start edge get a strip of ground beyond the board
+  to run in across.
+- **[D114] No enemies start near an entry.** Generated levels keep enemy soldiers' rally points,
+  turrets and mines `carve.safeEntry` tiles from every entry.
+- **[D115] You choose your first soldier.** A fresh mission opens on the respawn screen (role and
+  spawn point); `flow.skipEmptyRespawn` is now off by default.
+
 ## Reacting to fire (owner session 2026-11, PHASE13)
 
 - **[D97] Enemies react to being shot.** A hit tells the soldier where it came from (and wakes

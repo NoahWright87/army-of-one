@@ -1033,8 +1033,10 @@ export const BLOCK_TUNING = {
     splitJitter: 2, // TUNE
     /** Unwalkable spots (cover, walls, ponds) this close to a level count as inside it. */
     gapFill: 2, // TUNE
-    /** Tiles of the surroundings shown around a level's own ground. */
-    mapMargin: 3, // TUNE
+    /** Tiles of the neighbouring ground shown (and walkable) around a level's own ([D113]). */
+    mapMargin: 8, // TUNE
+    /** No enemies, turrets or mines start within this many tiles of an entry ([D114]). */
+    safeEntry: 12, // TUNE
     /** A crossing narrower than this many tiles doesn't count. */
     minCrossing: 2, // TUNE
     /** Crossings between the same two levels within this many tiles are one. */

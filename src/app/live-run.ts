@@ -38,6 +38,11 @@ export class LiveRun {
   /** (PHASE11) The money at the current tick, for the HUD; null/absent = economy off. */
   money?: () => { balance: number; rate: number } | null;
 
+  /** (PHASE13-d) Echoes still to spawn, for their run-ins ([D112]). */
+  arrivals(): readonly { id: string; spawnPointId: string; spawnTick: number }[] {
+    return this.attempt.echoes.pendingArrivals();
+  }
+
   constructor(
     readonly attempt: Attempt,
     readonly option: SpawnOption,
