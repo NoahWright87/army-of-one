@@ -1,13 +1,13 @@
 /**
  * (PHASE13-d) A random campaign ([D106]): a generated world map and the levels you've taken on
- * it. You attack a level that borders the start or a level you hold (from the south: levels
- * are played attacking north), and each level taken raises the next ones' enemy budgets. Taking
+ * it. You attack a level with a crossing from the start or a level you hold, from any side
+ * ([D107]), and each level taken raises the next ones' enemy budgets. Taking
  * the enemy HQ's level wins the campaign. No other state carries over yet ([D91]).
  */
 import { BLOCK_TUNING } from '../content/tuning';
-import type { GeneratedWorld, WorldLevel } from './world';
+import type { GeneratedWorld } from './world';
 
-export const CAMPAIGN_VERSION = 1;
+export const CAMPAIGN_VERSION = 2;
 
 export interface CampaignState {
   version: typeof CAMPAIGN_VERSION;
@@ -37,35 +37,29 @@ export function parseCampaign(raw: unknown): CampaignState | null {
   };
 }
 
-/** The level holding the enemy HQ block (the top row's HQ; else the top-left base level). */
+/** The level holding the enemy HQ. */
 export function hqLevel(world: GeneratedWorld): number {
-  const row = world.grid[0] ?? [];
-  let col = row.findIndex((g) => g.block.role === 'hq');
-  if (col < 0)
-    col = Math.max(
-      0,
-      row.findIndex((g) => g.side === 'enemy'),
-    );
-  const lv = world.levels.find((l) => l.row === 0 && col >= l.col && col < l.col + l.cols);
-  return lv?.index ?? world.levels.length - 1;
-}
-
-/** Whether `a` sits directly north of `b` (touching, with columns in common). */
-function northOf(a: WorldLevel, b: WorldLevel): boolean {
-  return a.row + a.rows === b.row && a.col < b.col + b.cols && b.col < a.col + a.cols;
+  return world.hq;
 }
 
 /**
- * Levels you can attack now: not taken, and either in the first band (they border the start)
- * or directly north of a level you hold. Empty once the campaign is won.
+ * Levels you can attack now ([D107]): not taken, with a crossing from ground you hold (the start
+ * edge or a level taken), from any side. Empty once the campaign is won.
  */
 export function attackable(world: GeneratedWorld, state: CampaignState): number[] {
   if (campaignWon(world, state)) return [];
-  const held = world.levels.filter((l) => state.taken.includes(l.index));
-  return world.levels
-    .filter((l) => !state.taken.includes(l.index))
-    .filter((l) => l.row + l.rows === world.rows || held.some((h) => northOf(l, h)))
-    .map((l) => l.index);
+  const held = (lv: number) => lv === -1 || state.taken.includes(lv);
+  const open = new Set<number>();
+  for (const c of world.crossings) {
+    if (held(c.a) && !held(c.b)) open.add(c.b);
+    if (held(c.b) && !held(c.a)) open.add(c.a);
+  }
+  return [...open].sort((p, q) => p - q);
+}
+
+/** The levels you hold, as a set (for a level's entries and exits). */
+export function heldSet(state: CampaignState): Set<number> {
+  return new Set(state.taken);
 }
 
 /** A level's enemy budget in this campaign: its own, raised per level taken, capped at all. */

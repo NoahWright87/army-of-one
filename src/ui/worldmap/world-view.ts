@@ -8,16 +8,17 @@ import { OPPOSITE, SIDE_LIST, sideProfiles } from '../../gen/edges';
 import { seamMatches } from '../../gen/grow';
 import { ROLES } from '../../content/roles';
 import { str, type StringKey } from '../../content/strings';
-import type { GeneratedLevel } from '../../gen/level';
+import type { Crossing } from '../../gen/carve';
+import type { WorldLevelMap } from '../../gen/region';
 import { orientBlock } from '../../gen/transform';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { el, injectStyle } from '../dom';
-import { drawBoardGround, drawMapSketch, roleColor } from './map-draw';
+import { drawBoardGround, drawMapSketch, levelAnchors, levelOverlay, roleColor } from './map-draw';
 
 export interface WorldViewActions {
   /** Makes a new world from this seed (null: a random one). */
   generate(seed: number | null): void;
-  levelMap(index: number, budget: number): Omit<GeneratedLevel, 'attempts'>;
+  levelMap(index: number, budget: number): WorldLevelMap;
   playtest(index: number, budget: number): void;
   exit(): void;
   /** Opens a block in the editor (as is: nothing is copied). */
@@ -259,13 +260,11 @@ export class WorldView {
     const w = this.world;
     if (!w) return null;
     const r = this.board.getBoundingClientRect();
-    const bs = BLOCK_CELLS * this.px;
-    const col = Math.floor((e.clientX - r.left - this.origin.x) / bs);
-    const row = Math.floor((e.clientY - r.top - this.origin.y) / bs);
-    const lv = w.levels.find(
-      (l) => row >= l.row && row < l.row + l.rows && col >= l.col && col < l.col + l.cols,
-    );
-    return lv ? lv.index : null;
+    const x = Math.floor((e.clientX - r.left - this.origin.x) / this.px);
+    const y = Math.floor((e.clientY - r.top - this.origin.y) / this.px);
+    if (x < 0 || y < 0 || x >= w.tiles.w || y >= w.tiles.h) return null;
+    const lv = w.owner[y * w.tiles.w + x]!;
+    return lv >= 0 ? lv : null;
   }
 
   private drawBoard(): void {
@@ -304,36 +303,54 @@ export class WorldView {
       }
       ctx.stroke();
     }
-    // Levels: outlines and labels only when asked; the selected one always.
-    for (const lv of w.levels) {
-      const x = lv.col * bs;
-      const y = lv.row * bs;
-      const ww = lv.cols * bs;
-      const hh = lv.rows * bs;
-      const sel = lv.index === this.selected;
-      if (this.overlays.levels || sel) {
-        ctx.strokeStyle = sel
-          ? '#ffe14d'
-          : lv.kind === 'base'
-            ? '#ff8a80'
-            : 'rgba(255,255,255,0.85)';
-        ctx.lineWidth = sel ? 3 : 1.5;
-        ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
-      } else if (lv.index === this.hover) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
+    // Levels ([D109]): outlines when asked, the selected one always (tinted), hover lightly.
+    const overlay = levelOverlay(w.owner, w.tiles.w, w.tiles.h, (lv) => {
+      if (lv === this.selected) return { fill: [255, 225, 77, 70], edge: [255, 225, 77, 255] };
+      if (this.overlays.levels) {
+        return {
+          fill: null,
+          edge: w.levels[lv]!.kind === 'base' ? [255, 138, 128, 230] : [255, 255, 255, 200],
+        };
       }
-      if (this.overlays.labels) {
+      if (lv === this.hover) return { fill: null, edge: [255, 255, 255, 120] };
+      return { fill: null, edge: null };
+    });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(overlay, 0, 0, w.tiles.w * p, w.tiles.h * p);
+    // Crossings: green from the start, cyan between levels; the selected level's bigger.
+    const mid = (c: Crossing) => ({
+      x: ((c.atA[1] + c.atB[1]) / 2 + 0.5) * p,
+      y: ((c.atA[0] + c.atB[0]) / 2 + 0.5) * p,
+    });
+    for (const c of w.crossings) {
+      const mineSel = c.a === this.selected || c.b === this.selected;
+      if (!this.overlays.levels && !mineSel) continue;
+      const at = mid(c);
+      ctx.fillStyle = c.a === -1 ? '#5be37d' : '#4dd0ff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, Math.max(3, mineSel ? 2.2 * p : 1.4 * p), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (this.overlays.labels) {
+      const anchors = levelAnchors(w.owner, w.tiles.w, w.levels.length);
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      for (const lv of w.levels) {
+        const [ay, ax] = anchors[lv.index]!;
         const label = `${lv.index + 1}  $${lv.budget}`;
-        ctx.font = 'bold 12px system-ui, sans-serif';
         const tw = ctx.measureText(label).width + 10;
+        const cx = (ax + 0.5) * p;
+        const cy = (ay + 0.5) * p;
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(x + 6, y + 6, tw, 17);
-        ctx.fillStyle = sel ? '#ffe14d' : '#fff';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, x + 11, y + 14.5);
+        ctx.fillRect(cx - tw / 2, cy - 8.5, tw, 17);
+        ctx.fillStyle = lv.index === this.selected ? '#ffe14d' : '#fff';
+        ctx.fillText(label, cx, cy);
       }
+      ctx.textAlign = 'start';
     }
     if (this.picked) {
       ctx.strokeStyle = '#4dd0ff';
@@ -376,8 +393,7 @@ export class WorldView {
         '',
         str(lv.kind === 'base' ? 'world.levelBase' : 'world.levelField', {
           n: lv.index + 1,
-          cols: lv.cols,
-          rows: lv.rows,
+          blocks: Math.round(lv.blocks),
         }),
       ),
     );
@@ -464,7 +480,7 @@ export class WorldView {
     return box;
   }
 
-  private drawPreview(c: HTMLCanvasElement, map: GeneratedLevel['map']): void {
+  private drawPreview(c: HTMLCanvasElement, map: WorldLevelMap['map']): void {
     const dpr = window.devicePixelRatio || 1;
     const width = c.clientWidth || 370;
     // A level is far taller than wide: fit the width, but no taller than most screens.
@@ -479,11 +495,7 @@ export class WorldView {
     drawMapSketch(ctx, map, k);
   }
 
-  private renderStats(
-    host: HTMLElement,
-    res: Omit<GeneratedLevel, 'attempts'>,
-    lv: WorldLevel,
-  ): void {
+  private renderStats(host: HTMLElement, res: WorldLevelMap, lv: WorldLevel): void {
     const m = res.map;
     const byRole = new Map<string, number>();
     for (const sq of m.squads ?? []) {
@@ -513,11 +525,12 @@ export class WorldView {
       res.reachable ? 'ok' : 'bad',
     );
     add(
+      str('world.stat.ways'),
+      str('world.stat.waysValue', { entries: res.entries.length, exits: res.exits.length }),
+    );
+    add(
       str('world.stat.blocks'),
-      res.cells
-        .flat()
-        .map((c) => c.blockId.replace('starter-', ''))
-        .join(', '),
+      [...new Set(res.blocks.map((b) => b.replace('starter-', '')))].join(', '),
     );
     void lv;
     host.replaceChildren(dl);

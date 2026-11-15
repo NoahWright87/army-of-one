@@ -162,6 +162,8 @@ export class Minimap {
     ctx.fillRect(0, 0, map.width, map.height);
     ctx.fillStyle = '#2f6390';
     for (const r of map.water) ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#0d1012'; // (PHASE13-d) outside the level
+    for (const r of map.bounds ?? []) ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.fillStyle = '#8a949f';
     for (const r of map.walls) ctx.fillRect(r.x, r.y, Math.max(r.w, u), Math.max(r.h, u));
     ctx.fillStyle = '#a8916a'; // (07-c) partial cover

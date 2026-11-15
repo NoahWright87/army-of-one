@@ -223,7 +223,12 @@ export function objectiveReachable(map: MapDef): boolean {
   const step = BLOCK_TUNING.cellSize / 2;
   const cols = Math.floor(map.width / step);
   const rowsN = Math.floor(map.height / step);
-  const blockers: Rect[] = [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
+  const blockers: Rect[] = [
+    ...map.walls,
+    ...map.water,
+    ...(map.bounds ?? []),
+    ...(map.cover ?? []).map((c) => c.rect),
+  ];
   // (perf) Paint the blockers onto the grid once: a cell is blocked if a blocker holds its centre.
   const blocked = new Uint8Array(cols * rowsN);
   for (const b of blockers) {
@@ -234,21 +239,30 @@ export function objectiveReachable(map: MapDef): boolean {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) blocked[y * cols + x] = 1;
   }
   const free = (cx: number, cy: number) => !blocked[cy * cols + cx];
-  const start = map.spawnPoints.find((s) => s.kind === 'initial')!.position;
-  const goal = map.capturePoints!.find((c) => c.objective)!.position;
-  const sx = Math.floor(start.x / step);
-  const sy = Math.floor(start.y / step);
-  const gx = Math.floor(goal.x / step);
-  const gy = Math.floor(goal.y / step);
+  // (PHASE13-d) From the spawns that open at the start, every flag objective.
   const seen = new Uint8Array(cols * rowsN);
-  const queue: number[] = [sy * cols + sx];
-  seen[sy * cols + sx] = 1;
+  const queue: number[] = [];
+  for (const sp of map.spawnPoints) {
+    if (sp.kind !== 'initial') continue;
+    const i = Math.floor(sp.position.y / step) * cols + Math.floor(sp.position.x / step);
+    if (i >= 0 && i < seen.length && !seen[i]) {
+      seen[i] = 1;
+      queue.push(i);
+    }
+  }
+  const goals = (map.capturePoints ?? [])
+    .filter((c) => c.objective)
+    .map((c) => ({ x: Math.floor(c.position.x / step), y: Math.floor(c.position.y / step) }));
+  const left = new Set(goals.map((_, k) => k));
   const goalR = 2; // within a cell of the flag is close enough to capture it
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head]!;
     const x = i % cols;
     const y = (i - x) / cols;
-    if (Math.abs(x - gx) <= goalR && Math.abs(y - gy) <= goalR) return true;
+    for (const k of [...left]) {
+      if (Math.abs(x - goals[k]!.x) <= goalR && Math.abs(y - goals[k]!.y) <= goalR) left.delete(k);
+    }
+    if (left.size === 0) return true;
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],

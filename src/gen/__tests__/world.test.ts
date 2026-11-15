@@ -32,17 +32,19 @@ describe('generateWorld ([D101], [D102])', () => {
         w.grid[W.rows - 1]!.some((g) => g.block.role === 'start'),
         `seed ${seed}`,
       ).toBe(true);
-      const owner = w.grid.map((row) => row.map(() => 0));
-      for (const lv of w.levels) {
-        for (let r = lv.row; r < lv.row + lv.rows; r++) {
-          for (let c = lv.col; c < lv.col + lv.cols; c++) owner[r]![c]! += 1;
-        }
+      // Levels hold only walkable ground, and nearly all of it (tiny pockets cut off by the
+      // board's edge are no-man's-land).
+      let loose = 0;
+      let walkable = 0;
+      let wrong = 0;
+      for (let i = 0; i < w.owner.length; i++) {
+        if (w.tiles.walk[i]) walkable++;
+        if (w.owner[i]! >= 0 && !w.tiles.walk[i]) wrong++;
+        else if (w.owner[i]! < 0 && w.tiles.walk[i]) loose++;
       }
-      expect(
-        owner.flat().every((n) => n === 1),
-        `seed ${seed}`,
-      ).toBe(true);
-      expect(w.levels.at(-1)!.kind).toBe('base');
+      expect(wrong, `seed ${seed}`).toBe(0);
+      expect(loose / walkable, `seed ${seed}`).toBeLessThan(0.01);
+      expect(w.levels[w.hq]!.kind).toBe('base');
     }
   });
 
@@ -82,10 +84,10 @@ describe('generateWorld ([D101], [D102])', () => {
 
   it('budgets rise from the first levels to the base', () => {
     const w = generateWorld(OFFICIAL_BLOCKS, { seed: 9 });
-    const bottom = Math.max(...w.levels.map((x) => x.row));
-    const first = w.levels.filter((l) => l.row === bottom);
+    const first = w.levels.filter((l) => l.band === 0);
     const base = w.levels.filter((l) => l.kind === 'base');
-    const avg = (ls: typeof first) => ls.reduce((n, l) => n + l.budget, 0) / ls.length;
+    const per = (l: (typeof first)[number]) => l.budget / Math.max(1, l.blocks);
+    const avg = (ls: typeof first) => ls.reduce((n, l) => n + per(l), 0) / ls.length;
     expect(avg(base)).toBeGreaterThan(avg(first));
   });
 
@@ -175,5 +177,53 @@ describe('growBoard look-ahead and repair', () => {
       }
     }
     expect(bad / seeds.length).toBeLessThan(10);
+  });
+});
+
+describe('carving by terrain ([D107]–[D110])', () => {
+  const w = generateWorld(OFFICIAL_BLOCKS, { seed: 149211784 });
+
+  it('every level can be reached from the start through crossings', () => {
+    const seen = new Set(w.crossings.filter((c) => c.a === -1).map((c) => c.b));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const c of w.crossings) {
+        if (c.a >= 0 && seen.has(c.a) !== seen.has(c.b)) {
+          seen.add(c.a);
+          seen.add(c.b);
+          grew = true;
+        }
+      }
+    }
+    expect(seen.size).toBe(w.levels.length);
+  });
+
+  it('levels are numbered in the order you meet them', () => {
+    expect(w.crossings.some((c) => c.a === -1 && c.b === 0)).toBe(true);
+  });
+
+  it("a level's map: spawns at entries, an objective at every exit, nothing outside walkable", () => {
+    for (const lv of w.levels) {
+      const m = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x' });
+      const initial = m.map.spawnPoints.filter((s) => s.kind === 'initial');
+      expect(initial.length, `level ${lv.index}`).toBe(m.entries.length);
+      const flags = (m.map.capturePoints ?? []).filter((c) => c.objective).length;
+      const hq = lv.index === w.hq ? 1 : 0;
+      expect(flags, `level ${lv.index}`).toBe(Math.max(1, m.exits.length + hq));
+      expect(m.map.bounds).toBeDefined();
+    }
+  });
+
+  it('holding a neighbour turns its exit into an entry', () => {
+    const lv = w.levels.find((l) => w.crossings.some((c) => c.a === l.index && c.b > l.index))!;
+    const next = w.crossings.find((c) => c.a === lv.index && c.b > lv.index)!.b;
+    const before = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x' });
+    const held = new Set([
+      next,
+      ...w.crossings.filter((c) => c.b === lv.index && c.a >= 0).map((c) => c.a),
+    ]);
+    const after = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x', held });
+    expect(after.entries.length).toBeGreaterThan(before.entries.length);
+    expect(after.exits.length).toBeLessThan(before.exits.length);
   });
 });

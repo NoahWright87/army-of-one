@@ -292,6 +292,7 @@ function terrainSvg(map: MapDef, grid: RevealGrid, id: string, u: number): strin
     `<g mask="url(#${id}-mask)">` +
     `<rect class="mp-ground" x="0" y="0" width="${map.width}" height="${map.height}"/>` +
     rects(map.water, 'mp-water') +
+    rects(map.bounds ?? [], 'mp-out') +
     rects(map.walls, 'mp-wall') +
     rects(
       (map.cover ?? []).map((c) => c.rect),

@@ -205,7 +205,12 @@ export function soldierSpeed(tuning: Tuning, roleId: RoleId | undefined): number
 
 /** Static geometry that blocks soldier movement. */
 export function movementSolids(map: MapDef): Rect[] {
-  return [...map.walls, ...map.water, ...(map.cover ?? []).map((c) => c.rect)];
+  return [
+    ...map.walls,
+    ...map.water,
+    ...(map.bounds ?? []),
+    ...(map.cover ?? []).map((c) => c.rect),
+  ];
 }
 
 /** Applies one tick of movement + facing from input. Mutates `s`. */

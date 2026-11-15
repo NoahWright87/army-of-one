@@ -1010,16 +1010,36 @@ export const BLOCK_TUNING = {
     /** Each level taken raises the next levels' budgets by this fraction of their own. */
     budgetGrowthPerLevel: 0.12, // TUNE
   },
+  /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
+  carve: {
+    /** Each front (band of levels) is this many block rows deep, at random. */
+    bandBlocks: [6, 11] as const, // TUNE
+    /** A level aims for this many blocks' worth of walkable ground ([D110]). */
+    levelBlocks: 20, // TUNE
+    /** Less walkable ground than this joins a neighbouring level. */
+    minLevelBlocks: 5, // TUNE
+    /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
+    borderSlack: 3, // TUNE
+    /** Borders keep at least this many blocks apart. */
+    minGap: 3, // TUNE
+    /** Side-to-side splits move by up to ± half this many blocks at random. */
+    splitJitter: 2, // TUNE
+    /** Tiles of the surroundings shown around a level's own ground. */
+    mapMargin: 3, // TUNE
+    /** A crossing narrower than this many tiles doesn't count. */
+    minCrossing: 2, // TUNE
+    /** Crossings between the same two levels within this many tiles are one. */
+    mergeCrossings: 24, // TUNE
+    /** Border line costs: per tile drawn, and per tile of straying from the nominal line. */
+    stepCost: 0.05, // TUNE
+    strayCost: 0.003, // TUNE
+  },
   /** (PHASE13-c) The world map board ([D89]). */
   world: {
     /** About three levels side by side (several fronts to attack along). */
     cols: 8, // TUNE [D89]
     /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
     rows: 60, // TUNE
-    /** Levels are carved this many rows deep… */
-    levelRows: 10, // TUNE
-    /** …and 2–3 blocks wide. */
-    levelCols: [2, 3] as const, // TUNE
     /** Enemy budget per block in the first band and the last field band ([D86]). */
     budgetPerBlockFirst: 30, // TUNE
     budgetPerBlockLast: 80, // TUNE

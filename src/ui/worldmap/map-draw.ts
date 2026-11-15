@@ -43,6 +43,8 @@ export function drawMapSketch(ctx: CanvasRenderingContext2D, map: MapDef, k: num
   }
   ctx.fillStyle = hex(GROUND.W.color);
   for (const w of map.water) rect(w);
+  ctx.fillStyle = 'rgba(5,7,10,0.6)';
+  for (const b of map.bounds ?? []) rect(b);
   ctx.fillStyle = '#1d2024';
   for (const w of map.walls) rect(w);
   ctx.fillStyle = '#b39b6b';
@@ -110,4 +112,66 @@ export function drawBoardGround(
       }
     }),
   );
+}
+
+/** RGBA 0–255. */
+export type Rgba = readonly [number, number, number, number];
+
+/**
+ * (PHASE13-d) Carved levels as an image one pixel per board tile ([D109]): each level's ground
+ * tinted by `fill`, its edge tiles in `edge`; ground in no level left clear. Draw it scaled up
+ * with smoothing off.
+ */
+export function levelOverlay(
+  owner: Int16Array,
+  w: number,
+  h: number,
+  style: (level: number) => { fill: Rgba | null; edge: Rgba | null },
+): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(w, h);
+  const cache = new Map<number, ReturnType<typeof style>>();
+  for (let i = 0; i < w * h; i++) {
+    const lv = owner[i]!;
+    if (lv < 0) continue;
+    let st = cache.get(lv);
+    if (!st) cache.set(lv, (st = style(lv)));
+    const x = i % w;
+    const edge =
+      (x > 0 && owner[i - 1] !== lv) ||
+      (x < w - 1 && owner[i + 1] !== lv) ||
+      (i >= w && owner[i - w] !== lv) ||
+      (i + w < w * h && owner[i + w] !== lv);
+    const col = edge && st.edge ? st.edge : st.fill;
+    if (!col) continue;
+    img.data.set(col, i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+/** (PHASE13-d) Per level, the tile of its own nearest its middle ([y, x]): where labels go. */
+export function levelAnchors(owner: Int16Array, w: number, count: number): [number, number][] {
+  const sum = Array.from({ length: count }, () => ({ x: 0, y: 0, n: 0 }));
+  for (let i = 0; i < owner.length; i++) {
+    const lv = owner[i]!;
+    if (lv < 0) continue;
+    sum[lv]!.x += i % w;
+    sum[lv]!.y += Math.floor(i / w);
+    sum[lv]!.n++;
+  }
+  const best = sum.map(() => ({ d: Infinity, at: [0, 0] as [number, number] }));
+  for (let i = 0; i < owner.length; i++) {
+    const lv = owner[i]!;
+    if (lv < 0) continue;
+    const s = sum[lv]!;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    const d = (x - s.x / s.n) ** 2 + (y - s.y / s.n) ** 2;
+    if (d < best[lv]!.d) best[lv] = { d, at: [y, x] };
+  }
+  return best.map((b) => b.at);
 }

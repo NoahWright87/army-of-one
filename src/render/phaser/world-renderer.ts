@@ -299,6 +299,12 @@ export class WorldRenderer {
     for (const w of map.water) {
       scene.add.tileSprite(w.x, w.y, w.w, w.h, 'water_tile').setOrigin(0).setDepth(DEPTH.water);
     }
+    // (PHASE13-d) Ground outside this level ([D109]): seen, not entered.
+    if (map.bounds?.length) {
+      const out = scene.add.graphics().setDepth(DEPTH.water + 0.5);
+      out.fillStyle(0x05070a, 0.6);
+      for (const b of map.bounds) out.fillRect(b.x, b.y, b.w, b.h);
+    }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls) shadow.fillRect(w.x + 5, w.y + 5, w.w, w.h);

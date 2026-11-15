@@ -131,6 +131,7 @@ export const RESPAWN_CSS = `
 .mp-edge { fill: none; stroke: #2f3842; }
 .mp-ground { fill: #3d4f38; }
 .mp-water { fill: #3a76a8; }
+.mp-out { fill: #0b0e11; opacity: .65; }
 .mp-wall { fill: #b4bdc7; }
 .mp-cover { fill: #c9ad7a; }
 .mp-hit { fill: transparent; cursor: default; }

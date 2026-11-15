@@ -53,7 +53,6 @@ export function assembleMap(opts: AssembleOptions): MapDef {
   const staging = BLOCK_TUNING.stagingCells;
   const width = opts.cols * n * cs;
   const height = (opts.rows * n + staging) * cs;
-  const rad = (deg: number) => (deg * Math.PI) / 180;
 
   // Ground: the blocks' rows side by side, then the staging strip.
   const groundRows: string[] = [];
@@ -89,9 +88,67 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     kind: 'initial' as const,
   }));
 
-  for (const pb of opts.placed) {
-    const ox = pb.col * n;
-    const oy = pb.row * n;
+  const acc: Content = {
+    walls,
+    cover,
+    gates,
+    levers,
+    turrets,
+    mines,
+    squads,
+    capturePoints,
+    spawnPoints,
+  };
+  for (const pb of opts.placed) addBlockContent(pb, pb.col * n, pb.row * n, acc);
+  capturePoints.push({
+    id: 'blk-objective',
+    nameKey: 'capture.block.objective',
+    position: opts.objective,
+    objective: true,
+  });
+
+  return {
+    id: opts.id,
+    nameKey: opts.nameKey,
+    width,
+    height,
+    ground: { cellSize: cs, rows: groundRows },
+    walls,
+    water: waterRects(groundRows, cs),
+    cover,
+    gates,
+    levers,
+    turrets,
+    mines,
+    spawnPoints,
+    capturePoints,
+    squads,
+  };
+}
+
+/** Everything a map collects from its blocks. */
+export interface Content {
+  walls: Rect[];
+  cover: CoverDef[];
+  gates: GateDef[];
+  levers: LeverDef[];
+  turrets: TurretDef[];
+  mines: MineDef[];
+  squads: SquadDef[];
+  capturePoints: CapturePointDef[];
+  spawnPoints: SpawnPointDef[];
+}
+
+/**
+ * Adds one placed block's spawned things to `acc`, the block's top-left at tile (`ox`, `oy`) of
+ * the map.
+ */
+export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Content): void {
+  const cs = BLOCK_TUNING.cellSize;
+  const n = BLOCK_CELLS;
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const { walls, cover, gates, levers, turrets, mines, squads, capturePoints, spawnPoints } = acc;
+  {
     const pt = ([x, y]: CellPoint): Vec2 => ({ x: (ox + x) * cs, y: (oy + y) * cs });
     const rect = ([x, y, w, h]: CellRect): Rect => ({
       x: (ox + x) * cs,
@@ -144,30 +201,6 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     }
     squads.push(...blockSquads(pb.block, items, pb.spawned, pt, id));
   }
-  capturePoints.push({
-    id: 'blk-objective',
-    nameKey: 'capture.block.objective',
-    position: opts.objective,
-    objective: true,
-  });
-
-  return {
-    id: opts.id,
-    nameKey: opts.nameKey,
-    width,
-    height,
-    ground: { cellSize: cs, rows: groundRows },
-    walls,
-    water: waterRects(groundRows, cs),
-    cover,
-    gates,
-    levers,
-    turrets,
-    mines,
-    spawnPoints,
-    capturePoints,
-    squads,
-  };
 }
 
 /**
@@ -222,6 +255,22 @@ export function waterRects(rows: readonly string[], cs: number): Rect[] {
 /** (PHASE13) Rocks and wall tiles (solid: block movement and shots, [D103]) → wall rects. */
 export function solidRects(rows: readonly string[], cs: number): Rect[] {
   return tileRects(rows, cs, (k) => GROUND[k].solid);
+}
+
+/** (PHASE13-d) Tiles where `want(x, y)` → rects (same merging as the ground). */
+export function maskRects(
+  w: number,
+  h: number,
+  cs: number,
+  want: (x: number, y: number) => boolean,
+): Rect[] {
+  const rows: string[] = [];
+  for (let y = 0; y < h; y++) {
+    let line = '';
+    for (let x = 0; x < w; x++) line += want(x, y) ? 'X' : 'G';
+    rows.push(line);
+  }
+  return tileRects(rows, cs, (k) => k === 'X');
 }
 
 /** Tiles of some kinds → rects: runs along each row, merged down while the run below matches. */

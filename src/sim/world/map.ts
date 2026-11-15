@@ -172,6 +172,11 @@ export interface MapDef {
   walls: Rect[];
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
+  /**
+   * (PHASE13-d) Ground outside this level ([D109]): seen but not entered. Blocks movement like
+   * water, shots cross it; drawn darkened.
+   */
+  bounds?: Rect[];
   /** (07-c) Partial cover ([D32]): blocks movement, stops a share of shots. */
   cover?: CoverDef[];
   spawnPoints: SpawnPointDef[];

@@ -8,7 +8,13 @@ import { orientBlock } from '../../gen/transform';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
-import { drawBoardGround, drawMapSketch } from '../worldmap/map-draw';
+import {
+  drawBoardGround,
+  drawMapSketch,
+  levelAnchors,
+  levelOverlay,
+  type Rgba,
+} from '../worldmap/map-draw';
 
 export interface CampaignViewModel {
   world: GeneratedWorld;
@@ -102,21 +108,20 @@ export class CampaignView {
   private scrollToSelected(): void {
     const lv = this.selected !== null ? this.m?.world.levels[this.selected] : undefined;
     if (!lv) return;
-    const bs = BLOCK_CELLS * this.px;
-    const mid = this.pad + (lv.row + lv.rows / 2) * bs;
+    const mid = this.pad + (lv.box.y + lv.box.h / 2) * this.px;
     this.stage.scrollTop = Math.max(0, mid - this.stage.clientHeight / 2);
   }
 
   private levelAt(e: MouseEvent): WorldLevel | undefined {
     const m = this.m;
     if (!m) return undefined;
+    const w = m.world;
     const r = this.board.getBoundingClientRect();
-    const bs = BLOCK_CELLS * this.px;
-    const bc = Math.floor((e.clientX - r.left - this.pad) / bs);
-    const br = Math.floor((e.clientY - r.top - this.pad) / bs);
-    return m.world.levels.find(
-      (l) => br >= l.row && br < l.row + l.rows && bc >= l.col && bc < l.col + l.cols,
-    );
+    const x = Math.floor((e.clientX - r.left - this.pad) / this.px);
+    const y = Math.floor((e.clientY - r.top - this.pad) / this.px);
+    if (x < 0 || y < 0 || x >= w.tiles.w || y >= w.tiles.h) return undefined;
+    const lv = w.owner[y * w.tiles.w + x]!;
+    return lv >= 0 ? w.levels[lv] : undefined;
   }
 
   private draw(): void {
@@ -124,13 +129,12 @@ export class CampaignView {
     if (!m || !this.stage.clientWidth) return;
     const w = m.world;
     const cells = { x: w.cols * BLOCK_CELLS, y: w.rows * BLOCK_CELLS };
-    // Fit the width, but zoomed out enough to see about two bands of levels at once.
-    const band = (w.levels[0]?.rows ?? 10) * BLOCK_CELLS;
+    // Fit the width, but zoomed out enough to see about two fronts of levels at once.
+    const band = 9 * BLOCK_CELLS;
     const fitW = Math.floor((this.stage.clientWidth - 2 * this.pad - 14) / cells.x);
     const fitH = Math.floor(this.stage.clientHeight / (2 * band));
     this.px = Math.max(2, Math.min(fitW, fitH));
     const p = this.px;
-    const bs = BLOCK_CELLS * p;
     const width = cells.x * p + 2 * this.pad;
     const height = cells.y * p + 2 * this.pad;
     const c = this.board;
@@ -143,41 +147,55 @@ export class CampaignView {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.translate(this.pad, this.pad);
     drawBoardGround(ctx, this.oriented, p);
+    // Levels ([D109]): taken tinted blue, attackable outlined yellow, locked dimmed, the HQ red.
+    const overlay = levelOverlay(w.owner, w.tiles.w, w.tiles.h, (lv) => {
+      const taken = m.taken.includes(lv);
+      const open = m.attackable.includes(lv);
+      const sel = lv === this.selected;
+      const fill: Rgba | null = taken
+        ? [70, 150, 255, 80]
+        : open
+          ? sel
+            ? [255, 211, 77, 60]
+            : null
+          : [6, 8, 11, 140];
+      const edge: Rgba = sel
+        ? [255, 255, 255, 255]
+        : open
+          ? [255, 211, 77, 255]
+          : lv === m.hq
+            ? [255, 90, 74, 255]
+            : [0, 0, 0, 160];
+      return { fill, edge };
+    });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(overlay, 0, 0, w.tiles.w * p, w.tiles.h * p);
+    // Ways in: crossings from ground you hold into levels you can attack.
+    const held = (lv: number) => lv === -1 || m.taken.includes(lv);
+    for (const c of w.crossings) {
+      const into =
+        held(c.a) && m.attackable.includes(c.b)
+          ? c.b
+          : held(c.b) && m.attackable.includes(c.a)
+            ? c.a
+            : -2;
+      if (into === -2) continue;
+      const x = ((c.atA[1] + c.atB[1]) / 2 + 0.5) * p;
+      const y = ((c.atA[0] + c.atB[0]) / 2 + 0.5) * p;
+      ctx.fillStyle = '#5be37d';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(4, 1.6 * p), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    const anchors = levelAnchors(w.owner, w.tiles.w, w.levels.length);
     for (const lv of w.levels) {
-      const x = lv.col * bs;
-      const y = lv.row * bs;
-      const ww = lv.cols * bs;
-      const hh = lv.rows * bs;
       const taken = m.taken.includes(lv.index);
       const open = m.attackable.includes(lv.index);
-      if (taken) {
-        ctx.fillStyle = 'rgba(70,150,255,0.30)';
-        ctx.fillRect(x, y, ww, hh);
-      } else if (!open) {
-        ctx.fillStyle = 'rgba(6,8,11,0.55)';
-        ctx.fillRect(x, y, ww, hh);
-      }
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, ww - 1, hh - 1);
-      if (lv.index === m.hq) {
-        ctx.strokeStyle = '#ff5a4a';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x + 2, y + 2, ww - 4, hh - 4);
-      }
-      if (open) {
-        ctx.strokeStyle = '#ffd34d';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(x + 3, y + 3, ww - 6, hh - 6);
-      }
-      if (lv.index === this.selected) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 5]);
-        ctx.strokeRect(x + 8, y + 8, ww - 16, hh - 16);
-        ctx.setLineDash([]);
-      }
-      // Centred labels: the level's number and what it is to you.
+      const [ay, ax] = anchors[lv.index]!;
+      // Labels: the level's number and what it is to you.
       const status =
         lv.index === m.hq && !taken
           ? str('campaign.label.hq')
@@ -191,8 +209,8 @@ export class CampaignView {
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
       const tw = Math.max(...lines.map((t) => ctx.measureText(t).width)) + 12;
-      const cx = x + ww / 2;
-      const cy = y + hh / 2;
+      const cx = (ax + 0.5) * p;
+      const cy = (ay + 0.5) * p;
       const bh = lines.length * 16 + 6;
       ctx.fillStyle = 'rgba(0,0,0,0.75)';
       ctx.fillRect(cx - tw / 2, cy - bh / 2, tw, bh);
@@ -242,7 +260,7 @@ export class CampaignView {
         ),
         taken ? 'done' : open ? 'open' : 'locked',
       );
-      row(str('campaign.size'), str('campaign.sizeValue', { cols: lv.cols, rows: lv.rows }));
+      row(str('campaign.size'), str('campaign.sizeValue', { blocks: Math.round(lv.blocks) }));
       if (!taken) {
         const info = this.actions.levelInfo(lv.index);
         row(str('campaign.budget'), `$${info.budget}`);
