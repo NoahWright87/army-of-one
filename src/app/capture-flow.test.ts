@@ -5,10 +5,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../content/maps/mission-03';
+import { DEFAULT_TUNING } from '../content/tuning';
 import type { CaptureChange, LaneTruth, SpawnOption } from '../contracts/mission';
 import { loadMission } from '../persistence/mission-store';
 import { secondsToTicks } from '../sim/core/time';
 import { createHarness } from './test-harness';
+
+const LEAD_IN = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
 
 const lane = (lanes: readonly LaneTruth[], id: string) => lanes.find((l) => l.soldierId === id)!;
 const forward = (opts: readonly SpawnOption[]) =>
@@ -45,8 +48,8 @@ describe('mission-03: forward spawn loop', () => {
 
     await h.play('breach-win');
     const run = h.runs[1]!;
-    expect(run.countdownAtStart).toBe(secondsToTicks(5)); // lead-in reused ([D25])
-    expect(run.run.attempt.tick).toBe(ours.tick - secondsToTicks(5));
+    expect(run.countdownAtStart).toBe(LEAD_IN); // lead-in reused ([D25])
+    expect(run.run.attempt.tick).toBe(ours.tick - LEAD_IN);
     await h.settle();
     expect(h.game.flow.kind).toBe('complete');
     expect(h.game.mission.completed?.bySoldierId).toBe('S2');

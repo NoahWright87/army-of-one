@@ -18,9 +18,9 @@ Enemy sight (600) beat the rifle's range (520); every life began with a 5 s lead
 
 ## A. Tuning pass
 
-- [ ] Lead-in 5 s → 2 s ([D128]); flag stage 4 s → 3.25 s.
-- [ ] Enemy budgets per block much lower ([D131]).
-- [ ] AI handicaps ([D132]): sight under the rifle's range, slower reactions, aim error that grows
+- [x] Lead-in 5 s → 2 s ([D128]); flag stage 4 s → 3.25 s.
+- [x] Enemy budgets per block much lower ([D131]).
+- [x] AI handicaps ([D132]): sight under the rifle's range, slower reactions, aim error that grows
   with distance, pauses between bursts. All in `tuning.ai`.
 
 ## B. Generation

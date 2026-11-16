@@ -304,6 +304,17 @@ export interface Tuning {
      * walk, sprinting is more) ([D50]). Re-rolled every tick, so moving targets get missed.
      */
     movingTargetError: number;
+    /**
+     * (PHASE16) Extra ± aim error (radians) per 500 units to the target ([D132]), re-rolled
+     * every tick: the AI misses more at range than the player does.
+     */
+    distanceAimError: number;
+    /**
+     * (PHASE16) Guns fire in bursts of this many seconds, then pause ([D132]). 0 = no pauses.
+     * Each soldier's cycle is offset, so a squad doesn't pause together.
+     */
+    burstSeconds: number;
+    burstPauseSeconds: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
     /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
@@ -783,9 +794,9 @@ export const DEFAULT_TUNING: Tuning = {
     wakeRadius: 900, // TUNE: about a screen and a half
     sleepRadius: 1300, // TUNE
     thinkSeconds: 0.25, // TUNE
-    sightRange: 600, // TUNE
+    sightRange: 450, // TUNE [D132]: under the rifle's 520, so you can outrange them
     memorySeconds: 4, // TUNE
-    reactionSeconds: 0.45, // TUNE: [D47] beatable on purpose
+    reactionSeconds: 0.7, // TUNE: [D47] beatable on purpose; [D132] slower
     aimError: 0.05, // TUNE: about ±3°
     commitSeconds: 0.8, // TUNE
     coverSearchRadius: 260, // TUNE
@@ -795,6 +806,9 @@ export const DEFAULT_TUNING: Tuning = {
     maxCandidates: 6, // TUNE
     replanSeconds: 1, // TUNE
     movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
+    distanceAimError: 0.06, // TUNE [D132]: ±3.4° more at 500 units
+    burstSeconds: 1.2, // TUNE [D132]
+    burstPauseSeconds: 0.8, // TUNE [D132]
     sprints: true, // TUNE
     roamSpacing: 70, // TUNE
     attackedSeconds: 3, // TUNE
@@ -862,7 +876,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 4, // TUNE: one soldier takes 8 s for both stages
+    stageSeconds: 3.25, // TUNE [D128]: one soldier takes 6.5 s for both stages
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE
@@ -892,7 +906,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   spawn: {
     intervalSeconds: 2, // TUNE [D7]
-    leadInSeconds: 5, // TUNE [D5]
+    leadInSeconds: 2, // TUNE [D5], [D128]
     minResumeHp: 0.1, // TUNE [D76]
   },
   deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
@@ -1065,8 +1079,8 @@ export const BLOCK_TUNING = {
     /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
     rows: 60, // TUNE
     /** Enemy budget per block in the first band and the last field band ([D86]). */
-    budgetPerBlockFirst: 30, // TUNE
-    budgetPerBlockLast: 80, // TUNE
+    budgetPerBlockFirst: 10, // TUNE [D131]
+    budgetPerBlockLast: 35, // TUNE [D131]
     /** The enemy base's band gets this much more per block. */
     baseBudgetBonus: 1.3, // TUNE
   },

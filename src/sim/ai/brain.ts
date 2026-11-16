@@ -1060,6 +1060,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
         gunOf(s, world.tuning) === 'sniper' ? world.tuning.sniper.movingTargetAimError : 0;
       aim += jitter * (world.tuning.ai.movingTargetError + extra) * live.moveFrac;
     }
+    // (PHASE16) Worse at range than the player ([D132]).
+    if (live && world.tuning.ai.distanceAimError > 0) {
+      const jitter = hash01(`${s.id}@${tick}:range`) * 2 - 1;
+      aim += (jitter * world.tuning.ai.distanceAimError * distance(s, live)) / 500;
+    }
     // (PHASE12-a) Rockets are very inaccurate against people ([D62]); (PHASE12-b) shells a bit.
     const heavy = roleDef(s.roleId).weapon;
     const vehicleTarget = !!live?.drive;
@@ -1088,6 +1093,13 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       const spreadAtTarget = d * Math.tan(currentSpread(world, s, aim));
       const tol = world.tuning.soldier.hitboxRadius * profileOf(s.roleId).burstTolerance;
       fire = spreadAtTarget <= Math.max(tol, world.tuning.soldier.hitboxRadius);
+      // (PHASE16) Bursts then a pause ([D132]), each soldier on its own offset cycle.
+      const on = secondsToTicks(world.tuning.ai.burstSeconds);
+      const off = secondsToTicks(world.tuning.ai.burstPauseSeconds);
+      if (on > 0 && off > 0) {
+        const phase = (tick + Math.floor(hash01(`${s.id}:burst`) * (on + off))) % (on + off);
+        fire &&= phase < on;
+      }
       // (PHASE12-a) Only within the gun in hand's reach (a Sniper still on its pistol waits).
       if (gun === 'pistol' || gun === 'shotgun') {
         fire &&= d <= (gun === 'pistol' ? world.tuning.pistol.range : world.tuning.shotgun.range);
