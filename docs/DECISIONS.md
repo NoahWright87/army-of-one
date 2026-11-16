@@ -470,7 +470,8 @@ top, [D102]).
   taken raises the next levels' enemy budgets (`tuning.campaign.budgetGrowthPerLevel`, on top
   of the bands' own ramp). Taking the enemy HQ's level wins the campaign. One campaign at a
   time; nothing else carries over yet ([D91]). The handmade missions stay on the title screen
-  under the campaign button.
+  under the campaign button. (PHASE14, [D116]–[D126], replaces the per-level growth with battle
+  time and adds what carries over.)
 
 ## Levels cut to the terrain (owner session 2026-11, PHASE13-d)
 
@@ -531,6 +532,59 @@ objectives.
 - **[D100] A torn-up squad joins a healthy one.** Below `ai.routStrength` of its starting
   strength, a squad falls back to the nearest squad still above `ai.healthyStrength` and
   defends that squad's ground from then on, so tension builds toward strongholds.
+
+## The campaign (owner session 2026-11, PHASE14)
+
+The owner considered one continuous campaign (shared clock across levels, soldiers walking
+between live levels, leaving a level mid-battle to take a neighbour) and parked it as a later,
+larger effort. PHASE14 is the basics: levels are still fought one at a time, but money, enemy
+strength and surviving soldiers carry over, and the world map tells the story between levels.
+
+- **[D116] Taking the enemy HQ's level wins the campaign** (confirms [D106]). Other levels are
+  optional: you take them for what they give. The final report counts how many you took.
+- **[D117] Survivors become reserves.** When you win a level, every soldier of ours alive at the
+  win, plus every rescued soldier (an O) never resumed, joins one campaign-wide pool of
+  reserves. A reserve keeps its role (a surviving tank is still a tank) and is a **free spawn**:
+  it enters at full HP from any entry at any time, like a new soldier you didn't pay for. A
+  reserve who dies is gone; unused reserves stay in the pool. The pool is shown waiting at the
+  edge of the level they came from, for show only.
+- **[D118] Money carries over.** Your balance at the win is the next level's starting money
+  (debt resets to $0). Some levels raise income: their bonuses add to your base income for the
+  rest of the campaign, so later battles have a lot more money and are more dramatic.
+- **[D119] Enemy strength grows with battle time.** A hidden campaign stat, the enemy's funds,
+  grows with every minute of battle time you spend (the battle time of the levels you take).
+  Each level's enemy budget moves from its own starting budget toward its full budget as it
+  grows, so late levels are full. Replaces `budgetGrowthPerLevel` (per level taken). Quick wins
+  mean weaker enemies later.
+- **[D120] Starting roster: Rifleman, Grenadier, Machine Gunner and Shield.** The other roles
+  (Sniper, Shotgunner, Bazooka, Gun truck, Tank) are unlocked by taking levels that offer them.
+  Every role must be unlockable in every world.
+- **[D121] Level tags stay simple.** Enemies are all budget based, so the only threat tag is
+  **Elite enemies** (a level with a higher budget than its neighbours). Rewards are **Unlocks:
+  \<role\>** and **Income+**; income and cash come from objectives on the map (capture points,
+  bounties), not from special spawn logic. Big rewards go together with elite enemies, and the
+  best ones tend to sit at dead ends, off the way to the HQ. All levels' tags are visible from
+  the start, so you can plan a route. The map shows what matters for your choice, not raw
+  numbers (no block counts or budgets).
+- **[D122] You can retreat.** Leave a level for the map at any time; it keeps its save, and you
+  can come back to it or attack something else. Retreating costs nothing. A campaign can't be
+  lost, only scored. A won level is locked: you can watch its replay, not change it.
+- **[D123] The map tells the story between levels** (SMB3 overworld style). Back on the map
+  after a win: the level gets a "taken" outline; enemy levels bolster ("+🔫", "+🛡️" pills float
+  up and fade); the soldiers who fought pour into the level, the dead turn into ☠️, the
+  survivors wait at its edge (the reserves); your income ticks up. WW2-style arrows show where
+  you can attack from (the start edge or held ground). A final animation of soldiers moving
+  across the map comes later.
+- **[D124] Reports.** After a level: the existing results screen (same stats, radar, replay)
+  extended with the campaign: reserves gained, money carried, income and unlocks gained, battle
+  time; Continue goes to the map. After the HQ: a final report (money earned and spent, battle
+  time and real time, soldiers spawned and lost, levels taken) that fits one screen without
+  scrolling, so it's easy to screenshot.
+- **[D125] The title screen is the campaign.** Start Campaign, plus Resume Campaign when one is
+  saved; starting a new one while one is saved asks first. The editor, random levels and the
+  hand-made missions move under "More…". One campaign at a time.
+- **[D126] A campaign keeps its blocks.** It stores the blocks it was made from, so editing
+  your blocks can't change a campaign in progress (answers that part of [Q58]).
 
 ## Platform & process
 
@@ -816,8 +870,12 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   and fill tiles nothing fits by extending what's around them (grass grows into grass, water
   surrounded by water becomes a lake). Planned as a second pass after 1 × 1 matching.
 
-- **[Q58] Campaign details still open (PHASE13-d).** (Attacking from the side: answered by
-  [D107].) Whether losing or abandoning a level
-  costs anything; what carries over between levels (money, unlocks, bonus blocks [D91]); whether
-  a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
-  rebuilt from the current blocks, so editing one can change an unfinished campaign's map).
+- **[Q58] (Resolved by [D116]–[D126].)** Campaign details (PHASE13-d): losing or abandoning a
+  level, what carries over, and saved blocks edited mid-campaign.
+- **[Q59] Where Income+ comes from (PHASE14).** Proposed: a level's income objectives (capture
+  points with `income`, e.g. island outposts [D111]) that are ours at the win add their income
+  to your base income for the rest of the campaign; a level tagged Income+ is one that has them.
+  "Unlocks: \<role\>" is a level reward with no map object (it doesn't change spawn logic).
+- **[Q60] Enemy funds curve (PHASE14, [D119]).** Proposed: a level's budget = its own budget +
+  (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
+  multiplier, capped at full. Battle minutes count only levels taken, not retreated attempts.
