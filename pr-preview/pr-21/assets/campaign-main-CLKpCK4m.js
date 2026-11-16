@@ -1,4 +1,4 @@
-import{g as e,h as t,n,t as r,y as i}from"./dom-B3NJ4WC_.js";import{_ as a,b as o,g as s,j as c}from"./editor-storage-CGMWGnyH.js";import{_ as l,d as u,f as d,g as f,h as p,i as m,l as h,m as g,n as _,o as v,r as y,s as b,u as x}from"./campaign-storage-BxiNgiuT.js";import{i as S,n as C,r as w,t as T}from"./map-draw-CGnP8yXA.js";var E=`
+import{g as e,h as t,n,t as r,y as i}from"./dom-CXYfe4Fp.js";import{_ as a,b as o,g as s,j as c}from"./editor-storage-CKbD7Paf.js";import{_ as l,d as u,f as d,g as f,h as p,i as m,l as h,m as g,n as _,o as v,r as y,s as b,u as x}from"./campaign-storage-PjF4nXiJ.js";import{i as S,n as C,r as w,t as T}from"./map-draw-BoFGBZLR.js";var E=`
 .aoo-cp { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px;
   font: 14px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #0d1014; }
 .aoo-cp .stage { position: relative; overflow: auto; }
