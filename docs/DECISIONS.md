@@ -566,9 +566,13 @@ strength and surviving soldiers carry over, and the world map tells the story be
   best ones tend to sit at dead ends, off the way to the HQ. All levels' tags are visible from
   the start, so you can plan a route. The map shows what matters for your choice, not raw
   numbers (no block counts or budgets).
-- **[D122] You can retreat.** Leave a level for the map at any time; it keeps its save, and you
-  can come back to it or attack something else. Retreating costs nothing. A campaign can't be
-  lost, only scored. A won level is locked: you can watch its replay, not change it.
+- **[D122] One level at a time; you can retreat.** Attacking a level makes it the campaign's
+  active level. You can leave it for the map at any time (it keeps its save), but until it's won
+  the only thing you can do there is resume it: other levels can be looked at, not attacked.
+  Retreating costs nothing. A campaign can't be lost, only scored. A won level is locked: you
+  can watch its replay, not change it. (Owner, 2026-11: one at a time keeps carry-over simple:
+  money, reserves and enemy funds settle once, in order, and a level's held neighbours can't
+  change under its save.)
 - **[D123] The map tells the story between levels** (SMB3 overworld style). Back on the map
   after a win: the level gets a "taken" outline; enemy levels bolster ("+🔫", "+🛡️" pills float
   up and fade); the soldiers who fought pour into the level, the dead turn into ☠️, the
@@ -878,4 +882,4 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   "Unlocks: \<role\>" is a level reward with no map object (it doesn't change spawn logic).
 - **[Q60] Enemy funds curve (PHASE14, [D119]).** Proposed: a level's budget = its own budget +
   (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
-  multiplier, capped at full. Battle minutes count only levels taken, not retreated attempts.
+  multiplier, capped at full. Battle minutes count only levels taken.

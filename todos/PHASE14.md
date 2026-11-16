@@ -34,8 +34,10 @@ Built in order; each ends with something to click on. One agent can do all three
 `main.ts`). Touches the respawn screen and economy only to add reserves, unlocks and start money.
 
 - [ ] Campaign state v3 (migrate or drop v2 cleanly): seed, blocks it was made from ([D126]),
-  levels taken (in order), money to carry, base-income bonus, unlocked roles, reserves, battle
-  ticks so far, per-level results (for the reports), real time played.
+  levels taken (in order), the **active level** (one at a time, [D122]) with the settings it
+  was started with (budget, held neighbours: its mission id), money to carry, base-income
+  bonus, unlocked roles, reserves, battle ticks so far, per-level results (for the reports),
+  real time played.
 - [ ] **Freeze the blocks** ([D126]): store the block set (or official ids + copies of your blocks)
   when the campaign starts; `campaignWorld` builds from that, never from the live library.
 - [ ] **Tags** ([D121]), deterministic from the seed: Elite enemies (budget × `campaign.eliteBudget`),
@@ -51,12 +53,13 @@ Built in order; each ends with something to click on. One agent can do all three
   default base income + the campaign's income bonus (via the level's `map.economy`).
 - [ ] **Reserves** ([D117]): on a win, soldiers alive at the win + O's never resumed join the pool
   (role kept). On the respawn screen, a reserve is a free spawn of that role at full HP from any
-  entry at any time; deploying one removes it from the pool **when the level is won** (a
-  retreated level gives reserves back). A reserve who dies is gone. Decide and note how a
+  entry at any time; deploying one removes it from the pool **when the level is won** (only
+  one level is ever open, so nothing needs reserving). A reserve who dies is gone. Decide and note how a
   reserve shows on the timeline (a normal lane with cost 0 is the simplest).
 - [ ] **Win hook**: records the level's result (battle time, money in/out, spawned, lost,
-  reserves gained/used, unlocks/income gained) and applies carry-over. **Retreat** ([D122])
-  keeps the level's save and changes nothing in the campaign.
+  reserves gained/used, unlocks/income gained), applies carry-over and clears the active
+  level. **Retreat** ([D122]) returns to the map; the level stays active with its save, and
+  nothing in the campaign changes.
 - [ ] `npm run sim -- --scenario campaign` (or a test): a seeded campaign played by autoplay
   lives through 2–3 levels shows money, reserves and budgets carrying over.
 
@@ -74,7 +77,9 @@ Built in order; each ends with something to click on. One agent can do all three
   taken; "+🔫"/"+🛡️" pills float up and fade over enemy levels (how many by how much their
   budget grew); soldier icons pour into the level, the dead turn ☠️, survivors gather at its
   edge; income/money tick up. Driven by the level's stored result, so it can replay on reload.
-- [ ] Resume a retreated level: its panel says "In progress" and Attack continues it.
+- [ ] **One level at a time** ([D122]): while a level is active, the map shows it "In progress"
+  with **Resume**; other levels' panels show their tags but no Attack (and say why). Arrows only
+  point into the active level while one is open.
 
 ### 14-c: reports and the title screen
 
@@ -94,8 +99,8 @@ Built in order; each ends with something to click on. One agent can do all three
 ## Acceptance
 
 - Start → attack → win → report → map animation → attack again, with money, income, reserves
-  and unlocks visibly carried over; retreat and resume a level; take the HQ → final report on
-  one screen.
+  and unlocks visibly carried over; retreat to the map, see only Resume, resume the level; take
+  the HQ → final report on one screen.
 - Enemy budgets grow with battle time (test) and the map shows it as "+🔫" pills.
 - A campaign survives a reload at every step (map, battle, report, animation).
 - `npm run lint && npm run lint:purity && npm run test && npm run build` pass.
