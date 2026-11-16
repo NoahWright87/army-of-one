@@ -1,0 +1,106 @@
+# The game at the site root: every push to `main` (a merged PR, say) builds the app and publishes
+# dist/ to the root of the `gh-pages` branch, so https://<owner>.github.io/<repo>/ is always
+# the current `main`. PR previews keep living under pr-preview/ (pr-preview.yml); this job never
+# touches that folder, and pr-preview.yml never touches the root.
+#
+# Same one-time repo setup as the previews: Settings → Pages → "Deploy from a branch",
+# branch `gh-pages`, folder `/ (root)`.
+
+name: Deploy main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SHA: ${{ github.sha }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          # Marker used below to confirm GitHub Pages is serving this exact commit.
+          echo "$SHA" > dist/preview-version.txt
+
+      - name: Publish to the root of gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+
+          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null; then
+            git clone --quiet --depth 1 --branch gh-pages "$url" site
+          else
+            git init --quiet -b gh-pages site
+            git -C site remote add origin "$url"
+          fi
+          git -C site config user.name "github-actions[bot]"
+          git -C site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          apply_changes() {
+            # Everything at the root except the previews and git's own folder is the old build.
+            find site -mindepth 1 -maxdepth 1 ! -name .git ! -name pr-preview -exec rm -rf {} +
+            cp -R dist/. site/
+            touch site/.nojekyll
+            git -C site add -A
+          }
+
+          for attempt in 1 2 3 4 5; do
+            apply_changes
+            if git -C site diff --cached --quiet; then
+              echo "Nothing to publish."
+              break
+            fi
+            git -C site commit --quiet -m "Deploy main at ${SHA}"
+            if git -C site push --quiet origin gh-pages; then
+              echo "Published."
+              break
+            fi
+            echo "Push raced with a preview; retrying ($attempt)…"
+            sleep $((attempt * 3))
+            git -C site fetch --quiet --depth 1 origin gh-pages
+            git -C site reset --quiet --hard origin/gh-pages
+            if [ "$attempt" = 5 ]; then echo "::error::Could not push to gh-pages"; exit 1; fi
+          done
+
+      - name: Wait for GitHub Pages to serve it
+        run: |
+          owner="${REPO%%/*}"
+          name="${REPO#*/}"
+          page="https://$(echo "$owner" | tr '[:upper:]' '[:lower:]').github.io/${name}/"
+          for i in $(seq 1 40); do
+            got="$(curl -fsSL --max-time 10 "${page}preview-version.txt?t=$(date +%s)" 2>/dev/null | tr -d '[:space:]' || true)"
+            if [ "$got" = "$SHA" ]; then
+              echo "Live: $page"
+              echo "### 🚀 main is live: ${page}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::Not served after 10 minutes. Is Pages enabled for the gh-pages branch?"
