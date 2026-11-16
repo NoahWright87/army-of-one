@@ -1,4 +1,4 @@
-import{Z as e,et as t,n,t as r}from"./dom-DJTGRBjP.js";import{C as i,S as a,T as o,_ as s,b as c,d as l,g as u,h as d,j as f,n as p,v as m}from"./editor-storage-D3iZLiBH.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-DGHe5hLU.js";import{r as b,t as x}from"./indexeddb-store-DDrV0LV4.js";import{t as S}from"./connection-graph-CG-iuxD9.js";var C=`army-of-one.world.overlays`,w=`
+import{Z as e,et as t,n,t as r}from"./dom-DJTGRBjP.js";import{C as i,S as a,T as o,_ as s,b as c,d as l,g as u,h as d,j as f,n as p,v as m}from"./editor-storage-D3iZLiBH.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-DGHe5hLU.js";import{r as b,t as x}from"./indexeddb-store-BOLOw8Cf.js";import{t as S}from"./connection-graph-CG-iuxD9.js";var C=`army-of-one.world.overlays`,w=`
 .aoo-wm { position: fixed; inset: 0; display: grid; grid-template-columns: 230px 1fr 400px;
   font: 13px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #111418; }
 .aoo-wm aside { overflow-y: auto; padding: 12px; background: #181c21; }
