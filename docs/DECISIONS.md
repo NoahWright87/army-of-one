@@ -590,6 +590,39 @@ strength and surviving soldiers carry over, and the world map tells the story be
 - **[D126] A campaign keeps its blocks.** It stores the blocks it was made from, so editing
   your blocks can't change a campaign in progress (answers that part of [Q58]).
 
+## Pacing and difficulty (owner session 2026-11, PHASE16)
+
+Playtest: the core loop is fun, but levels are a slog (Breach too; bigger maps make it worse),
+especially on a phone. An hour in, no level was done.
+
+- **[D127] Progress in a ~30-minute session.** Each level is much shorter (smaller levels, about
+  half of today's); the world map stays the same size, so a campaign can still be long.
+- **[D128] Shorter lead-in.** The countdown and run-in before each life go from 5 s to about 2 s:
+  less waiting, and soldiers arrive closer together, so they're easier to coordinate and save.
+  A flag stage takes 3–3.5 s (was 4).
+- **[D129] Win a level by taking most of its exits.** Only exits into other levels count; you need
+  a majority: ⌊n/2⌋ + 1 (1→1, 2→2, 3→2, 4→3, 5→3). The HQ (and the far-end flag of a level with
+  no exits) is always needed. Taking the level takes all of it: every exit counts as yours
+  afterwards (spawns from all of them in the next levels).
+- **[D130] More capture points, at natural ingress points.** Levels get capture points along the
+  way (each a forward spawn), so you can jump further into the fight and spend what you've saved.
+  They go on roads, clearings, corners and the edges of buildings; the middle of a field only when
+  there's nothing else.
+- **[D131] Unit strength is content.** No explicit tiers: blocks give heavy units (snipers,
+  vehicles) low priority, so low early budgets buy simple troops. Enemy budgets start much lower.
+- **[D132] Weaker enemies than you.** The AI is worse than the player: shorter sight than your
+  rifle's range, slower to react, more misses (worse with distance), pauses between bursts.
+- **[D133] Slight health regeneration** after a few seconds without being hurt, so unavoidable
+  chip damage isn't permanent. Off on Hard. (Later: a Hospital capture point boosts it.)
+- **[D134] Difficulty is chosen per campaign** (Easy / Normal / Hard), because it can change the
+  world's generation. Presets set enemy budgets, AI handicaps, regeneration and starting money.
+- **[D135] Pacing is measured.** A headless benchmark brute-forces generated levels (random-ish
+  lives that lean toward the objectives; enemies that attack) and reports lives and battle time
+  to win, so tuning has a target.
+- Mines are fine as they are (owner). Later: concealment (bushes, trenches; running makes you
+  visible, snipers start concealed) and a phone pass (zoom out, smaller minimap, keep the target
+  on screen).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
