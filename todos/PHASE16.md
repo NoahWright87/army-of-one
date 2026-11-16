@@ -43,7 +43,7 @@ Enemy sight (600) beat the rifle's range (520); every life began with a 5 s lead
 
 ## D. Pacing benchmark
 
-- [ ] `npm run sim -- --scenario pacing` ([D135]): bots play generated levels by brute force (lives
+- [x] `npm run sim -- --scenario pacing` ([D135]): bots play generated levels by brute force (lives
   lean toward objectives; enemies attack) and report lives and battle time to win per level.
 
 ## Later

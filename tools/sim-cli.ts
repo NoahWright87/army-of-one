@@ -5,9 +5,11 @@
  *   npm run sim -- --map mission-03 --list                   # list scenarios
  *   npm run sim -- --scenario rescue|chain|bench             # PHASE03-a echoes (sim-echoes.ts)
  *   npm run sim -- --scenario economy [--lives a,b] [--enemies]  # PHASE11 money (sim-economy.ts)
+ *   npm run sim -- --scenario pacing [--seeds 11,42] [--levels 3] [--difficulty normal]  # PHASE16
  * mission-03 "Breach" is the only mission ([D31]); `--script` defaults to it.
  * Flags: --quiet (no per-event lines), --all-events (include every shot/damage event).
  */
+import { runPacingCli } from './sim-pacing';
 import { DEFAULT_TUNING } from '../src/content/tuning';
 import { MISSION_03 } from '../src/content/maps/mission-03';
 import { TEST_RANGE } from '../src/content/maps/test-range';
@@ -27,6 +29,11 @@ function arg(name: string, fallback: string): string {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : fallback;
 }
 const flag = (name: string) => process.argv.includes(`--${name}`);
+
+if (arg('scenario', '') === 'pacing') {
+  runPacingCli(process.argv);
+  process.exit(0);
+}
 
 if (arg('scenario', '') === 'economy') {
   const lives = arg('lives', 'breach-slow,breach-rescue,breach-resume,breach-win').split(',');
