@@ -321,6 +321,12 @@ export interface Tuning {
      */
     burstSeconds: number;
     burstPauseSeconds: number;
+    /**
+     * (PHASE16) Many weaker enemies ([D136]): enemy soldiers' max HP × this, and the damage
+     * they deal to ours × `enemyDamageScale`. Turrets and mines are unchanged.
+     */
+    enemyHpScale: number;
+    enemyDamageScale: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
     /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
@@ -816,6 +822,8 @@ export const DEFAULT_TUNING: Tuning = {
     distanceAimError: 0.06, // TUNE [D132]: ±3.4° more at 500 units
     burstSeconds: 1.2, // TUNE [D132]
     burstPauseSeconds: 0.8, // TUNE [D132]
+    enemyHpScale: 0.6, // TUNE [D136]: a rifleman goes down in about two hits fewer
+    enemyDamageScale: 0.7, // TUNE [D136]
     sprints: true, // TUNE
     roamSpacing: 70, // TUNE
     attackedSeconds: 3, // TUNE
@@ -1068,6 +1076,15 @@ export const BLOCK_TUNING = {
      * along the way from the entries, none within `ingressKeepAway` tiles of another, none
      * within `ingressEndMargin` tiles of the far end.
      */
+    /**
+     * (PHASE16, [D136]) Off: a level's only capture points are its exits (and island
+     * outposts); blocks' own points and ingress points aren't made.
+     */
+    extraCapturePoints: false, // TUNE
+    /** (PHASE16) A block holding an exit gets this much more of the level's budget ([D136]). */
+    exitGuardWeight: 3, // TUNE
+    /** (PHASE16) The nearest squad within this many units of an exit holds it ([D136]). */
+    exitHoldRadius: 1500, // TUNE
     ingressEvery: 18, // TUNE: about 1.2 blocks
     ingressKeepAway: 10, // TUNE
     ingressEndMargin: 6, // TUNE
@@ -1094,8 +1111,8 @@ export const BLOCK_TUNING = {
     /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
     rows: 60, // TUNE
     /** Enemy budget per block in the first band and the last field band ([D86]). */
-    budgetPerBlockFirst: 10, // TUNE [D131]
-    budgetPerBlockLast: 35, // TUNE [D131]
+    budgetPerBlockFirst: 25, // TUNE [D131], [D136]: more (weaker) enemies
+    budgetPerBlockLast: 70, // TUNE [D131], [D136]
     /** The enemy base's band gets this much more per block. */
     baseBudgetBonus: 1.3, // TUNE
   },

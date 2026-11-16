@@ -90,3 +90,17 @@ smaller/collapsible minimap, keep the target on screen); a Hospital point that b
   never use forward spawns. Bots also never rewind or resume O's, so people should do better.
   Not done: budgets grown by battle time in later levels (the run uses a fresh campaign), and
   enemies that attack instead of holding.
+
+## Notes: second pass ([D136], owner playtest: too easy)
+
+- Too few enemies, capture points everywhere and unguarded. Levers pulled, no refactor:
+  - `carve.extraCapturePoints` false: no ingress points and no blocks' own capture points
+    (their forward spawns and squad holds go too). Capture points = exits + island outposts.
+    `src/gen/ingress.ts` stays for when it's wanted again.
+  - Budgets per block 25→70 (were 10→35): about 2.3× the enemies (13–107 per level over 5 seeds).
+  - `ai.enemyHpScale` 0.6 and `ai.enemyDamageScale` 0.7 (enemy soldiers only; turrets and
+    mines unchanged). `soldierMaxHp(tuning, role, team)`.
+  - Guarded exits: a block holding an exit gets `carve.exitGuardWeight` (3)× its budget share,
+    and the nearest squad within `carve.exitHoldRadius` (1500) holds each exit flag (the AI
+    already holds and retakes a squad's `capturePointId`).
+

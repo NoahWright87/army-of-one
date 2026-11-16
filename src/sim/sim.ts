@@ -310,7 +310,7 @@ export function getView(world: World): WorldView {
       y: s.y,
       facing: s.facing,
       hp: s.hp,
-      maxHp: soldierMaxHp(tuning, s.roleId),
+      maxHp: soldierMaxHp(tuning, s.roleId, s.team),
       alive: s.alive,
       role:
         s.team === 'enemy'

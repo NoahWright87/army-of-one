@@ -604,7 +604,7 @@ especially on a phone. An hour in, no level was done.
   a majority: ⌊n/2⌋ + 1 (1→1, 2→2, 3→2, 4→3, 5→3). The HQ (and the far-end flag of a level with
   no exits) is always needed. Taking the level takes all of it: every exit counts as yours
   afterwards (spawns from all of them in the next levels).
-- **[D130] More capture points, at natural ingress points.** Levels get capture points along the
+- **[D130] (Off for now, [D136].) More capture points, at natural ingress points.** Levels get capture points along the
   way (each a forward spawn), so you can jump further into the fight and spend what you've saved.
   They go on roads, clearings, corners and the edges of buildings; the middle of a field only when
   there's nothing else.
@@ -619,6 +619,13 @@ especially on a phone. An hour in, no level was done.
 - **[D135] Pacing is measured.** A headless benchmark brute-forces generated levels (random-ish
   lives that lean toward the objectives; enemies that attack) and reports lives and battle time
   to win, so tuning has a target.
+- **[D136] Many weaker enemies; only exits are capture points** (owner playtest, 2026-11: the
+  first pass was too easy, with too few enemies and capture points everywhere). Levels have more
+  enemies (higher budgets), each weaker than you (less HP, less damage, `ai.enemyHpScale` /
+  `enemyDamageScale`), so fights have tension without being a slog. A level's capture points
+  are its exits (plus optional island outposts, [D111]); no in-level forward points
+  (`carve.extraCapturePoints` off; supersedes [D130] for now). Exits are guarded: blocks holding
+  an exit get more of the budget, and the nearest squad holds and retakes each exit flag.
 - Mines are fine as they are (owner). Later: concealment (bushes, trenches; running makes you
   visible, snipers start concealed) and a phone pass (zoom out, smaller minimap, keep the target
   on screen).

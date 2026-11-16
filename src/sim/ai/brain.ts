@@ -393,7 +393,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       : [ai.home];
   const leashOk = (pt: Vec2) => posts.some((h) => distance(pt, h) <= prof.leash + 1);
   const underFire = p.hurt || tick - ai.hurtTick < secondsToTicks(1.5);
-  const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId));
+  const hpFrac = s.hp / Math.max(1, soldierMaxHp(world.tuning, s.roleId, s.team));
   const threatD = p.targetPos ? distance(s, p.targetPos) : Infinity;
 
   const scores: Record<Behavior, number> = {
@@ -703,7 +703,7 @@ function squadStrength(world: World, sq: SquadDef): { strength: number; alive: S
   if (members.length === 0) return { strength: 0, alive: [] };
   const alive = members.filter((o) => o.alive);
   const sum = alive.reduce(
-    (n, o) => n + o.hp / Math.max(1, soldierMaxHp(world.tuning, o.roleId)),
+    (n, o) => n + o.hp / Math.max(1, soldierMaxHp(world.tuning, o.roleId, o.team)),
     0,
   );
   return { strength: sum / members.length, alive };

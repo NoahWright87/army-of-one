@@ -26,6 +26,11 @@ export function damageSoldier(
   kind: string = cause,
 ): void {
   if (!isEligible(s) || amount <= 0) return;
+  // (PHASE16) Enemies hit softer ([D136]).
+  const scale = world.tuning.ai.enemyDamageScale;
+  if (scale !== 1 && by !== undefined && s.team !== 'enemy') {
+    if (world.state.soldiers.find((o) => o.id === by)?.team === 'enemy') amount *= scale;
+  }
   // (PHASE12-b) Unified armor ([D70]).
   const armor = armorFrom(roleArmor(world.tuning, s.roleId), s, s.facing, from);
   const through = throughArmor(armor, pierceOf(world.tuning, kind));

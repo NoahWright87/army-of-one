@@ -189,7 +189,15 @@ export function worldLevelMap(
         }
       }
       caps.push(blockTotalCost(clipped));
-      weights.push(1 + BLOCK_TUNING.level.ramp * (count ? sum / count / maxFar : 0));
+      // (PHASE16) Blocks holding an exit get more of the budget: exits are guarded ([D136]).
+      const guarded = exits.some((c) => {
+        const [ty, tx] = ourTile(c);
+        return Math.floor(ty / n) === br && Math.floor(tx / n) === bc;
+      });
+      weights.push(
+        (1 + BLOCK_TUNING.level.ramp * (count ? sum / count / maxFar : 0)) *
+          (guarded ? BLOCK_TUNING.carve.exitGuardWeight : 1),
+      );
       placed.push({
         pb: { block: clipped, col: bc, row: br, spawned: new Set(), prefix: `b${br}x${bc}-` },
         ox: bc * n - x0,
@@ -220,6 +228,18 @@ export function worldLevelMap(
     spent += res.spent;
     addBlockContent({ ...p.pb, spawned: res.spawned }, p.ox, p.oy, content);
   });
+  // (PHASE16) Only the exits are capture points ([D136]): blocks' own points (and the forward
+  // spawns and squad holds on them) go, unless `carve.extraCapturePoints`.
+  if (!BLOCK_TUNING.carve.extraCapturePoints) {
+    const gone = new Set(content.capturePoints.map((c) => c.id));
+    content.capturePoints = [];
+    content.spawnPoints = content.spawnPoints.filter(
+      (sp) => !(sp.capturePointId && gone.has(sp.capturePointId)),
+    );
+    for (const q of content.squads) {
+      if (q.capturePointId && gone.has(q.capturePointId)) delete q.capturePointId;
+    }
+  }
 
   // Entries → spawn points; exits (and the HQ) → flag objectives.
   const centre = (y: number, x: number): Vec2 => ({
@@ -310,6 +330,19 @@ export function worldLevelMap(
       approach: [...runIn(c).map(([y, x]) => centre(y, x)), position],
     });
   });
+  // (PHASE16) The nearest squad to each exit holds (and retakes) it ([D136]).
+  exits.forEach((_, k) => {
+    const at = content.capturePoints.find((c) => c.id === `exit-${k}`)?.position;
+    if (!at) return;
+    let best: { q: (typeof content.squads)[number]; d: number } | null = null;
+    for (const q of content.squads) {
+      const m = q.members[0];
+      if (!m || q.capturePointId) continue;
+      const d = Math.hypot(m.position.x - at.x, m.position.y - at.y);
+      if (d <= BLOCK_TUNING.carve.exitHoldRadius && (!best || d < best.d)) best = { q, d };
+    }
+    if (best) best.q.capturePointId = `exit-${k}`;
+  });
   // Bridged islands' outposts in this level: optional, a spawn and income once taken ([D111]).
   world.outposts.forEach(([y, x], k) => {
     if (owner[y * W + x] !== index) return;
@@ -330,21 +363,23 @@ export function worldLevelMap(
   });
   // (PHASE16) Capture points at natural ingress points along the way ([D130]).
   const tc = BLOCK_TUNING.carve;
-  const ingress = ingressPoints({
-    w,
-    h,
-    rows,
-    own,
-    far,
-    walls: content.walls,
-    cellSize: cs,
-    existing: content.capturePoints.map(
-      (c) => [Math.floor(c.position.y / cs), Math.floor(c.position.x / cs)] as [number, number],
-    ),
-    every: tc.ingressEvery,
-    keepAway: tc.ingressKeepAway,
-    endMargin: tc.ingressEndMargin,
-  });
+  const ingress = !tc.extraCapturePoints
+    ? []
+    : ingressPoints({
+        w,
+        h,
+        rows,
+        own,
+        far,
+        walls: content.walls,
+        cellSize: cs,
+        existing: content.capturePoints.map(
+          (c) => [Math.floor(c.position.y / cs), Math.floor(c.position.x / cs)] as [number, number],
+        ),
+        every: tc.ingressEvery,
+        keepAway: tc.ingressKeepAway,
+        endMargin: tc.ingressEndMargin,
+      });
   ingress.forEach(([y, x], k) => {
     content.capturePoints.push({
       id: `ingress-${k}`,

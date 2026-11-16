@@ -136,7 +136,7 @@ export function createSoldier(
     x: position.x,
     y: position.y,
     facing,
-    hp: soldierMaxHp(tuning, flags.roleId),
+    hp: soldierMaxHp(tuning, flags.roleId, flags.team),
     ...(isVehicleRole(flags.roleId) ? { drive: { speed: 0, turret: facing, hits: {} } } : {}),
     alive: true,
     controllable: flags.controllable ?? true,
@@ -195,9 +195,19 @@ export function hitRadiusOf(tuning: Tuning, s: SoldierState): number {
   return driveOf(tuning, s.roleId)?.bodyRadius ?? tuning.soldier.hitboxRadius;
 }
 
-/** (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). */
-export function soldierMaxHp(tuning: Tuning, roleId: RoleId | undefined): number {
-  return Math.round(tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1));
+/**
+ * (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). (PHASE16) Enemies ×
+ * `ai.enemyHpScale`: many weaker enemies ([D136]).
+ */
+export function soldierMaxHp(
+  tuning: Tuning,
+  roleId: RoleId | undefined,
+  team?: SoldierTeam,
+): number {
+  const scale = team === 'enemy' ? tuning.ai.enemyHpScale : 1;
+  return Math.round(
+    tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1) * scale,
+  );
 }
 
 /** (PHASE12-a) Walking speed by role ([D62]: the Bazooka is slower). */

@@ -180,9 +180,11 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   (`src/gen/campaign-result.ts`, `applyLevelSettings` in `src/app/campaign-storage.ts`); level
   tags (Elite enemies, Unlocks, Income+) and enemy funds that grow with battle time.
   PHASE16 ([D127]–[D135]): shorter levels (`carve.levelBlocks`), a level is won by a majority of
-  its exits (`map.objectiveGroups`), forward capture points at ingress points
-  (`src/gen/ingress.ts`), regeneration (`soldier.regen`), and Easy/Normal/Hard per campaign
-  (`src/content/difficulty.ts`, picked on the campaign map before the first attack).
+  its exits (`map.objectiveGroups`), regeneration (`soldier.regen`), and Easy/Normal/Hard per
+  campaign (`src/content/difficulty.ts`, picked on the campaign map before the first attack).
+  [D136]: only exits are capture points (`carve.extraCapturePoints`; ingress points in
+  `src/gen/ingress.ts` are off), many weaker enemies (`ai.enemyHpScale`/`enemyDamageScale`),
+  exits guarded (`carve.exitGuardWeight`, `exitHoldRadius`).
   Spawn points carry an `approach` path: new soldiers and echoes run in along it during the
   lead-in (`src/render/run-in.ts`, drawn by the battle scene; for show only, [D112]).
 - World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
