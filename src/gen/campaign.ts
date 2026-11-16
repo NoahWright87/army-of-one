@@ -15,6 +15,7 @@
  * Pure: storage and page links live in `src/app/campaign-storage.ts`.
  */
 import { OFFICIAL_BLOCKS } from '../content/blocks';
+import { DIFFICULTY, isDifficulty, type Difficulty } from '../content/difficulty';
 import { ROLES, isRoleId } from '../content/roles';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../content/tuning';
 import type { RoleId } from '../contracts/mission';
@@ -77,6 +78,8 @@ export interface CampaignState {
   seed: number;
   /** Whether the world uses your saved blocks as well as the official ones. */
   includeMine: boolean;
+  /** (PHASE16) Easy / Normal / Hard ([D134]): fixed once a level has been attacked. */
+  difficulty: Difficulty;
   /** Copies of your blocks the world was made from ([D126]); empty without `includeMine`. */
   blocks: BlockDef[];
   /** Levels taken, in the order they were taken. */
@@ -99,14 +102,19 @@ export interface CampaignState {
   realMs: number;
 }
 
-export function newCampaign(seed: number, myBlocks: readonly BlockDef[] = []): CampaignState {
+export function newCampaign(
+  seed: number,
+  myBlocks: readonly BlockDef[] = [],
+  difficulty: Difficulty = 'normal',
+): CampaignState {
   return {
     version: CAMPAIGN_VERSION,
     seed: seed >>> 0,
     includeMine: myBlocks.length > 0,
+    difficulty,
     blocks: myBlocks.map((b) => structuredClone(b)),
     taken: [],
-    money: DEFAULT_TUNING.economy.startMoney,
+    money: DIFFICULTY[difficulty].startMoney,
     incomeBonus: 0,
     unlocked: [],
     reserves: {},
@@ -223,6 +231,8 @@ export function parseCampaign(raw: unknown): CampaignState | null {
     version: CAMPAIGN_VERSION,
     seed: o.seed >>> 0,
     includeMine: o.includeMine === true,
+    // Absent in campaigns saved before PHASE16: Normal.
+    difficulty: isDifficulty(o.difficulty) ? o.difficulty : 'normal',
     blocks,
     taken: [...new Set(o.taken)],
     money: o.money,
@@ -422,6 +432,7 @@ export function campaignBudget(world: GeneratedWorld, state: CampaignState, inde
   const own = Math.min(lv.budget, lv.maxBudget);
   let b = own + (lv.maxBudget - own) * enemyGrowth(state);
   if (isElite(world, index)) b *= BLOCK_TUNING.campaign.eliteBudget;
+  b *= DIFFICULTY[state.difficulty].budget; // (PHASE16) [D134]
   return Math.round(Math.min(lv.maxBudget, b));
 }
 
@@ -528,4 +539,18 @@ export function takeLevel(
     reservesUsed: {},
     survivors: {},
   });
+}
+
+/**
+ * (PHASE16) The campaign on another difficulty ([D134]): only before any level is attacked
+ * (it changes the levels' budgets); else unchanged.
+ */
+export function withDifficulty(state: CampaignState, difficulty: Difficulty): CampaignState {
+  if (state.active || state.taken.length > 0 || state.difficulty === difficulty) return state;
+  return { ...state, difficulty, money: DIFFICULTY[difficulty].startMoney };
+}
+
+/** (PHASE16) Whether the difficulty can still be changed ([D134]). */
+export function difficultyOpen(state: CampaignState): boolean {
+  return !state.active && state.taken.length === 0;
 }

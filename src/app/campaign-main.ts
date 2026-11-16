@@ -10,11 +10,13 @@ import {
   attackable,
   campaignBudget,
   campaignWon,
+  difficultyOpen,
   enemyGrowth,
   heldSet,
   hqLevel,
   levelTags,
   openRoles,
+  withDifficulty,
   type CampaignState,
 } from '../gen/campaign';
 import { worldMissionId } from '../gen/mission-id';
@@ -26,6 +28,7 @@ import {
   openCampaignBattle,
   openMainMenu,
   readCampaign,
+  writeCampaign,
 } from './campaign-storage';
 
 export function startCampaignMap(host: HTMLElement): void {
@@ -52,6 +55,11 @@ export function startCampaignMap(host: HTMLElement): void {
       show();
     },
     menu: openMainMenu,
+    setDifficulty: (d) => {
+      state = withDifficulty(state, d);
+      writeCampaign(state);
+      show();
+    },
   });
 
   function show(): void {
@@ -71,6 +79,8 @@ export function startCampaignMap(host: HTMLElement): void {
         roles: openRoles(state),
       },
       tags: levelTags(world),
+      difficulty: state.difficulty,
+      difficultyOpen: difficultyOpen(state),
     });
   }
   show();

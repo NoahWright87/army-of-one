@@ -36,9 +36,9 @@ Enemy sight (600) beat the rifle's range (520); every life began with a 5 s lead
 
 ## C. Difficulty and regeneration
 
-- [ ] Regeneration ([D133]): after `soldier.regen.delaySeconds` without damage, heal
+- [x] Regeneration ([D133]): after `soldier.regen.delaySeconds` without damage, heal
   `perSecond`. Deterministic, in the sim; echoes too.
-- [ ] Difficulty presets ([D134]) chosen when a campaign starts, stored in it: enemy budget ×,
+- [x] Difficulty presets ([D134]) chosen when a campaign starts, stored in it: enemy budget ×,
   AI handicaps, regeneration on/off, starting money. Applied to the campaign's levels and battles.
 
 ## D. Pacing benchmark

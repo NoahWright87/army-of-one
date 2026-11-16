@@ -51,6 +51,12 @@ export interface VehicleDrive {
 export interface Tuning {
   soldier: {
     maxHp: number;
+    /**
+     * (PHASE16) Slight health regeneration for our soldiers ([D133]): after `delaySeconds`
+     * without damage, `perSecond` HP back, up to max. perSecond 0 = off (Hard). Not vehicles,
+     * not enemies.
+     */
+    regen: { perSecond: number; delaySeconds: number };
     /** Walking speed, units/second. */
     speed: number;
     /** Visual size of the sprite ([D14]: largest). */
@@ -574,6 +580,7 @@ const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
     maxHp: 100, // TUNE
+    regen: { perSecond: 2, delaySeconds: 5 }, // TUNE [D133]: 50 s from empty to full
     speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE

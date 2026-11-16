@@ -165,6 +165,7 @@ export function getSoldier(world: World, id: SoldierId): SoldierState | undefine
 }
 
 import { soldierIndex } from './soldier-index';
+import { stepRegen } from './combat/damage';
 export { soldierIndex };
 
 /** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */
@@ -278,6 +279,8 @@ export function step(
     s.y = p.y;
     quantizeSoldier(s);
   }
+
+  stepRegen(world); // (PHASE16) [D133]
 
   // (05-a) Capture points read the final positions of the tick.
   stepCapturePoints(world);

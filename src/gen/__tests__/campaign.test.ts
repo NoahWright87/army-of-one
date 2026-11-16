@@ -18,6 +18,8 @@ import {
   settingsFor,
   startLevel,
   takeLevel,
+  difficultyOpen,
+  withDifficulty,
   type CampaignState,
   type LevelResult,
 } from '../campaign';
@@ -245,5 +247,26 @@ describe('saving', () => {
     expect(parseCampaign({ version: 2, seed: 1, includeMine: false, taken: [] })).toBeNull();
     expect(parseCampaign({ ...c, reserves: { wizard: 2 } })).toBeNull();
     expect(parseCampaign(null)).toBeNull();
+  });
+});
+
+describe('difficulty (PHASE16, [D134])', () => {
+  it('scales enemy budgets and starting money, and is fixed once a level is attacked', () => {
+    const normal = newCampaign(11);
+    const easy = withDifficulty(normal, 'easy');
+    const hard = withDifficulty(normal, 'hard');
+    expect(easy.money).toBe(150);
+    const lv = world.levels.find((l) => l.index !== world.hq && l.budget * 2 < l.maxBudget)!;
+    const b = (c: CampaignState) => campaignBudget(world, c, lv.index);
+    expect(b(easy)).toBeLessThan(b(normal));
+    expect(b(hard)).toBeGreaterThan(b(normal));
+
+    const started = start(easy, attackable(world, easy)[0]!);
+    expect(difficultyOpen(started)).toBe(false);
+    expect(withDifficulty(started, 'hard')).toBe(started);
+    // Saved before PHASE16 (no difficulty): Normal.
+    const old = JSON.parse(JSON.stringify(normal));
+    delete old.difficulty;
+    expect(parseCampaign(old)?.difficulty).toBe('normal');
   });
 });

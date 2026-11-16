@@ -78,6 +78,8 @@ export interface SoldierState {
   moveFrac: number;
   /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
   sprinting?: boolean;
+  /** (PHASE16) Last tick this soldier took damage ([D133]: regeneration waits after it). */
+  hurtTick?: Tick;
   /**
    * (PHASE12-b) A vehicle's driving state ([D63], [D64]); absent for soldiers. For a vehicle,
    * `facing` is the hull's heading (what's recorded); the turret aims separately.

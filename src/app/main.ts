@@ -109,6 +109,7 @@ import {
 import { openBestStore } from './storage/indexeddb-store';
 import { generateStressMission } from './stress';
 import { finishLevel, settingsFor } from '../gen/campaign';
+import { DIFFICULTY } from '../content/difficulty';
 import { levelResult } from '../gen/campaign-result';
 import {
   applyLevelSettings,
@@ -251,7 +252,11 @@ const display = bindDisplaySettings(settings);
  * turn them off anywhere.
  */
 function gameTuning() {
-  const t = effectiveTuning(settings, DEFAULT_TUNING);
+  // (PHASE16) A campaign battle runs on its difficulty ([D134]); F2 settings still win.
+  const base = campaignBattle
+    ? withTuning(DEFAULT_TUNING, DIFFICULTY[campaignBattle.difficulty].tuning)
+    : DEFAULT_TUNING;
+  const t = effectiveTuning(settings, base);
   const flag = params.get('enemies');
   const off = flag === '0' || (params.has('autoplay') && flag !== '1');
   return off ? withTuning(t, { ai: { enabled: false } }) : t;

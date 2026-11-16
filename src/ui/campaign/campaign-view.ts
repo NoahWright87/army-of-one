@@ -8,6 +8,7 @@ import { orientBlock } from '../../gen/transform';
 import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { roleDef } from '../../content/roles';
+import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficulty';
 import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
@@ -34,6 +35,9 @@ export interface CampaignViewModel {
   carry: { money: number; income: number; reserves: RoleCounts; roles: readonly RoleId[] };
   /** (PHASE14) Each level's tags ([D121]). */
   tags: readonly (readonly LevelTag[])[];
+  /** (PHASE16) The campaign's difficulty, and whether it can still change ([D134]). */
+  difficulty: Difficulty;
+  difficultyOpen: boolean;
 }
 
 export interface CampaignViewActions {
@@ -42,6 +46,8 @@ export interface CampaignViewActions {
   attack(index: number): void;
   newCampaign(): void;
   menu(): void;
+  /** (PHASE16) Before the first attack only ([D134]). */
+  setDifficulty(d: Difficulty): void;
 }
 
 const css = `
@@ -51,6 +57,11 @@ const css = `
 .aoo-cp canvas.board { display: block; cursor: pointer; margin: 0 auto; }
 .aoo-cp aside { overflow-y: auto; padding: 16px; background: #161a1f; border-left: 1px solid #262c33; }
 .aoo-cp h1 { margin: 0 0 8px; font-size: 26px; color: #ffd34d; letter-spacing: .03em; }
+.aoo-cp .diff { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.aoo-cp .diff .k { color: #9aa3ad; margin-right: 4px; }
+.aoo-cp .diff button { padding: 4px 10px; border-radius: 6px; border: 1px solid #39414a;
+  background: #20262d; color: #e7e9ec; cursor: pointer; font: inherit; }
+.aoo-cp .diff button.on { border-color: #ffd34d; color: #ffd34d; }
 .aoo-cp h2 { margin: 16px 0 6px; font-size: 17px; }
 .aoo-cp p { margin: 6px 0; color: #b4c0cc; }
 .aoo-cp .won { color: #8be28b; font-weight: 700; }
@@ -253,6 +264,20 @@ export class CampaignView {
     add(str('campaign.roles'), m.carry.roles.map((r) => str(roleDef(r).nameKey)).join(', '));
     add(str('campaign.strength'), `${Math.round(m.strength * 100)}%`);
     box.append(dl);
+    // (PHASE16) Difficulty ([D134]): picked before the first attack, then fixed.
+    const diff = el('div', 'diff');
+    diff.append(el('span', 'k', str('campaign.difficulty')));
+    if (m.difficultyOpen) {
+      for (const d of DIFFICULTIES) {
+        const b = el('button', d === m.difficulty ? 'on' : '', str(DIFFICULTY[d].nameKey));
+        b.title = str(DIFFICULTY[d].blurbKey);
+        b.onclick = () => this.actions.setDifficulty(d);
+        diff.append(b);
+      }
+    } else {
+      diff.append(el('span', 'v', str(DIFFICULTY[m.difficulty].nameKey)));
+    }
+    box.append(diff);
 
     const lv = this.selected !== null ? m.world.levels[this.selected] : undefined;
     if (lv) {

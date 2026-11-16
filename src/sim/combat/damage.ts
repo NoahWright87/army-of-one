@@ -4,7 +4,7 @@ import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
 import { allObjectivesDone } from '../entities/capture-point';
 import { armMine } from '../entities/mine';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, type SoldierState } from '../entities/soldier';
+import { isEligible, soldierMaxHp, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
@@ -35,6 +35,7 @@ export function damageSoldier(
   s.hp = Math.max(s.hp - amount, s.minHp, 0);
   const tick = world.state.tick;
   const applied = before - s.hp;
+  if (raw > 0) s.hurtTick = tick; // (PHASE16) regeneration waits ([D133])
   if (applied > 0 || (raw > 0 && through < 0.3)) {
     emit(world, {
       kind: 'damaged',
@@ -174,4 +175,21 @@ export function detonateMine(world: World, index: number, by: string): void {
   (map.mines ?? []).forEach((def, i) => {
     if (i !== index && distanceSq(def.position, c) <= r2) armMine(st.mines[i]!, chain);
   });
+}
+
+/**
+ * (PHASE16) Slight regeneration ([D133]): our soldiers (not vehicles, not enemies) unhurt for
+ * `soldier.regen.delaySeconds` get `perSecond` HP back, up to max.
+ */
+export function stepRegen(world: World): void {
+  const r = world.tuning.soldier.regen;
+  if (!(r.perSecond > 0)) return;
+  const tick = world.state.tick;
+  const wait = secondsToTicks(r.delaySeconds);
+  for (const s of world.state.soldiers) {
+    if (!isEligible(s) || s.team === 'enemy' || s.drive) continue;
+    if (s.hurtTick !== undefined && tick - s.hurtTick < wait) continue;
+    const max = soldierMaxHp(world.tuning, s.roleId);
+    if (s.hp < max) s.hp = Math.min(max, s.hp + r.perSecond / 60);
+  }
 }
