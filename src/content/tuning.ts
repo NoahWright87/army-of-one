@@ -1005,10 +1005,23 @@ export const BLOCK_TUNING = {
     /** …and at most this many repairs per cell of the board in all. */
     repairBudget: 2, // TUNE
   },
-  /** (PHASE13-d) A random campaign across a world map ([D106]). */
+  /** (PHASE13-d, PHASE14) A random campaign across a world map ([D106], [D116]–[D126]). */
   campaign: {
-    /** Each level taken raises the next levels' budgets by this fraction of their own. */
-    budgetGrowthPerLevel: 0.12, // TUNE
+    /**
+     * Enemy funds ([D119], [Q60]): a level's budget moves from its own toward its full budget
+     * as campaign battle time adds up, reaching full after this many minutes.
+     */
+    minutesToFull: 30, // TUNE
+    /** "Elite enemies" levels ([D121]): budget × this (capped at full). */
+    eliteBudget: 1.5, // TUNE
+    /** Roles you start with ([D120]); the rest are unlocked by levels. */
+    starterRoles: ['rifleman', 'grenadier', 'gunner', 'shield'] as const,
+    /** Levels tagged Income+ ([D121], [Q59]) per world. */
+    incomeLevels: 3, // TUNE
+    /** Base income per second each Income+ level taken adds for the rest of the campaign. */
+    incomeBonus: 0.5, // TUNE
+    /** Extra levels marked Elite at random (besides those holding big rewards), as a share. */
+    eliteShare: 0.1, // TUNE
   },
   /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
   carve: {

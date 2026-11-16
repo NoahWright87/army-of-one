@@ -172,10 +172,17 @@ export function worldFor(seed: number, includeMine = false): GeneratedWorld {
  * A generated mission's map, or null if `id` isn't one: `gen-<seed>[-<budget>]` (a random
  * level) or `world-<seed>-<level>[-<budget>]` (one level of a world map).
  */
-export function generatedMap(id: string, opts: { includeMine?: boolean } = {}): MapDef | null {
+export function generatedMap(
+  id: string,
+  opts: { includeMine?: boolean; world?: GeneratedWorld } = {},
+): MapDef | null {
   const wid = parseWorldMissionId(id);
   if (wid) {
-    const w = worldFor(wid.seed, opts.includeMine ?? false);
+    // (PHASE14) A campaign passes its own world (made from the blocks it keeps, [D126]).
+    const w =
+      opts.world && opts.world.seed === wid.seed
+        ? opts.world
+        : worldFor(wid.seed, opts.includeMine ?? false);
     if (!w.levels[wid.level]) return null;
     const map = worldLevelMap(w, wid.level, {
       id,

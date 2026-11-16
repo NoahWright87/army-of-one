@@ -5,7 +5,10 @@
 import { BLOCK_CELLS } from '../../content/ground';
 import { str } from '../../content/strings';
 import { orientBlock } from '../../gen/transform';
+import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
+import { roleDef } from '../../content/roles';
+import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import {
@@ -23,8 +26,14 @@ export interface CampaignViewModel {
   attackable: readonly number[];
   hq: number;
   won: boolean;
-  /** Enemy strength over the levels' own budgets (1.24 = +24%). */
+  /** (PHASE14) How far the enemy's funds have grown toward full (0–1, [D119]). */
   strength: number;
+  /** (PHASE14) The level being fought ([D122]), or null. */
+  active: number | null;
+  /** (PHASE14) What carries into the next level ([D117], [D118], [D120]). */
+  carry: { money: number; income: number; reserves: RoleCounts; roles: readonly RoleId[] };
+  /** (PHASE14) Each level's tags ([D121]). */
+  tags: readonly (readonly LevelTag[])[];
 }
 
 export interface CampaignViewActions {
@@ -96,7 +105,7 @@ export class CampaignView {
     this.m = m;
     this.oriented = m.world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
     this.disp = displayOwner(m.world.owner, m.world.tiles.w, m.world.tiles.h);
-    this.selected = m.attackable[0] ?? m.taken[m.taken.length - 1] ?? null;
+    this.selected = m.active ?? m.attackable[0] ?? m.taken[m.taken.length - 1] ?? null;
     this.draw();
     this.renderSide();
     this.scrollToSelected();
@@ -204,9 +213,11 @@ export class CampaignView {
           ? str('campaign.label.hq')
           : taken
             ? str('campaign.label.taken')
-            : open
-              ? str('campaign.label.attack')
-              : '';
+            : lv.index === m.active
+              ? str('campaign.label.active')
+              : open
+                ? str('campaign.label.attack')
+                : '';
       const lines = [str('campaign.level', { n: lv.index + 1 }), ...(status ? [status] : [])];
       ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.textBaseline = 'middle';
@@ -236,7 +247,11 @@ export class CampaignView {
     const dl = el('dl');
     const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
     add(str('campaign.taken'), String(m.taken.length));
-    add(str('campaign.strength'), `+${Math.round((m.strength - 1) * 100)}%`);
+    add(str('campaign.money'), `$${m.carry.money}`);
+    add(str('campaign.income'), str('campaign.incomeValue', { n: m.carry.income }));
+    add(str('campaign.reserves'), countsText(m.carry.reserves) || str('campaign.none'));
+    add(str('campaign.roles'), m.carry.roles.map((r) => str(roleDef(r).nameKey)).join(', '));
+    add(str('campaign.strength'), `${Math.round(m.strength * 100)}%`);
     box.append(dl);
 
     const lv = this.selected !== null ? m.world.levels[this.selected] : undefined;
@@ -252,17 +267,25 @@ export class CampaignView {
       );
       const d = el('dl');
       const row = (k: string, v: string, cls = '') => d.append(el('dt', '', k), el('dd', cls, v));
+      const active = m.active === lv.index;
+      const busy = m.active !== null && !active && !taken;
       row(
         str('campaign.status'),
-        str(
-          taken
-            ? 'campaign.status.taken'
-            : open
-              ? 'campaign.status.open'
-              : 'campaign.status.locked',
-        ),
+        busy
+          ? str('campaign.status.busy', { n: m.active! + 1 })
+          : str(
+              taken
+                ? 'campaign.status.taken'
+                : active
+                  ? 'campaign.status.active'
+                  : open
+                    ? 'campaign.status.open'
+                    : 'campaign.status.locked',
+            ),
         taken ? 'done' : open ? 'open' : 'locked',
       );
+      const tags = (m.tags[lv.index] ?? []).map(tagText);
+      if (tags.length) row(str('campaign.tags'), tags.join(' · '));
       row(str('campaign.size'), str('campaign.sizeValue', { blocks: Math.round(lv.blocks) }));
       if (!taken) {
         const info = this.actions.levelInfo(lv.index);
@@ -270,7 +293,7 @@ export class CampaignView {
         row(str('campaign.enemies'), String(info.enemies));
         box.append(d);
         if (open) {
-          const go = el('button', 'go', str('campaign.attack'));
+          const go = el('button', 'go', str(active ? 'campaign.resume' : 'campaign.attack'));
           go.onclick = () => this.actions.attack(lv.index);
           box.append(go);
         }
@@ -313,4 +336,19 @@ export class CampaignView {
     ctx.translate(Math.round((width - map.width * k) / 2), 0);
     drawMapSketch(ctx, map, k);
   }
+}
+
+/** "Rifleman ×3, Tank ×1". */
+function countsText(c: RoleCounts): string {
+  return Object.entries(c)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([r, n]) => `${str(roleDef(r as RoleId).nameKey)} ×${n}`)
+    .join(', ');
+}
+
+/** A level tag as shown ([D121]). */
+function tagText(t: LevelTag): string {
+  if (t.kind === 'unlock')
+    return str('campaign.tag.unlock', { role: str(roleDef(t.role).nameKey) });
+  return str(t.kind === 'elite' ? 'campaign.tag.elite' : 'campaign.tag.income');
 }

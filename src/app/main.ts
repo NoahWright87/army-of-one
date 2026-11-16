@@ -108,9 +108,11 @@ import {
 } from './resolve-runner';
 import { openBestStore } from './storage/indexeddb-store';
 import { generateStressMission } from './stress';
-import { attackable, newCampaign, takeLevel } from '../gen/campaign';
+import { finishLevel, settingsFor } from '../gen/campaign';
+import { levelResult } from '../gen/campaign-result';
 import {
-  campaignIncludesMine,
+  applyLevelSettings,
+  createCampaign,
   campaignWorld,
   openCampaignMap,
   readCampaign,
@@ -138,7 +140,14 @@ const MISSION_STORAGE_KEY = 'army-of-one.mission';
   // (PHASE13-b) A generated mission (`gen-<seed>`): stitched from map blocks. Also the one
   // remembered from last time.
   const want = params.get('mission') ?? readStoredMission();
-  if (want) {
+  // (PHASE14) A campaign battle: the campaign's own world and the settings the level started
+  // with ([D117], [D118], [D120], [D126]).
+  const camp = want && params.get('from') === 'campaign' ? readCampaign() : null;
+  const settings = camp && want ? settingsFor(camp, want) : null;
+  if (want && camp && settings) {
+    const gen = generatedMap(want, { world: campaignWorld(camp) });
+    if (gen) registerMap(applyLevelSettings(gen, settings));
+  } else if (want) {
     // Official blocks only, unless `pool=mine` (your saved blocks too; off by default).
     const gen = generatedMap(want, { includeMine: params.get('pool') === 'mine' });
     if (gen) registerMap(gen);
@@ -477,7 +486,7 @@ async function startGame(): Promise<void> {
           inProgress: readCampaign() !== null,
           onOpen: openCampaignMap,
           onNew: () => {
-            writeCampaign(newCampaign(Math.floor(Math.random() * 1e9), campaignIncludesMine()));
+            createCampaign();
             openCampaignMap();
           },
         },
@@ -510,7 +519,7 @@ async function startGame(): Promise<void> {
     showComplete: (stats, onPlayAgain, extra) => {
       if (campaignBattle) {
         // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
-        takeCampaignLevel();
+        if (extra) takeCampaignLevel(extra);
         if (!extra) complete.show(stats, openCampaignMap);
         else {
           showResults(extra, openCampaignMap, {
@@ -1022,13 +1031,22 @@ async function startGame(): Promise<void> {
   }
 }
 
-/** (PHASE13-d) Marks this battle's level taken in the campaign (if it could be attacked). */
-function takeCampaignLevel(): void {
+/**
+ * (PHASE13-d, PHASE14) Marks this battle's level taken in the campaign and carries its money,
+ * survivors, unlocks and battle time over ([D117]–[D119]). Only for the active level: a
+ * reload of a won level's results changes nothing.
+ */
+function takeCampaignLevel(results: CompleteResults): void {
   const c = readCampaign();
   if (!c || !worldPlaytest || c.seed !== worldPlaytest.seed) return;
-  const world = campaignWorld(c);
-  if (!attackable(world, c).includes(worldPlaytest.level)) return;
-  writeCampaign(takeLevel(world, c, worldPlaytest.level));
+  if (c.active?.missionId !== MISSION.id) return;
+  const result = levelResult({
+    level: worldPlaytest.level,
+    map: results.map,
+    tuning: results.tuning,
+    mission: results.mission,
+  });
+  if (result) writeCampaign(finishLevel(campaignWorld(c), c, result));
 }
 
 /** localStorage, or null where it's blocked (private mode). */

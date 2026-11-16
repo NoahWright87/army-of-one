@@ -29,6 +29,7 @@ import {
   canAfford,
   formatMoney,
   rateAt,
+  reservesLeft,
   type Ledger,
 } from '../../timeline/economy';
 import type { RevealOptions } from '../../timeline/reveal';
@@ -64,6 +65,8 @@ export interface RespawnProps {
    * Without `onRole` there's no picker (dev fixtures).
    */
   roleId?: RoleId;
+  /** (PHASE14) Roles open in this mission ([D120]); absent = all. Others show locked. */
+  roles?: readonly RoleId[];
   onRole?: (roleId: RoleId) => void;
   /**
    * The option selected when the screen opens: the quick-redeploy choice (last spawn point's
@@ -508,21 +511,41 @@ export function optionMoney(
 
 export interface RoleMoney {
   roleId: RoleId;
-  /** "Free" / "$50". */
+  /** "Free" / "$50" / "Reserve ×2". */
   price: string;
   affordable: boolean;
+  /** (PHASE14) Campaign reserves of this role left ([D117]): free spawns. */
+  reserves: number;
 }
 
-/** Each role's price, and whether a new soldier at the selected option can afford it. */
+/** (PHASE14) A role not open in this mission ([D120]). */
+export function roleLocked(p: Pick<RespawnProps, 'roles'>, roleId: RoleId): boolean {
+  return !!p.roles && !p.roles.includes(roleId);
+}
+
+/**
+ * Each role's price, and whether a new soldier at the selected option can afford it. A role
+ * with campaign reserves left is free ([D117]).
+ */
 export function roleMoney(o: SpawnOption | null, p: Pick<RespawnProps, 'economy'>): RoleMoney[] {
   const l = shownEconomy(p);
   if (!l) return [];
   return ROLES.map((r) => {
     const cost = r.cost; // the economy is on here (shownEconomy)
+    const reserves = reservesLeft(l, r.id);
+    if (reserves > 0) {
+      return {
+        roleId: r.id,
+        price: str('money.reserve', { n: reserves }),
+        affordable: true,
+        reserves,
+      };
+    }
     return {
       roleId: r.id,
       price: cost > 0 ? str('money.cost', { n: cost }) : str('money.free'),
       affordable: o?.kind !== 'new' || canAfford(l, o.entryTick, cost),
+      reserves: 0,
     };
   });
 }

@@ -209,7 +209,17 @@ export interface MapDef {
    */
   ground?: { cellSize: number; rows: string[] };
   /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
-  economy?: { startMoney?: number; baseIncomePerSecond?: number };
+  economy?: {
+    startMoney?: number;
+    baseIncomePerSecond?: number;
+    /**
+     * (PHASE14) Campaign reserves ([D117]): free spawns per role. The first ones of a role to
+     * spawn (by tick) cost nothing.
+     */
+    reserves?: Partial<Record<RoleId, number>>;
+  };
+  /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
+  roles?: readonly RoleId[];
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

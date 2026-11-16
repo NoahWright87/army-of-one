@@ -876,10 +876,12 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 
 - **[Q58] (Resolved by [D116]–[D126].)** Campaign details (PHASE13-d): losing or abandoning a
   level, what carries over, and saved blocks edited mid-campaign.
-- **[Q59] Where Income+ comes from (PHASE14).** Proposed: a level's income objectives (capture
+- **[Q59] Where Income+ comes from (PHASE14).** Built (14-a): taking an Income+ level adds
+  `campaign.incomeBonus`/s for the rest of the campaign (you capture its objectives to win it).
+  First proposal, not built: a level's income objectives (capture
   points with `income`, e.g. island outposts [D111]) that are ours at the win add their income
   to your base income for the rest of the campaign; a level tagged Income+ is one that has them.
   "Unlocks: \<role\>" is a level reward with no map object (it doesn't change spawn logic).
-- **[Q60] Enemy funds curve (PHASE14, [D119]).** Proposed: a level's budget = its own budget +
+- **[Q60] Enemy funds curve (PHASE14, [D119]).** Built as proposed (14-a): a level's budget = its own budget +
   (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
   multiplier, capped at full. Battle minutes count only levels taken.
