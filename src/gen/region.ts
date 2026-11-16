@@ -12,6 +12,8 @@
  *
  * Pure and deterministic.
  */
+import { ingressPoints } from './ingress';
+import { majorityOf } from '../sim/entities/capture-point';
 import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../content/tuning';
 import type { Vec2 } from '../sim/core/vec';
@@ -290,6 +292,8 @@ export function worldLevelMap(
       nameKey: f.key,
       position: f.pos,
       objective: true,
+      // (PHASE16) Exits into other levels: a majority wins ([D129]); the HQ is always needed.
+      ...(k < exits.length ? { group: 'exits' } : {}),
     });
     const c = exits[k];
     if (!c) return;
@@ -322,6 +326,41 @@ export function worldLevelMap(
       facing: -Math.PI / 2,
       kind: 'capture',
       capturePointId: `outpost-${k}`,
+    });
+  });
+  // (PHASE16) Capture points at natural ingress points along the way ([D130]).
+  const tc = BLOCK_TUNING.carve;
+  const ingress = ingressPoints({
+    w,
+    h,
+    rows,
+    own,
+    far,
+    walls: content.walls,
+    cellSize: cs,
+    existing: content.capturePoints.map(
+      (c) => [Math.floor(c.position.y / cs), Math.floor(c.position.x / cs)] as [number, number],
+    ),
+    every: tc.ingressEvery,
+    keepAway: tc.ingressKeepAway,
+    endMargin: tc.ingressEndMargin,
+  });
+  ingress.forEach(([y, x], k) => {
+    content.capturePoints.push({
+      id: `ingress-${k}`,
+      nameKey: 'capture.ingress',
+      position: { x: (x + 0.5) * cs, y: (y + 0.5) * cs },
+    });
+    // The spawn sits a couple of tiles back toward the entries.
+    const back = downhill(far, w, h, x, y, 2);
+    const [sy, sx] = back[Math.min(2, back.length - 1)] ?? [y, x];
+    content.spawnPoints.push({
+      id: `ingress-spawn-${k}`,
+      nameKey: 'spawn.block.forward',
+      position: { x: (sx + 0.5) * cs, y: (sy + 0.5) * cs },
+      facing: Math.atan2(y - sy, x - sx) || -Math.PI / 2,
+      kind: 'capture',
+      capturePointId: `ingress-${k}`,
     });
   });
   // Block spawns (forward posts at block capture points) stay; entries go first.
@@ -358,6 +397,7 @@ export function worldLevelMap(
     spawnPoints: content.spawnPoints,
     capturePoints: content.capturePoints,
     squads: content.squads,
+    ...(exits.length > 1 ? { objectiveGroups: { exits: majorityOf(exits.length) } } : {}),
   };
   return {
     map,

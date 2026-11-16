@@ -31,6 +31,6 @@
   ],
   "groups": [
     {"id":"west","units":[{"role":"rifleman","priority":1},{"role":"gunner","priority":3}]},
-    {"id":"east","units":[{"role":"rifleman","priority":2},{"role":"bazooka","priority":4},{"role":"shotgun","priority":5}]}
+    {"id":"east","units":[{"role":"rifleman","priority":2},{"role":"bazooka","priority":5},{"role":"shotgun","priority":5}]}
   ]
 }

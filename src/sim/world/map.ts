@@ -54,6 +54,11 @@ export interface CapturePointDef {
    */
   objective?: boolean;
   /**
+   * (PHASE16) Objective flags with the same group count together: the mission needs
+   * `map.objectiveGroups[group]` of them, not all ([D129]). Absent = this flag is needed.
+   */
+  group?: string;
+  /**
    * (PHASE11) Extra income per second of battle time while this point is ours ([D51]).
    * Default `tuning.economy.captureIncomePerSecond`.
    */
@@ -218,6 +223,8 @@ export interface MapDef {
      */
     reserves?: Partial<Record<RoleId, number>>;
   };
+  /** (PHASE16) How many objective flags of each group are needed ([D129]); absent = all. */
+  objectiveGroups?: Record<string, number>;
   /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
   roles?: readonly RoleId[];
 }

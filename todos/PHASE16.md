@@ -25,14 +25,14 @@ Enemy sight (600) beat the rifle's range (520); every life began with a 5 s lead
 
 ## B. Generation
 
-- [ ] Smaller levels ([D127]): carve target ~10 blocks of ground (was 20); the board keeps its size.
-- [ ] Win by a majority of exits ([D129]): `map.objectiveGroups` (sim) — exits into other levels
+- [x] Smaller levels ([D127]): carve target ~10 blocks of ground (was 20); the board keeps its size.
+- [x] Win by a majority of exits ([D129]): `map.objectiveGroups` (sim) — exits into other levels
   form one group needing ⌊n/2⌋ + 1; the HQ / far-end flag stays required.
-- [ ] Taking a level takes all of it: already true for spawns (held levels' crossings are entries).
-- [ ] Ingress capture points ([D130]): along the way from the entries to the exits, every so often
+- [x] Taking a level takes all of it: already true for spawns (held levels' crossings are entries).
+- [x] Ingress capture points ([D130]): along the way from the entries to the exits, every so often
   a capture point + forward spawn on a road, clearing, corner or building edge (a field only if
   nothing else is near).
-- [ ] Content ([D131]): starter blocks put snipers and vehicles at low priority.
+- [x] Content ([D131]): starter blocks put snipers and vehicles at low priority.
 
 ## C. Difficulty and regeneration
 

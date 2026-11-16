@@ -33,7 +33,7 @@
     {"id":"obj11","kind":"objective","at":[7.5,2],"priority":0}
   ],
   "groups": [
-    {"id":"line","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3}]},
+    {"id":"line","units":[{"role":"gunner","priority":2},{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3}]},
     {"id":"pickets","units":[{"role":"sniper","priority":4},{"role":"grenadier","priority":5}]}
   ]
 }

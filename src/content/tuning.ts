@@ -1004,7 +1004,7 @@ export const BLOCK_TUNING = {
     cols: 2, // TUNE
     rows: 10, // TUNE
     /** Default enemy budget per block of a random level ([D86]). */
-    budgetPerBlock: 45, // TUNE
+    budgetPerBlock: 15, // TUNE [D131] (was 45)
     /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
     ramp: 2, // TUNE
   },
@@ -1040,13 +1040,13 @@ export const BLOCK_TUNING = {
   /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
   carve: {
     /** Each front (band of levels) is this many block rows deep, at random. */
-    bandBlocks: [6, 11] as const, // TUNE
+    bandBlocks: [3, 6] as const, // TUNE [D127]: shorter levels (was 6–11)
     /** A level aims for this many blocks' worth of walkable ground ([D110]). */
-    levelBlocks: 20, // TUNE
+    levelBlocks: 10, // TUNE [D127] (was 20)
     /** Less walkable ground than this joins a neighbouring level. */
-    minLevelBlocks: 5, // TUNE
+    minLevelBlocks: 3, // TUNE
     /** A level with less ground than this merges into its neighbour ([D110]). */
-    mergeBelowBlocks: 10, // TUNE
+    mergeBelowBlocks: 5, // TUNE
     /** A walled-off pocket joins a level up to this many tiles away. */
     orphanReach: 20, // TUNE
     /** Islands this big (tiles) get a bridge if one this long (tiles) reaches the mainland. */
@@ -1055,7 +1055,15 @@ export const BLOCK_TUNING = {
     /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
     borderSlack: 3, // TUNE
     /** Borders keep at least this many blocks apart. */
-    minGap: 3, // TUNE
+    minGap: 2, // TUNE
+    /**
+     * (PHASE16) Capture points at natural ingress points ([D130]): one every this many tiles
+     * along the way from the entries, none within `ingressKeepAway` tiles of another, none
+     * within `ingressEndMargin` tiles of the far end.
+     */
+    ingressEvery: 18, // TUNE: about 1.2 blocks
+    ingressKeepAway: 10, // TUNE
+    ingressEndMargin: 6, // TUNE
     /** Side-to-side splits move by up to ± half this many blocks at random. */
     splitJitter: 2, // TUNE
     /** Unwalkable spots (cover, walls, ponds) this close to a level count as inside it. */

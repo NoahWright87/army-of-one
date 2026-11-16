@@ -144,6 +144,7 @@ export const STRINGS = {
   'spawn.exit.east': 'East exit',
   'spawn.exit.west': 'West exit',
   'capture.cross.outpost': 'Island outpost',
+  'capture.ingress': 'Forward point',
   'capture.cross.exit': 'Way on',
   'capture.cross.hq': 'Enemy HQ',
   'capture.block.point': 'Capture point',
