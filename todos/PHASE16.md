@@ -104,3 +104,7 @@ smaller/collapsible minimap, keep the target on screen); a Hospital point that b
     and the nearest squad within `carve.exitHoldRadius` (1500) holds each exit flag (the AI
     already holds and retakes a squad's `capturePointId`).
 
+- Pacing after [D136] (Normal, seeds 11 and 42, 6 levels): 1–10 bot lives per level (the seed-42
+  outlier still 76), about the same as before despite ~2.3× the enemies. The bots rush the
+  nearest flag and many enemies are still asleep (`ai.wakeRadius`) when they arrive, so the
+  benchmark isn't sensitive to enemy numbers yet; the owner's playtest is the real check.
