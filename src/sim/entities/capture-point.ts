@@ -46,7 +46,8 @@ export function createCapturePoints(defs: readonly CapturePointDef[]): CapturePo
     progress: 0,
     emptyTicks: 0,
     contributors: [],
-    capturedTick: null,
+    // (PHASE17) Ours from the start ([D139]): taken at tick 0.
+    capturedTick: d.initialStage === 'ours' ? 0 : null,
   }));
 }
 

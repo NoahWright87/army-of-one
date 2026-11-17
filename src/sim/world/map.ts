@@ -48,7 +48,7 @@ export interface CapturePointDef {
   /** Overrides `tuning.capture.radius`. */
   radius?: number;
   /** Default 'enemy'. */
-  initialStage?: 'enemy' | 'neutral';
+  initialStage?: CaptureStage; // (PHASE17) 'ours': an entry you hold ([D139])
   /**
    * Flag objective ([D17]): this point reaching 'ours' is a mission objective. The mission
    * completes once every objective (destroy targets and flag points) is done.
@@ -228,6 +228,8 @@ export interface MapDef {
      */
     reserves?: Partial<Record<RoleId, number>>;
   };
+  /** (PHASE17) The mission is also won by killing every enemy soldier ([D139]). */
+  winByKillAll?: boolean;
   /** (PHASE16) How many objective flags of each group are needed ([D129]); absent = all. */
   objectiveGroups?: Record<string, number>;
   /**

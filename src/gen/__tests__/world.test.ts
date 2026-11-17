@@ -235,9 +235,17 @@ describe('carving by terrain ([D107]–[D110])', () => {
       const m = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x' });
       const initial = m.map.spawnPoints.filter((s) => s.kind === 'initial');
       expect(initial.length, `level ${lv.index}`).toBe(m.entries.length);
-      const flags = (m.map.capturePoints ?? []).filter((c) => c.objective).length;
+      // (PHASE17, [D139]) Exits (or a far-end flag) + the HQ + the key position, plus green
+      // flags at the entries.
+      const cps = m.map.capturePoints ?? [];
+      const exitFlags = cps.filter((c) => c.id.startsWith('exit-')).length;
       const hq = lv.index === w.hq ? 1 : 0;
-      expect(flags, `level ${lv.index}`).toBe(Math.max(1, m.exits.length + hq));
+      expect(exitFlags, `level ${lv.index}`).toBe(Math.max(1, m.exits.length + hq));
+      const entries = cps.filter((c) => c.id.startsWith('entry-'));
+      expect(entries.length).toBe(m.entries.length);
+      expect(entries.every((c) => c.objective && c.initialStage === 'ours')).toBe(true);
+      expect(cps.filter((c) => c.id === 'key').length).toBeLessThanOrEqual(1);
+      expect(m.map.winByKillAll).toBe(true);
       expect(m.map.bounds).toBeDefined();
     }
   });

@@ -13,7 +13,7 @@
  * Pure and deterministic.
  */
 import { ingressPoints } from './ingress';
-import { majorityOf } from '../sim/entities/capture-point';
+import { keyPosition } from './key-position';
 import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../content/tuning';
 import type { Vec2 } from '../sim/core/vec';
@@ -312,8 +312,6 @@ export function worldLevelMap(
       nameKey: f.key,
       position: f.pos,
       objective: true,
-      // (PHASE16) Exits into other levels: a majority wins ([D129]); the HQ is always needed.
-      ...(k < exits.length ? { group: 'exits' } : {}),
     });
     const c = exits[k];
     if (!c) return;
@@ -330,6 +328,48 @@ export function worldLevelMap(
       approach: [...runIn(c).map(([y, x]) => centre(y, x)), position],
     });
   });
+  // (PHASE17) Entries you hold start as green flags ([D139]): yours, but enemies can retake them.
+  entries.forEach((c, k) => {
+    content.capturePoints.push({
+      id: `entry-${k}`,
+      nameKey: 'capture.cross.entry',
+      position: inward(c, 1.5),
+      objective: true,
+      initialStage: 'ours',
+    });
+  });
+  // (PHASE17) One key position to take besides the exits ([D139]), with a spawn once taken.
+  const tile = (p: Vec2): [number, number] => [Math.floor(p.y / cs), Math.floor(p.x / cs)];
+  const key = keyPosition({
+    w,
+    h,
+    rows,
+    own,
+    far,
+    walls: content.walls,
+    cellSize: cs,
+    avoid: content.capturePoints.map((c) => tile(c.position)),
+    keepAway: BLOCK_TUNING.carve.keyKeepAway,
+  });
+  if (key) {
+    const at = centre(key[0] + y0, key[1] + x0);
+    content.capturePoints.push({
+      id: 'key',
+      nameKey: 'capture.cross.key',
+      position: at,
+      objective: true,
+    });
+    const back = downhill(far, w, h, key[1], key[0], 2);
+    const [sy, sx] = back[Math.min(2, back.length - 1)] ?? key;
+    content.spawnPoints.push({
+      id: 'key-spawn',
+      nameKey: 'spawn.block.forward',
+      position: { x: (sx + 0.5) * cs, y: (sy + 0.5) * cs },
+      facing: -Math.PI / 2,
+      kind: 'capture',
+      capturePointId: 'key',
+    });
+  }
   // (PHASE16) The nearest squad to each exit holds (and retakes) it ([D136]).
   exits.forEach((_, k) => {
     const at = content.capturePoints.find((c) => c.id === `exit-${k}`)?.position;
@@ -432,7 +472,8 @@ export function worldLevelMap(
     spawnPoints: content.spawnPoints,
     capturePoints: content.capturePoints,
     squads: content.squads,
-    ...(exits.length > 1 ? { objectiveGroups: { exits: majorityOf(exits.length) } } : {}),
+    // (PHASE17) Take every objective, or kill every enemy soldier ([D139]).
+    winByKillAll: true,
   };
   return {
     map,

@@ -57,6 +57,13 @@ export function damageSoldier(
     s.deathTick = tick;
     s.deathCause = cause;
     emit(world, { kind: 'soldierDied', tick, id: s.id, cause, ...(by ? { by } : {}) });
+    // (PHASE17) Killing every enemy soldier also wins ([D139]).
+    const st = world.state;
+    if (s.team === 'enemy' && world.map.winByKillAll && !st.missionComplete) {
+      if (!st.soldiers.some((o) => o.team === 'enemy' && o.alive)) {
+        st.missionComplete = { tick, ...(by ? { by } : {}) };
+      }
+    }
   }
 }
 

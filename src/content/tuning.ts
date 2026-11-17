@@ -1107,6 +1107,8 @@ export const BLOCK_TUNING = {
     exitGuardWeight: 3, // TUNE
     /** (PHASE16) The nearest squad within this many units of an exit holds it ([D136]). */
     exitHoldRadius: 1500, // TUNE
+    /** (PHASE17) The key position keeps this many tiles from exits and entries ([D139]). */
+    keyKeepAway: 12, // TUNE
     ingressEvery: 18, // TUNE: about 1.2 blocks
     ingressKeepAway: 10, // TUNE
     ingressEndMargin: 6, // TUNE
