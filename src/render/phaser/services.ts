@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import type { RoleId } from '../../contracts/mission';
 import type { Vec2 } from '../../sim/core/vec';
 import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierId, World } from '../../sim/sim';
@@ -41,7 +42,14 @@ export interface SessionDriver {
   /** Camera position until the live soldier exists (its spawn point). */
   readonly cameraHome: Vec2;
   /** (PHASE13-d) Echoes still to spawn: their run-ins are drawn ([D112]). */
-  arrivals?: () => readonly { id: string; spawnPointId: string; spawnTick: number }[];
+  arrivals?: () => readonly {
+    id: string;
+    spawnPointId: string;
+    spawnTick: number;
+    roleId?: RoleId;
+  }[];
+  /** Selected infantry sculpt for the live pre-spawn run-in. */
+  readonly previewRoleId?: RoleId;
   /** (PHASE11) Money for the HUD; absent/null = not shown. */
   money?: () => { balance: number; rate: number } | null;
 }

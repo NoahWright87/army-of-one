@@ -13,6 +13,11 @@ import {
   GALLERY_MAP,
   galleryView,
 } from './__fixtures__/gallery-fixture';
+import {
+  INFANTRY_GALLERY_MAP,
+  INFANTRY_CAPTIONS,
+  infantryGalleryView,
+} from './__fixtures__/infantry-fixture';
 import type { SceneServices } from './services';
 import { SoundBank } from './sound-bank';
 import { WorldRenderer } from './world-renderer';
@@ -26,6 +31,8 @@ export class GalleryScene extends Phaser.Scene {
   private tick = 0;
   private view!: WorldView;
   private worldRenderer!: WorldRenderer;
+  private galleryMap = GALLERY_MAP;
+  private makeView = galleryView;
 
   constructor(private readonly services: SceneServices) {
     super('gallery');
@@ -34,15 +41,18 @@ export class GalleryScene extends Phaser.Scene {
   create(): void {
     const { display } = this.services;
     this.stepper = createFixedStepper(TICKS_PER_SECOND);
-    this.view = galleryView(0);
+    const infantry = new URLSearchParams(window.location.search).has('infantry');
+    this.galleryMap = infantry ? INFANTRY_GALLERY_MAP : GALLERY_MAP;
+    this.makeView = infantry ? infantryGalleryView : galleryView;
+    this.view = this.makeView(0);
     const sounds = new SoundBank(this, display);
-    this.worldRenderer = new WorldRenderer(this, GALLERY_MAP, this.view, display, sounds, {
+    this.worldRenderer = new WorldRenderer(this, this.galleryMap, this.view, display, sounds, {
       spriteRadius: DEFAULT_TUNING.soldier.spriteRadius,
     });
     this.worldRenderer.onCue = (c) => {
       if (c.type === 'liveDamaged' && display.incomingFire) this.services.hud.flashDamage(0.5);
     };
-    for (const c of GALLERY_CAPTIONS) {
+    for (const c of infantry ? INFANTRY_CAPTIONS : GALLERY_CAPTIONS) {
       this.add
         .text(c.x, c.y, c.text, {
           fontFamily: 'ui-monospace, monospace',
@@ -63,11 +73,11 @@ export class GalleryScene extends Phaser.Scene {
   private fit(): void {
     const cam = this.cameras.main;
     const zoom = Math.min(
-      this.scale.width / GALLERY_MAP.width,
-      this.scale.height / GALLERY_MAP.height,
+      this.scale.width / this.galleryMap.width,
+      this.scale.height / this.galleryMap.height,
     );
     cam.setZoom(zoom);
-    cam.centerOn(GALLERY_MAP.width / 2, GALLERY_MAP.height / 2);
+    cam.centerOn(this.galleryMap.width / 2, this.galleryMap.height / 2);
   }
 
   override update(time: number): void {
@@ -79,7 +89,7 @@ export class GalleryScene extends Phaser.Scene {
     for (let i = 0; i < steps; i++) {
       const prev = this.view;
       this.tick++;
-      this.view = galleryView(this.tick);
+      this.view = this.makeView(this.tick);
       this.worldRenderer.onStep(prev, this.view, GALLERY_LIVE_ID);
     }
     this.worldRenderer.render({ alpha, nowMs: time, liveId: GALLERY_LIVE_ID, pointer: null });

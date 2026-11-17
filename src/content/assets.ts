@@ -88,9 +88,9 @@ const TOPDOWN = 'Top-down orthographic view, transparent background';
 const SOLDIER_FRAME =
   '64×64, facing right (+x), body circle about 44 px wide and centered so rotation works';
 
-// Only delivered pilot files are registered; missing tiers keep their existing art.
+// Delivered infantry files only; missing vehicle art keeps its existing renderer.
 const miniSpecs = miniatureFiles();
-function pilotImage(key: string): ImageAssetDef {
+function deliveredMiniatureImage(key: string): ImageAssetDef {
   const spec = miniSpecs.find((s) => s.key === key);
   if (!spec) throw new Error(`Unknown miniature ${key}`);
   return {
@@ -98,7 +98,7 @@ function pilotImage(key: string): ImageAssetDef {
     file: `miniatures/${spec.file}`,
     size: spec.canvas,
     fitPx: spec.fitPx,
-    represents: `Miniature pilot: ${spec.subject}`,
+    represents: `Miniature: ${spec.subject}`,
     replacementBrief: spec.brief,
     // Delivered files must not be overwritten by the placeholder generator.
     status: 'final',
@@ -106,23 +106,36 @@ function pilotImage(key: string): ImageAssetDef {
 }
 
 export const IMAGE_ASSETS = {
-  mini_base_round_gold: pilotImage('mini_base_round_gold'),
-  mini_base_round_silver: pilotImage('mini_base_round_silver'),
-  mini_base_round_gold_tarnished: pilotImage('mini_base_round_gold_tarnished'),
-  mini_base_round_silver_tarnished: pilotImage('mini_base_round_silver_tarnished'),
-  mini_base_octagon_gold: pilotImage('mini_base_octagon_gold'),
-  mini_base_octagon_silver: pilotImage('mini_base_octagon_silver'),
-  mini_base_octagon_gold_tarnished: pilotImage('mini_base_octagon_gold_tarnished'),
-  mini_base_octagon_silver_tarnished: pilotImage('mini_base_octagon_silver_tarnished'),
-  mini_figure_rifleman_ally: pilotImage('mini_figure_rifleman_ally'),
-  mini_figure_rifleman_enemy: pilotImage('mini_figure_rifleman_enemy'),
-  mini_figure_sniper_ally: pilotImage('mini_figure_sniper_ally'),
-  mini_figure_sniper_enemy: pilotImage('mini_figure_sniper_enemy'),
-  mini_figure_shield_ally: pilotImage('mini_figure_shield_ally'),
-  mini_figure_shield_enemy: pilotImage('mini_figure_shield_enemy'),
-  mini_figure_fallen_ally: pilotImage('mini_figure_fallen_ally'),
-  mini_figure_fallen_enemy: pilotImage('mini_figure_fallen_enemy'),
-  mini_shadow_infantry: pilotImage('mini_shadow_infantry'),
+  mini_base_square_gold: deliveredMiniatureImage('mini_base_square_gold'),
+  mini_base_square_silver: deliveredMiniatureImage('mini_base_square_silver'),
+  mini_base_square_gold_tarnished: deliveredMiniatureImage('mini_base_square_gold_tarnished'),
+  mini_base_square_silver_tarnished: deliveredMiniatureImage('mini_base_square_silver_tarnished'),
+  mini_figure_grenadier_ally: deliveredMiniatureImage('mini_figure_grenadier_ally'),
+  mini_figure_grenadier_enemy: deliveredMiniatureImage('mini_figure_grenadier_enemy'),
+  mini_figure_gunner_ally: deliveredMiniatureImage('mini_figure_gunner_ally'),
+  mini_figure_gunner_enemy: deliveredMiniatureImage('mini_figure_gunner_enemy'),
+  mini_figure_shotgun_ally: deliveredMiniatureImage('mini_figure_shotgun_ally'),
+  mini_figure_shotgun_enemy: deliveredMiniatureImage('mini_figure_shotgun_enemy'),
+  mini_figure_bazooka_ally: deliveredMiniatureImage('mini_figure_bazooka_ally'),
+  mini_figure_bazooka_enemy: deliveredMiniatureImage('mini_figure_bazooka_enemy'),
+
+  mini_base_round_gold: deliveredMiniatureImage('mini_base_round_gold'),
+  mini_base_round_silver: deliveredMiniatureImage('mini_base_round_silver'),
+  mini_base_round_gold_tarnished: deliveredMiniatureImage('mini_base_round_gold_tarnished'),
+  mini_base_round_silver_tarnished: deliveredMiniatureImage('mini_base_round_silver_tarnished'),
+  mini_base_octagon_gold: deliveredMiniatureImage('mini_base_octagon_gold'),
+  mini_base_octagon_silver: deliveredMiniatureImage('mini_base_octagon_silver'),
+  mini_base_octagon_gold_tarnished: deliveredMiniatureImage('mini_base_octagon_gold_tarnished'),
+  mini_base_octagon_silver_tarnished: deliveredMiniatureImage('mini_base_octagon_silver_tarnished'),
+  mini_figure_rifleman_ally: deliveredMiniatureImage('mini_figure_rifleman_ally'),
+  mini_figure_rifleman_enemy: deliveredMiniatureImage('mini_figure_rifleman_enemy'),
+  mini_figure_sniper_ally: deliveredMiniatureImage('mini_figure_sniper_ally'),
+  mini_figure_sniper_enemy: deliveredMiniatureImage('mini_figure_sniper_enemy'),
+  mini_figure_shield_ally: deliveredMiniatureImage('mini_figure_shield_ally'),
+  mini_figure_shield_enemy: deliveredMiniatureImage('mini_figure_shield_enemy'),
+  mini_figure_fallen_ally: deliveredMiniatureImage('mini_figure_fallen_ally'),
+  mini_figure_fallen_enemy: deliveredMiniatureImage('mini_figure_fallen_enemy'),
+  mini_shadow_infantry: deliveredMiniatureImage('mini_shadow_infantry'),
 
   soldier_live: img(
     'soldier_live',

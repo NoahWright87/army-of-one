@@ -5,7 +5,7 @@ vehicle is a **collectible wargame miniature standing on a gold or silver displa
 directly above, as if the whole battle were a model war-room table. Pieces slide around, they do not
 walk, so there is **no animation art**: one still image per layer.
 
-Product-owner rulings behind this are [D116]–[D125] in `docs/DECISIONS.md`. Where this folder and
+Product-owner rulings behind this are [D116]–[D126] in `docs/DECISIONS.md`. Where this folder and
 DECISIONS.md disagree, DECISIONS.md wins. Ask before inventing anything not written here.
 
 ---
@@ -49,7 +49,7 @@ etc., and renders **rotation sheets** and **swarm sheets** you must look at befo
 ## Updated owner direction ([D124]–[D125])
 
 Bases now support the feet and are mostly hidden by overhanging bodies. The renderer scales
-infantry bases to 0.55× and figures to 1.6× the original display scale. Bases vanish on death;
+infantry bases to 0.70× and figures to 1.6× the original display scale. Bases vanish on death;
 unarmed, sprawled bodies fall beside the old position, away from the lethal hit. Restrained
 blood stains are allowed. Snipers wear shaggy ghillie suits; Shield units are visibly beefier.
 These rulings supersede earlier large-display-base, dead-on-base and no-blood descriptions.
@@ -100,6 +100,7 @@ if the checker has a bug, and you must say so.
    Run `npm run check:art -- --priority 1 --sheets`, fix errors, then **look at every sheet**.
 4. ⛔ **CHECKPOINT: stop and show the owner the pilot** (the rotation sheet and both swarm sheets). Do
    not start tier 2 until the owner has said the style is right. Re-drawing 40 images is expensive.
+   Owner approved proceeding to tier 2 in the 2026-11-17 feedback session ([D126]).
 5. **Tier 2**: the square base, and the grenadier / gunner / shotgun / bazooka figures.
 6. **Tier 3**: vehicles (truck, tank: base, hull, turret, wreck) and the vehicle shadows.
 7. Tick off files in the checklist at the bottom of PIECE-SPEC.md and add notes in

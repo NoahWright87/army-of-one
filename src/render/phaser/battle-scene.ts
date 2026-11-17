@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { RoleId } from '../../contracts/mission';
 import { advance, catchUpCap, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
 import { hashState } from '../../sim/core/hash';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
@@ -355,9 +356,9 @@ export class BattleScene extends Phaser.Scene {
       key: string,
       texture: 'soldier_live' | 'soldier_echo',
       at: { pos: Vec2; facing: number },
+      roleId: RoleId = 'rifleman',
     ) => {
-      // Run-ins use the same generic rifleman as the previous preview sprites.
-      const mini = pilotMiniature('rifleman', texture === 'soldier_live' ? 'live' : 'echo')!;
+      const mini = pilotMiniature(roleId, texture === 'soldier_live' ? 'live' : 'echo');
       const depth = key === 'live' ? DEPTH.live : DEPTH.echoes;
       const layer = (suffix: string, asset: ImageKey, rotation: number, z: number) => {
         const id = `${key}:${suffix}`;
@@ -375,6 +376,10 @@ export class BattleScene extends Phaser.Scene {
           .setRotation(rotation)
           .setVisible(true);
       };
+      if (!mini) {
+        layer('figure', texture, at.facing, depth);
+        return;
+      }
       if (mini.base) {
         layer('base', mini.base, 0, depth - 0.1);
         this.runners
@@ -398,7 +403,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.runPath && !exists && left !== null && left > 0) {
       const at = alongPath(this.runPath, 1 - left / this.runTotal);
       this.runnerPos = at.pos;
-      place('live', 'soldier_live', at);
+      place('live', 'soldier_live', at, driver?.previewRoleId);
     } else if (exists) {
       this.runPath = null;
     }
@@ -410,7 +415,12 @@ export class BattleScene extends Phaser.Scene {
       if (ahead <= 0 || ahead > lead) continue;
       const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
       if (!sp) continue;
-      place(a.id, 'soldier_echo', alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead));
+      place(
+        a.id,
+        'soldier_echo',
+        alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead),
+        a.roleId,
+      );
     }
     for (const [key, img] of this.runners) {
       if (!seen.has(key)) {

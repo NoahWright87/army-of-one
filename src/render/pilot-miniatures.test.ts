@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { INFANTRY_ROLES, BASE_SHAPE_BY_ROLE } from '../content/miniatures';
 import { ASSET_MANIFEST, fitPx } from '../content/assets';
 import { pilotMiniature, corpsePose } from './pilot-miniatures';
 
-describe('pilot miniature layers', () => {
+describe('infantry miniature layers', () => {
   it('changes ownership through the base finish while keeping the allied sculpt', () => {
     const live = pilotMiniature('sniper', 'live')!;
     for (const state of ['echo', 'static', 'interrupted'] as const) {
@@ -32,17 +33,23 @@ describe('pilot miniature layers', () => {
     });
   });
 
-  it('falls back for undelivered roles, including vehicles', () => {
-    for (const role of ['grenadier', 'gunner', 'shotgun', 'bazooka', 'truck', 'tank'] as const) {
+  it('uses every delivered infantry sculpt and its role’s base shape', () => {
+    for (const role of INFANTRY_ROLES) {
+      expect(pilotMiniature(role)).toEqual({
+        base: `mini_base_${BASE_SHAPE_BY_ROLE[role]}_gold`,
+        figure: `mini_figure_${role}_ally`,
+      });
+      expect(pilotMiniature(role, 'enemy')).toEqual({
+        base: `mini_base_${BASE_SHAPE_BY_ROLE[role]}_silver`,
+        figure: `mini_figure_${role}_enemy`,
+      });
+    }
+  });
+
+  it('retains the existing vehicle rendering until vehicle art is delivered', () => {
+    for (const role of ['truck', 'tank'] as const) {
       expect(pilotMiniature(role)).toBeNull();
-      if (role === 'truck' || role === 'tank') {
-        expect(pilotMiniature(role, 'enemy', false)).toBeNull();
-      } else {
-        expect(pilotMiniature(role, 'enemy', false)).toEqual({
-          base: null,
-          figure: 'mini_figure_fallen_enemy',
-        });
-      }
+      expect(pilotMiniature(role, 'enemy', false)).toBeNull();
     }
   });
 
@@ -58,7 +65,7 @@ describe('pilot miniature layers', () => {
 
   it('loads every chosen layer through the manifest at a shared scale', () => {
     expect(ASSET_MANIFEST.some((a) => a.key === 'mini_shadow_infantry')).toBe(true);
-    for (const role of ['rifleman', 'sniper', 'shield'] as const) {
+    for (const role of INFANTRY_ROLES) {
       for (const state of ['live', 'echo', 'enemy', 'static', 'interrupted'] as const) {
         for (const alive of [true, false]) {
           const p = pilotMiniature(role, state, alive)!;

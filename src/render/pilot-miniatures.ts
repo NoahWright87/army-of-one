@@ -1,4 +1,4 @@
-/** Delivered pilot only. Unsupported roles retain the original renderer. */
+/** Delivered infantry miniatures. Vehicles retain the original renderer. */
 import { CORPSE_OFFSET_RADII } from '../content/miniatures';
 import type { ImageKey } from '../content/assets';
 import type { RoleId } from '../contracts/mission';
@@ -10,7 +10,7 @@ export interface MiniaturePiece {
 }
 
 function pieces(
-  shape: 'round' | 'octagon',
+  shape: 'round' | 'octagon' | 'square',
   ally: ImageKey,
   enemy: ImageKey,
 ): Record<'live' | 'echo' | 'enemy' | 'fallenLive' | 'fallenAlly' | 'fallenEnemy', MiniaturePiece> {
@@ -27,7 +27,11 @@ function pieces(
   };
 }
 
-const PILOT: Partial<Record<RoleId, ReturnType<typeof pieces>>> = {
+const INFANTRY: Partial<Record<RoleId, ReturnType<typeof pieces>>> = {
+  grenadier: pieces('round', 'mini_figure_grenadier_ally', 'mini_figure_grenadier_enemy'),
+  gunner: pieces('square', 'mini_figure_gunner_ally', 'mini_figure_gunner_enemy'),
+  shotgun: pieces('octagon', 'mini_figure_shotgun_ally', 'mini_figure_shotgun_enemy'),
+  bazooka: pieces('square', 'mini_figure_bazooka_ally', 'mini_figure_bazooka_enemy'),
   rifleman: pieces('round', 'mini_figure_rifleman_ally', 'mini_figure_rifleman_enemy'),
   sniper: pieces('round', 'mini_figure_sniper_ally', 'mini_figure_sniper_enemy'),
   shield: pieces('octagon', 'mini_figure_shield_ally', 'mini_figure_shield_enemy'),
@@ -39,10 +43,10 @@ export function pilotMiniature(
   role: SoldierRole = 'live',
   alive = true,
 ): MiniaturePiece | null {
-  const set = PILOT[roleId];
+  const set = INFANTRY[roleId];
   if (!set) {
     if (alive || roleId === 'truck' || roleId === 'tank') return null;
-    return role === 'enemy' ? PILOT.rifleman!.fallenEnemy : PILOT.rifleman!.fallenAlly;
+    return role === 'enemy' ? INFANTRY.rifleman!.fallenEnemy : INFANTRY.rifleman!.fallenAlly;
   }
   if (!alive)
     return role === 'enemy' ? set.fallenEnemy : role === 'live' ? set.fallenLive : set.fallenAlly;

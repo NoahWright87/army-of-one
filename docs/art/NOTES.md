@@ -6,6 +6,25 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-17 — tier 2 infantry and a slightly larger base
+
+Owner approved proceeding with the other soldiers ([D126]). Delivered all 12 tier-2 files:
+four square-base finishes plus ally/enemy Grenadier, Gunner, Shotgunner and Bazooka. Base
+scale increased from 0.55 to 0.70; figure scale remains 1.6.
+
+Grenadier has a cocked throwing arm/large grenade; Gunner is a two-person crew feeding a
+belt into a bipod-mounted gun; Shotgunner has broad rectangular armor and a fat short weapon;
+Bazooka has a tube projecting front/back. Crew-served appearance remains one unit with the
+existing health/behavior. The crew pivot is the gun receiver, with both figures behind it.
+Faction repaints share exact alpha masks. All 29 infantry files pass tier-2 required checks.
+The crew's soft-pixel warnings arise from the long perimeter of two figures, the belt and
+thin bipod legs, not a shadow. Existing fallen-art/rifleman warnings remain documented in earlier entries.
+
+All seven infantry roles now use miniature layers during play and replay. Deployment previews
+read the selected/recorded role so the new classes do not run in as generic Riflemen.
+`?scene=gallery&infantry=1` compares every role as live, echo, enemy and fallen through the real
+renderer. Infantry art is complete; tier-3 vehicle art has not started.
+
 ## 2026-11-17 — owner feedback: feet-sized bases, silhouettes and directional deaths
 
 Implemented D124/D125. Infantry base rendering is 55% of the old diameter; figures keep their

@@ -94,3 +94,16 @@ Follow-up validation: all 638 tests pass (threads, two workers, 30-second timeou
 purity lint, art checks and production build. Inspected the running gallery with all three
 pilot silhouettes and directional corpse examples. Art checker warnings are documented in
 `docs/art/NOTES.md`; no thresholds were loosened.
+
+### Remaining infantry ([D126])
+
+Tier-2 art is delivered and registered: all seven infantry roles now use miniature layers.
+Bases increased to 0.70×; figures remain 1.6×. The Machine Gunner's two-person crew is one
+image/unit. Live and echo run-ins carry role metadata for the correct sculpt. Dedicated
+comparison view: `?scene=gallery&infantry=1` (live/echo/enemy/fallen for every infantry role).
+The remaining vehicle art and vehicle-layer integration are still pending.
+
+Infantry completion validation: all 639 tests pass with the cloud worker/timeout flags, plus
+lint, purity lint, production build and tier-2 required art checks. Visually inspected the
+rotation sheet, both swarm sheets and the running infantry gallery. Warnings are explained
+in `docs/art/NOTES.md`; checker thresholds are unchanged.

@@ -579,6 +579,13 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   portion of D123 and the original no-blood art brief. This is presentation only: collision,
   damage, movement and timeline outcomes are unchanged. Directionless deaths use last facing.
 
+- **[D126] Complete the distinctive infantry set (owner, 2026-11-17).** The pilot is approved
+  to proceed with the other soldiers. Grenadier uses a classic toy-army-man throwing stance;
+  Machine Gunner is visually a two-person crew with an ammo belt and bipod. Shotgunner has
+  blocky armor and a short chunky weapon; Bazooka carries a tube projecting front and back.
+  The crew remains one game unit, sharing the existing role's health and behavior. Infantry
+  base scale is now 0.70× (up from D124's 0.55×); figure scale stays 1.6× for readability.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

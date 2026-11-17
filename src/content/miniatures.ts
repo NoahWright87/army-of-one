@@ -78,7 +78,7 @@ export interface BaseSpec {
 /** Figure art scale; small infantry bases use INFANTRY_BASE_SCALE in the renderer. */
 export const ART_PX_PER_UNIT = 3.1;
 /** Foot-sized plinth; figures retain their original scale and overhang it. */
-export const INFANTRY_BASE_SCALE = 0.55;
+export const INFANTRY_BASE_SCALE = 0.7;
 /** Normalize the sculpt, not the old oversized display base, for gameplay readability. */
 export const INFANTRY_FIGURE_SCALE = 1.6;
 /** Corpses fall off the former base position, in multiples of spriteRadius. */
@@ -127,7 +127,7 @@ export const BASES: Record<BaseShape, BaseSpec> = {
 
 /**
  * Which base each role stands on. Light infantry round; armored infantry angular (octagon);
- * heavy weapons square; vehicles their own long plinths. PROPOSAL, see [Q59]: change a role's
+ * heavy weapons square; vehicles their own long plinths. Confirmed in [D122]: change a role's
  * shape here and the art needs no changes (every infantry shape is drawn in every finish).
  */
 export const BASE_SHAPE_BY_ROLE: Record<RoleId, BaseShape> = {
@@ -185,9 +185,9 @@ const FIGURE_BRIEF: Record<RoleId, string> = {
   rifleman:
     'Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back.',
   grenadier:
-    'Grenadier: helmet, grenade bandolier / pouches, one arm cocked holding a grenade forward, no rifle.',
+    'Grenadier: classic toy-army-man throwing stance, one arm cocked outward with a large round grenade, no rifle.',
   gunner:
-    'Machine gunner: helmet, light machine gun with bipod legs folded out forward and an ammo belt / box on one side.',
+    'Machine-gun crew: two helmeted figures, one on the receiver and one feeding a bold ammo belt; splayed bipod, ammo box.',
   sniper:
     'Sniper: broad shaggy ghillie cloak and hood, ragged bush-like outline, long scoped rifle; full-sized body.',
   shield:

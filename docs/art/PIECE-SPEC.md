@@ -2,7 +2,7 @@
 
 All sizes are in **art pixels**. The game draws about **3.1 art px per world unit** everywhere, so
 figure art uses that normalization. For readability the renderer draws infantry figures at
-1.6× and their foot bases at 0.55× the original scale ([D124]). Soldiers appear about 32 px across on a normal screen
+1.6× and their foot bases at 0.70× the original scale ([D124]). Soldiers appear about 32 px across on a normal screen
 (their 100 px base is scaled down about 3×), so everything below is designed to survive heavy
 downscaling.
 
@@ -39,7 +39,7 @@ Drawn bottom to top, all centered on the same point (the piece's position):
   the *middle* of a hull, the *hub* of a turret. Weapons stick out; bodies do not wander.
 - A transparent margin of at least 2 px on every side (more where the table says).
 - `fitPx` is what the renderer maps onto the soldier's logical size; it is listed per base below and
-  is shared by that unit's base and figure, so *keep art normalization unchanged; the renderer deliberately scales infantry bases to 0.55× and figures to 1.6× ([D124])*.
+  is shared by that unit's base and figure, so *keep art normalization unchanged; the renderer deliberately scales infantry bases to 0.70× and figures to 1.6× ([D124])*.
 
 ## 2. Bases
 
@@ -105,7 +105,7 @@ paint scheme and by helmet *shape* only.
 |---|---|---|
 | `rifleman` | helmet + rifle straight forward | Steel helmet; rifle in both hands pointing +x; small pack/bedroll on the back (−x). The plain baseline soldier: draw this first. |
 | `grenadier` | helmet + one arm out holding a ball | Helmet; satchel/pouches; **no rifle**; one arm cocked forward holding a pineapple grenade (draw the grenade bold and round, ~12 px). |
-| `gunner` | helmet + gun with a splayed bipod | Light machine gun with bipod legs folded **out** in front, ammo belt draped from the gun to a box on one side; a heavier, planted pose. |
+| `gunner` | **two helmets + splayed bipod** | Two-person crew: gunner on the receiver, assistant feeding a bold ammo belt from a box. A single sprite/unit pivot centered on the gun mount. |
 | `sniper` | **very long thin gun** | Broad ragged ghillie cloak and hood, unmistakable bush-like outline; long scoped rifle. Body stays comparable in size to other infantry. |
 | `shield` | **a big curved slab across the front** | Beefy armored shoulders and thick arms; low helmet tucked behind a heavy curved ballistic shield spanning the front arc (about 135°, roughly y = −42…+42) at x ≈ +22…+34; sidearm hand peeking past the edge. |
 | `shotgun` | bulkier body, short fat gun | Heavy padded shoulders (the widest infantry body, up to ~58 px across), helmet, short pump shotgun forward to ~+46, shell bandolier across the chest. |
@@ -183,18 +183,18 @@ show the owner** (README.md workflow). Total: 49 files.
 
 | Done | File | Canvas | Draw |
 |---|---|---|---|
-| [ ] | `base_square_gold.png` | 128×128 | square base, **gold** finish |
-| [ ] | `base_square_silver.png` | 128×128 | square base, **silver** finish |
-| [ ] | `base_square_gold-tarnished.png` | 128×128 | square base, **gold-tarnished** finish |
-| [ ] | `base_square_silver-tarnished.png` | 128×128 | square base, **silver-tarnished** finish |
-| [ ] | `figure_grenadier_ally.png` | 128×128 | Grenadier: helmet, grenade bandolier / pouches, one arm cocked holding a grenade forward, no rifle. |
-| [ ] | `figure_grenadier_enemy.png` | 128×128 | Grenadier: helmet, grenade bandolier / pouches, one arm cocked holding a grenade forward, no rifle. |
-| [ ] | `figure_gunner_ally.png` | 128×128 | Machine gunner: helmet, light machine gun with bipod legs folded out forward and an ammo belt / box on one side. |
-| [ ] | `figure_gunner_enemy.png` | 128×128 | Machine gunner: helmet, light machine gun with bipod legs folded out forward and an ammo belt / box on one side. |
-| [ ] | `figure_shotgun_ally.png` | 128×128 | Shotgunner: bulkier padded shoulders, helmet, short heavy pump shotgun forward, shell bandolier across the chest. |
-| [ ] | `figure_shotgun_enemy.png` | 128×128 | Shotgunner: bulkier padded shoulders, helmet, short heavy pump shotgun forward, shell bandolier across the chest. |
-| [ ] | `figure_bazooka_ally.png` | 128×128 | Bazooka gunner: helmet, long rocket tube resting on the shoulder, sticking out BOTH in front of and behind the body (the only figure with… |
-| [ ] | `figure_bazooka_enemy.png` | 128×128 | Bazooka gunner: helmet, long rocket tube resting on the shoulder, sticking out BOTH in front of and behind the body (the only figure with… |
+| [x] | `base_square_gold.png` | 128×128 | square base, **gold** finish |
+| [x] | `base_square_silver.png` | 128×128 | square base, **silver** finish |
+| [x] | `base_square_gold-tarnished.png` | 128×128 | square base, **gold-tarnished** finish |
+| [x] | `base_square_silver-tarnished.png` | 128×128 | square base, **silver-tarnished** finish |
+| [x] | `figure_grenadier_ally.png` | 128×128 | Grenadier: helmet, grenade bandolier / pouches, one arm cocked holding a grenade forward, no rifle. |
+| [x] | `figure_grenadier_enemy.png` | 128×128 | Grenadier: helmet, grenade bandolier / pouches, one arm cocked holding a grenade forward, no rifle. |
+| [x] | `figure_gunner_ally.png` | 128×128 | Machine-gun crew: two figures, ammo belt/box and splayed bipod. |
+| [x] | `figure_gunner_enemy.png` | 128×128 | Machine-gun crew: two figures, ammo belt/box and splayed bipod. |
+| [x] | `figure_shotgun_ally.png` | 128×128 | Shotgunner: bulkier padded shoulders, helmet, short heavy pump shotgun forward, shell bandolier across the chest. |
+| [x] | `figure_shotgun_enemy.png` | 128×128 | Shotgunner: bulkier padded shoulders, helmet, short heavy pump shotgun forward, shell bandolier across the chest. |
+| [x] | `figure_bazooka_ally.png` | 128×128 | Bazooka gunner: helmet, long rocket tube resting on the shoulder, sticking out BOTH in front of and behind the body (the only figure with… |
+| [x] | `figure_bazooka_enemy.png` | 128×128 | Bazooka gunner: helmet, long rocket tube resting on the shoulder, sticking out BOTH in front of and behind the body (the only figure with… |
 
 #### Tier 3
 

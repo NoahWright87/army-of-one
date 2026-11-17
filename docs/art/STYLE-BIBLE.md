@@ -121,7 +121,14 @@ at 32 px.
 
 ## Updated pilot direction ([D124]–[D125])
 
-Bases are foot-sized supports, at 0.55× the original display scale, with figures at 1.6×: bodies overhang and mostly cover
+Bases are foot-sized supports, at 0.70× the original display scale, with figures at 1.6×: bodies overhang and mostly cover
 the metal. No oversized live-marker ring on miniature units. Snipers have a broad shaggy
 ghillie silhouette; Shield units have beefier padded armor. On death the base vanishes and an
 unarmed sprawled body falls beside its former position along the lethal hit direction.
+
+## Remaining infantry ([D126])
+
+Grenadier: extended cocked throwing arm and oversized round grenade, no rifle. Machine Gunner:
+two helmet crowns around a crew-served receiver, bold ammo belt, box and splayed bipod.
+Shotgunner: blocky armored shoulders, shell bandolier, short thick weapon. Bazooka: a long tube
+through the body with a flared rear end. Enemy paints preserve each sculpt's exact alpha mask.
