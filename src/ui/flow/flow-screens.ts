@@ -116,6 +116,8 @@ export interface TitleProps {
   onRandomMission?(): void;
   /** (PHASE13-c) Opens the world map generator viewer. */
   onOpenWorld?(): void;
+  /** (PHASE17) The footer's Dev link: tools, including the arena ([D142]). */
+  onOpenDev?(): void;
   /**
    * (PHASE13-d) The random campaign ([D106]): the main button. The handmade missions move
    * below it.
@@ -225,6 +227,11 @@ export class TitleScreen {
       const editor = el('button', 'link', str('title.editor'));
       editor.onclick = () => p.onOpenEditor?.();
       card.append(editor);
+    }
+    if (p.onOpenDev) {
+      const dev = el('button', 'link dev', str('dev.link'));
+      dev.onclick = () => p.onOpenDev?.();
+      card.append(dev);
     }
     root.hidden = false;
     (first ?? (p.canContinue ? cont : fresh)).focus();

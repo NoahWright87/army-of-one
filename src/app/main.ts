@@ -17,6 +17,8 @@ import { DEFAULT_TUNING, withTuning } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
+import { ArenaScene } from '../render/phaser/arena-scene';
+import type { ArenaConfig } from '../gen/arena';
 import { PreloadScene } from '../render/phaser/preload-scene';
 import type { SceneServices } from '../render/phaser/services';
 import {
@@ -126,8 +128,14 @@ export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 const params = new URLSearchParams(window.location.search);
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
-const mode: 'game' | 'gallery' | 'sandbox' =
-  sceneParam === 'gallery' ? 'gallery' : sceneParam === 'sandbox' ? 'sandbox' : 'game';
+const mode: 'game' | 'gallery' | 'sandbox' | 'arena' =
+  sceneParam === 'gallery'
+    ? 'gallery'
+    : sceneParam === 'sandbox'
+      ? 'sandbox'
+      : sceneParam === 'arena' // (PHASE17) the dev arena ([D142])
+        ? 'arena'
+        : 'game';
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
@@ -380,6 +388,7 @@ const services: SceneServices = {
 let markAssetsReady: () => void = () => {};
 const assetsReady = new Promise<void>((resolve) => (markAssetsReady = resolve));
 
+const arenaScene = new ArenaScene(services);
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -388,14 +397,23 @@ const game = new Phaser.Game({
   // (06-c) Dual-GPU laptops: ask for the discrete GPU.
   render: { powerPreference: 'high-performance', antialias: display.antialias },
   scene: [
-    new PreloadScene(mode === 'game' ? null : mode === 'gallery' ? 'gallery' : 'battle', () =>
-      markAssetsReady(),
+    new PreloadScene(
+      mode === 'game'
+        ? null
+        : mode === 'gallery'
+          ? 'gallery'
+          : mode === 'arena'
+            ? 'arena'
+            : 'battle',
+      () => markAssetsReady(),
     ),
     new BattleScene(services),
     new GalleryScene(services),
     new ReplayScene(services),
+    arenaScene,
   ],
 });
+if (mode === 'arena') void startArena();
 
 // (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
 // and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
@@ -485,6 +503,7 @@ async function startGame(): Promise<void> {
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
         onOpenEditor: openEditor,
+        onOpenDev: () => openScene('arena'),
         onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         campaign: {
@@ -1101,4 +1120,80 @@ function isTyping(t: EventTarget | null): boolean {
     t instanceof HTMLSelectElement ||
     t instanceof HTMLTextAreaElement
   );
+}
+
+/** (PHASE17) Another page of the game by `?scene=` (keeps `dev`). */
+function openScene(scene: string): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  if (dev) url.searchParams.set('dev', dev);
+  url.searchParams.set('scene', scene);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
+
+/** (PHASE17) The dev arena ([D142]): its panel drives the arena scene. */
+async function startArena(): Promise<void> {
+  hud.setVisible(false);
+  const { ArenaPanel } = await import('../ui/arena/arena-panel');
+  const arena = await import('../gen/arena');
+  const KEY = 'army-of-one.arena.v1';
+  let cfg: ArenaConfig = {
+    left: { preset: 'human', units: { rifleman: 1 } },
+    right: { preset: 'normal', units: { rifleman: 3 } },
+    pieces: [],
+  };
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (raw) cfg = JSON.parse(raw) as typeof cfg;
+  } catch {
+    // defaults
+  }
+  let seed = 1;
+  const base = new URL(window.location.href);
+  const href = (scene: string | null) => {
+    const u = new URL(base.toString());
+    u.search = '';
+    if (scene) u.searchParams.set('scene', scene);
+    return u.toString();
+  };
+  const panel = new ArenaPanel(
+    uiRoot,
+    cfg,
+    {
+      change: (c) => {
+        try {
+          window.localStorage.setItem(KEY, JSON.stringify(c));
+        } catch {
+          // this page only
+        }
+        arenaScene.loadFight(c, seed);
+      },
+      go: () => arenaScene.go(),
+      reset: () => {
+        seed += 1;
+        arenaScene.loadFight(panel.config, seed);
+      },
+      speed: (x) => arenaScene.setSpeed(x),
+      batch: (n) =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(arena.runArenaBatch(panel.config, n, seed * 1000)), 30),
+        ),
+    },
+    [
+      { label: str('dev.arena'), href: href('arena'), here: true },
+      { label: str('dev.editor'), href: href('editor') },
+      { label: str('dev.world'), href: href('world') },
+      { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.menu'), href: href(null) },
+    ],
+  );
+  arenaScene.hooks = {
+    onTap: (x, y) => panel.tap(x, y),
+    onState: (st) => panel.showState(st),
+    onReady: () => arenaScene.loadFight(panel.config, seed),
+  };
+  // The scene may have started before the panel loaded.
+  if (arenaScene.sys.isActive()) arenaScene.loadFight(panel.config, seed);
 }

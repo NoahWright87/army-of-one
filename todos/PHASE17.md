@@ -7,7 +7,7 @@ controls, flying bullets. Decisions: [D137]–[D145]. Each part is independently
 ## Parts (in order)
 
 1. [x] Competent, aggressive AI + regen + regroup ([D137], [D138]).
-2. [ ] Dev arena ([D142]): footer Dev link; sides, roles, counts, HUMAN/CPU presets, cover, GO.
+2. [x] Dev arena ([D142]): footer Dev link; sides, roles, counts, HUMAN/CPU presets, cover, GO.
 3. [ ] Win rule ([D139]): every exit + a prominent position, entries held start ours; or kill all.
 4. [ ] Objective HUD icons ([D140]).
 5. [ ] Generator ([D143]): no objective next to an entry; walled bases playable.

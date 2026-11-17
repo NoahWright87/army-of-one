@@ -87,7 +87,8 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
   spawnSquads(world, ({ id, squad, role, position, facing }) => {
     const s = createSoldier(id, Number(id.slice(1)), squad.id, position, facing, tuning, {
       roleId: role,
-      team: 'enemy',
+      // (PHASE17) Arena squads can be ours ([D142]).
+      ...(squad.team === 'player' ? {} : { team: 'enemy' as const }),
     });
     quantizeSoldier(s);
     world.state.soldiers.push(s);

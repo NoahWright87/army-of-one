@@ -1,5 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import type { RoleId } from '../../contracts/mission';
+import type { Tuning } from '../../content/tuning';
 
 /** Axis-aligned rectangle; (x, y) is the top-left corner. */
 export interface Rect {
@@ -166,6 +167,10 @@ export interface SquadDef {
   fallback?: Vec2;
   /** Hold (and retake) this capture point. */
   capturePointId?: string;
+  /** (PHASE17) The arena ([D142]): a squad on our side (default: the enemy's). */
+  team?: 'player';
+  /** (PHASE17) AI skill on top of `tuning.ai` (the arena's HUMAN / CPU presets). */
+  skill?: Partial<Tuning['ai']>;
   /**
    * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
    * `roam` temperament), retreat to the best of them, and chase within their leash of any.
@@ -225,6 +230,11 @@ export interface MapDef {
   };
   /** (PHASE16) How many objective flags of each group are needed ([D129]); absent = all. */
   objectiveGroups?: Record<string, number>;
+  /**
+   * (PHASE17) The dev arena's fight seed ([D142]): salts the AI's and guns' random rolls so
+   * repeated fights differ. Absent everywhere else.
+   */
+  aiSeed?: number;
   /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
   roles?: readonly RoleId[];
 }

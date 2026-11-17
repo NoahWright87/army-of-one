@@ -78,6 +78,11 @@ export function spreadOf(stats: GunSpread, moveFrac: number, recoil: number): nu
   return stats.baseSpread + stats.movingSpread * moveFrac + Math.min(recoil, stats.maxRecoil);
 }
 
+/** (PHASE17) The arena's per-fight salt for spread rolls ([D142]); '' everywhere else. */
+export function spreadSalt(world: World): string {
+  return world.map.aiSeed !== undefined ? `${world.map.aiSeed}/` : '';
+}
+
 /** Deterministic offset within ± spread for one shot ([E10]). */
 export function spreadOffset(key: string, spread: number): number {
   return spread > 0 ? (hash01(key) * 2 - 1) * spread : 0;
@@ -254,7 +259,7 @@ export function trySoldierFire(world: World, s: SoldierState, aim: number): Shot
   if (!isEligible(s) || world.state.tick < s.nextFireTick) return null;
   const stats = effectiveSpread(world, s, gun, aim);
   const spread = spreadOf(stats, s.moveFrac, s.recoil);
-  const angle = aim + spreadOffset(`${s.id}@${world.state.tick}:aim`, spread);
+  const angle = aim + spreadOffset(`${spreadSalt(world)}${s.id}@${world.state.tick}:aim`, spread);
   s.nextFireTick = world.state.tick + gunCooldownTicks(world.tuning, gun);
   s.recoil = Math.min(stats.maxRecoil, s.recoil + stats.kick);
   if (gun !== 'shotgun') return fireGun(world, s.id, s, angle, gun, teamOf(s));
@@ -262,7 +267,9 @@ export function trySoldierFire(world: World, s: SoldierState, aim: number): Shot
   const sg = world.tuning.shotgun;
   let last: ShotResult | null = null;
   for (let i = 0; i < Math.max(1, Math.floor(sg.pellets)); i++) {
-    const a = angle + spreadOffset(`${s.id}@${world.state.tick}:p${i}`, sg.pelletSpread);
+    const a =
+      angle +
+      spreadOffset(`${spreadSalt(world)}${s.id}@${world.state.tick}:p${i}`, sg.pelletSpread);
     last = fireGun(world, s.id, s, a, gun, teamOf(s), i);
   }
   return last;
