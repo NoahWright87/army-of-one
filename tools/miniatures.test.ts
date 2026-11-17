@@ -186,8 +186,8 @@ describe('review sheet compositing', () => {
     drawPiece(b, piece, 100, 100, 100, Math.PI / 2);
     // facing +x at angle 0: dark pixel right of center; facing down (+y) at 90°: dark pixel below.
     const px = (c: Canvas, x: number, y: number) => c.data[(y * c.w + x) * 4]!;
-    expect(px(a, 140, 100)).toBeLessThan(0.2);
-    expect(px(b, 100, 140)).toBeLessThan(0.2);
-    expect(px(a, 100, 140)).toBeGreaterThan(0.4); // gold there at angle 0
+    expect(px(a, 120, 100)).toBeLessThan(0.2);
+    expect(px(b, 100, 120)).toBeLessThan(0.2);
+    expect(px(a, 100, 120)).toBeGreaterThan(0.4); // gold there at angle 0
   });
 });

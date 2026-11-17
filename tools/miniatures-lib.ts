@@ -7,6 +7,8 @@ import { PNG } from 'pngjs';
 import { readFileSync } from 'node:fs';
 import {
   BASES,
+  INFANTRY_BASE_SCALE,
+  INFANTRY_FIGURE_SCALE,
   BASE_SHAPE_BY_ROLE,
   type BaseShape,
   type Colorway,
@@ -525,6 +527,6 @@ export function drawPiece(
 ): void {
   const scale = worldDiameter / p.fitPx;
   const cam = opts.cameraRotation ?? 0;
-  c.draw(p.base, x, y, cam, scale, opts.alpha ?? 1);
-  c.draw(p.figure, x, y, cam + facing, scale, opts.alpha ?? 1);
+  c.draw(p.base, x, y, cam, scale * INFANTRY_BASE_SCALE, opts.alpha ?? 1);
+  c.draw(p.figure, x, y, cam + facing, scale * INFANTRY_FIGURE_SCALE, opts.alpha ?? 1);
 }

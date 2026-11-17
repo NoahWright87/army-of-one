@@ -75,8 +75,14 @@ export interface BaseSpec {
   look: string;
 }
 
-/** About 3 art px per world unit, everywhere, so every layer shares one scale. */
+/** Figure art scale; small infantry bases use INFANTRY_BASE_SCALE in the renderer. */
 export const ART_PX_PER_UNIT = 3.1;
+/** Foot-sized plinth; figures retain their original scale and overhang it. */
+export const INFANTRY_BASE_SCALE = 0.55;
+/** Normalize the sculpt, not the old oversized display base, for gameplay readability. */
+export const INFANTRY_FIGURE_SCALE = 1.6;
+/** Corpses fall off the former base position, in multiples of spriteRadius. */
+export const CORPSE_OFFSET_RADII = 1.25;
 
 export const BASES: Record<BaseShape, BaseSpec> = {
   round: {
@@ -183,9 +189,9 @@ const FIGURE_BRIEF: Record<RoleId, string> = {
   gunner:
     'Machine gunner: helmet, light machine gun with bipod legs folded out forward and an ammo belt / box on one side.',
   sniper:
-    'Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry).',
+    'Sniper: broad shaggy ghillie cloak and hood, ragged bush-like outline, long scoped rifle; full-sized body.',
   shield:
-    'Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible.',
+    'Shield bearer: beefy padded armor and thick shoulders, low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible.',
   shotgun:
     'Shotgunner: bulkier padded shoulders, helmet, short heavy pump shotgun forward, shell bandolier across the chest.',
   bazooka:
@@ -249,7 +255,7 @@ export function miniatureFiles(): MiniFile[] {
       subject: 'fallen',
       faction,
       brief:
-        'The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, ' +
+        'Unarmed fallen miniature: head toward +x, sprawled limbs, restrained blood marks, no base, ' +
         'darker and lower contrast than a standing figure so it reads as background.',
     });
   }

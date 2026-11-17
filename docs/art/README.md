@@ -5,7 +5,7 @@ vehicle is a **collectible wargame miniature standing on a gold or silver displa
 directly above, as if the whole battle were a model war-room table. Pieces slide around, they do not
 walk, so there is **no animation art**: one still image per layer.
 
-Product-owner rulings behind this are [D116]–[D121] in `docs/DECISIONS.md`. Where this folder and
+Product-owner rulings behind this are [D116]–[D125] in `docs/DECISIONS.md`. Where this folder and
 DECISIONS.md disagree, DECISIONS.md wins. Ask before inventing anything not written here.
 
 ---
@@ -45,6 +45,14 @@ You can verify both rules mechanically: `npm run check:art` and `npm run check:a
 etc., and renders **rotation sheets** and **swarm sheets** you must look at before reporting done.
 
 ---
+
+## Updated owner direction ([D124]–[D125])
+
+Bases now support the feet and are mostly hidden by overhanging bodies. The renderer scales
+infantry bases to 0.55× and figures to 1.6× the original display scale. Bases vanish on death;
+unarmed, sprawled bodies fall beside the old position, away from the lethal hit. Restrained
+blood stains are allowed. Snipers wear shaggy ghillie suits; Shield units are visibly beefier.
+These rulings supersede earlier large-display-base, dead-on-base and no-blood descriptions.
 
 ## What the player needs from the art
 

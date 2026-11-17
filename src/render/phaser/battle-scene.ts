@@ -19,6 +19,7 @@ import { DEPTH } from '../depth';
 import type { Vec2 } from '../../sim/core/vec';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { pilotMiniature } from '../pilot-miniatures';
+import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
 const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
@@ -374,8 +375,21 @@ export class BattleScene extends Phaser.Scene {
           .setRotation(rotation)
           .setVisible(true);
       };
-      layer('base', mini.base, 0, depth - 0.1);
+      if (mini.base) {
+        layer('base', mini.base, 0, depth - 0.1);
+        this.runners
+          .get(`${key}:base`)!
+          .setScale(
+            ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.base)) * INFANTRY_BASE_SCALE,
+          );
+      }
       layer('figure', mini.figure, at.facing, depth);
+      this.runners
+        .get(`${key}:figure`)!
+        .setScale(
+          ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.figure)) *
+            INFANTRY_FIGURE_SCALE,
+        );
     };
     // The live soldier, until it exists.
     this.runnerPos = null;

@@ -71,6 +71,11 @@ export interface Caption {
 }
 
 export const GALLERY_CAPTIONS: Caption[] = [
+  ...['north hit → south fall', 'east hit → west fall', 'west hit → east fall'].map((text, i) => ({
+    x: 200 + i * 300,
+    y: 652,
+    text,
+  })),
   ...(['rifleman', 'sniper', 'shield'] as const).flatMap((role, ri) =>
     (['live', 'echo', 'enemy'] as const).map((state, si) => ({
       x: 110 + (ri * 3 + si) * 150,
@@ -168,6 +173,16 @@ function soldiers(tick: Tick): SoldierView[] {
         ),
       );
     }
+  }
+  for (const [i, direction] of [Math.PI / 2, Math.PI, 0].entries()) {
+    list.push(
+      soldier(`fallen-direction-${i}`, 200 + i, 200 + i * 300, 620, 'echo', {
+        roleId: 'rifleman',
+        alive: false,
+        hp: 0,
+        deathDirection: direction,
+      }),
+    );
   }
   // Crowd: live soldier among echoes and statics.
   const cx = col(5);

@@ -28,7 +28,7 @@ renderer against generated placeholders and swap the real PNGs in when they land
       Placeholders must obey the art rules too (top-down, radially lit), so the checker passes them.
 - [ ] **Style rules (pure, unit-tested).** In `soldier-style.ts` map a soldier's state to
       `{ baseKey, figureKey, alpha, … }`: live → `gold`; echo / static → `gold-tarnished`; enemy →
-      `silver`; dead → fallen figure on a dimmed base ([D123]). Role → shape via `BASE_SHAPE_BY_ROLE`.
+      `silver`; dead → unarmed fallen figure off the vanished base, along lethal-hit direction ([D125]). Role → shape via `BASE_SHAPE_BY_ROLE`.
 - [ ] **Renderer layers.** Per soldier: shadow (not rotated, offset in screen space), base (not
       rotated by aim; rotated by the camera if it rotates), figure (`rotation = facing`). Vehicles: base
       + hull rotate with the heading, the turret on top with its own aim, wreck on death. Retire the
@@ -80,3 +80,17 @@ remaining role art, expanded swarm/performance review and animation hooks are st
 Validation: lint, purity lint, production build and all 635 tests passed. Tests used
 `node node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=2 --testTimeout=30000`
 for this cloud environment (no repository test settings changed).
+
+### Owner feedback follow-up ([D124]–[D125])
+
+Foot bases are 0.55× their old scale; figure layers independently use 1.6× for legibility.
+No large live ring on miniature units. Sniper/Shield silhouettes and unarmed fallen art were
+redrawn. Bases disappear on infantry death, including unsupported standing-art roles. Corpses
+are offset from their former base along a snapshot-safe, presentation-only lethal-hit direction.
+Vehicles retain their old wreck rendering. Corpse opacity has a 0.55 floor so dim-echo settings
+do not hide the new fallen poses. Added directional examples to the gallery.
+
+Follow-up validation: all 638 tests pass (threads, two workers, 30-second timeout), plus lint,
+purity lint, art checks and production build. Inspected the running gallery with all three
+pilot silhouettes and directional corpse examples. Art checker warnings are documented in
+`docs/art/NOTES.md`; no thresholds were loosened.

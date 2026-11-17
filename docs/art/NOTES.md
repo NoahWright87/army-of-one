@@ -6,6 +6,27 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-17 — owner feedback: feet-sized bases, silhouettes and directional deaths
+
+Implemented D124/D125. Infantry base rendering is 55% of the old diameter; figures keep their
+art normalization; the renderer draws figures at 1.6× the original miniature scale so body
+size is legible without the old oversized disc. Hitboxes are unchanged. Removed the oversized
+live-marker ring on miniature units. Sniper now has a broad shaggy
+ghillie cloak, Shield has heavier armor/shoulders, and both factions share the same alpha mask
+per sculpt. New generic fallen figures have no weapon, head toward +x, sprawled limbs and
+restrained blood stains. Fallen art is also used for infantry whose standing pilot art is
+not delivered yet; vehicle wreck handling is unchanged.
+
+Bases disappear on infantry death. A presentation-only deathDirection in soldier state/view
+points away from the lethal hit's origin/blast center, survives snapshots, and does not alter
+collision or damage rules. Renderer offsets the corpse 1.25 sprite radii along it; directionless
+deaths fall along last facing. Added north/east/west death examples to the gallery and tests
+for lethal-source selection, snapshot/view propagation and displaced corpse pose.
+
+Updated rotation/swarm sheets to use the same base ratio as the game. Checker warnings about
+soft pixels on fallen art come from antialiased limbs and small blood spatters (visually
+reviewed; no baked shadow/glow). The pre-existing rifleman faction contour warning remains.
+
 ## 2026-11-17 — correct the undersized sniper
 
 The first normalization shrank the entire sniper to accommodate its long rifle, leaving its

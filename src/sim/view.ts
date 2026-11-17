@@ -29,6 +29,8 @@ export interface SoldierView {
   leadIn: boolean;
   /** (02-a) Dead soldiers only: what killed them ('turret', 'mine', 'vehicle', 'bridgeCollapse'). */
   deathCause?: string;
+  /** Presentation only: corpse falls along this direction, away from the lethal hit. */
+  deathDirection?: number;
   /** (07-c) Role ([D36]); absent = 'rifleman'. */
   roleId?: RoleId;
   /** (07-c) Grenadier winding up a throw: 0..1 of the ring ([D37]). */

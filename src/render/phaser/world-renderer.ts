@@ -21,7 +21,8 @@ import { cueContextFromView, eventCues, type Cue, type TracerStyle } from '../ev
 import { rectViewCenter } from '../geometry';
 import { interpPos, lerp, lerpAngle, nearById, SNAP_DISTANCE } from '../interp';
 import { emptyVisual, soldierVisual } from '../soldier-style';
-import { pilotMiniature } from '../pilot-miniatures';
+import { pilotMiniature, corpsePose } from '../pilot-miniatures';
+import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
 import type { SoundBank } from './sound-bank';
@@ -762,24 +763,30 @@ export class WorldRenderer {
       }
       const mini = pilotMiniature(s.roleId, s.role, s.alive);
       const texture = mini?.figure ?? v.texture;
-      const opacity = mini && !s.alive ? v.alpha * 0.55 : v.alpha;
+      const opacity = mini && !s.alive ? Math.max(v.alpha, 0.55) : v.alpha;
+      const pose = mini && !s.alive ? corpsePose(px, py, s.deathDirection ?? s.facing, r) : null;
+      const figureX = pose?.x ?? px;
+      const figureY = pose?.y ?? py;
+      const figureFacing = pose?.facing ?? facing;
       if (mini) {
         v.label = null; // Numbers stay on the timeline, not the miniature.
-        const scale = (r * 2) / fitPx(mini.base);
-        this.miniatureBases
-          .get(s.id)
-          .setTexture(mini.base)
-          .setPosition(px, py)
-          .setRotation(0)
-          .setScale(scale)
-          .setAlpha(opacity)
-          .setDepth(v.depth - 0.1);
+        const scale = (r * 2) / fitPx(mini.figure);
+        if (mini.base) {
+          this.miniatureBases
+            .get(s.id)
+            .setTexture(mini.base)
+            .setPosition(px, py)
+            .setRotation(0)
+            .setScale(scale * INFANTRY_BASE_SCALE)
+            .setAlpha(opacity)
+            .setDepth(v.depth - 0.1);
+        }
         this.miniatureShadows
           .get(s.id)
           .setTexture('mini_shadow_infantry')
-          .setPosition(px + shadowDx, py + shadowDy)
+          .setPosition(figureX + shadowDx, figureY + shadowDy)
           .setRotation(0)
-          .setScale(scale)
+          .setScale(scale * (s.alive ? INFANTRY_BASE_SCALE : 0.8))
           .setAlpha(opacity)
           .setDepth(v.depth - 0.2);
       }
@@ -787,8 +794,8 @@ export class WorldRenderer {
       // (06-c) Only touch what changed: most soldiers in a crowd (corpses, statics, waiting
       // echoes) are still, and each setter call stores fresh numbers on the sprite.
       spr.setTexture(texture).setDepth(v.depth);
-      if (spr.x !== px || spr.y !== py) spr.setPosition(px, py);
-      if (spr.rotation !== facing) spr.setRotation(facing);
+      if (spr.x !== figureX || spr.y !== figureY) spr.setPosition(figureX, figureY);
+      if (spr.rotation !== figureFacing) spr.setRotation(figureFacing);
       // (PHASE12-b) Vehicles: the sprite grows to the body; a hull and turret go on top.
       const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
       if (vBody > 0) {
@@ -803,7 +810,8 @@ export class WorldRenderer {
           alpha: opacity,
         });
       }
-      const scale = ((vBody > 0 ? vBody : r) * 2) / fitPx(texture);
+      const scale =
+        (((vBody > 0 ? vBody : r) * 2) / fitPx(texture)) * (mini ? INFANTRY_FIGURE_SCALE : 1);
       if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
       if (spr.alpha !== opacity) spr.setAlpha(opacity);
       // (PHASE12-d) The role icon on the circle, upright so it reads at a glance.
@@ -824,7 +832,7 @@ export class WorldRenderer {
         this.livePosBuf.y = py;
         this.livePos = this.livePosBuf;
       }
-      if (v.liveMarker) {
+      if (v.liveMarker && !mini) {
         const m = this.liveMarkers.get(s.id);
         const pulse = 1 + 0.06 * Math.sin(now / 160);
         m.setTexture('soldier_live_marker')

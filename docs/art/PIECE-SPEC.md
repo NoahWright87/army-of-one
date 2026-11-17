@@ -1,7 +1,8 @@
 # Piece spec: layers, sizes, roles, files
 
 All sizes are in **art pixels**. The game draws about **3.1 art px per world unit** everywhere, so
-every layer of one piece shares one scale. Soldiers appear about 32 px across on a normal screen
+figure art uses that normalization. For readability the renderer draws infantry figures at
+1.6× and their foot bases at 0.55× the original scale ([D124]). Soldiers appear about 32 px across on a normal screen
 (their 100 px base is scaled down about 3×), so everything below is designed to survive heavy
 downscaling.
 
@@ -38,7 +39,7 @@ Drawn bottom to top, all centered on the same point (the piece's position):
   the *middle* of a hull, the *hub* of a turret. Weapons stick out; bodies do not wander.
 - A transparent margin of at least 2 px on every side (more where the table says).
 - `fitPx` is what the renderer maps onto the soldier's logical size; it is listed per base below and
-  is shared by that unit's base and figure, so *do not rescale one without the other*.
+  is shared by that unit's base and figure, so *keep art normalization unchanged; the renderer deliberately scales infantry bases to 0.55× and figures to 1.6× ([D124])*.
 
 ## 2. Bases
 
@@ -67,7 +68,7 @@ Base surface and finish details are in [STYLE-BIBLE.md](STYLE-BIBLE.md). In game
 | Echo (a past life) | `gold-tarnished` (the figure is drawn semi-transparent by the engine) |
 | Static remnant (recording ran out) | `gold-tarnished` plus a flicker/scanline overlay (engine) |
 | Enemy | `silver` |
-| Dead | the unit's usual finish, dimmed by the engine, with the *fallen* figure on it |
+| Dead | no base; unarmed fallen figure displaced along the lethal hit direction ([D125]) |
 | *(reserved)* other players | `silver-tarnished` |
 
 ## 3. Infantry figures
@@ -105,8 +106,8 @@ paint scheme and by helmet *shape* only.
 | `rifleman` | helmet + rifle straight forward | Steel helmet; rifle in both hands pointing +x; small pack/bedroll on the back (−x). The plain baseline soldier: draw this first. |
 | `grenadier` | helmet + one arm out holding a ball | Helmet; satchel/pouches; **no rifle**; one arm cocked forward holding a pineapple grenade (draw the grenade bold and round, ~12 px). |
 | `gunner` | helmet + gun with a splayed bipod | Light machine gun with bipod legs folded **out** in front, ammo belt draped from the gun to a box on one side; a heavier, planted pose. |
-| `sniper` | **very long thin gun** | Slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching to about +62 (the longest weapon), small scope bump on top. |
-| `shield` | **a big curved slab across the front** | Low helmet tucked behind a heavy curved ballistic shield spanning the front arc (about 135°, roughly y = −42…+42) at x ≈ +22…+34; sidearm hand peeking past the edge. |
+| `sniper` | **very long thin gun** | Broad ragged ghillie cloak and hood, unmistakable bush-like outline; long scoped rifle. Body stays comparable in size to other infantry. |
+| `shield` | **a big curved slab across the front** | Beefy armored shoulders and thick arms; low helmet tucked behind a heavy curved ballistic shield spanning the front arc (about 135°, roughly y = −42…+42) at x ≈ +22…+34; sidearm hand peeking past the edge. |
 | `shotgun` | bulkier body, short fat gun | Heavy padded shoulders (the widest infantry body, up to ~58 px across), helmet, short pump shotgun forward to ~+46, shell bandolier across the chest. |
 | `bazooka` | **a tube through the body** | Helmet; long rocket tube on the shoulder extending BOTH forward (to ~+58) and behind (to ~−52); the only figure with a front/back-symmetric silhouette. Shows the back-blast flare at the −x end. |
 
@@ -116,10 +117,10 @@ silhouette; if two roles look alike, change the weapon, not the paint.
 ### `fallen` (dead soldier)
 
 One generic image per faction (`figure_fallen_ally`, `figure_fallen_enemy`), 128×128: the **same kind
-of miniature knocked over**, lying flat across the base, helmet and a dropped weapon visible,
-feet toward +x, body centered on the pivot (it rotates with the soldier's last facing). Darker and
+of miniature knocked over**, lying flat on the ground, helmet visible, no weapon, limbs sprawled with restrained blood marks. Head toward +x,
+body centered on the pivot; the renderer rotates and offsets it away from the lethal damage source. Darker and
 lower contrast than a standing figure so it reads as background. Role-agnostic on purpose: the engine
-puts it on whichever base the role used.
+draws it without a base.
 
 ## 4. Vehicles
 
@@ -170,12 +171,12 @@ show the owner** (README.md workflow). Total: 49 files.
 | [x] | `base_octagon_silver-tarnished.png` | 128×128 | octagon base, **silver-tarnished** finish |
 | [x] | `figure_rifleman_ally.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
 | [x] | `figure_rifleman_enemy.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
-| [x] | `figure_sniper_ally.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
-| [x] | `figure_sniper_enemy.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
+| [x] | `figure_sniper_ally.png` | 128×128 | Sniper: broad shaggy ghillie cloak and hood, long scoped rifle; full-sized body. |
+| [x] | `figure_sniper_enemy.png` | 128×128 | Sniper: broad shaggy ghillie cloak and hood, long scoped rifle; full-sized body. |
 | [x] | `figure_shield_ally.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
 | [x] | `figure_shield_enemy.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
-| [x] | `figure_fallen_ally.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
-| [x] | `figure_fallen_enemy.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
+| [x] | `figure_fallen_ally.png` | 128×128 | Unarmed fallen miniature: head toward +x, sprawled limbs, restrained blood marks; no base. |
+| [x] | `figure_fallen_enemy.png` | 128×128 | Unarmed fallen miniature: head toward +x, sprawled limbs, restrained blood marks; no base. |
 | [x] | `shadow_infantry.png` | 160×160 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
 
 #### Tier 2

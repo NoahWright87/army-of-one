@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ASSET_MANIFEST, fitPx } from '../content/assets';
-import { pilotMiniature } from './pilot-miniatures';
+import { pilotMiniature, corpsePose } from './pilot-miniatures';
 
 describe('pilot miniature layers', () => {
   it('changes ownership through the base finish while keeping the allied sculpt', () => {
@@ -17,17 +17,17 @@ describe('pilot miniature layers', () => {
     });
   });
 
-  it('uses the fallen faction on the role’s usual base shape and finish', () => {
+  it('removes the base and selects an unarmed fallen figure on death', () => {
     expect(pilotMiniature('shield', 'live', false)).toEqual({
-      base: 'mini_base_octagon_gold',
+      base: null,
       figure: 'mini_figure_fallen_ally',
     });
     expect(pilotMiniature('shield', 'echo', false)).toEqual({
-      base: 'mini_base_octagon_gold_tarnished',
+      base: null,
       figure: 'mini_figure_fallen_ally',
     });
     expect(pilotMiniature('shield', 'enemy', false)).toEqual({
-      base: 'mini_base_octagon_silver',
+      base: null,
       figure: 'mini_figure_fallen_enemy',
     });
   });
@@ -35,8 +35,25 @@ describe('pilot miniature layers', () => {
   it('falls back for undelivered roles, including vehicles', () => {
     for (const role of ['grenadier', 'gunner', 'shotgun', 'bazooka', 'truck', 'tank'] as const) {
       expect(pilotMiniature(role)).toBeNull();
-      expect(pilotMiniature(role, 'enemy', false)).toBeNull();
+      if (role === 'truck' || role === 'tank') {
+        expect(pilotMiniature(role, 'enemy', false)).toBeNull();
+      } else {
+        expect(pilotMiniature(role, 'enemy', false)).toEqual({
+          base: null,
+          figure: 'mini_figure_fallen_enemy',
+        });
+      }
     }
+  });
+
+  it('places a corpse away from the former base along the lethal hit direction', () => {
+    const south = corpsePose(100, 200, Math.PI / 2, 16);
+    expect(south.x).toBeCloseTo(100);
+    expect(south.y).toBeGreaterThan(216);
+    expect(south.facing).toBe(Math.PI / 2);
+    const west = corpsePose(100, 200, Math.PI, 16);
+    expect(west.x).toBeLessThan(84);
+    expect(west.y).toBeCloseTo(200);
   });
 
   it('loads every chosen layer through the manifest at a shared scale', () => {
@@ -46,6 +63,7 @@ describe('pilot miniature layers', () => {
         for (const alive of [true, false]) {
           const p = pilotMiniature(role, state, alive)!;
           for (const key of [p.base, p.figure] as const) {
+            if (key === null) continue;
             expect(ASSET_MANIFEST.some((a) => a.key === key)).toBe(true);
             expect(fitPx(key)).toBe(100);
           }

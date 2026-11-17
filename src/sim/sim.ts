@@ -315,6 +315,7 @@ export function getView(world: World): WorldView {
           : (s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static')),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
+      ...(s.deathDirection !== undefined ? { deathDirection: s.deathDirection } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
       ...(s.drive ? { turret: s.drive.turret } : {}),
       ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'

@@ -12,8 +12,8 @@ images are only the *pieces*.
 ## Era and tone
 
 Loosely **World War II**: steel helmets, bolt/semi-auto rifles, light machine guns, bazookas, trucks,
-tanks. It is a model of a war, not a depiction of one: chunky, toy-like and good-natured. No gore, no
-blood, no faces needing expression.
+tanks. It is a model of a war, not a depiction of one: chunky, toy-like and good-natured. No explicit gore or faces needing expression. Restrained blood marks on unarmed fallen figures
+are allowed by the updated owner direction ([D125]).
 
 - Keep everything **generic**. No real national insignia, flags, crosses, runes, unit patches or any
   hate symbols. Factions are told apart by *paint scheme and helmet silhouette only*.
@@ -115,6 +115,13 @@ Test: rotate the picture 90° and 180° in your head. If it would look "wrong", 
 ## Forbidden list (quick scan)
 
 Front/side/3-4 views · perspective · cast shadows · directional light · glow · text/numbers ·
-real-world insignia or flags · faces looking at the camera · blood/gore · 3D renders that look
+real-world insignia or flags · faces looking at the camera · explicit gore · 3D renders that look
 photographic with depth of field · different styles between files · busy fine detail that disappears
 at 32 px.
+
+## Updated pilot direction ([D124]–[D125])
+
+Bases are foot-sized supports, at 0.55× the original display scale, with figures at 1.6×: bodies overhang and mostly cover
+the metal. No oversized live-marker ring on miniature units. Snipers have a broad shaggy
+ghillie silhouette; Shield units have beefier padded armor. On death the base vanishes and an
+unarmed sprawled body falls beside its former position along the lethal hit direction.

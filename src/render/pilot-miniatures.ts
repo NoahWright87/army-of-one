@@ -1,10 +1,11 @@
 /** Delivered pilot only. Unsupported roles retain the original renderer. */
+import { CORPSE_OFFSET_RADII } from '../content/miniatures';
 import type { ImageKey } from '../content/assets';
 import type { RoleId } from '../contracts/mission';
 import type { SoldierRole } from '../sim/view';
 
 export interface MiniaturePiece {
-  base: ImageKey;
+  base: ImageKey | null;
   figure: ImageKey;
 }
 
@@ -20,9 +21,9 @@ function pieces(
     live: { base: gold, figure: ally },
     echo: { base: tarnished, figure: ally },
     enemy: { base: silver, figure: enemy },
-    fallenLive: { base: gold, figure: 'mini_figure_fallen_ally' },
-    fallenAlly: { base: tarnished, figure: 'mini_figure_fallen_ally' },
-    fallenEnemy: { base: silver, figure: 'mini_figure_fallen_enemy' },
+    fallenLive: { base: null, figure: 'mini_figure_fallen_ally' },
+    fallenAlly: { base: null, figure: 'mini_figure_fallen_ally' },
+    fallenEnemy: { base: null, figure: 'mini_figure_fallen_enemy' },
   };
 }
 
@@ -39,8 +40,20 @@ export function pilotMiniature(
   alive = true,
 ): MiniaturePiece | null {
   const set = PILOT[roleId];
-  if (!set) return null;
+  if (!set) {
+    if (alive || roleId === 'truck' || roleId === 'tank') return null;
+    return role === 'enemy' ? PILOT.rifleman!.fallenEnemy : PILOT.rifleman!.fallenAlly;
+  }
   if (!alive)
     return role === 'enemy' ? set.fallenEnemy : role === 'live' ? set.fallenLive : set.fallenAlly;
   return role === 'live' ? set.live : role === 'enemy' ? set.enemy : set.echo;
+}
+
+/** Head points along +x in fallen art. Keep this displacement out of sim collision geometry. */
+export function corpsePose(x: number, y: number, direction: number, radius: number) {
+  return {
+    x: x + Math.cos(direction) * radius * CORPSE_OFFSET_RADII,
+    y: y + Math.sin(direction) * radius * CORPSE_OFFSET_RADII,
+    facing: direction,
+  };
 }

@@ -567,6 +567,18 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   on the timeline; existing lead-in shield/live marker rings remain until restyled, and echo
   opacity stays a setting. Resolves Q60.
 
+- **[D124] Foot-sized bases and distinctive silhouettes (owner, 2026-11-17).** Infantry bases
+  are small foot supports, mostly obscured by the figure; bodies can overhang. The pilot draws
+  bases at 55% of their previous scale, with figures enlarged independently for legibility. Snipers wear shaggy ghillie
+  suits; Shield units have noticeably heavier armor and shoulders. Roles must read by silhouette
+  at gameplay size, not just by color or weapon length.
+- **[D125] Soldiers fall off their bases on death (owner, 2026-11-17).** The base disappears
+  (broken bases are an alternative for a later art pass). The unarmed, sprawled body is placed
+  beside its former position, in the direction the lethal hit travels: a shot from north makes
+  it fall south. Bodies may have restrained blood marks. This supersedes the dead-on-dimmed-base
+  portion of D123 and the original no-blood art brief. This is presentation only: collision,
+  damage, movement and timeline outcomes are unchanged. Directionless deaths use last facing.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

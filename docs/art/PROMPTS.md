@@ -102,8 +102,8 @@ the top-down view, the lack of shadows and the transparent background.
 ```
 {PREAMBLE}
 The same kind of miniature as the attached rifleman, now KNOCKED OVER: lying flat on its side/back
-across the middle of the image, seen from straight above. Helmet and a dropped rifle visible, feet
-toward the right, body centered. Darker, lower contrast and slightly desaturated so it reads as
+across the middle of the image, seen from straight above. Helmet visible, no weapon, sprawled
+limbs and restrained blood stains. Head toward the right, feet toward the left, body centered. Darker, lower contrast and slightly desaturated so it reads as
 background. Paint scheme: {ALLY|ENEMY}.
 ```
 
