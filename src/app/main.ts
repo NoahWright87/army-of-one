@@ -1134,6 +1134,9 @@ function openScene(scene: string): void {
   window.location.assign(url.toString());
 }
 
+/** (PHASE17) Pause between auto-repeated arena fights. */
+const ARENA_REPEAT_MS = 2500;
+
 /** (PHASE17) The dev arena ([D142]): its panel drives the arena scene. */
 async function startArena(): Promise<void> {
   hud.setVisible(false);
@@ -1178,6 +1181,12 @@ async function startArena(): Promise<void> {
         arenaScene.loadFight(panel.config, seed);
       },
       speed: (x) => arenaScene.setSpeed(x),
+      auto: (on) => {
+        autoRepeat = on;
+        tally = { left: 0, right: 0, draws: 0 };
+        panel.showTally(on ? tally : null);
+        if (on && lastWinner) next();
+      },
       batch: (n) =>
         new Promise((resolve) =>
           setTimeout(() => resolve(arena.runArenaBatch(panel.config, n, seed * 1000)), 30),
@@ -1191,9 +1200,38 @@ async function startArena(): Promise<void> {
       { label: str('dev.menu'), href: href(null) },
     ],
   );
+  // Auto-repeat: count each result, then a fresh fight (new seed) a few seconds later.
+  let autoRepeat = false;
+  let tally = { left: 0, right: 0, draws: 0 };
+  let lastWinner: string | null = null;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const next = () => {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(() => {
+      pending = null;
+      if (!autoRepeat) return;
+      seed += 1;
+      lastWinner = null;
+      arenaScene.loadFight(panel.config, seed, true);
+    }, ARENA_REPEAT_MS);
+  };
   arenaScene.hooks = {
     onTap: () => {}, // barriers are buttons now, not placed by tapping
-    onState: (st) => panel.showState(st),
+    onState: (st) => {
+      panel.showState(st);
+      if (!st.winner) {
+        lastWinner = null;
+        return;
+      }
+      if (lastWinner) return; // already counted
+      lastWinner = st.winner;
+      if (!autoRepeat || st.tick === 0) return;
+      if (st.winner === 'left') tally.left++;
+      else if (st.winner === 'right') tally.right++;
+      else tally.draws++;
+      panel.showTally(tally);
+      next();
+    },
     onReady: () => arenaScene.loadFight(panel.config, seed),
   };
   // The scene may have started before the panel loaded.

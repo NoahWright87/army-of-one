@@ -4,6 +4,8 @@ import {
   BARRIER_KINDS,
   PIECE_SIZE,
   arenaMap,
+  arenaStep,
+  createArenaWorld,
   arenaPieces,
   parseArenaConfig,
   runArena,
@@ -70,5 +72,15 @@ describe('dev arena (PHASE17, [D142])', () => {
   it('numbers win: five beat one nearly always', () => {
     const b = runArenaBatch(cfg(1, 5), 6);
     expect(b.right).toBeGreaterThanOrEqual(5);
+  });
+
+  it('everyone springs into action at once', () => {
+    const w = createArenaWorld(cfg(10, 10), 3);
+    const start = new Map(w.state.soldiers.map((x) => [x.id, { x: x.x, y: x.y }]));
+    for (let i = 0; i < 5; i++) arenaStep(w);
+    for (const x of w.state.soldiers) {
+      const p = start.get(x.id)!;
+      expect(Math.hypot(x.x - p.x, x.y - p.y), x.id).toBeGreaterThan(3);
+    }
   });
 });

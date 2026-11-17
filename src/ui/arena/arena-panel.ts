@@ -25,6 +25,8 @@ export interface ArenaPanelActions {
   go(): void;
   reset(): void;
   speed(x: number): void;
+  /** Auto-repeat: after each fight, a fresh one starts by itself. */
+  auto(on: boolean): void;
   batch(n: number): Promise<ArenaBatch>;
 }
 
@@ -77,6 +79,7 @@ const css = `
 .aoo-arena .tools small { font-size: 11px; margin-left: 2px; }
 .aoo-arena .tools button.on { border-color: #ffd34d; background: #2b2a1d; }
 .aoo-arena .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+.aoo-arena .row button.on { border-color: #ffd34d; background: #2b2a1d; }
 .aoo-arena .go { background: #2f6b34; border-color: #4fa356; font-weight: 700; font-size: 15px; padding: 4px 14px; }
 .aoo-arena .score { font-size: 18px; font-weight: 700; margin: 4px 0 8px; }
 .aoo-arena .score .w { color: #ffd34d; }
@@ -87,6 +90,8 @@ export class ArenaPanel {
   private readonly root = el('div', 'aoo-arena');
   private cfg: ArenaConfig;
   private scoreEl = el('div', 'score');
+  private tallyEl = el('div', 'batch');
+  private autoOn = false;
   private batchEl = el('div', 'batch');
 
   constructor(
@@ -103,6 +108,13 @@ export class ArenaPanel {
 
   get config(): ArenaConfig {
     return this.cfg;
+  }
+
+  /** The auto-repeat's running score (empty clears it). */
+  showTally(t: { left: number; right: number; draws: number } | null): void {
+    this.tallyEl.textContent = t
+      ? str('arena.tally', { left: t.left, right: t.right, draws: t.draws })
+      : '';
   }
 
   showState(s: ArenaState): void {
@@ -156,13 +168,20 @@ export class ArenaPanel {
     const reset = el('button', '', '↺');
     reset.title = str('arena.reset');
     reset.onclick = () => this.actions.reset();
-    row.append(go, reset);
+    const auto = el('button', this.autoOn ? 'on' : '', '🔁');
+    auto.title = str('arena.auto');
+    auto.onclick = () => {
+      this.autoOn = !this.autoOn;
+      this.actions.auto(this.autoOn);
+      this.render();
+    };
+    row.append(go, reset, auto);
     for (const x of [1, 2, 4]) {
       const b = el('button', '', `×${x}`);
       b.onclick = () => this.actions.speed(x);
       row.append(b);
     }
-    r.append(row, this.scoreEl);
+    r.append(row, this.scoreEl, this.tallyEl);
 
     const brow = el('div', 'row');
     const batch = el('button', '', `🎲 ×20`);

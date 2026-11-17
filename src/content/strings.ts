@@ -528,6 +528,8 @@ export const STRINGS = {
   'arena.tool.halfWall': 'Half wall',
   'arena.tool.rock': 'Rock (solid)',
   'arena.reset': 'Reset the fight',
+  'arena.auto': 'Repeat: a new fight starts a few seconds after each one ends',
+  'arena.tally': '🔁 🟦 {left} · 🟥 {right} · 🤝 {draws}',
   'arena.sides.none': 'off (tap to put them on the left)',
   'arena.sides.left': 'left half',
   'arena.sides.right': 'right half',

@@ -73,3 +73,13 @@ takes about 4–8 lives working together.
     middle of the foes within `ai.dangerRadius`. `findCoverSpot` also skips cover that's more
     than `ai.coverAdvance` closer to the shooter or doesn't actually block the shooter. After: 3
     of 54.
+11. **Arena start and auto-repeat** (owner): soldiers woke on a staggered half-second check and
+    then wandered to the mid-field rally points at a walk until they saw someone (the sides start
+    ~1,080 apart, sight 600). Now everyone starts awake and thinking, and `arenaStep` gives each
+    soldier without a target the nearest enemy's position every tick (a radar, arena only): all
+    move within 2 ticks, first shot ~1.5 s. 🔁 repeats: 2.5 s after a result a fresh fight (next
+    seed) starts by itself, with a running tally. Two AI fixes found on the way: a rush now
+    gets its doubled leash in the approach clamp too (it stopped short before), rushers keep
+    pushing in on a target hidden behind cover, and protecting a hurt squadmate outranks
+    joining a rush.
+

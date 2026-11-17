@@ -9,12 +9,13 @@ import {
   ARENA_H,
   ARENA_W,
   arenaState,
+  arenaStep,
   createArenaWorld,
   type ArenaConfig,
   type ArenaState,
 } from '../../gen/arena';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
-import { getView, step, type World } from '../../sim/sim';
+import { getView, type World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import type { SceneServices } from './services';
 import { SoundBank } from './sound-bank';
@@ -32,9 +33,9 @@ export interface ArenaHooks {
 interface ArenaData {
   cfg: ArenaConfig;
   seed: number;
+  /** Start fighting at once (auto-repeat). */
+  go?: boolean;
 }
-
-const NO_INPUT = new Map();
 
 export class ArenaScene extends Phaser.Scene {
   hooks: ArenaHooks | null = null;
@@ -84,11 +85,12 @@ export class ArenaScene extends Phaser.Scene {
       },
     );
     this.hooks?.onState(arenaState(this.world));
+    if (this.data0.go) this.running = true;
   }
 
   /** Shows a fresh fight for this setup (not running). */
-  loadFight(cfg: ArenaConfig, seed: number): void {
-    this.scene.restart({ cfg, seed });
+  loadFight(cfg: ArenaConfig, seed: number, go = false): void {
+    this.scene.restart({ cfg, seed, go });
   }
 
   go(): void {
@@ -123,7 +125,7 @@ export class ArenaScene extends Phaser.Scene {
       Math.ceil(4 * this.speed),
     );
     for (let i = 0; i < steps && this.running; i++) {
-      step(this.world, NO_INPUT);
+      arenaStep(this.world);
       const prev = this.view;
       this.view = getView(this.world);
       this.worldRenderer.onStep(prev, this.view, null);

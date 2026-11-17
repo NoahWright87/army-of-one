@@ -505,14 +505,18 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     const ratio = mine / Math.max(1, theirs);
     if (ratio >= t.rushRatio) {
       ai.rushing = true;
-      if (threatD > range * 0.6) {
+      if (threatD > range * 0.6 || !p.targetVisible) {
         scores.approach = Math.max(scores.approach, 1.05);
         ai.charging = threatD > range;
-      } else if (p.targetVisible) {
+        // Can't see it (behind cover): keep pushing in until they can, don't stop at range.
+        if (!p.targetVisible) ai.seekSight = true;
+      } else {
         scores.engage = Math.max(scores.engage, 1.1);
       }
       scores.cover *= 0.5;
       if (!ai.wounded) scores.retreat = Math.min(scores.retreat, 0.5);
+      // Covering a hurt squadmate comes before joining the rush ([D99]).
+      if (scores.protect > 0) scores.protect = Math.max(scores.protect, 1.15);
     } else if (ratio <= 1 / t.fleeRatio && !covered) {
       scores.retreat = Math.max(scores.retreat, 1.0);
     }
@@ -615,7 +619,8 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       dest = clampToLeash(
         { x: s.x + (tp.x - s.x) * k, y: s.y + (tp.y - s.y) * k },
         ai.home,
-        prof.leash,
+        // (PHASE17) A rush goes further from home ([D137]), as the leash check allows.
+        prof.leash * (ai.rushing ? 2 : 1),
       );
       break;
     }

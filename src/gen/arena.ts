@@ -263,17 +263,49 @@ export function arenaState(world: World, maxTicks: Tick = secondsToTicks(180)): 
 }
 
 export function createArenaWorld(cfg: ArenaConfig, seed = 0, base?: Tuning): World {
-  return createWorld(arenaMap(cfg, seed), arenaTuning(base));
+  const w = createWorld(arenaMap(cfg, seed), arenaTuning(base));
+  // Everyone awake and thinking from the first tick: no staggered wake-ups.
+  for (const s of w.state.soldiers) {
+    if (!s.ai) continue;
+    s.ai.awake = true;
+    s.ai.nextThink = 0;
+  }
+  return w;
 }
+
+/**
+ * One arena tick. Before it, every soldier with no target knows where the nearest enemy is (a
+ * radar: the arena is about the fight, not finding each other), so both sides move in at once
+ * and the AI's own sight takes over once they meet.
+ */
+export function arenaStep(world: World): void {
+  const st = world.state;
+  for (const s of st.soldiers) {
+    if (!s.ai || !s.alive || s.ai.targetId) continue;
+    let best: { x: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (const o of st.soldiers) {
+      if (!o.alive || !o.ai || o.team === s.team) continue;
+      const d = (o.x - s.x) ** 2 + (o.y - s.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    if (best) s.ai.lastSeen = { x: best.x, y: best.y, tick: st.tick };
+  }
+  step(world, NO_INPUT);
+}
+
+const NO_INPUT = new Map();
 
 /** Plays one arena fight headless to the end (or `maxTicks`, a draw). */
 export function runArena(cfg: ArenaConfig, seed = 0, maxTicks = secondsToTicks(180)): ArenaState {
   const w = createArenaWorld(cfg, seed);
-  const none = new Map();
   for (;;) {
     const st = arenaState(w, maxTicks);
     if (st.winner) return st;
-    step(w, none);
+    arenaStep(w);
   }
 }
 
