@@ -195,6 +195,8 @@ export const STRINGS = {
   'replay.failed': "Couldn't copy the link",
   'replay.broken': "That replay link doesn't work with this version of the game.",
   'replay.replaceSave': 'Continuing replaces your saved game on this mission. Go ahead?',
+  'library.more': 'Show all ({n} more)',
+  'library.fewer': 'Show fewer',
   'library.title': 'Replays',
   'library.won': '{mission} · {soldiers} soldiers · {time}',
   'library.progress': '{mission} · in progress · {soldiers} soldiers',

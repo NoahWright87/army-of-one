@@ -6,7 +6,7 @@ import {
   generatedMap,
   isRuntimeMission,
 } from './editor-storage';
-import { genMissionId, parseWorldMissionId } from '../gen/mission-id';
+import { genMissionId, parseGenMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -813,11 +813,12 @@ async function startGame(): Promise<void> {
       });
     }
     for (const e of readLibrary(safeLocalStorage())) {
-      const map = findOrGenerate(e.missionId);
-      if (!map) continue;
+      // (PHASE17) The name only: generating a world level's map here took seconds.
+      const nameKey = libraryNameKey(e.missionId);
+      if (!nameKey) continue;
       items.push({
         label: str('library.won', {
-          mission: strDynamic(map.nameKey),
+          mission: strDynamic(nameKey),
           soldiers: e.soldiers,
           time: formatBattleTime(e.battleTicks),
         }),
@@ -1196,4 +1197,13 @@ async function startArena(): Promise<void> {
   };
   // The scene may have started before the panel loaded.
   if (arenaScene.sys.isActive()) arenaScene.loadFight(panel.config, seed);
+}
+
+/** (PHASE17) A saved run's mission name, without building its map; null if it's unknown. */
+function libraryNameKey(missionId: string): string | null {
+  const known = findMap(missionId);
+  if (known) return known.nameKey;
+  if (parseWorldMissionId(missionId)) return 'map.world.name';
+  if (parseGenMissionId(missionId)) return 'map.generated.name';
+  return null;
 }

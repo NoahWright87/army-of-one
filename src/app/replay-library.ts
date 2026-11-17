@@ -6,6 +6,8 @@
 export const LIBRARY_KEY = 'aoo:replays:v1';
 /** Finished runs kept per mission. */
 export const KEEP_PER_MISSION = 3;
+/** (PHASE17) Finished runs kept in all: a campaign adds one per level won. */
+export const KEEP_TOTAL = 12;
 /** Safety cap on the whole list (localStorage is small). */
 export const MAX_LIBRARY_CHARS = 1_500_000;
 
@@ -44,11 +46,13 @@ export function withEntry(list: readonly LibraryEntry[], entry: LibraryEntry): L
     (a, b) => b.savedAt - a.savedAt,
   );
   const per = new Map<string, number>();
-  const kept = all.filter((e) => {
-    const n = (per.get(e.missionId) ?? 0) + 1;
-    per.set(e.missionId, n);
-    return n <= KEEP_PER_MISSION;
-  });
+  const kept = all
+    .filter((e) => {
+      const n = (per.get(e.missionId) ?? 0) + 1;
+      per.set(e.missionId, n);
+      return n <= KEEP_PER_MISSION;
+    })
+    .slice(0, KEEP_TOTAL);
   while (kept.length > 1 && JSON.stringify(kept).length > MAX_LIBRARY_CHARS) kept.pop();
   return kept;
 }

@@ -8,13 +8,17 @@ import { str, strDynamic } from '../../content/strings';
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import { el, injectStyle, setText } from '../dom';
 
+/** (PHASE17) Saved runs shown before "Show all". */
+const LIBRARY_SHOWN = 3;
+
 const CSS = `
-.aoo-screen { position: fixed; inset: 0; z-index: 22; display: flex; align-items: center; justify-content: center;
+.aoo-screen { position: fixed; inset: 0; z-index: 22; display: flex; align-items: flex-start; justify-content: center;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: radial-gradient(ellipse at center, rgba(20,26,32,.92), rgba(8,10,13,.98)); color: #e6e9ec;
   font: 15px/1.4 system-ui, sans-serif; }
 .aoo-screen[hidden] { display: none; }
 .aoo-screen .card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 32px;
-  max-width: min(520px, calc(100% - 32px)); text-align: center; }
+  max-width: min(520px, calc(100% - 32px)); text-align: center; margin: auto 0; }
 .aoo-screen h1 { margin: 0; font-size: 52px; letter-spacing: .04em; color: #ffd34d;
   text-shadow: 0 3px 0 #000, 0 0 24px rgba(255,211,77,.35); }
 .aoo-screen .sub { color: #9fb3c8; margin: 0 0 8px; }
@@ -134,6 +138,7 @@ export interface TitleLibraryItem {
 export class TitleScreen {
   private readonly s;
   private readonly libraryEl = el('div', 'library');
+  private libraryOpen = false;
 
   constructor(parent: HTMLElement) {
     this.s = screen(parent);
@@ -145,7 +150,9 @@ export class TitleScreen {
     this.libraryEl.hidden = items.length === 0;
     if (items.length === 0) return;
     this.libraryEl.append(el('div', 'lib-title', str('library.title')));
-    for (const it of items) {
+    // (PHASE17) The newest few; the rest behind "Show all".
+    const shown = this.libraryOpen ? items : items.slice(0, LIBRARY_SHOWN);
+    for (const it of shown) {
       const row = el('div', 'lib-row');
       row.append(el('span', 'lib-label', it.label));
       const btns = el('span', 'lib-btns');
@@ -156,6 +163,20 @@ export class TitleScreen {
       }
       row.append(btns);
       this.libraryEl.append(row);
+    }
+    if (items.length > LIBRARY_SHOWN) {
+      const more = el(
+        'button',
+        'link',
+        this.libraryOpen
+          ? str('library.fewer')
+          : str('library.more', { n: items.length - LIBRARY_SHOWN }),
+      );
+      more.onclick = () => {
+        this.libraryOpen = !this.libraryOpen;
+        this.setLibrary(items);
+      };
+      this.libraryEl.append(more);
     }
   }
 
