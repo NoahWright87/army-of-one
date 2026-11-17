@@ -66,6 +66,11 @@ todos/            phase plans
 
 ## Placeholder content
 
+The real art direction is **collectible miniatures on gold/silver bases, seen from straight above**
+([D116]–[D121]). If you are drawing or generating that art, start at `docs/art/README.md`; the spec
+is data in `src/content/miniatures.ts` and `npm run check:art` verifies it. Hooking it into the renderer
+is `todos/PHASE16-miniatures.md`.
+
 Everything a human or image/audio model will later replace must be easy to find:
 
 - Placeholder files are named `PLACEHOLDER__<key>.<ext>` (e.g. `PLACEHOLDER__soldier_live.png`,
@@ -96,6 +101,7 @@ npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints 
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the money (--lives a,b --enemies)
 npm run gen -- --seed N  # PHASE13-b: print a generated level (--budget B, --ground; --coverage N sweeps seeds)
+npm run check:art                  # checks the miniature art in assets/miniatures/ (docs/art/; --sheets, --priority N, --require)
 npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```

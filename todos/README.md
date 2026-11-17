@@ -84,6 +84,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [13-c](PHASE13-c.md) | World map board: frame, fill, carve, objectives; generator viewer | 13-b | — | First slice built |
 | [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
+| [16](PHASE16-miniatures.md) | **Miniature pieces**: layered gold/silver-base soldiers and vehicles ([D116]–[D121]); art brief in `docs/art/` | 12-b | art delivery | Planned (art brief + checker built) |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

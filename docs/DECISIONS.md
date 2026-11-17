@@ -532,6 +532,33 @@ objectives.
   strength, a squad falls back to the nearest squad still above `ai.healthyStrength` and
   defends that squad's ground from then on, so tension builds toward strongholds.
 
+## Art direction: collectible miniatures (owner session 2026-11)
+
+Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniatures.ts`.
+
+- **[D116] Pieces are collectible wargame miniatures, seen from straight above.** Soldiers and
+  vehicles are painted miniature figures standing on gold or silver display bases, like pieces on a
+  model war-room table. They slide; there is no walking animation. This replaces the placeholder
+  "icon in a circle" look once the art lands. (WW2-ish, generic: no real insignia.)
+- **[D117] Pieces are layers.** A soft shadow, a **base** that slides along and does not turn with
+  the aim, and a **figure** that rotates on top of it to aim and shoot. Vehicles: the long base and
+  hull turn with the heading and a separate **turret** turns to aim. Every layer shares one pivot (the
+  image center) and faces +x. Layers make later animation easy (recoil, turn lag, tip-over, being
+  "placed" at deploy), no frame animation needed.
+- **[D118] Strictly top-down, and it must survive any rotation.** All art is an orthographic
+  overhead view, with no baked directional light or cast shadow, so figures can aim at any angle and the
+  camera itself can rotate. `npm run check:art` enforces what a script can.
+- **[D119] The base's finish says whose piece it is.** Polished **gold** = the soldier you control;
+  **tarnished gold** = your echoes; **silver** = enemies; **tarnished silver** = reserved for
+  multiplayer / other players. The one thing that must always work: you can find your own soldier in a
+  swarm of echoes. Soldier numbers (S1, S2) are **not** drawn on the pieces.
+- **[D120] A handful of base shapes show the unit class at a glance.** Round for light infantry,
+  angular for armored units (Shield, Shotgunner), long plinths for vehicles. Exactly which role gets
+  which shape is a proposal ([Q59]).
+- **[D121] One sculpt per role, two paint schemes (ally, enemy).** The enemy is the same figure
+  repainted. Art is delivered in tiers (pilot first, then the owner reviews the style before the rest
+  is drawn).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -821,3 +848,15 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   costs anything; what carries over between levels (money, unlocks, bonus blocks [D91]); whether
   a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
   rebuilt from the current blocks, so editing one can change an unfinished campaign's map).
+
+- **[Q59] Which base shape each role stands on (miniature art, [D120]).** Proposed in
+  `BASE_SHAPE_BY_ROLE` (`src/content/miniatures.ts`): **round** = Rifleman, Grenadier, Sniper;
+  **octagon** (armored) = Shield, Shotgunner; **square** (heavy weapons) = Machine Gunner, Bazooka;
+  **long plinths** = Gun truck, Tank. The owner only asked for "angular for the armored ones"; the
+  square class is a guess. Every infantry shape is drawn in every finish, so changing a role's shape
+  later needs no new art.
+- **[Q60] How the other states look in miniature form (PHASE16).** Proposed: a *static remnant* is
+  the tarnished-gold base plus the existing flicker/scanline overlay; a *dead* soldier is the
+  "fallen" figure on a dimmed base; the X/O rescue marks stay on the timeline UI, not on the pieces;
+  the lead-in shield ring and the live marker ring keep their existing sprites (restyled later). Echo
+  opacity stays a setting. Is that right?
