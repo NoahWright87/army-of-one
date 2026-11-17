@@ -90,7 +90,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [14](PHASE14.md) | **Campaign**: carry-over, world map story, reports ([D116]–[D126]) | 13-d | — | Planned |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
 | [16](PHASE16.md) | **Pacing & difficulty**: shorter levels, weaker AI, regen, Easy/Normal/Hard, pacing benchmark ([D127]–[D135]) | 14-a | 14-b, 14-c | Planned |
-| [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | In progress |
+| [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | Built |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

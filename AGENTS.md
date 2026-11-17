@@ -98,7 +98,7 @@ npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the m
 npm run sim -- --scenario pacing  # PHASE16: bots brute-force campaign levels, print lives/time to win
                           # (--seeds 11,42 --levels 3 --difficulty easy,normal,hard --cap 120 --json)
 npm run gen -- --seed N  # PHASE13-b: print a generated level (--budget B, --ground; --coverage N sweeps seeds)
-npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
+npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03; --hitscan: bullets off)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
@@ -185,6 +185,14 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   [D136]: only exits are capture points (`carve.extraCapturePoints`; ingress points in
   `src/gen/ingress.ts` are off), many weaker enemies (`ai.enemyHpScale`/`enemyDamageScale`),
   exits guarded (`carve.exitGuardWeight`, `exitHoldRadius`).
+  PHASE17 ([D137]–[D145]): enemies rush when they outnumber you and flee when outnumbered,
+  heal and regroup (`tuning.ai`); a level is won by every exit + a key position (entries you
+  hold start green) or by killing every enemy (`map.winByKillAll`); flag/helmet icons on the
+  HUD; walled bases are breached into play (`breachPockets`); tech points buy roles
+  (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`).
+- Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
+  side by role, HUMAN / CPU presets, cover by tapping, GO, and 20 headless fights for win rates
+  (`src/gen/arena.ts`). The AI can drive either side (`SquadDef.team`, `SquadDef.skill`).
   Spawn points carry an `approach` path: new soldiers and echoes run in along it during the
   lead-in (`src/render/run-in.ts`, drawn by the battle scene; for show only, [D112]).
 - World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board
