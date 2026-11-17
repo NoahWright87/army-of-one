@@ -8,6 +8,7 @@ import { edgesMatch, sideProfiles } from '../edges';
 import { blockTiles, connect, growBoard, Palette, seamMatches, type GrownCell } from '../grow';
 import { parseWorldMissionId, worldMissionId } from '../mission-id';
 import { generateWorld, worldLevelMap } from '../world';
+import { levelTags } from '../campaign';
 
 const W = BLOCK_TUNING.world;
 const key = (w: ReturnType<typeof generateWorld>) =>
@@ -299,6 +300,42 @@ describe('islands, pockets, exit spawns ([D108], [D111])', () => {
         expect(
           m.map.spawnPoints.some((s) => s.kind === 'capture' && s.capturePointId === f.id),
         ).toBe(true);
+      }
+    }
+  });
+});
+
+describe('walled bases ([D143], PHASE17)', () => {
+  it('get a way in and are played, as elite levels', () => {
+    let checked = 0;
+    for (const seed of [42, 2]) {
+      const w = generateWorld(OFFICIAL_BLOCKS, { seed });
+      const tags = levelTags(w);
+      for (const [y, x] of w.fortresses) {
+        const lv = w.owner[y * w.tiles.w + x]!;
+        expect(lv, `seed ${seed} fortress at ${y},${x}`).toBeGreaterThanOrEqual(0);
+        expect(w.tiles.walk[y * w.tiles.w + x]).toBe(1);
+        if (lv !== w.hq) expect(tags[lv]![0]).toEqual({ kind: 'elite' });
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe('no trivially short levels ([D143], PHASE17)', () => {
+  it('the key position is well away from every entry and exit', () => {
+    const w = generateWorld(OFFICIAL_BLOCKS, { seed: 11 });
+    const cs = BLOCK_TUNING.cellSize;
+    const min = BLOCK_TUNING.carve.keyKeepAway * cs;
+    for (const lv of w.levels) {
+      const cps = worldLevelMap(w, lv.index, { id: 'x', nameKey: 'x' }).map.capturePoints ?? [];
+      const key = cps.find((c) => c.id === 'key');
+      if (!key) continue;
+      for (const c of cps) {
+        if (c.id === 'key') continue;
+        const d = Math.hypot(c.position.x - key.position.x, c.position.y - key.position.y);
+        expect(d, `level ${lv.index}: ${c.id}`).toBeGreaterThanOrEqual(min - cs);
       }
     }
   });

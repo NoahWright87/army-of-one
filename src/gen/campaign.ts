@@ -367,6 +367,12 @@ export function levelTags(world: GeneratedWorld): LevelTag[][] {
     const firstBand = world.levels[lv]!.band === 0;
     if (big || (!firstBand && nextFloat(rng) < t.eliteShare)) tags[lv]!.unshift({ kind: 'elite' });
   }
+  // (PHASE17) Breached walled bases are elite ([D143]).
+  for (const [y, x] of world.fortresses ?? []) {
+    const lv = world.owner[y * world.tiles.w + x] ?? -1;
+    if (lv < 0 || lv === world.hq) continue;
+    if (!tags[lv]!.some((t) => t.kind === 'elite')) tags[lv]!.unshift({ kind: 'elite' });
+  }
   tagCache.set(world, tags);
   return tags;
 }

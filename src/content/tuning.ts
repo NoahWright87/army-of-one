@@ -1088,6 +1088,8 @@ export const BLOCK_TUNING = {
     orphanReach: 20, // TUNE
     /** Islands this big (tiles) get a bridge if one this long (tiles) reaches the mainland. */
     islandMinTiles: 80, // TUNE
+    /** (PHASE17) Walled-in ground this big (tiles) gets a breach cut into it ([D143]). */
+    pocketMinTiles: 60, // TUNE
     maxBridge: 12, // TUNE
     /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
     borderSlack: 3, // TUNE
