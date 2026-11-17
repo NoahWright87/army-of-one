@@ -56,7 +56,7 @@ export interface Tuning {
      * without damage, `perSecond` HP back, up to max. perSecond 0 = off (Hard). Not vehicles,
      * not enemies.
      */
-    regen: { perSecond: number; delaySeconds: number };
+    regen: { perSecond: number; delaySeconds: number; enemies: boolean };
     /** Walking speed, units/second. */
     speed: number;
     /** Visual size of the sprite ([D14]: largest). */
@@ -327,6 +327,22 @@ export interface Tuning {
      */
     enemyHpScale: number;
     enemyDamageScale: number;
+    /**
+     * (PHASE17) Numbers ([D137]): an enemy counts awake allies within `numbersRadius` (+1 for
+     * itself) against our soldiers within it of its target; at `rushRatio`× or more it rushes
+     * in, at `fleeRatio`× fewer it flees.
+     */
+    numbersRadius: number;
+    rushRatio: number;
+    fleeRatio: number;
+    /** (PHASE17) Sprint to cover only when it's this close; else walk there shooting. */
+    coverSprintRadius: number;
+    /**
+     * (PHASE17) Regroup ([D138]): a wounded soldier healed back to `regroupHp` joins the best
+     * squad within `regroupRadius` (more living soldiers; one holding a point counts extra).
+     */
+    regroupHp: number;
+    regroupRadius: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
     /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
@@ -586,13 +602,13 @@ const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc
 export const DEFAULT_TUNING: Tuning = {
   soldier: {
     maxHp: 100, // TUNE
-    regen: { perSecond: 2, delaySeconds: 5 }, // TUNE [D133]: 50 s from empty to full
+    regen: { perSecond: 2, delaySeconds: 5, enemies: true }, // TUNE [D133], [D138]
     speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
     wallRadius: 10, // TUNE
-    sprintMultiplier: 1.6, // TUNE
+    sprintMultiplier: 1.9, // TUNE [D144]: worth it (was 1.6)
   },
   rifle: {
     damage: 25, // TUNE
@@ -807,9 +823,9 @@ export const DEFAULT_TUNING: Tuning = {
     wakeRadius: 900, // TUNE: about a screen and a half
     sleepRadius: 1300, // TUNE
     thinkSeconds: 0.25, // TUNE
-    sightRange: 450, // TUNE [D132]: under the rifle's 520, so you can outrange them
+    sightRange: 600, // TUNE [D137]: past the rifle's 520 again
     memorySeconds: 4, // TUNE
-    reactionSeconds: 0.7, // TUNE: [D47] beatable on purpose; [D132] slower
+    reactionSeconds: 0.35, // TUNE: [D47] beatable on purpose; [D137] quicker again
     aimError: 0.05, // TUNE: about ±3°
     commitSeconds: 0.8, // TUNE
     coverSearchRadius: 260, // TUNE
@@ -819,11 +835,17 @@ export const DEFAULT_TUNING: Tuning = {
     maxCandidates: 6, // TUNE
     replanSeconds: 1, // TUNE
     movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
-    distanceAimError: 0.06, // TUNE [D132]: ±3.4° more at 500 units
-    burstSeconds: 1.2, // TUNE [D132]
-    burstPauseSeconds: 0.8, // TUNE [D132]
-    enemyHpScale: 0.6, // TUNE [D136]: a rifleman goes down in about two hits fewer
-    enemyDamageScale: 0.7, // TUNE [D136]
+    distanceAimError: 0.02, // TUNE [D132], [D137]: ±1.1° more at 500 units
+    burstSeconds: 1.5, // TUNE [D132]
+    burstPauseSeconds: 0.4, // TUNE [D137]
+    enemyHpScale: 1, // TUNE [D136], [D137]: full strength again
+    enemyDamageScale: 1, // TUNE [D136], [D137]
+    numbersRadius: 450, // TUNE [D137]
+    rushRatio: 2, // TUNE [D137]: twice as many rush
+    fleeRatio: 2, // TUNE [D137]: half as many flee
+    coverSprintRadius: 140, // TUNE [D137]
+    regroupHp: 0.9, // TUNE [D138]
+    regroupRadius: 2000, // TUNE [D138]
     sprints: true, // TUNE
     roamSpacing: 70, // TUNE
     attackedSeconds: 3, // TUNE
@@ -1111,8 +1133,8 @@ export const BLOCK_TUNING = {
     /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
     rows: 60, // TUNE
     /** Enemy budget per block in the first band and the last field band ([D86]). */
-    budgetPerBlockFirst: 25, // TUNE [D131], [D136]: more (weaker) enemies
-    budgetPerBlockLast: 70, // TUNE [D131], [D136]
+    budgetPerBlockFirst: 18, // TUNE [D131], [D136], [D137]: full-strength enemies again
+    budgetPerBlockLast: 50, // TUNE [D131], [D136], [D137]
     /** The enemy base's band gets this much more per block. */
     baseBudgetBonus: 1.3, // TUNE
   },

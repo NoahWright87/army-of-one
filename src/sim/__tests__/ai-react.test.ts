@@ -56,8 +56,8 @@ describe('reacting to being shot', () => {
     };
     const shotgun = outcome('shotgun');
     expect(shotgun.ai!.behavior).toBe('approach');
-    expect(shotgun.ai!.charging).toBe(true);
-    expect(shotgun.x).toBeLessThan(780);
+    // (PHASE17) It sprints in fast enough to be in range by now ([D144]).
+    expect(shotgun.x).toBeLessThan(600);
     const grenadier = outcome('grenadier');
     expect(grenadier.ai!.behavior).toBe('retreat');
   });

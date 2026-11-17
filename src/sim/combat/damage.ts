@@ -183,7 +183,8 @@ export function detonateMine(world: World, index: number, by: string): void {
 }
 
 /**
- * (PHASE16) Slight regeneration ([D133]): our soldiers (not vehicles, not enemies) unhurt for
+ * (PHASE16) Slight regeneration ([D133]): soldiers (not vehicles; enemies too with
+ * `regen.enemies`, [D138]) unhurt for
  * `soldier.regen.delaySeconds` get `perSecond` HP back, up to max.
  */
 export function stepRegen(world: World): void {
@@ -192,9 +193,9 @@ export function stepRegen(world: World): void {
   const tick = world.state.tick;
   const wait = secondsToTicks(r.delaySeconds);
   for (const s of world.state.soldiers) {
-    if (!isEligible(s) || s.team === 'enemy' || s.drive) continue;
+    if (!isEligible(s) || s.drive || (s.team === 'enemy' && !r.enemies)) continue;
     if (s.hurtTick !== undefined && tick - s.hurtTick < wait) continue;
-    const max = soldierMaxHp(world.tuning, s.roleId);
+    const max = soldierMaxHp(world.tuning, s.roleId, s.team);
     if (s.hp < max) s.hp = Math.min(max, s.hp + r.perSecond / 60);
   }
 }

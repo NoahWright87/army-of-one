@@ -24,18 +24,22 @@ describe('regeneration ([D133])', () => {
     expect(s.hp).toBe(100);
   });
 
-  it('is off with perSecond 0, and never heals enemies', () => {
+  it('is off with perSecond 0; enemies heal only with regen.enemies ([D138])', () => {
     const off = world(arena(), { ai: { enabled: false }, soldier: { regen: { perSecond: 0 } } });
     const a = getSoldier(off, soldierAt(off, { x: 500, y: 500 }))!;
     damageSoldier(off, a, 40, undefined, 'test');
     run(off, 20 * 60);
     expect(a.hp).toBe(60);
 
-    const w = world(arena(), { ai: { enabled: false } });
-    const e = getSoldier(w, soldierAt(w, { x: 500, y: 500 }))!;
-    e.team = 'enemy';
-    damageSoldier(w, e, 40, undefined, 'test');
-    run(w, 20 * 60);
-    expect(e.hp).toBe(60);
+    const heal = (enemies: boolean) => {
+      const w = world(arena(), { ai: { enabled: false }, soldier: { regen: { enemies } } });
+      const e = getSoldier(w, soldierAt(w, { x: 500, y: 500 }))!;
+      e.team = 'enemy';
+      damageSoldier(w, e, 40, undefined, 'test');
+      run(w, 20 * 60);
+      return e.hp;
+    };
+    expect(heal(false)).toBe(60);
+    expect(heal(true)).toBeGreaterThan(80);
   });
 });

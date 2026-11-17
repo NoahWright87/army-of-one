@@ -31,10 +31,11 @@ export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyDef>> = {
     tuning: {
       soldier: { regen: { perSecond: 4, delaySeconds: 3 } }, // TUNE
       ai: {
-        sightRange: 400, // TUNE
-        reactionSeconds: 0.9, // TUNE
+        sightRange: 520, // TUNE: your rifle's range
+        reactionSeconds: 0.55, // TUNE
         aimError: 0.08, // TUNE
-        distanceAimError: 0.09, // TUNE
+        distanceAimError: 0.05, // TUNE
+        rushRatio: 3, // TUNE: they need more of an edge to rush
       },
     },
   },
@@ -53,11 +54,12 @@ export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyDef>> = {
     tuning: {
       soldier: { regen: { perSecond: 0 } }, // [D133]: off on Hard
       ai: {
-        sightRange: 560, // TUNE: on Hard they see a little past your rifle's 520
-        reactionSeconds: 0.5, // TUNE
+        sightRange: 650, // TUNE
+        reactionSeconds: 0.25, // TUNE
         aimError: 0.05, // TUNE
-        distanceAimError: 0.03, // TUNE
-        burstPauseSeconds: 0.5, // TUNE
+        distanceAimError: 0.01, // TUNE
+        burstPauseSeconds: 0.25, // TUNE
+        rushRatio: 1.5, // TUNE
       },
     },
   },

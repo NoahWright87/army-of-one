@@ -91,6 +91,8 @@ export interface AiState {
   reinforce?: boolean;
   /** (PHASE13) Badly hurt once: never advances again; falls back once, then fights from there. */
   wounded?: boolean;
+  /** (PHASE17) Outnumbering its target's side: rushing in ([D137]). */
+  rushing?: boolean;
   /** Wounded and already at its fallback spot. */
   fellBack?: boolean;
   /** Closing in on a shooter who outranges it: sprints. */
@@ -202,7 +204,10 @@ export function stepAi(
   const ours = st.soldiers.filter(isOurEligible);
   // (PHASE13) A hit tells the soldier (and its squad) where the shot came from.
   for (const e of lastEvents) if (e.kind === 'damaged' && e.by) hearHit(world, e.target, e.by);
-  if (st.tick % 60 === 0) checkRouts(world);
+  if (st.tick % 60 === 0) {
+    checkRouts(world);
+    checkRegroups(world); // (PHASE17) [D138]
+  }
   for (const s of st.soldiers) {
     const ai = s.ai;
     if (!ai || !s.alive) continue;
@@ -481,11 +486,34 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   if (ally?.alive && ally.ai?.lastSeen && prof.protect > 0 && !ai.wounded) {
     scores.protect = 0.4 + prof.protect * 0.6;
   }
-  if (ai.wounded || cautious) scores.approach = 0;
+  // (PHASE17) Numbers ([D137]): outnumbering the soldiers around their target, they rush in
+  // (and stop to shoot once close); outnumbered, they flee. Not when wounded.
+  ai.rushing = false;
+  if (p.targetPos && !ai.wounded && t.rushRatio > 0) {
+    const mine = 1 + alliesNear(world, s, t.numbersRadius);
+    const r2 = t.numbersRadius * t.numbersRadius;
+    let theirs = 0;
+    for (const o of ours) if (distanceSq(o, p.targetPos) <= r2) theirs++;
+    const ratio = mine / Math.max(1, theirs);
+    if (ratio >= t.rushRatio) {
+      ai.rushing = true;
+      if (threatD > range * 0.6) {
+        scores.approach = Math.max(scores.approach, 1.05);
+        ai.charging = threatD > range;
+      } else if (p.targetVisible) {
+        scores.engage = Math.max(scores.engage, 1.1);
+      }
+      scores.cover *= 0.5;
+      if (!ai.wounded) scores.retreat = Math.min(scores.retreat, 0.5);
+    } else if (ratio <= 1 / t.fleeRatio && !covered) {
+      scores.retreat = Math.max(scores.retreat, 1.0);
+    }
+  }
+  if ((ai.wounded || cautious) && !ai.rushing) scores.approach = 0;
   if (squad?.order.kind === 'patrol' && !p.targetPos) scores.patrol = 0.2;
   if (squad?.rally?.length && !p.targetPos) scores.roam = 0.25;
-  // Too far from its post: drop the chase.
-  if (!leashOk(s)) {
+  // Too far from its post: drop the chase (a rush goes further, [D137]).
+  if (!leashOk(s) && !(ai.rushing && posts.some((h) => distance(s, h) <= prof.leash * 2))) {
     scores.approach = 0;
     scores.hold = Math.max(scores.hold, 0.5);
   }
@@ -750,6 +778,51 @@ function checkRouts(world: World): void {
       oa.awake = true;
       oa.nextThink = world.state.tick + 1;
     }
+  }
+}
+
+/**
+ * (PHASE17) A wounded soldier that got away and healed back to `ai.regroupHp` ([D138]) joins the
+ * best squad within `ai.regroupRadius`: more living soldiers, and one holding a capture point
+ * counts extra (it reinforces what you still have to take). It patrols that squad's ground.
+ */
+function checkRegroups(world: World): void {
+  const t = world.tuning.ai;
+  const squads = world.map.squads ?? [];
+  if (squads.length === 0) return;
+  const living = new Map<string, SoldierState[]>();
+  for (const o of world.state.soldiers) {
+    if (!o.ai || !o.alive || o.ai.wounded) continue;
+    const list = living.get(o.ai.squad) ?? [];
+    list.push(o);
+    living.set(o.ai.squad, list);
+  }
+  for (const s of world.state.soldiers) {
+    const ai = s.ai;
+    if (!ai || !s.alive || !ai.wounded) continue;
+    if (s.hp < soldierMaxHp(world.tuning, s.roleId, s.team) * t.regroupHp) continue;
+    let best: { sq: SquadDef; where: Vec2; score: number } | null = null;
+    for (const sq of squads) {
+      const them = living.get(sq.id);
+      if (!them || them.length === 0) continue;
+      const where = centroid(them);
+      const d = distance(s, where);
+      if (d > t.regroupRadius) continue;
+      const score = them.length + (sq.capturePointId ? 3 : 0) - d / 1000;
+      if (!best || score > best.score) best = { sq, where, score };
+    }
+    ai.wounded = false;
+    ai.fellBack = false;
+    ai.shakenUntil = undefined;
+    if (!best) continue;
+    ai.squad = best.sq.id;
+    const a = hash01(`${s.id}:regroup@${world.state.tick}`) * Math.PI * 2;
+    ai.home = { x: best.where.x + Math.cos(a) * 60, y: best.where.y + Math.sin(a) * 60 };
+    ai.roamSpot = null;
+    ai.roamIdx = undefined;
+    ai.loiterUntil = undefined;
+    ai.behaviorSince = world.state.tick;
+    ai.nextThink = world.state.tick + 1;
   }
 }
 
@@ -1138,7 +1211,11 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       (ai.behavior === 'roam' && !!ai.reinforce) ||
       (ai.behavior === 'approach' && !!ai.charging) ||
       (ai.behavior === 'protect' && !!ai.dest && distance(s, ai.dest) > 200) ||
-      (ai.behavior === 'cover' && underFire));
+      // (PHASE17) Only sprint for cover that's close ([D137]); else walk there shooting.
+      (ai.behavior === 'cover' &&
+        underFire &&
+        !!ai.dest &&
+        distance(s, ai.dest) <= world.tuning.ai.coverSprintRadius));
   if (sprint) fire = false;
   return {
     move,
