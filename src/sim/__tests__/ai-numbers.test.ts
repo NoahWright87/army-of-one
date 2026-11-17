@@ -67,3 +67,32 @@ describe('regrouping ([D138])', () => {
     expect(e.ai!.squad).toBe('holders');
   });
 });
+
+describe('falling back (PHASE17)', () => {
+  it('a hurt soldier retreats away from the shooter, not to a rally point in front of it', () => {
+    const w = createWorld(
+      arena({
+        squads: [
+          guard('sq', [at(400, 500)], {
+            // The only rally point is between it and the shooter.
+            rally: [{ x: 560, y: 500 }],
+          }),
+        ],
+      }),
+      T,
+    );
+    const me = soldierAt(w, { x: 760, y: 500 }, { minHp: 1 });
+    const e = getSoldier(w, 'E1')!;
+    e.hp = soldierMaxHp(T, 'rifleman', 'enemy') * 0.2; // badly hurt: it falls back
+    let retreated = false;
+    let minX = e.x;
+    for (let i = 0; i < 90; i++) {
+      run(w, 1, { [me]: idle(Math.PI) });
+      if (e.ai!.behavior === 'retreat') retreated = true;
+      minX = Math.min(minX, e.x);
+    }
+    expect(retreated).toBe(true);
+    expect(e.x).toBeLessThan(400); // further from the shooter than it started
+    expect(minX).toBeLessThan(400);
+  });
+});

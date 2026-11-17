@@ -345,6 +345,12 @@ export interface Tuning {
     fleeRatio: number;
     /** (PHASE17) Sprint to cover only when it's this close; else walk there shooting. */
     coverSprintRadius: number;
+    /** (PHASE17) Cover may be at most this much closer to the shooter than you are. */
+    coverAdvance: number;
+    /** (PHASE17) A retreat's rally point must be this much further from the threat. */
+    retreatMargin: number;
+    /** (PHASE17) With nowhere better, a retreat goes this far straight away. */
+    retreatDistance: number;
     /**
      * (PHASE17) Regroup ([D138]): a wounded soldier healed back to `regroupHp` joins the best
      * squad within `regroupRadius` (more living soldiers; one holding a point counts extra).
@@ -857,6 +863,9 @@ export const DEFAULT_TUNING: Tuning = {
     rushRatio: 2, // TUNE [D137]: twice as many rush
     fleeRatio: 2, // TUNE [D137]: half as many flee
     coverSprintRadius: 140, // TUNE [D137]
+    coverAdvance: 30, // TUNE
+    retreatMargin: 80, // TUNE
+    retreatDistance: 300, // TUNE
     regroupHp: 0.9, // TUNE [D138]
     regroupRadius: 2000, // TUNE [D138]
     sprints: true, // TUNE

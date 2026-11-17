@@ -86,6 +86,8 @@ export interface AiState {
   roamIdx?: number;
   /** Where exactly it's going near that point (null: there, loitering). */
   roamSpot?: Vec2 | null;
+  /** (PHASE17) Where this retreat is headed: away from the threat. */
+  retreatTo?: Vec2 | null;
   /** Loitering until this tick (unset while moving). */
   loiterUntil?: Tick;
   /** Going to help: sprints. */
@@ -545,6 +547,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   if (best !== ai.behavior) {
     ai.behavior = best;
     ai.behaviorSince = tick;
+    if (best !== 'retreat') ai.retreatTo = null;
   }
   ai.aimErr = (hash01(`${salt(world)}${s.id}@${tick}:aimErr`) * 2 - 1) * t.aimError;
 
@@ -566,7 +569,14 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       break;
     }
     case 'retreat':
-      if (squad?.rally?.length) {
+      // (PHASE17) With a known threat: away from it ([D137]), picked once per retreat.
+      if (p.targetPos || ai.lastSeen) {
+        const threat = threatCentre(world, s, ours) ?? p.targetPos ?? ai.lastSeen!;
+        if (!ai.retreatTo || ai.behaviorSince === tick) {
+          ai.retreatTo = retreatSpot(world, s, ai, squad, ours, threat);
+        }
+        dest = ai.retreatTo;
+      } else if (squad?.rally?.length) {
         // (PHASE13) Fall back to the best rally point (friends, away from us), spread out there.
         if (!ai.roamSpot || ai.behaviorSince === tick) {
           const i = bestRallyPoint(world, s, ai, squad, ours, 'flee');
@@ -697,10 +707,77 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
     }
     const d = distance(s, spot);
     if (d > R || d >= bestD || !isWalkable(world, spot)) continue;
+    // (PHASE17) Cover that guards you: not a dash toward the shooter to reach it, and the
+    // cover really is between the spot and the shooter.
+    if (distance(spot, threat) < distance(s, threat) - t.ai.coverAdvance) continue;
+    if (!coveredFrom(world, spot, threat)) continue;
     best = spot;
     bestD = d;
   }
   return best;
+}
+
+/** (PHASE17) Where the danger is: the middle of the foes it can see nearby (null: none). */
+function threatCentre(world: World, s: SoldierState, foes: readonly SoldierState[]): Vec2 | null {
+  const r2 = world.tuning.ai.dangerRadius ** 2;
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const o of foes) {
+    if (distanceSq(o, s) > r2) continue;
+    x += o.x;
+    y += o.y;
+    n++;
+  }
+  return n ? { x: x / n, y: y / n } : null;
+}
+
+/**
+ * (PHASE17) Where to fall back to, away from `threat`: the nearest cover that guards it (not
+ * toward the shooter), else a rally point further from the threat than it is now, else behind
+ * the nearest friends who are further back, else straight away. Never toward the threat.
+ */
+export function retreatSpot(
+  world: World,
+  s: SoldierState,
+  ai: AiState,
+  squad: SquadDef | undefined,
+  foes: readonly SoldierState[],
+  threat: Vec2,
+): Vec2 {
+  const t = world.tuning.ai;
+  const here = distance(s, threat);
+  const cover = findCoverSpot(world, s, threat);
+  if (cover) return cover;
+  if (squad?.rally?.length) {
+    const away = squad.rally
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => distance(p, threat) > here + t.retreatMargin);
+    if (away.length) {
+      const i = bestRallyPoint(world, s, ai, squad, foes, 'flee', new Set(away.map((a) => a.i)));
+      return pickSpot(world, s, squad.rally[i]!);
+    }
+  }
+  const ux = (s.x - threat.x) / (here || 1);
+  const uy = (s.y - threat.y) / (here || 1);
+  // Friends further back (same side, within reach): get behind them.
+  let fx = 0;
+  let fy = 0;
+  let n = 0;
+  for (const a of world.state.soldiers) {
+    if (a === s || !a.ai || !a.alive || a.team !== s.team) continue;
+    if (distance(a, s) > t.retreatDistance * 2 || distance(a, threat) <= here) continue;
+    fx += a.x;
+    fy += a.y;
+    n++;
+  }
+  const behind = n > 0 ? { x: fx / n + ux * 60, y: fy / n + uy * 60 } : null;
+  if (behind && isWalkable(world, behind)) return behind;
+  for (let k = 1; k >= 0.25; k -= 0.25) {
+    const p = { x: s.x + ux * t.retreatDistance * k, y: s.y + uy * t.retreatDistance * k };
+    if (isWalkable(world, p)) return p;
+  }
+  return { x: s.x, y: s.y };
 }
 
 // ---------- hits and routs (PHASE13) ----------
@@ -923,6 +1000,8 @@ export function bestRallyPoint(
   squad: SquadDef,
   ours: readonly SoldierState[],
   mode: 'roam' | 'flee',
+  /** (PHASE17) Only these rally points (default: all). */
+  allowed?: ReadonlySet<number>,
 ): number {
   const tick = world.state.tick;
   const rp = profileOf(s.roleId).roam;
@@ -930,9 +1009,10 @@ export function bestRallyPoint(
   const ys = pts.map((p) => p.y);
   const minY = Math.min(...ys);
   const spanY = Math.max(...ys) - minY;
-  let best = 0;
+  let best = allowed ? Math.min(...allowed) : 0;
   let bestScore = -Infinity;
   pts.forEach((p, i) => {
+    if (allowed && !allowed.has(i)) return;
     const d = distance(s, p);
     const danger = dangerAt(world, p, ours);
     const attacked = pointAttacked(world, p) ? 1 : 0;

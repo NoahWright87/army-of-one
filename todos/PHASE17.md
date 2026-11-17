@@ -64,3 +64,12 @@ takes about 4–8 lives working together.
    to overlap each other or the starting blocks); its button cycles off → left → right → both.
    Setups saved with hand-placed pieces load with no barriers (`parseArenaConfig`).
 
+10. **Retreats ran at the enemy** (owner, arena 10v10 with barriers): a retreat went to the
+    squad's best rally point with no regard for where the shooter was (and "rear" assumed the
+    enemy is down the map). In the arena the rally points are mid-field, so hurt soldiers
+    sprinted into the fight (22 of 25 retreats moved toward the enemy). Now `retreatSpot`: the
+    nearest cover that guards it, else a rally point `ai.retreatMargin` further from the threat,
+    else behind friends further back, else `ai.retreatDistance` straight away; the threat is the
+    middle of the foes within `ai.dangerRadius`. `findCoverSpot` also skips cover that's more
+    than `ai.coverAdvance` closer to the shooter or doesn't actually block the shooter. After: 3
+    of 54.
