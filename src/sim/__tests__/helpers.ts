@@ -10,13 +10,14 @@ import { borderWalls, type MapDef } from '../world/map';
  * (echo mechanics, captures, timelines) are about history, not about fighting soldiers.
  */
 /**
- * Scripted tests: no enemy AI, and the pre-PHASE16 lead-in and capture time the scripted
- * scenarios were timed against.
+ * Scripted tests: no enemy AI, hitscan shots, and the pre-PHASE16 lead-in and capture time the
+ * scripted scenarios were timed against.
  */
 export const CLASSIC_TUNING: Tuning = withTuning(DEFAULT_TUNING, {
   ai: { enabled: false },
   spawn: { leadInSeconds: 5 },
   capture: { stageSeconds: 4 },
+  bullets: { enabled: false }, // (PHASE17) hitscan, as the scripted scenarios were timed
 });
 
 /** A 1000×1000 walled arena with one spawn point; pass entities/walls to add. */

@@ -21,6 +21,11 @@ export type SimEvent =
       hitId?: string;
       /** (PHASE12-a) The soldier weapon that fired it (recorded with the shot when it matters). */
       weapon?: ShotWeapon;
+      /**
+       * (PHASE17) A flying bullet ([D145]): `hitX`/`hitY` is the end of its range, not a hit;
+       * the bullet is drawn from the view and hits when it gets there.
+       */
+      flying?: true;
     }
   | {
       kind: 'damaged';

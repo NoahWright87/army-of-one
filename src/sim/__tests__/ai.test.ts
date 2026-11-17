@@ -100,7 +100,9 @@ describe('enemy squads ([D44])', () => {
       ai: { ...T.ai, sightRange: 1 },
     });
     const id = soldierAt(w, { x: 200, y: 500 });
+    // (PHASE17) Bullets fly ([D145]): a few ticks to get there.
     run(w, 3, { [id]: { ...idle(0), fire: true } });
+    run(w, 20, { [id]: idle(0) });
     expect(getSoldier(w, 'E1')!.hp).toBeLessThan(soldierMaxHp(T, 'rifleman', 'enemy'));
   });
 

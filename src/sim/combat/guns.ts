@@ -241,6 +241,8 @@ export function fireGun(
     cause: gun,
     weapon: gun,
     ...(gun === 'shotgun' ? { falloffTo: world.tuning.shotgun.falloffTo } : {}),
+    // (PHASE17) Bullets fly ([D145]).
+    ...(world.tuning.bullets.enabled ? { speed: world.tuning.bullets.speed[gun] } : {}),
     ...(pellet !== undefined ? { coverKey: `${shooterId}@${world.state.tick}:p${pellet}` } : {}),
   });
 }

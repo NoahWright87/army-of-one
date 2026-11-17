@@ -326,3 +326,16 @@ Frame rate ([D30]):
 - What's left per frame is mostly Phaser itself (its update, sort and batch: about 0.75 ms) and
   WebGL call overhead. Echo labels are still one `Text` texture each (BitmapText is still open
   from 05-b).
+
+## Flying bullets (PHASE17, [D145])
+
+Soldiers' gun shots fly as bullets (`tuning.bullets`) instead of hitting at once. `npm run bench
+-- --echoes 100,200` vs `--hitscan` (same container as above), 200 echoes on Breach:
+
+| | Live ms/tick (mean / p95) | Resolve ticks/s |
+|---|---|---|
+| Hitscan | 0.252 / 0.366 | 4591 |
+| Bullets | 0.278 / 0.385 | 3976 |
+
+About 10–15% more sim time; still ~2% of a 16.7 ms frame. Fast-forwards and resolves fly bullets
+too (they must match live play tick for tick).

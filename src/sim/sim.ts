@@ -167,6 +167,7 @@ export function getSoldier(world: World, id: SoldierId): SoldierState | undefine
 
 import { soldierIndex } from './soldier-index';
 import { stepRegen } from './combat/damage';
+import { stepBullets } from './combat/shots';
 export { soldierIndex };
 
 /** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */
@@ -268,6 +269,7 @@ export function step(
   stepMines(world);
   stepGrenades(world);
   stepRockets(world);
+  stepBullets(world); // (PHASE17) [D145]
   stepTraffic(world);
   stepBridges(world);
 
@@ -325,6 +327,14 @@ export function getView(world: World): WorldView {
         ? { windup: windupProgress(world, s), windupAim: s.windupAim }
         : {}),
       ...aimView(world, s),
+    })),
+    // (PHASE17) Bullets in flight ([D145]).
+    bullets: (st.bullets ?? []).map((b) => ({
+      id: b.id,
+      x: b.x,
+      y: b.y,
+      angle: b.shot.angle,
+      hostile: b.shot.team === 'enemy',
     })),
     rockets: (st.rockets ?? []).map((r) => ({
       kind: 'rocket' as const,

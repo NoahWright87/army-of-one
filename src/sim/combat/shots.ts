@@ -7,6 +7,7 @@ import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
 import { coverCrossings, coverStops, damageCover, standingCover } from '../world/cover';
 import { hash01 } from '../core/hash';
+import { allocateId } from '../core/ids';
 import type { ShotWeapon } from '../../contracts/mission';
 import {
   damageCharge,
@@ -195,6 +196,20 @@ export interface ShotParams {
   damageKind?: string;
   /** (PHASE12-a) Damage falls off linearly to this share at full range (the shotgun, [D61]). */
   falloffTo?: number;
+  /**
+   * (PHASE17) A bullet that flies at this speed (units/s) instead of a hitscan ([D145]): the
+   * shot is announced now (`shotFired` with `flying`), and hits when the bullet gets there.
+   */
+  speed?: number;
+}
+
+/** (PHASE17) A bullet in flight ([D145]): its shot's parameters, where it is, how far it went. */
+export interface BulletEntity {
+  id: string;
+  shot: ShotParams;
+  x: number;
+  y: number;
+  travelled: number;
 }
 
 export interface ShotResult {
@@ -205,6 +220,33 @@ export interface ShotResult {
 
 /** Resolves one hitscan shot: ray cast, `shotFired` event, then damage to an opposing target. */
 export function fireShot(world: World, p: ShotParams): ShotResult {
+  // (PHASE17) A flying bullet ([D145]): announced now, resolved when it hits.
+  if (p.speed && p.speed > 0) {
+    const st = world.state;
+    const end = fromAngle(p.angle, p.range);
+    if (!p.silent)
+      emit(world, {
+        kind: 'shotFired',
+        tick: st.tick,
+        by: p.by,
+        fromX: p.from.x,
+        fromY: p.from.y,
+        angle: p.angle,
+        hitX: p.from.x + end.x,
+        hitY: p.from.y + end.y,
+        flying: true,
+        ...(p.weapon !== undefined ? { weapon: p.weapon } : {}),
+      });
+    const list = (st.bullets ??= []);
+    list.push({
+      id: allocateId(st.ids, 'B'),
+      shot: { ...p, coverKey: p.coverKey ?? `${p.by}@${st.tick}` },
+      x: p.from.x,
+      y: p.from.y,
+      travelled: 0,
+    });
+    return { hitX: p.from.x + end.x, hitY: p.from.y + end.y };
+  }
   const hit = castRay(world, p.from, p.angle, p.range, p.team, {
     ignoreId: p.ignoreId ?? p.by,
     coverKey: p.coverKey ?? `${p.by}@${world.state.tick}`,
@@ -227,15 +269,21 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
       ...(hitId !== undefined ? { hitId } : {}),
       ...(p.weapon !== undefined ? { weapon: p.weapon } : {}),
     });
-  if (!tgt || tgt.kind === 'wall') return result;
+  if (tgt) applyShotHit(world, p, tgt, hit.distance);
+  return result;
+}
+
+/** A shot's (or a bullet's, PHASE17) effect on what it hit, `dist` from where it was fired. */
+function applyShotHit(world: World, p: ShotParams, tgt: RayTarget, dist: number): void {
+  if (tgt.kind === 'wall') return;
   const damage =
     p.falloffTo !== undefined && p.range > 0
-      ? p.damage * (1 - (1 - p.falloffTo) * Math.min(1, hit.distance / p.range))
+      ? p.damage * (1 - (1 - p.falloffTo) * Math.min(1, dist / p.range))
       : p.damage;
   // (PHASE12-b) Cover that stops a shot takes the hit ([Q40]); gates and wrecks ignore it.
   if (tgt.kind === 'cover') {
     damageCover(world, tgt.id, damage, p.damageKind ?? p.cause, p.by);
-    return result;
+    return;
   }
   if (tgt.kind === 'soldier') {
     damageSoldier(
@@ -247,9 +295,9 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
       p.from,
       p.damageKind ?? p.cause,
     );
-    return result;
+    return;
   }
-  if (p.team === 'enemy') return result;
+  if (p.team === 'enemy') return;
   switch (tgt.kind) {
     case 'turret':
       damageTurret(world, tgt.index, damage, p.by);
@@ -267,7 +315,6 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
       damageCharge(world, tgt.index, damage, p.by);
       break;
   }
-  return result;
 }
 
 /**
@@ -301,4 +348,36 @@ export function movingAimOffset(
   const spread = fullSpread * s.moveFrac;
   if (spread <= 0) return 0;
   return (hash01(`${s.id}@${world.state.tick}:${salt}`) * 2 - 1) * spread;
+}
+
+/**
+ * (PHASE17) One tick for every bullet in flight (id order, [D145]): it flies `speed` × a tick
+ * along its line (passing its own side, firing over the shooter's adjacent cover on the first
+ * stretch only, like a hitscan) and hits the first thing in the way with the shot's damage
+ * (falloff by distance flown), or vanishes at full range.
+ */
+export function stepBullets(world: World): void {
+  const list = world.state.bullets;
+  if (!list || list.length === 0) return;
+  const keep: BulletEntity[] = [];
+  for (const b of list) {
+    const p = b.shot;
+    const stepLen = Math.min((p.speed ?? 0) / 60, Math.max(0, p.range - b.travelled));
+    const hit = castRay(world, b, p.angle, stepLen, p.team, {
+      ignoreId: p.ignoreId ?? p.by,
+      coverKey: p.coverKey!,
+      ...(b.travelled === 0 && p.fireOver !== false ? {} : { fireOver: false }),
+    });
+    const d = fromAngle(p.angle, hit.distance);
+    b.x += d.x;
+    b.y += d.y;
+    b.travelled += hit.distance;
+    const tgt = hit.target as RayTarget | null;
+    if (tgt) {
+      applyShotHit(world, p, tgt, b.travelled);
+      continue;
+    }
+    if (b.travelled < p.range - 1e-6) keep.push(b);
+  }
+  world.state.bullets = keep;
 }

@@ -94,14 +94,17 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
             NEAR_MISS_DISTANCE;
           if (hitsLive || near) style = 'incoming';
         }
-        out.push({
-          type: 'tracer',
-          fromX: e.fromX,
-          fromY: e.fromY,
-          toX: e.hitX,
-          toY: e.hitY,
-          style,
-        });
+        // (PHASE17) A flying bullet is drawn as itself, not as a tracer to its range ([D145]).
+        if (!e.flying) {
+          out.push({
+            type: 'tracer',
+            fromX: e.fromX,
+            fromY: e.fromY,
+            toX: e.hitX,
+            toY: e.hitY,
+            style,
+          });
+        }
         out.push({
           type: 'muzzle',
           x: e.fromX,

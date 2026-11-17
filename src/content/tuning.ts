@@ -49,6 +49,14 @@ export interface VehicleDrive {
  * unless the name says Ticks, angles in radians.
  */
 export interface Tuning {
+  /**
+   * (PHASE17) Soldiers' gun shots fly as bullets ([D145]) at these speeds (units/s) instead of
+   * hitting at once, so they can be dodged. Off: hitscan (the scripted tests' world).
+   */
+  bullets: {
+    enabled: boolean;
+    speed: { rifle: number; mg: number; pistol: number; sniper: number; shotgun: number };
+  };
   soldier: {
     maxHp: number;
     /**
@@ -600,6 +608,11 @@ const NONE = { front: 0, side: 0, rear: 0, frontArc: 0, rearArc: 0 };
 const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc: 0 });
 
 export const DEFAULT_TUNING: Tuning = {
+  bullets: {
+    enabled: true,
+    // TUNE [D145]: a rifle bullet takes ~0.25 s to its full range; a sprinter can step out of it
+    speed: { rifle: 2100, mg: 2300, pistol: 1600, sniper: 3600, shotgun: 1500 },
+  },
   soldier: {
     maxHp: 100, // TUNE
     regen: { perSecond: 2, delaySeconds: 5, enemies: true }, // TUNE [D133], [D138]
