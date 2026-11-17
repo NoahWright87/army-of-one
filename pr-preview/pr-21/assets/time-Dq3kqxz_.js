@@ -1,1 +1,0 @@
-var e=1/60;function t(e){return Math.round(e*60)}function n(e){let t=e<0?`-`:``,n=Math.floor(Math.abs(e)/60);return`${t}${Math.floor(n/60)}:${(n%60).toString().padStart(2,`0`)}`}export{n,t as r,e as t};
