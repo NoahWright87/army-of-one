@@ -630,6 +630,46 @@ especially on a phone. An hour in, no level was done.
   visible, snipers start concealed) and a phone pass (zoom out, smaller minimap, keep the target
   on screen).
 
+## Making fights matter (owner session 2026-11, PHASE17)
+
+Playtest of a whole Normal campaign: most levels fell to one or two soldiers; the AI stood still,
+ran back and forth without firing, and lost 6-v-1 fights; thousands of dollars and nothing to
+buy. The echo loop only matters when one soldier can't win alone.
+
+- **[D137] Enemies are competent and aggressive.** Undoes most of [D132]: sight at least the
+  rifle's range, quick reactions, full HP and damage (`ai.enemyHpScale`/`enemyDamageScale` back
+  to 1). They shoot back when attacked and sprint only to close in, escape or reach nearby cover.
+  **Outnumbering you, they rush; outnumbered, they flee.** Players can lure them into traps and
+  flank them with echoes. Difficulty presets still tune them.
+- **[D138] Enemies regenerate and regroup.** Wounded enemies who get away heal like ours, and
+  join a squad nearby (preferring one near objectives, with more living soldiers), then patrol
+  there: escaped enemies reinforce what you still have to take.
+- **[D139] A level is won by taking every objective, or killing every enemy soldier.** Objectives:
+  every exit plus one prominent position (the centre of an open field, a corner of the map, the
+  inner room of a fortress). Entries you hold are yours from the start (green flags). Replaces
+  [D129].
+- **[D140] The objective HUD is icons.** A row of flags that turn green when taken, and a 🪖×N
+  counter of enemies left that becomes single helmets once ~10 are left. Glanceable while
+  fighting; less text everywhere.
+- **[D141] Tech points buy roles.** A secondary currency, a reward for taking a level (more for
+  dead ends and harder levels). On the world map, the roles you don't have are greyed icons you
+  buy with tech points. Replaces level unlocks ([D120]'s unlocks, [D121]'s "Unlocks:" tag).
+  Money carries over in full; it must be worth spending (every soldier worth its cost; the free
+  Rifleman is not the best).
+- **[D142] A dev arena.** A footer "Dev" link opens tools, including a TABS-style arena: soldiers
+  on each side (role, count), each side HUMAN / CPU EASY / CPU NORMAL / CPU HARD (the stats that
+  setting gives), cover pieces to place, GO, see who wins. AI drives both sides. For balance.
+- **[D143] Generated levels aren't trivially short.** No exit (objective) right next to an entry;
+  walled bases are playable levels (elite ones, with rewards), not blacked out.
+- **[D144] Touch controls:** the first finger anywhere is the movement stick; a second finger
+  tapping fires at that spot. Pushing the stick out to an outer ring sprints (no separate
+  button), and sprinting is faster.
+- **[D145] Bullets fly.** Gun shots become fast projectiles (visible streaks; speed per gun), so
+  sprinting and zig-zagging can dodge. Same simulation for fast-forward and live (determinism).
+- Later: cover and concealment content (bushes, trenches, doors, windows), more tile types,
+  owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
+  Grenadier and Machine Gunner need cover to shine).
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
