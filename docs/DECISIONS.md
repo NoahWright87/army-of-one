@@ -553,11 +553,19 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   multiplayer / other players. The one thing that must always work: you can find your own soldier in a
   swarm of echoes. Soldier numbers (S1, S2) are **not** drawn on the pieces.
 - **[D120] A handful of base shapes show the unit class at a glance.** Round for light infantry,
-  angular for armored units (Shield, Shotgunner), long plinths for vehicles. Exactly which role gets
-  which shape is a proposal ([Q59]).
+  angular for armored units (Shield, Shotgunner), long plinths for vehicles. The role-to-shape
+  mapping is confirmed in [D122].
 - **[D121] One sculpt per role, two paint schemes (ally, enemy).** The enemy is the same figure
   repainted. Art is delivered in tiers (pilot first, then the owner reviews the style before the rest
   is drawn).
+
+- **[D122] Base shapes confirmed (owner, 2026-11-17).** Round = Rifleman, Grenadier, Sniper;
+  octagon = Shield, Shotgunner; square = Machine Gunner, Bazooka; long plinths = Gun truck, Tank.
+  Resolves Q59.
+- **[D123] Miniature states confirmed (owner, 2026-11-17).** Exhausted echoes use tarnished
+  gold plus static/flicker. Dead soldiers use a fallen miniature on a dimmed base. X/O marks stay
+  on the timeline; existing lead-in shield/live marker rings remain until restyled, and echo
+  opacity stays a setting. Resolves Q60.
 
 ## Platform & process
 
@@ -849,14 +857,5 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
   rebuilt from the current blocks, so editing one can change an unfinished campaign's map).
 
-- **[Q59] Which base shape each role stands on (miniature art, [D120]).** Proposed in
-  `BASE_SHAPE_BY_ROLE` (`src/content/miniatures.ts`): **round** = Rifleman, Grenadier, Sniper;
-  **octagon** (armored) = Shield, Shotgunner; **square** (heavy weapons) = Machine Gunner, Bazooka;
-  **long plinths** = Gun truck, Tank. The owner only asked for "angular for the armored ones"; the
-  square class is a guess. Every infantry shape is drawn in every finish, so changing a role's shape
-  later needs no new art.
-- **[Q60] How the other states look in miniature form (PHASE16).** Proposed: a *static remnant* is
-  the tarnished-gold base plus the existing flicker/scanline overlay; a *dead* soldier is the
-  "fallen" figure on a dimmed base; the X/O rescue marks stay on the timeline UI, not on the pieces;
-  the lead-in shield ring and the live marker ring keep their existing sprites (restyled later). Echo
-  opacity stays a setting. Is that right?
+- **[Q59] Resolved** by [D122]: the owner accepted the proposed role-to-base mapping.
+- **[Q60] Resolved** by [D123]: the owner accepted the proposed miniature states.

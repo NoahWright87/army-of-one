@@ -12,7 +12,7 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 - `docs/art/README.md` (the two hard rules: top-down, and works at every rotation), `PIECE-SPEC.md`.
 - `src/content/miniatures.ts`: sizes, file names/keys, `BASE_SHAPE_BY_ROLE`, `miniatureFiles()`.
-- [D116]–[D121], [Q59], [Q60] in `docs/DECISIONS.md`.
+- [D116]–[D123] in `docs/DECISIONS.md`.
 - Today's code: `src/render/soldier-style.ts` (`soldierVisual`: texture/alpha/depth per state),
   `src/render/phaser/world-renderer.ts` (`drawSoldiers`, vehicle hull/turret drawing, role icons,
   live marker, shield ring), `src/content/assets.ts` (manifest), `docs/perf.md`.
@@ -28,7 +28,7 @@ renderer against generated placeholders and swap the real PNGs in when they land
       Placeholders must obey the art rules too (top-down, radially lit), so the checker passes them.
 - [ ] **Style rules (pure, unit-tested).** In `soldier-style.ts` map a soldier's state to
       `{ baseKey, figureKey, alpha, … }`: live → `gold`; echo / static → `gold-tarnished`; enemy →
-      `silver`; dead → fallen figure on a dimmed base ([Q60]). Role → shape via `BASE_SHAPE_BY_ROLE`.
+      `silver`; dead → fallen figure on a dimmed base ([D123]). Role → shape via `BASE_SHAPE_BY_ROLE`.
 - [ ] **Renderer layers.** Per soldier: shadow (not rotated, offset in screen space), base (not
       rotated by aim; rotated by the camera if it rotates), figure (`rotation = facing`). Vehicles: base
       + hull rotate with the heading, the turret on top with its own aim, wreck on death. Retire the
@@ -50,8 +50,8 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 ## ⛔ Decisions needed
 
-- [Q59] which base shape per role (proposal is in the data file; the owner may change it).
-- [Q60] what static remnants, corpses and rescued soldiers look like as pieces.
+- [Q59] resolved by [D122]: use the proposed base shapes in the data file.
+- [Q60] resolved by [D123]: use the proposed static/fallen states.
 
 ## Notes from implementation
 

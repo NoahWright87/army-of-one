@@ -52,7 +52,7 @@ All four finishes of a shape have the **identical outline, pixel for pixel**; on
 | `truck` | 192×128 | rounded rectangle 160×96, 20 px corner radius, long axis = x | 160 | gun truck |
 | `tank` | 256×192 | rectangle 200×152 with 28 px chamfered corners, long axis = x | 200 | tank |
 
-Which role stands on which base is a **proposal** ([Q59] in DECISIONS.md): it lives in
+Which role stands on which base is **confirmed** ([D122] in DECISIONS.md): it lives in
 `BASE_SHAPE_BY_ROLE` in `src/content/miniatures.ts`, and because every infantry shape is drawn in
 every finish, changing a role's shape later needs no new art.
 
@@ -160,23 +160,23 @@ show the owner** (README.md workflow). Total: 49 files.
 
 | Done | File | Canvas | Draw |
 |---|---|---|---|
-| [ ] | `base_round_gold.png` | 128×128 | round base, **gold** finish |
-| [ ] | `base_round_silver.png` | 128×128 | round base, **silver** finish |
-| [ ] | `base_round_gold-tarnished.png` | 128×128 | round base, **gold-tarnished** finish |
-| [ ] | `base_round_silver-tarnished.png` | 128×128 | round base, **silver-tarnished** finish |
-| [ ] | `base_octagon_gold.png` | 128×128 | octagon base, **gold** finish |
-| [ ] | `base_octagon_silver.png` | 128×128 | octagon base, **silver** finish |
-| [ ] | `base_octagon_gold-tarnished.png` | 128×128 | octagon base, **gold-tarnished** finish |
-| [ ] | `base_octagon_silver-tarnished.png` | 128×128 | octagon base, **silver-tarnished** finish |
-| [ ] | `figure_rifleman_ally.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
-| [ ] | `figure_rifleman_enemy.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
-| [ ] | `figure_sniper_ally.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
-| [ ] | `figure_sniper_enemy.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
-| [ ] | `figure_shield_ally.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
-| [ ] | `figure_shield_enemy.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
-| [ ] | `figure_fallen_ally.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
-| [ ] | `figure_fallen_enemy.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
-| [ ] | `shadow_infantry.png` | 160×160 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
+| [x] | `base_round_gold.png` | 128×128 | round base, **gold** finish |
+| [x] | `base_round_silver.png` | 128×128 | round base, **silver** finish |
+| [x] | `base_round_gold-tarnished.png` | 128×128 | round base, **gold-tarnished** finish |
+| [x] | `base_round_silver-tarnished.png` | 128×128 | round base, **silver-tarnished** finish |
+| [x] | `base_octagon_gold.png` | 128×128 | octagon base, **gold** finish |
+| [x] | `base_octagon_silver.png` | 128×128 | octagon base, **silver** finish |
+| [x] | `base_octagon_gold-tarnished.png` | 128×128 | octagon base, **gold-tarnished** finish |
+| [x] | `base_octagon_silver-tarnished.png` | 128×128 | octagon base, **silver-tarnished** finish |
+| [x] | `figure_rifleman_ally.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
+| [x] | `figure_rifleman_enemy.png` | 128×128 | Standard rifleman: steel helmet, rifle held forward in both hands, small pack on the back. |
+| [x] | `figure_sniper_ally.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
+| [x] | `figure_sniper_enemy.png` | 128×128 | Sniper: slimmer body, soft hat or netted helmet, a LONG scoped rifle reaching far forward (the longest gun of the infantry). |
+| [x] | `figure_shield_ally.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
+| [x] | `figure_shield_enemy.png` | 128×128 | Shield bearer: low helmet tucked behind a big curved ballistic shield that spans the whole front arc (about 135°), sidearm hand visible. |
+| [x] | `figure_fallen_ally.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
+| [x] | `figure_fallen_enemy.png` | 128×128 | The same kind of miniature knocked over: lying on its side/back on the base, helmet and weapon visible, darker and lower contrast than a … |
+| [x] | `shadow_infantry.png` | 160×160 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
 
 #### Tier 2
 
