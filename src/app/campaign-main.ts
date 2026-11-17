@@ -17,6 +17,9 @@ import {
   levelTags,
   openRoles,
   withDifficulty,
+  buyRole,
+  lockedRoles,
+  roleTechCost,
   type CampaignState,
 } from '../gen/campaign';
 import { worldMissionId } from '../gen/mission-id';
@@ -55,6 +58,11 @@ export function startCampaignMap(host: HTMLElement): void {
       show();
     },
     menu: openMainMenu,
+    buyRole: (r) => {
+      state = buyRole(state, r);
+      writeCampaign(state);
+      show();
+    },
     setDifficulty: (d) => {
       state = withDifficulty(state, d);
       writeCampaign(state);
@@ -79,6 +87,8 @@ export function startCampaignMap(host: HTMLElement): void {
         roles: openRoles(state),
       },
       tags: levelTags(world),
+      tech: state.tech,
+      roleCosts: Object.fromEntries(lockedRoles().map((r) => [r, roleTechCost(r)])),
       difficulty: state.difficulty,
       difficultyOpen: difficultyOpen(state),
     });

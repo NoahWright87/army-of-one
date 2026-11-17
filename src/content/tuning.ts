@@ -1073,6 +1073,12 @@ export const BLOCK_TUNING = {
     incomeBonus: 0.5, // TUNE
     /** Extra levels marked Elite at random (besides those holding big rewards), as a share. */
     eliteShare: 0.1, // TUNE
+    /** (PHASE17) Tech points for taking a level ([D141]): base, + dead end, + elite. */
+    techBase: 1, // TUNE
+    techDeadEnd: 1, // TUNE
+    techElite: 1, // TUNE
+    /** (PHASE17) Tech points each locked role costs ([D141]). */
+    roleTech: { shotgun: 2, sniper: 3, bazooka: 3, truck: 4, tank: 6 }, // TUNE
   },
   /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
   carve: {

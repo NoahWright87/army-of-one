@@ -7,7 +7,8 @@ import { str } from '../../content/strings';
 import { orientBlock } from '../../gen/transform';
 import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
-import { roleDef } from '../../content/roles';
+import { ROLES } from '../../content/roles';
+import { roleIconSvg } from '../../content/role-icons';
 import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficulty';
 import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
@@ -35,6 +36,9 @@ export interface CampaignViewModel {
   carry: { money: number; income: number; reserves: RoleCounts; roles: readonly RoleId[] };
   /** (PHASE14) Each level's tags ([D121]). */
   tags: readonly (readonly LevelTag[])[];
+  /** (PHASE17) Tech points, and what each locked role costs ([D141]). */
+  tech: number;
+  roleCosts: Partial<Record<RoleId, number>>;
   /** (PHASE16) The campaign's difficulty, and whether it can still change ([D134]). */
   difficulty: Difficulty;
   difficultyOpen: boolean;
@@ -48,6 +52,8 @@ export interface CampaignViewActions {
   menu(): void;
   /** (PHASE16) Before the first attack only ([D134]). */
   setDifficulty(d: Difficulty): void;
+  /** (PHASE17) Buy a locked role with tech points ([D141]). */
+  buyRole(role: RoleId): void;
 }
 
 const css = `
@@ -63,6 +69,15 @@ const css = `
   background: #20262d; color: #e7e9ec; cursor: pointer; font: inherit; }
 .aoo-cp .diff button.on { border-color: #ffd34d; color: #ffd34d; }
 .aoo-cp h2 { margin: 16px 0 6px; font-size: 17px; }
+.aoo-cp .strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.aoo-cp .chip { background: #20262d; border: 1px solid #343c46; border-radius: 14px; padding: 2px 9px;
+  font-weight: 700; font-size: 14px; white-space: nowrap; }
+.aoo-cp .rolebar { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 10px; }
+.aoo-cp .rolebar button.role { display: flex; width: auto; margin: 0; padding: 4px 6px; gap: 3px;
+  align-items: center; opacity: .35; filter: grayscale(1); font-size: 12px; }
+.aoo-cp .rolebar button.role.open { opacity: 1; filter: none; }
+.aoo-cp .rolebar button.role.buy { opacity: .85; filter: none; border-color: #ffd34d; }
+.aoo-cp .rolebar .n { font-size: 11px; }
 .aoo-cp p { margin: 6px 0; color: #b4c0cc; }
 .aoo-cp .won { color: #8be28b; font-weight: 700; }
 .aoo-cp dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 6px 0 10px; }
@@ -229,7 +244,10 @@ export class CampaignView {
               : open
                 ? str('campaign.label.attack')
                 : '';
-      const lines = [str('campaign.level', { n: lv.index + 1 }), ...(status ? [status] : [])];
+      // (PHASE17) What it offers or warns about, as icons ([D140], [D141]).
+      const icons = (m.tags[lv.index] ?? []).map(tagIcon).join(' ');
+      const head = `${lv.index + 1}${icons ? `  ${icons}` : ''}`;
+      const lines = [head, ...(status ? [status] : [])];
       ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
@@ -254,16 +272,41 @@ export class CampaignView {
     if (!m) return;
     box.append(el('h1', '', str('campaign.title')));
     if (m.won) box.append(el('p', 'won', str('campaign.won')));
-    else box.append(el('p', '', str('campaign.hint')));
-    const dl = el('dl');
-    const add = (k: string, v: string, cls = '') => dl.append(el('dt', '', k), el('dd', cls, v));
-    add(str('campaign.taken'), String(m.taken.length));
-    add(str('campaign.money'), `$${m.carry.money}`);
-    add(str('campaign.income'), str('campaign.incomeValue', { n: m.carry.income }));
-    add(str('campaign.reserves'), countsText(m.carry.reserves) || str('campaign.none'));
-    add(str('campaign.roles'), m.carry.roles.map((r) => str(roleDef(r).nameKey)).join(', '));
-    add(str('campaign.strength'), `${Math.round(m.strength * 100)}%`);
-    box.append(dl);
+    // (PHASE17) Icons over words ([D140]): hover for what each means.
+    const strip = el('div', 'strip');
+    const chip = (icon: string, v: string, tip: string) => {
+      const c = el('span', 'chip', `${icon} ${v}`);
+      c.title = tip;
+      strip.append(c);
+    };
+    chip('🏴', String(m.taken.length), str('campaign.taken'));
+    chip('💰', `$${m.carry.money}`, str('campaign.money'));
+    chip('📈', `$${m.carry.income}/s`, str('campaign.income'));
+    chip('🔬', String(m.tech), str('campaign.tech'));
+    chip('⚔️', `${Math.round(m.strength * 100)}%`, str('campaign.strength'));
+    box.append(strip);
+
+    // Roles: open ones bright, the rest greyed with their tech price; tap to buy ([D141]).
+    const roles = el('div', 'rolebar');
+    for (const r of ROLES) {
+      const open = m.carry.roles.includes(r.id);
+      const cost = m.roleCosts[r.id] ?? 0;
+      const can = !open && cost > 0 && m.tech >= cost;
+      const b = el('button', `role${open ? ' open' : can ? ' buy' : ''}`);
+      b.innerHTML =
+        roleIconSvg(r.id, 26) +
+        (open
+          ? m.carry.reserves[r.id]
+            ? `<span class="n">×${m.carry.reserves[r.id]}</span>`
+            : ''
+          : `<span class="n">🔬${cost}</span>`);
+      b.title = open ? str(r.nameKey) : str('campaign.buyRole', { role: str(r.nameKey), n: cost });
+      b.disabled = !can;
+      b.onclick = () => this.actions.buyRole(r.id);
+      roles.append(b);
+    }
+    box.append(roles);
+
     // (PHASE16) Difficulty ([D134]): picked before the first attack, then fixed.
     const diff = el('div', 'diff');
     diff.append(el('span', 'k', str('campaign.difficulty')));
@@ -283,40 +326,43 @@ export class CampaignView {
     if (lv) {
       const taken = m.taken.includes(lv.index);
       const open = m.attackable.includes(lv.index);
-      box.append(
-        el(
-          'h2',
-          '',
-          str(lv.index === m.hq ? 'campaign.levelHq' : 'campaign.level', { n: lv.index + 1 }),
-        ),
-      );
-      const d = el('dl');
-      const row = (k: string, v: string, cls = '') => d.append(el('dt', '', k), el('dd', cls, v));
       const active = m.active === lv.index;
       const busy = m.active !== null && !active && !taken;
-      row(
-        str('campaign.status'),
-        busy
-          ? str('campaign.status.busy', { n: m.active! + 1 })
-          : str(
-              taken
-                ? 'campaign.status.taken'
-                : active
-                  ? 'campaign.status.active'
-                  : open
-                    ? 'campaign.status.open'
-                    : 'campaign.status.locked',
-            ),
-        taken ? 'done' : open ? 'open' : 'locked',
+      const title = el(
+        'h2',
+        '',
+        str(lv.index === m.hq ? 'campaign.levelHq' : 'campaign.level', { n: lv.index + 1 }),
       );
-      const tags = (m.tags[lv.index] ?? []).map(tagText);
-      if (tags.length) row(str('campaign.tags'), tags.join(' · '));
-      row(str('campaign.size'), str('campaign.sizeValue', { blocks: Math.round(lv.blocks) }));
+      box.append(title);
+      const tags = el('div', 'strip');
+      for (const t of m.tags[lv.index] ?? []) {
+        const c = el('span', 'chip', tagIcon(t));
+        c.title = tagText(t);
+        tags.append(c);
+      }
+      const status = taken ? '✅' : active ? '⏳' : busy ? '🔒' : open ? '🎯' : '🔒';
+      const st = el('span', 'chip', status);
+      st.title = busy
+        ? str('campaign.status.busy', { n: m.active! + 1 })
+        : str(
+            taken
+              ? 'campaign.status.taken'
+              : active
+                ? 'campaign.status.active'
+                : open
+                  ? 'campaign.status.open'
+                  : 'campaign.status.locked',
+          );
+      tags.prepend(st);
       if (!taken) {
         const info = this.actions.levelInfo(lv.index);
-        row(str('campaign.budget'), `$${info.budget}`);
-        row(str('campaign.enemies'), String(info.enemies));
-        box.append(d);
+        const e = el('span', 'chip', `🪖×${info.enemies}`);
+        e.title = str('campaign.enemies');
+        tags.append(e);
+      }
+      box.append(tags);
+      if (!taken) {
+        const info = this.actions.levelInfo(lv.index);
         if (open) {
           const go = el('button', 'go', str(active ? 'campaign.resume' : 'campaign.attack'));
           go.onclick = () => this.actions.attack(lv.index);
@@ -325,8 +371,6 @@ export class CampaignView {
         const sketch = el('canvas', 'sketch');
         box.append(sketch);
         this.drawSketch(sketch, info.map);
-      } else {
-        box.append(d);
       }
     }
 
@@ -363,17 +407,13 @@ export class CampaignView {
   }
 }
 
-/** "Rifleman ×3, Tank ×1". */
-function countsText(c: RoleCounts): string {
-  return Object.entries(c)
-    .filter(([, n]) => (n ?? 0) > 0)
-    .map(([r, n]) => `${str(roleDef(r as RoleId).nameKey)} ×${n}`)
-    .join(', ');
+/** A level tag's words (tooltips) ([D121]). */
+function tagText(t: LevelTag): string {
+  if (t.kind === 'tech') return str('campaign.tag.tech', { n: t.n });
+  return str(t.kind === 'elite' ? 'campaign.tag.elite' : 'campaign.tag.income');
 }
 
-/** A level tag as shown ([D121]). */
-function tagText(t: LevelTag): string {
-  if (t.kind === 'unlock')
-    return str('campaign.tag.unlock', { role: str(roleDef(t.role).nameKey) });
-  return str(t.kind === 'elite' ? 'campaign.tag.elite' : 'campaign.tag.income');
+/** (PHASE17) A level tag as an icon ([D140]). */
+function tagIcon(t: LevelTag): string {
+  return t.kind === 'elite' ? '💀' : t.kind === 'income' ? '💰' : `🔬${t.n}`;
 }

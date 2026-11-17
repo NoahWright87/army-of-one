@@ -30,7 +30,11 @@ export const CAMPAIGN_VERSION = 3;
 export type RoleCounts = Partial<Record<RoleId, number>>;
 
 /** What a level offers or warns about on the campaign map ([D121]). */
-export type LevelTag = { kind: 'elite' } | { kind: 'unlock'; role: RoleId } | { kind: 'income' };
+export type LevelTag =
+  | { kind: 'elite' }
+  | { kind: 'income' }
+  /** (PHASE17) Tech points for taking it ([D141]). */
+  | { kind: 'tech'; n: number };
 
 /** The settings a level was started with ([D122]): fixed until it's won. */
 export interface LevelSettings {
@@ -65,8 +69,8 @@ export interface LevelResult {
   reservesUsed: RoleCounts;
   /** Soldiers alive at the win (incl. O's never resumed), by role: they become reserves. */
   survivors: RoleCounts;
-  /** Filled in when the win is applied: roles unlocked and income gained by taking it. */
-  unlocked?: RoleId[];
+  /** Filled in when the win is applied: tech points and income gained by taking it. */
+  techGained?: number;
   incomeGained?: number;
   /** The settings the level was fought with (so its results and replay keep their money). */
   settings?: LevelSettings;
@@ -88,8 +92,10 @@ export interface CampaignState {
   money: number;
   /** Base income per second added by Income+ levels taken ([D118]). */
   incomeBonus: number;
-  /** Roles unlocked so far, besides the starters ([D120]). */
+  /** Roles bought so far, besides the starters ([D120], [D141]). */
   unlocked: RoleId[];
+  /** (PHASE17) Tech points to buy roles with ([D141]). */
+  tech: number;
   /** Free spawns waiting, by role ([D117]). */
   reserves: RoleCounts;
   /** Battle time of the levels taken: the enemy's funds grow with it ([D119]). */
@@ -117,6 +123,7 @@ export function newCampaign(
     money: DIFFICULTY[difficulty].startMoney,
     incomeBonus: 0,
     unlocked: [],
+    tech: 0,
     reserves: {},
     battleTicks: 0,
     active: null,
@@ -196,8 +203,7 @@ function parseResult(v: unknown): LevelResult | null {
     reservesUsed: used,
     survivors,
   };
-  const unlocked = parseRoles(v.unlocked);
-  if (unlocked) out.unlocked = unlocked;
+  if (isNum(v.techGained)) out.techGained = v.techGained;
   if (isNum(v.incomeGained)) out.incomeGained = v.incomeGained;
   const settings = v.settings === undefined ? null : parseSettings(v.settings);
   if (settings) out.settings = settings;
@@ -238,6 +244,7 @@ export function parseCampaign(raw: unknown): CampaignState | null {
     money: o.money,
     incomeBonus: o.incomeBonus,
     unlocked,
+    tech: isNum(o.tech) ? o.tech : 0,
     reserves,
     battleTicks: o.battleTicks,
     active,
@@ -290,7 +297,7 @@ export function openRoles(state: CampaignState): RoleId[] {
   return ROLES.map((r) => r.id).filter((id) => open.has(id));
 }
 
-/** Roles a campaign starts without: each is unlocked by some level ([D120]). */
+/** Roles a campaign starts without: each is bought with tech points ([D120], [D141]). */
 export function lockedRoles(): RoleId[] {
   const starters = new Set<RoleId>(BLOCK_TUNING.campaign.starterRoles);
   return ROLES.filter((r) => !starters.has(r.id)).map((r) => r.id);
@@ -323,55 +330,33 @@ export function levelTags(world: GeneratedWorld): LevelTag[][] {
     .map((lv) => ({ lv, off: !route.has(lv), score: remote(lv) + nextFloat(rng) * 0.5 }))
     .sort((a, b) => Number(b.off) - Number(a.off) || a.score - b.score || a.lv - b.lv);
   const offRoute = cands.filter((c) => c.off);
-  const pool = offRoute.length >= lockedRoles().length ? offRoute : cands;
 
-  // Unlocks: cheapest role nearest, dearest furthest out, spread over the pool.
-  const roles = lockedRoles().sort(
-    (a, b) => roleCost(a) - roleCost(b) || roleOrder(a) - roleOrder(b),
-  );
-  const byScore = [...pool].sort((a, b) => a.score - b.score || a.lv - b.lv);
-  const used = new Set<number>();
-  roles.forEach((role, i) => {
-    const want = roles.length > 1 ? Math.round((i * (byScore.length - 1)) / (roles.length - 1)) : 0;
-    // The nearest free level at or after the wanted spot (else before it).
-    const order = [...byScore.keys()].sort(
-      (p, q) => Math.abs(p - want) - Math.abs(q - want) || q - p,
-    );
-    const pick = order.map((k) => byScore[k]!).find((c) => !used.has(c.lv));
-    if (!pick) return; // fewer levels than roles: lockedRoles' leftovers are given below
-    used.add(pick.lv);
-    tags[pick.lv]!.push({ kind: 'unlock', role });
-  });
-  // A world too small for every role: the rest go to the HQ-adjacent route levels.
-  const placed = new Set(tags.flat().map((x) => (x.kind === 'unlock' ? x.role : null)));
-  const spare = cands.filter((c) => !used.has(c.lv));
-  for (const role of roles.filter((r) => !placed.has(r))) {
-    const c = spare.shift() ?? cands[cands.length - 1];
-    if (c) tags[c.lv]!.push({ kind: 'unlock', role });
-  }
-
-  // Income+: off-route levels without an unlock, the most remote first.
+  // Income+: the most remote off-route levels.
   const income = [...(offRoute.length ? offRoute : cands)]
-    .filter((c) => !used.has(c.lv))
     .sort((a, b) => b.score - a.score || a.lv - b.lv)
     .slice(0, t.incomeLevels);
   for (const c of income) tags[c.lv]!.push({ kind: 'income' });
 
-  // Elite: the two dearest unlocks and every Income+ level, plus a few others at random.
-  const dear = new Set(roles.slice(-2));
+  // Elite: Income+ levels, dead ends off the route, breached walled bases ([D143]), and a few
+  // others past the first band at random.
+  const fortress = new Set<number>();
+  for (const [y, x] of world.fortresses ?? []) {
+    const lv = world.owner[y * world.tiles.w + x] ?? -1;
+    if (lv >= 0) fortress.add(lv);
+  }
+  const deadEnd = (lv: number) => !route.has(lv) && g.degree[lv]! <= 1;
   for (let lv = 0; lv < n; lv++) {
     if (lv === world.hq) continue;
-    const big = tags[lv]!.some(
-      (x) => x.kind === 'income' || (x.kind === 'unlock' && dear.has(x.role)),
-    );
+    const big = tags[lv]!.some((x) => x.kind === 'income') || deadEnd(lv) || fortress.has(lv);
     const firstBand = world.levels[lv]!.band === 0;
     if (big || (!firstBand && nextFloat(rng) < t.eliteShare)) tags[lv]!.unshift({ kind: 'elite' });
   }
-  // (PHASE17) Breached walled bases are elite ([D143]).
-  for (const [y, x] of world.fortresses ?? []) {
-    const lv = world.owner[y * world.tiles.w + x] ?? -1;
-    if (lv < 0 || lv === world.hq) continue;
-    if (!tags[lv]!.some((t) => t.kind === 'elite')) tags[lv]!.unshift({ kind: 'elite' });
+  // (PHASE17) Tech points for taking a level ([D141]): more at dead ends and elite levels.
+  for (let lv = 0; lv < n; lv++) {
+    if (g.dist[lv]! < 0) continue;
+    const elite = tags[lv]!.some((x) => x.kind === 'elite');
+    const pts = t.techBase + (deadEnd(lv) ? t.techDeadEnd : 0) + (elite ? t.techElite : 0);
+    if (pts > 0) tags[lv]!.push({ kind: 'tech', n: pts });
   }
   tagCache.set(world, tags);
   return tags;
@@ -379,13 +364,6 @@ export function levelTags(world: GeneratedWorld): LevelTag[][] {
 
 export function isElite(world: GeneratedWorld, index: number): boolean {
   return (levelTags(world)[index] ?? []).some((x) => x.kind === 'elite');
-}
-
-function roleCost(id: RoleId): number {
-  return ROLES.find((r) => r.id === id)?.cost ?? 0;
-}
-function roleOrder(id: RoleId): number {
-  return ROLES.findIndex((r) => r.id === id);
 }
 
 /** The levels as a graph: steps from the start, neighbour counts, and a shortest way to the HQ. */
@@ -495,9 +473,7 @@ export function finishLevel(
   const active = state.active;
   if (!active || active.level !== result.level || state.taken.includes(result.level)) return state;
   const tags = levelTags(world)[result.level] ?? [];
-  const unlocked = tags.flatMap((x) =>
-    x.kind === 'unlock' && !state.unlocked.includes(x.role) ? [x.role] : [],
-  );
+  const techGained = tags.reduce((n, x) => n + (x.kind === 'tech' ? x.n : 0), 0);
   const incomeGained = tags.some((x) => x.kind === 'income')
     ? BLOCK_TUNING.campaign.incomeBonus
     : 0;
@@ -515,11 +491,11 @@ export function finishLevel(
     taken: [...state.taken, result.level],
     money: Math.max(0, Math.floor(result.endMoney)),
     incomeBonus: state.incomeBonus + incomeGained,
-    unlocked: [...state.unlocked, ...unlocked],
+    tech: state.tech + techGained,
     reserves,
     battleTicks: state.battleTicks + result.battleTicks,
     active: null,
-    results: [...state.results, { ...result, unlocked, incomeGained, settings: active }],
+    results: [...state.results, { ...result, techGained, incomeGained, settings: active }],
   };
 }
 
@@ -559,4 +535,17 @@ export function withDifficulty(state: CampaignState, difficulty: Difficulty): Ca
 /** (PHASE16) Whether the difficulty can still be changed ([D134]). */
 export function difficultyOpen(state: CampaignState): boolean {
   return !state.active && state.taken.length === 0;
+}
+
+/** (PHASE17) What a role costs in tech points ([D141]); 0 for the starters. */
+export function roleTechCost(role: RoleId): number {
+  return (BLOCK_TUNING.campaign.roleTech as Partial<Record<RoleId, number>>)[role] ?? 0;
+}
+
+/** (PHASE17) Buys a locked role with tech points ([D141]); unchanged if it can't. */
+export function buyRole(state: CampaignState, role: RoleId): CampaignState {
+  if (openRoles(state).includes(role)) return state;
+  const cost = roleTechCost(role);
+  if (cost <= 0 || state.tech < cost) return state;
+  return { ...state, tech: state.tech - cost, unlocked: [...state.unlocked, role] };
 }

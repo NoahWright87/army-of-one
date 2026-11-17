@@ -18,6 +18,8 @@ import {
   settingsFor,
   startLevel,
   takeLevel,
+  buyRole,
+  roleTechCost,
   difficultyOpen,
   withDifficulty,
   type CampaignState,
@@ -147,18 +149,22 @@ describe('carry-over ([D117], [D118], [D120])', () => {
     expect(c.reserves).toEqual({ rifleman: 2, tank: 1 });
   });
 
-  it('starts with the starter roles; taking a level unlocks its role', () => {
+  it('starts with the starter roles; taking levels earns tech points to buy the rest', () => {
     let c = newCampaign(11);
     expect(openRoles(c)).toEqual(['rifleman', 'grenadier', 'gunner', 'shield']);
+    expect(buyRole(c, 'shotgun')).toBe(c); // no tech yet
     const tags = levelTags(world);
-    // Take levels until one with an unlock falls.
-    for (let i = 0; i < world.levels.length && c.unlocked.length === 0; i++) {
-      const lv = attackable(world, c)[0]!;
-      c = takeLevel(world, c, lv);
-      const got = tags[lv]!.flatMap((t) => (t.kind === 'unlock' ? [t.role] : []));
-      expect(c.unlocked).toEqual(expect.arrayContaining(got));
-    }
-    expect(openRoles(c).length).toBeGreaterThan(4);
+    const lv = attackable(world, c)[0]!;
+    c = takeLevel(world, c, lv);
+    const earned = tags[lv]!.reduce((n, t) => n + (t.kind === 'tech' ? t.n : 0), 0);
+    expect(earned).toBeGreaterThanOrEqual(1);
+    expect(c.tech).toBe(earned);
+    c = { ...c, tech: 10 };
+    const bought = buyRole(c, 'shotgun');
+    expect(openRoles(bought)).toContain('shotgun');
+    expect(bought.tech).toBe(10 - roleTechCost('shotgun'));
+    expect(buyRole(bought, 'shotgun')).toBe(bought); // already open
+    expect(buyRole(c, 'rifleman')).toBe(c); // a starter
     expect(c.active).toBeNull();
   });
 
@@ -180,14 +186,16 @@ describe('level tags ([D121])', () => {
     expect(levelTags(generateWorld(OFFICIAL_BLOCKS, { seed: 11 }))).toEqual(tags);
   });
 
-  it('every locked role is unlocked by exactly one level, never the HQ', () => {
-    const unlocks = tags.flatMap((t, lv) =>
-      t.flatMap((x) => (x.kind === 'unlock' ? [{ lv, role: x.role }] : [])),
-    );
-    expect(unlocks.map((u) => u.role).sort()).toEqual(lockedRoles().sort());
-    expect(tags[world.hq]).toEqual([]);
+  it('every reachable level gives tech points, dead ends and elite ones more', () => {
     const g = levelGraph(world);
-    for (const u of unlocks) expect(g.dist[u.lv]).toBeGreaterThanOrEqual(0);
+    for (const lv of world.levels) {
+      if (g.dist[lv.index]! < 0) continue;
+      const t = tags[lv.index]!;
+      const tech = t.find((x) => x.kind === 'tech');
+      expect(tech, `level ${lv.index}`).toBeDefined();
+      const elite = t.some((x) => x.kind === 'elite');
+      if (elite) expect((tech as { n: number }).n).toBeGreaterThan(1);
+    }
   });
 
   it('Elite levels hold the big rewards', () => {
@@ -199,13 +207,14 @@ describe('level tags ([D121])', () => {
     );
   });
 
-  it('every role is unlockable on other seeds too', () => {
+  it('a whole world has enough tech for every role', () => {
     for (const seed of [3, 7]) {
       const w = generateWorld(OFFICIAL_BLOCKS, { seed });
-      const roles = levelTags(w).flatMap((t) =>
-        t.flatMap((x) => (x.kind === 'unlock' ? [x.role] : [])),
-      );
-      expect(roles.sort()).toEqual(lockedRoles().sort());
+      const total = levelTags(w)
+        .flat()
+        .reduce((n, x) => n + (x.kind === 'tech' ? x.n : 0), 0);
+      const need = lockedRoles().reduce((n, r) => n + roleTechCost(r), 0);
+      expect(total).toBeGreaterThanOrEqual(need);
     }
   });
 });
@@ -215,7 +224,10 @@ describe('enemy funds ([D119])', () => {
     const c0 = newCampaign(11);
     const tags = levelTags(world);
     const plain = world.levels.find(
-      (l) => l.index !== world.hq && tags[l.index]!.length === 0 && l.budget < l.maxBudget,
+      (l) =>
+        l.index !== world.hq &&
+        !tags[l.index]!.some((t) => t.kind === 'elite') &&
+        l.budget < l.maxBudget,
     )!;
     expect(campaignBudget(world, c0, plain.index)).toBe(plain.budget);
     const half: CampaignState = {
