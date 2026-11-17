@@ -236,7 +236,9 @@ function tile(r: Raster, fn: (x: number, y: number) => Rgba): Raster {
   return r.shade(fn);
 }
 
-export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
+type PlaceholderImageKey = Exclude<ImageKey, `mini_${string}`>;
+
+export const IMAGE_RECIPES: Record<PlaceholderImageKey, (r: Raster) => Raster> = {
   soldier_live: (r) =>
     soldier(r, { body: '#ffc928', helmet: '#d98c00', gun: '#2b2b2b', outline: OUT, ow: 3.5 }),
   soldier_echo: (r) =>
@@ -529,5 +531,7 @@ export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
 };
 
 export function renderImage(key: ImageKey, w: number, h: number): Raster {
-  return IMAGE_RECIPES[key](new Raster(w, h));
+  const recipe = IMAGE_RECIPES[key as PlaceholderImageKey];
+  if (!recipe) throw new Error(`No placeholder recipe for delivered art: ${key}`);
+  return recipe(new Raster(w, h));
 }

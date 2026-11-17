@@ -64,6 +64,7 @@ describe('generated placeholders are up to date (rerun npm run gen:placeholders)
     for (const [key, def] of Object.entries(IMAGE_ASSETS)) {
       const onDisk = PNG.sync.read(readFileSync(join(ASSETS_DIR, def.file)));
       expect([onDisk.width, onDisk.height], key).toEqual([def.size.w, def.size.h]);
+      if (def.status !== 'placeholder') continue;
       const fresh = renderImage(key as ImageKey, def.size.w, def.size.h).toRgba8();
       expect(Buffer.compare(onDisk.data, fresh), key).toBe(0);
     }

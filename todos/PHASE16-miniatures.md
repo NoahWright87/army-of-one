@@ -55,4 +55,28 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 ## Notes from implementation
 
-_(none yet)_
+### Pilot integration (2026-11-17)
+
+The owner requested the pilot in game to judge it in context; this is a partial PHASE16, not
+the complete 49-file integration. Registered the 17 delivered PNGs under `mini_*` manifest keys
+(final status prevents placeholder regeneration; visual approval is still pending).
+
+`render/pilot-miniatures.ts` selects cached layer keys by role, faction and alive state.
+Rifleman, Sniper and Shield use the pilot; other roles and vehicles retain their existing art.
+WorldRenderer pools the base and shadow alongside the figure, preserves culling and opacity,
+keeps the base upright while the figure aims, and converts the contact-shadow offset from
+screen into world space. Dead pieces dim; static/flicker, interruption and lead-in overlays
+remain. Role icons and ordinal labels are suppressed on miniature pieces. Replay uses the
+same WorldRenderer. Run-ins use the pilot generic rifleman in place of the old generic sprite.
+
+Added a rotating pilot-role/finish row to the gallery and unit coverage for finish, corpse,
+fallback and manifest selection. Placeholder recipes remain exhaustive for placeholder keys;
+the recipe parity test now checks final-art dimensions without trying to regenerate that art.
+
+Verified visually in shared Chrome: gallery (states, rotating figures and fixed bases) and
+the real Breach autoplay flow (countdown and deployed live miniature). Full vehicle layering,
+remaining role art, expanded swarm/performance review and animation hooks are still pending.
+
+Validation: lint, purity lint, production build and all 635 tests passed. Tests used
+`node node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=2 --testTimeout=30000`
+for this cloud environment (no repository test settings changed).

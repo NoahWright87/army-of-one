@@ -6,6 +6,13 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-17 — pilot enabled in game at the owner's request
+
+The 17 pilot files are now registered and used by the main renderer for Rifleman/Sniper/Shield,
+including enemies, echoes, static remnants and fallen figures. Other roles and vehicles keep
+their placeholders. This is an in-context preview, not approval of the full art set.
+See PHASE16 implementation notes for integration scope.
+
 ## 2026-11-17 — tier 1 pilot for owner review
 
 Delivered all 17 pilot PNGs. These are candidates for the style checkpoint, not owner-approved

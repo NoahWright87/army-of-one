@@ -17,6 +17,8 @@ import { WorldRenderer } from './world-renderer';
 import { alongPath, approachFor, spawnAt } from '../run-in';
 import { DEPTH } from '../depth';
 import type { Vec2 } from '../../sim/core/vec';
+import { fitPx, type ImageKey } from '../../content/assets';
+import { pilotMiniature } from '../pilot-miniatures';
 
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
 const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
@@ -348,16 +350,32 @@ export class BattleScene extends Phaser.Scene {
    */
   private updateRunners(driver: BattleSession['driver'], alpha: number): void {
     const seen = new Set<string>();
-    const place = (key: string, texture: string, at: { pos: Vec2; facing: number }) => {
-      seen.add(key);
-      let img = this.runners.get(key);
-      if (!img) {
-        img = this.add.image(0, 0, texture).setDepth(key === 'live' ? DEPTH.live : DEPTH.echoes);
-        const src = this.textures.get(texture).getSourceImage() as { width: number };
-        img.setScale((this.world.tuning.soldier.spriteRadius * 2) / Math.max(1, src.width));
-        this.runners.set(key, img);
-      }
-      img.setPosition(at.pos.x, at.pos.y).setRotation(at.facing).setVisible(true);
+    const place = (
+      key: string,
+      texture: 'soldier_live' | 'soldier_echo',
+      at: { pos: Vec2; facing: number },
+    ) => {
+      // Run-ins use the same generic rifleman as the previous preview sprites.
+      const mini = pilotMiniature('rifleman', texture === 'soldier_live' ? 'live' : 'echo')!;
+      const depth = key === 'live' ? DEPTH.live : DEPTH.echoes;
+      const layer = (suffix: string, asset: ImageKey, rotation: number, z: number) => {
+        const id = `${key}:${suffix}`;
+        seen.add(id);
+        let img = this.runners.get(id);
+        if (!img) {
+          img = this.add.image(0, 0, asset);
+          this.runners.set(id, img);
+        }
+        img
+          .setTexture(asset)
+          .setDepth(z)
+          .setScale((this.world.tuning.soldier.spriteRadius * 2) / fitPx(asset))
+          .setPosition(at.pos.x, at.pos.y)
+          .setRotation(rotation)
+          .setVisible(true);
+      };
+      layer('base', mini.base, 0, depth - 0.1);
+      layer('figure', mini.figure, at.facing, depth);
     };
     // The live soldier, until it exists.
     this.runnerPos = null;

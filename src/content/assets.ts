@@ -9,6 +9,8 @@
  * Plain data only: this module is imported by Node tools and must stay DOM/Phaser-free.
  */
 
+import { miniatureFiles } from './miniatures';
+
 export type AssetStatus = 'placeholder' | 'final';
 
 interface AssetCommon {
@@ -86,7 +88,42 @@ const TOPDOWN = 'Top-down orthographic view, transparent background';
 const SOLDIER_FRAME =
   '64×64, facing right (+x), body circle about 44 px wide and centered so rotation works';
 
+// Only delivered pilot files are registered; missing tiers keep their existing art.
+const miniSpecs = miniatureFiles();
+function pilotImage(key: string): ImageAssetDef {
+  const spec = miniSpecs.find((s) => s.key === key);
+  if (!spec) throw new Error(`Unknown miniature ${key}`);
+  return {
+    kind: 'image',
+    file: `miniatures/${spec.file}`,
+    size: spec.canvas,
+    fitPx: spec.fitPx,
+    represents: `Miniature pilot: ${spec.subject}`,
+    replacementBrief: spec.brief,
+    // Delivered files must not be overwritten by the placeholder generator.
+    status: 'final',
+  };
+}
+
 export const IMAGE_ASSETS = {
+  mini_base_round_gold: pilotImage('mini_base_round_gold'),
+  mini_base_round_silver: pilotImage('mini_base_round_silver'),
+  mini_base_round_gold_tarnished: pilotImage('mini_base_round_gold_tarnished'),
+  mini_base_round_silver_tarnished: pilotImage('mini_base_round_silver_tarnished'),
+  mini_base_octagon_gold: pilotImage('mini_base_octagon_gold'),
+  mini_base_octagon_silver: pilotImage('mini_base_octagon_silver'),
+  mini_base_octagon_gold_tarnished: pilotImage('mini_base_octagon_gold_tarnished'),
+  mini_base_octagon_silver_tarnished: pilotImage('mini_base_octagon_silver_tarnished'),
+  mini_figure_rifleman_ally: pilotImage('mini_figure_rifleman_ally'),
+  mini_figure_rifleman_enemy: pilotImage('mini_figure_rifleman_enemy'),
+  mini_figure_sniper_ally: pilotImage('mini_figure_sniper_ally'),
+  mini_figure_sniper_enemy: pilotImage('mini_figure_sniper_enemy'),
+  mini_figure_shield_ally: pilotImage('mini_figure_shield_ally'),
+  mini_figure_shield_enemy: pilotImage('mini_figure_shield_enemy'),
+  mini_figure_fallen_ally: pilotImage('mini_figure_fallen_ally'),
+  mini_figure_fallen_enemy: pilotImage('mini_figure_fallen_enemy'),
+  mini_shadow_infantry: pilotImage('mini_shadow_infantry'),
+
   soldier_live: img(
     'soldier_live',
     64,
