@@ -6,6 +6,19 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-17 — correct the undersized sniper
+
+The first normalization shrank the entire sniper to accommodate its long rifle, leaving its
+helmet and shoulders too small next to the rifleman. Redrew both sniper factions with a larger
+body, broader helmet netting and a prominent scope. Recentered on the helmet pivot and kept the
+existing 128×128 canvas, 100 px fit, base and renderer scale. The enemy repaint shares the ally
+alpha mask, avoiding a silhouette jump. Transparent margins still pass the art checker.
+
+Inspected rotation and both swarm sheets at game size. The sniper now has a comparable body
+presence to the other infantry; its long scoped rifle and netted helmet distinguish it from
+the plain rifleman and wide shield. Art remains strictly overhead. The two existing rifleman/
+fallen faction-contour warnings are unchanged.
+
 ## 2026-11-17 — pilot enabled in game at the owner's request
 
 The 17 pilot files are now registered and used by the main renderer for Rifleman/Sniper/Shield,
