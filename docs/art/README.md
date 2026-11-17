@@ -111,3 +111,8 @@ if the checker has a bug, and you must say so.
 Do not guess about *gameplay* meaning. Write the question under "Open questions" in
 `docs/DECISIONS.md` as a `[Q#]` entry, carry on with the smallest sensible choice, and say so in your
 report. Art taste calls (exact paint colors, which pose) are yours to make inside the style bible.
+
+## Explosion effects
+
+Animated VFX have a separate sheet spec: [EXPLOSIONS.md](EXPLOSIONS.md). Review them in game
+with `?scene=gallery&explosions=1`. Character art remains static ([D127]).

@@ -6,6 +6,25 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-17 — animated overhead explosion sheets ([D127])
+
+Delivered `assets/effects/explosion_small.png` (1024×384, 128 px frames) and
+`explosion_large.png` (2048×768, 256 px frames). Each has three variation rows and eight frame
+columns. Fixed overhead pivots; radial fire/debris/smoke, no vertical plume or terrain. The
+small sequence runs at 20 fps; large at 14 fps. Fixed-grid preparation isolates each cell's
+alpha and tapers the smoke tail, with transparent borders for filtering.
+
+Registered native sprite sheets/row animations in Phaser. Explosion events choose a stable
+variation and play once on pooled Sprites, which stop/reset before reuse. Grenades/cover use
+small; mines/rockets and destroyed hazards/objectives use large. Character art stays static.
+The looping review page (`?scene=gallery&explosions=1`) uses actual event cues and the gameplay
+pool; checked ignition, changing fire/smoke frames and repeated pooled playback in Chrome.
+Details and frame layout are in EXPLOSIONS.md. Validation: all 646 tests pass
+with the cloud worker/timeout flags, plus lint, purity lint and production build. PNG tests
+cover all 48 frames, including borders and fade behavior. Reviewed an exported animated GIF
+and the running gameplay-pool gallery at multiple animation phases.
+
+
 ## 2026-11-17 — tier 2 infantry and a slightly larger base
 
 Owner approved proceeding with the other soldiers ([D126]). Delivered all 12 tier-2 files:

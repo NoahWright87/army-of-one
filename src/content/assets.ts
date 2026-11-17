@@ -10,6 +10,7 @@
  */
 
 import { miniatureFiles } from './miniatures';
+import { EXPLOSION_SHEETS, type ExplosionSize } from './explosions';
 
 export type AssetStatus = 'placeholder' | 'final';
 
@@ -33,6 +34,8 @@ export interface ImageAssetDef extends AssetCommon {
    * Replacement art may change this to match its own framing.
    */
   fitPx?: number;
+  /** Sprite-sheet grid, loaded as native Phaser frames rather than one image. */
+  sheet?: { frameWidth: number; frameHeight: number };
 }
 
 export interface SoundAssetDef extends AssetCommon {
@@ -105,7 +108,24 @@ function deliveredMiniatureImage(key: string): ImageAssetDef {
   };
 }
 
+function explosionSheet(size: ExplosionSize): ImageAssetDef {
+  const s = EXPLOSION_SHEETS[size];
+  return {
+    kind: 'image',
+    file: s.file,
+    size: { w: s.frameWidth * s.columns, h: s.frameHeight * s.rows },
+    fitPx: s.frameWidth,
+    sheet: { frameWidth: s.frameWidth, frameHeight: s.frameHeight },
+    status: 'final',
+    represents: `${size} overhead explosion animation, ${s.rows} variations × ${s.columns} frames`,
+    replacementBrief:
+      'Strict orthographic overhead radial blast, fixed centered pivot; each row is a variation, columns progress ignition/fire/debris/smoke/fade. Transparent RGBA, empty frame borders.',
+  };
+}
+
 export const IMAGE_ASSETS = {
+  fx_explosion_small: explosionSheet('small'),
+  fx_explosion_large: explosionSheet('large'),
   mini_base_square_gold: deliveredMiniatureImage('mini_base_square_gold'),
   mini_base_square_silver: deliveredMiniatureImage('mini_base_square_silver'),
   mini_base_square_gold_tarnished: deliveredMiniatureImage('mini_base_square_gold_tarnished'),

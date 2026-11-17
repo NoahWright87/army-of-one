@@ -586,6 +586,11 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   The crew remains one game unit, sharing the existing role's health and behavior. Infantry
   base scale is now 0.70× (up from D124's 0.55×); figure scale stays 1.6× for readability.
 
+- **[D127] Animate explosion effects, keep character art static (owner, 2026-11-17).** Deliver
+  separate small (grenade) and large (mine/rocket) explosion sheets. Rows are different variations;
+  columns are successive frames. Strict overhead projection applies to every frame. Initial
+  delivery: three variations × eight frames per size, native Phaser sprite-sheet playback.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

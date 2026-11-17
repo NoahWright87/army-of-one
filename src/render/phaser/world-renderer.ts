@@ -8,6 +8,11 @@
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { GROUND, isGroundKind } from '../../content/ground';
 import Phaser from 'phaser';
+import {
+  EXPLOSION_SHEETS,
+  explosionAnimationKey,
+  explosionDurationMs,
+} from '../../content/explosions';
 import { ICON_ROLES, roleIconDocument } from '../../content/role-icons';
 import type { RoleId } from '../../contracts/mission';
 import { fitPx, type ImageKey } from '../../content/assets';
@@ -62,11 +67,12 @@ export interface RenderFrame {
 }
 
 interface Effect {
-  obj: Phaser.GameObjects.Image;
+  obj: Phaser.GameObjects.Sprite;
   startMs: number;
   durationMs: number;
   baseScale: number;
   grow: number;
+  animated?: boolean;
 }
 
 interface Tracer {
@@ -188,7 +194,7 @@ export class WorldRenderer {
   /** (06-c) Lever links as dashed tile sprites: one quad each instead of per-frame Graphics. */
   private readonly links: KeyedPool<Tile>;
   private readonly allPools: { begin(): void; end(): void }[];
-  private readonly effectImages: FreeList<Img>;
+  private readonly effectImages: FreeList<Phaser.GameObjects.Sprite>;
 
   private readonly overlayGfx: Phaser.GameObjects.Graphics;
   private readonly tracerGfx: Phaser.GameObjects.Graphics;
@@ -283,7 +289,9 @@ export class WorldRenderer {
       this.prompts,
       this.links,
     ];
-    this.effectImages = new FreeList(img(DEPTH.effects));
+    this.effectImages = new FreeList(() =>
+      scene.add.sprite(0, 0, '__DEFAULT').setDepth(DEPTH.effects),
+    );
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
     this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
@@ -604,9 +612,27 @@ export class WorldRenderer {
         case 'impact':
           this.spawnEffect('impact', c.x, c.y, nowMs, 140, 0.7, 0.6);
           break;
-        case 'explosion':
-          this.spawnEffect('explosion', c.x, c.y, nowMs, 450, (c.radius * 2) / 128, 0.35);
+        case 'explosion': {
+          const spec = EXPLOSION_SHEETS[c.size];
+          const obj = this.effectImages.take();
+          obj
+            .stop()
+            .setTexture(spec.key, c.variation * spec.columns)
+            .setPosition(c.x, c.y)
+            .setRotation(0)
+            .setScale((c.radius * 2) / spec.frameWidth)
+            .setAlpha(1);
+          obj.play(explosionAnimationKey(c.size, c.variation));
+          this.effects.push({
+            obj,
+            startMs: nowMs,
+            durationMs: explosionDurationMs(c.size),
+            baseScale: obj.scaleX,
+            grow: 0,
+            animated: true,
+          });
           break;
+        }
         case 'hitFlash':
           this.hitFlashUntil.set(c.targetId, nowMs + HIT_FLASH_MS);
           break;
@@ -640,7 +666,7 @@ export class WorldRenderer {
     rotation = 0,
   ): void {
     const obj = this.effectImages.take();
-    obj.setTexture(key).setPosition(x, y).setRotation(rotation).setScale(scale).setAlpha(1);
+    obj.stop().setTexture(key).setPosition(x, y).setRotation(rotation).setScale(scale).setAlpha(1);
     this.effects.push({ obj, startMs: nowMs, durationMs, baseScale: scale, grow });
   }
 
@@ -649,11 +675,12 @@ export class WorldRenderer {
       const e = this.effects[i]!;
       const t = (nowMs - e.startMs) / e.durationMs;
       if (t >= 1) {
+        e.obj.stop();
         this.effectImages.give(e.obj);
         this.effects.splice(i, 1);
         continue;
       }
-      e.obj.setAlpha(1 - t * t).setScale(e.baseScale * (1 + e.grow * t));
+      if (!e.animated) e.obj.setAlpha(1 - t * t).setScale(e.baseScale * (1 + e.grow * t));
     }
     const g = this.tracerGfx;
     g.clear();
