@@ -15,6 +15,7 @@ export const STRINGS = {
   'hud.kia': 'KIA',
   'hud.leadIn': 'Shielded',
   'hud.clockLabel': 'Battle time',
+  'hud.enemiesLeft': '{n} enemy soldiers left',
   'hud.moneyLabel': 'Money (spent when a soldier spawns)',
 
   // Economy (PHASE11, [D51]–[D54])

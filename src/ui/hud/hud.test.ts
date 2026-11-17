@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { ObjectiveView, SoldierView, WorldView } from '../../sim/view';
 import { countdownLabel, countdownPhase, CountdownTracker } from './countdown-model';
 import { ema, entityCounts, formatDebugLines } from './debug-model';
-import { buildHudModel, formatHp, hpFraction, objectiveText } from './hud-model';
+import {
+  buildHudModel,
+  enemiesLeft,
+  flagIcons,
+  formatHp,
+  hpFraction,
+  objectiveText,
+} from './hud-model';
 
 const soldier = (p: Partial<SoldierView> = {}): SoldierView => ({
   kind: 'soldier',
@@ -153,5 +160,41 @@ describe('debug overlay model', () => {
   it('ema', () => {
     expect(ema(null, 4)).toBe(4);
     expect(ema(4, 8, 0.5)).toBe(6);
+  });
+});
+
+describe('objective icons (PHASE17, [D140])', () => {
+  const cp = (stage: 'enemy' | 'neutral' | 'ours', progress = 0, objective = true) =>
+    ({
+      kind: 'capturePoint',
+      id: 'x',
+      nameKey: 'x',
+      x: 0,
+      y: 0,
+      radius: 1,
+      stage,
+      progress,
+      contributors: [],
+      objective,
+    }) as unknown as Parameters<typeof flagIcons>[0][number];
+
+  it('one flag per objective: ours, being taken, or theirs', () => {
+    const f = flagIcons([
+      cp('ours'),
+      cp('enemy', 0.5),
+      cp('enemy'),
+      cp('neutral', 0),
+      cp('enemy', 0, false),
+    ]);
+    expect(f.map((x) => x.state)).toEqual(['ours', 'taking', 'theirs', 'taking']);
+    expect(f[1]!.progress).toBeCloseTo(0.25);
+    expect(f[3]!.progress).toBeCloseTo(0.5);
+  });
+
+  it('counts enemy soldiers left, or null without any', () => {
+    const s = (role: string, alive: boolean) => ({ role, alive }) as never;
+    const v = (soldiers: unknown[]) => ({ soldiers }) as never;
+    expect(enemiesLeft(v([s('enemy', true), s('enemy', false), s('live', true)]))).toBe(1);
+    expect(enemiesLeft(v([s('live', true)]))).toBeNull();
   });
 });

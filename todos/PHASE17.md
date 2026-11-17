@@ -9,7 +9,7 @@ controls, flying bullets. Decisions: [D137]–[D145]. Each part is independently
 1. [x] Competent, aggressive AI + regen + regroup ([D137], [D138]).
 2. [x] Dev arena ([D142]): footer Dev link; sides, roles, counts, HUMAN/CPU presets, cover, GO.
 3. [x] Win rule ([D139]): every exit + a prominent position, entries held start ours; or kill all.
-4. [ ] Objective HUD icons ([D140]).
+4. [x] Objective HUD icons ([D140]).
 5. [ ] Generator ([D143]): no objective next to an entry; walled bases playable.
 6. [ ] Tech points and buying roles on the map; map icons ([D141]).
 7. [ ] Touch controls ([D144]).

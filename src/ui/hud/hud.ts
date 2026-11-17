@@ -27,6 +27,13 @@ const HUD_CSS = `
 .aoo-hud .tr { position: absolute; top: 12px; right: 12px; font-size: 22px; font-variant-numeric: tabular-nums; }
 .aoo-hud .obj { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 14px;
   background: rgba(0,0,0,.35); padding: 3px 10px; border-radius: 3px; white-space: nowrap; }
+.aoo-hud .icons { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,.35); padding: 3px 10px;
+  border-radius: 6px; white-space: nowrap; }
+.aoo-hud .icons .flags { display: flex; gap: 3px; }
+.aoo-hud .icons .helmets { font-size: 16px; letter-spacing: -2px; }
+.aoo-hud .icons .helmets.many { letter-spacing: 0; font-size: 15px; font-weight: 700; }
+.aoo-hud .icons svg { display: block; }
 .aoo-hud .vignette { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease-out; will-change: opacity;
   box-shadow: inset 0 0 120px 40px rgba(255, 30, 30, .85); }
 .aoo-hud .banner { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 44px;
@@ -49,6 +56,11 @@ export class Hud {
   private readonly moneyNum = el('span', 'num');
   private readonly moneyRate = el('span', 'rate');
   private readonly obj = el('div', 'obj');
+  /** (PHASE17) Flags and helmets instead of words ([D140]). */
+  private readonly icons = el('div', 'icons');
+  private readonly flagsEl = el('div', 'flags');
+  private readonly helmetsEl = el('div', 'helmets');
+  private iconKey = '';
   private readonly vignette = el('div', 'vignette');
   private readonly banner = el('div', 'banner');
   private vignetteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,7 +79,9 @@ export class Hud {
     tl.append(this.who, hp, this.money);
     this.clock.title = str('hud.clockLabel');
     this.banner.hidden = true;
-    this.root.append(this.vignette, tl, this.obj, this.clock, this.banner);
+    this.icons.append(this.flagsEl, this.helmetsEl);
+    this.icons.hidden = true;
+    this.root.append(this.vignette, tl, this.obj, this.icons, this.clock, this.banner);
     parent.appendChild(this.root);
   }
 
@@ -88,9 +102,29 @@ export class Hud {
       const cls = m.moneyDebt ? 'money debt' : 'money';
       if (this.money.className !== cls) this.money.className = cls;
     }
-    setText(this.obj, m.objective);
+    // (PHASE17) Icons when there are flags or enemies to count; the text otherwise ([D140]).
+    const useIcons = (m.flags.length > 0 || m.enemiesLeft !== null) && !m.missionComplete;
+    if (this.icons.hidden === useIcons) this.icons.hidden = !useIcons;
+    if (this.obj.hidden === useIcons) this.obj.hidden = useIcons;
+    if (useIcons) this.renderIcons(m);
+    else setText(this.obj, m.objective);
     if (this.banner.hidden === m.missionComplete) this.banner.hidden = !m.missionComplete;
     if (m.missionComplete) setText(this.banner, str('mission.complete'));
+  }
+
+  private renderIcons(m: HudModel): void {
+    const key =
+      m.flags.map((f) => `${f.state}${Math.round(f.progress * 8)}`).join(',') + `|${m.enemiesLeft}`;
+    if (key === this.iconKey) return;
+    this.iconKey = key;
+    this.flagsEl.innerHTML = m.flags.map((f) => flagSvg(f.state, f.progress)).join('');
+    const n = m.enemiesLeft;
+    this.helmetsEl.hidden = n === null;
+    if (n === null) return;
+    const many = n > HELMETS_SHOWN;
+    this.helmetsEl.className = many ? 'helmets many' : 'helmets';
+    this.helmetsEl.textContent = many ? `🪖×${n}` : n === 0 ? '' : '🪖'.repeat(n);
+    this.helmetsEl.title = str('hud.enemiesLeft', { n });
   }
 
   /** Red edge flash when the live soldier is hit (intensity 0..1). */
@@ -131,4 +165,22 @@ export class DebugOverlay {
     if (this.root.hidden) return;
     setText(this.root, formatDebugLines(stats).join('\n'));
   }
+}
+
+/** (PHASE17) Below this many enemies left, each is its own helmet ([D140]). */
+const HELMETS_SHOWN = 10;
+
+/** (PHASE17) A small flag: green when ours, white when theirs, filling green while taken. */
+function flagSvg(state: 'ours' | 'taking' | 'theirs', progress: number): string {
+  const fill = state === 'ours' ? '#4fd15a' : '#e9edf1';
+  const h = Math.round(10 * progress);
+  const taking =
+    state === 'taking'
+      ? `<rect x="5" y="${3 + 10 - h}" width="11" height="${h}" fill="#4fd15a"/>`
+      : '';
+  return (
+    `<svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true">` +
+    `<rect x="3" y="2" width="2" height="17" fill="#c9ced4"/>` +
+    `<rect x="5" y="3" width="11" height="10" fill="${fill}"/>${taking}</svg>`
+  );
 }
