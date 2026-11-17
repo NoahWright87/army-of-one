@@ -8,9 +8,11 @@ import { str } from '../../content/strings';
 import type { Vec2 } from '../../sim/core/vec';
 import { PressLatch } from '../../render/input/input-math';
 import { el, injectStyle } from '../dom';
-import { knobOffset, stickVector, type StickConfig } from './stick-math';
+import { knobOffset, sprintRingReached, stickVector, type StickConfig } from './stick-math';
 
 const STICK: StickConfig = { radius: 56, deadZone: 0.15 };
+/** (PHASE17) Pushing the move stick past this × its radius sprints ([D144]). */
+const SPRINT_RING = 1.45;
 
 const CSS = `
 .aoo-touch { position: fixed; inset: 0; z-index: 20; pointer-events: none; user-select: none;
@@ -26,13 +28,20 @@ const CSS = `
   margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,0.45); }
 .aoo-touch .stick.aim { border-color: rgba(255,211,77,0.55); }
 .aoo-touch .stick.aim .knob { background: rgba(255,211,77,0.6); }
-/* (PHASE12-d) Tap-to-aim: the move stick lives in the bottom-left corner; touch anywhere else
-   to aim there (hold to fire). */
-.aoo-touch.tap .zone.left { top: 42%; width: 46%; z-index: 1; }
-.aoo-touch.tap .zone.right { left: 0; width: 100%; }
+/* (PHASE17) Tap-to-aim ([D144]): the first finger anywhere is the move stick; a second finger
+   aims there (hold to fire). Pushing the stick out to its outer ring sprints. */
+.aoo-touch.tap .zone.left { left: 0; width: 100%; z-index: 1; }
+.aoo-touch.tap .zone.right { display: none; }
+.aoo-touch.tap .sprint { display: none; }
+.aoo-touch .ring { position: absolute; left: 50%; top: 50%;
+  width: ${Math.round(STICK.radius * 2 * SPRINT_RING)}px; height: ${Math.round(STICK.radius * 2 * SPRINT_RING)}px;
+  margin: -${Math.round(STICK.radius * SPRINT_RING)}px 0 0 -${Math.round(STICK.radius * SPRINT_RING)}px;
+  border-radius: 50%; border: 2px dashed rgba(120,190,255,0.45); pointer-events: none; }
+.aoo-touch .stick.sprinting .ring { border-style: solid; border-color: rgba(120,190,255,0.95);
+  background: rgba(120,190,255,0.12); }
 .aoo-touch .tapmark { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px;
   border-radius: 50%; border: 3px solid rgba(255,211,77,0.85); pointer-events: none; }
-.aoo-touch button { position: absolute; pointer-events: auto; touch-action: none; border: 0;
+.aoo-touch button { position: absolute; z-index: 2; pointer-events: auto; touch-action: none; border: 0;
   border-radius: 50%; font: 700 15px system-ui, sans-serif; color: #111; }
 .aoo-touch .fire { right: 22px; bottom: 26px; width: 84px; height: 84px; background: rgba(255,90,60,0.8); }
 .aoo-touch .fire.held { background: rgba(255,140,100,0.95); }
@@ -65,7 +74,13 @@ export class TouchControls {
   private tapAimOn = false;
   fireHeld = false;
   /** (07-e) Sprint button held ([D49]). */
-  sprintHeld = false;
+  private sprintBtnHeld = false;
+  /** (PHASE17) The move stick pushed out to its outer ring ([D144]). */
+  private ringSprint = false;
+  /** Sprinting: the button held, or the stick out at its ring. */
+  get sprintHeld(): boolean {
+    return this.sprintBtnHeld || this.ringSprint;
+  }
   readonly interactLatch = new PressLatch();
   private left: Active | null = null;
   private right: Active | null = null;
@@ -103,12 +118,12 @@ export class TouchControls {
     this.interactBtn.hidden = true;
     this.sprintBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      this.sprintHeld = true;
+      this.sprintBtnHeld = true;
       this.sprintBtn.classList.add('held');
       this.sprintBtn.setPointerCapture?.(e.pointerId);
     });
     const stopSprint = () => {
-      this.sprintHeld = false;
+      this.sprintBtnHeld = false;
       this.sprintBtn.classList.remove('held');
     };
     this.sprintBtn.addEventListener('pointerup', stopSprint);
@@ -168,14 +183,17 @@ export class TouchControls {
     this.endStick('right');
     this.fireHeld = false;
     this.fireBtn.classList.remove('held');
-    this.sprintHeld = false;
+    this.sprintBtnHeld = false;
+    this.ringSprint = false;
     this.sprintBtn.classList.remove('held');
     this.endTap();
   }
 
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {
     zone.addEventListener('pointerdown', (e) => {
-      if (side === 'right' && this.tapAimOn) {
+      // (PHASE17) Tap mode: one zone; the first finger moves, a second one aims ([D144]).
+      const aimTap = this.tapAimOn && (side === 'right' || (side === 'left' && this.left !== null));
+      if (aimTap) {
         if (this.tapPointer !== null) return;
         e.preventDefault();
         zone.setPointerCapture?.(e.pointerId);
@@ -191,6 +209,7 @@ export class TouchControls {
       e.preventDefault();
       zone.setPointerCapture?.(e.pointerId);
       const stick = el('div', side === 'left' ? 'stick' : 'stick aim');
+      if (side === 'left' && this.tapAimOn) stick.append(el('div', 'ring'));
       stick.append(el('div', 'knob'));
       stick.style.left = `${e.clientX}px`;
       stick.style.top = `${e.clientY}px`;
@@ -200,7 +219,7 @@ export class TouchControls {
       this.update(side);
     });
     zone.addEventListener('pointermove', (e) => {
-      if (side === 'right' && this.tapPointer === e.pointerId) {
+      if (this.tapPointer === e.pointerId) {
         this.tap = { x: e.clientX, y: e.clientY };
         this.placeTap();
         return;
@@ -211,7 +230,7 @@ export class TouchControls {
       this.update(side);
     });
     const end = (e: PointerEvent) => {
-      if (side === 'right' && this.tapPointer === e.pointerId) {
+      if (this.tapPointer === e.pointerId) {
         this.endTap();
         return;
       }
@@ -232,17 +251,25 @@ export class TouchControls {
     const a = this[side];
     if (!a) return;
     const v = stickVector(a.origin, a.thumb, STICK);
-    const k = knobOffset(a.origin, a.thumb, STICK.radius);
-    (a.el.firstChild as HTMLElement).style.transform = `translate(${k.x}px, ${k.y}px)`;
-    if (side === 'left') this.move = v;
-    else this.aim = v;
+    // (PHASE17) In tap mode the knob follows the thumb out to the sprint ring ([D144]).
+    const reach = side === 'left' && this.tapAimOn ? STICK.radius * SPRINT_RING : STICK.radius;
+    const k = knobOffset(a.origin, a.thumb, reach);
+    (a.el.lastChild as HTMLElement).style.transform = `translate(${k.x}px, ${k.y}px)`;
+    if (side === 'left') {
+      this.move = v;
+      this.ringSprint =
+        this.tapAimOn && sprintRingReached(a.origin, a.thumb, STICK.radius * SPRINT_RING);
+      a.el.classList.toggle('sprinting', this.ringSprint);
+    } else this.aim = v;
   }
 
   private endStick(side: 'left' | 'right'): void {
     const a = this[side];
     if (a) a.el.remove();
     this[side] = null;
-    if (side === 'left') this.move = { x: 0, y: 0 };
-    else this.aim = null;
+    if (side === 'left') {
+      this.move = { x: 0, y: 0 };
+      this.ringSprint = false;
+    } else this.aim = null;
   }
 }

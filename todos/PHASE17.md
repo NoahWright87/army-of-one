@@ -12,7 +12,7 @@ controls, flying bullets. Decisions: [D137]–[D145]. Each part is independently
 4. [x] Objective HUD icons ([D140]).
 5. [x] Generator ([D143]): no objective next to an entry; walled bases playable.
 6. [x] Tech points and buying roles on the map; map icons ([D141]).
-7. [ ] Touch controls ([D144]).
+7. [x] Touch controls ([D144]).
 8. [ ] Projectile bullets ([D145]).
 
 Target to tune toward: on Normal a lone soldier usually loses at a guarded objective; a level
