@@ -1,6 +1,6 @@
 /**
- * (PHASE17) The dev arena's setup panel ([D142]): each side's preset and soldiers by role, cover
- * pieces to place by tapping the field, GO / reset / speed, and a batch of headless fights for
+ * (PHASE17) The dev arena's setup panel ([D142]): each side's preset and soldiers by role,
+ * barriers switched on per half at fixed spots, GO / reset / speed, and a batch of headless fights for
  * win rates. Icons over words. Dev tool: placeholder look.
  */
 import { ROLES } from '../../content/roles';
@@ -13,6 +13,8 @@ import {
   type ArenaConfig,
   type ArenaPiece,
   type ArenaPreset,
+  type BarrierSides,
+  BARRIER_SIDES,
   type ArenaState,
 } from '../../gen/arena';
 import type { RoleId } from '../../contracts/mission';
@@ -26,17 +28,26 @@ export interface ArenaPanelActions {
   batch(n: number): Promise<ArenaBatch>;
 }
 
-export type ArenaTool = ArenaPiece['kind'] | 'erase' | null;
-
-const TOOLS: readonly { tool: ArenaTool; icon: string; key: Parameters<typeof str>[0] }[] = [
-  { tool: null, icon: '✋', key: 'arena.tool.none' },
-  { tool: 'sandbags', icon: '🟫', key: 'arena.tool.sandbags' },
-  { tool: 'crate', icon: '📦', key: 'arena.tool.crate' },
-  { tool: 'fence', icon: '🚧', key: 'arena.tool.fence' },
-  { tool: 'halfWall', icon: '🧱', key: 'arena.tool.halfWall' },
-  { tool: 'rock', icon: '🪨', key: 'arena.tool.rock' },
-  { tool: 'erase', icon: '🧽', key: 'arena.tool.erase' },
+/** Barrier buttons: an icon per kind ([D142]). */
+const BARRIERS: readonly {
+  kind: ArenaPiece['kind'];
+  icon: string;
+  key: Parameters<typeof str>[0];
+}[] = [
+  { kind: 'sandbags', icon: '🟫', key: 'arena.tool.sandbags' },
+  { kind: 'crate', icon: '📦', key: 'arena.tool.crate' },
+  { kind: 'fence', icon: '🚧', key: 'arena.tool.fence' },
+  { kind: 'halfWall', icon: '🧱', key: 'arena.tool.halfWall' },
+  { kind: 'rock', icon: '🪨', key: 'arena.tool.rock' },
 ];
+
+/** What each side setting looks like on its button. */
+const SIDE_MARK: Readonly<Record<BarrierSides, string>> = {
+  none: '·',
+  left: '◀',
+  right: '▶',
+  both: '◀▶',
+};
 
 const css = `
 .aoo-arena { position: fixed; top: 0; right: 0; bottom: 0; width: 320px; overflow-y: auto;
@@ -62,7 +73,8 @@ const css = `
   cursor: pointer; font: inherit; padding: 2px 6px; }
 .aoo-arena .role button { padding: 0 5px; }
 .aoo-arena .tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.aoo-arena .tools button { font-size: 18px; padding: 2px 6px; }
+.aoo-arena .tools button { font-size: 18px; padding: 2px 6px; min-width: 52px; }
+.aoo-arena .tools small { font-size: 11px; margin-left: 2px; }
 .aoo-arena .tools button.on { border-color: #ffd34d; background: #2b2a1d; }
 .aoo-arena .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
 .aoo-arena .go { background: #2f6b34; border-color: #4fa356; font-weight: 700; font-size: 15px; padding: 4px 14px; }
@@ -74,8 +86,6 @@ const css = `
 export class ArenaPanel {
   private readonly root = el('div', 'aoo-arena');
   private cfg: ArenaConfig;
-  tool: ArenaTool = null;
-  vertical = false;
   private scoreEl = el('div', 'score');
   private batchEl = el('div', 'batch');
 
@@ -93,32 +103,6 @@ export class ArenaPanel {
 
   get config(): ArenaConfig {
     return this.cfg;
-  }
-
-  /** Places or erases at a tap on the field. */
-  tap(x: number, y: number): void {
-    if (!this.tool) return;
-    if (this.tool === 'erase') {
-      let best = -1;
-      let bestD = 60 * 60;
-      this.cfg.pieces.forEach((p, i) => {
-        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
-        if (d < bestD) {
-          bestD = d;
-          best = i;
-        }
-      });
-      if (best < 0) return;
-      this.cfg.pieces.splice(best, 1);
-    } else {
-      this.cfg.pieces.push({
-        kind: this.tool,
-        x: Math.round(x),
-        y: Math.round(y),
-        ...(this.vertical ? { vertical: true } : {}),
-      });
-    }
-    this.actions.change(this.cfg);
   }
 
   showState(s: ArenaState): void {
@@ -148,29 +132,22 @@ export class ArenaPanel {
     }
     r.append(nav, this.side('left'), this.side('right'));
 
+    // Barriers ([D142]): each kind at its fixed spots, off / left / right / both halves.
     const tools = el('div', 'tools');
-    for (const t of TOOLS) {
-      const b = el('button', t.tool === this.tool ? 'on' : '', t.icon);
-      b.title = str(t.key);
-      b.onclick = () => {
-        this.tool = t.tool;
+    for (const b of BARRIERS) {
+      const cur = this.cfg.barriers[b.kind] ?? 'none';
+      const btn = el('button', cur === 'none' ? '' : 'on');
+      btn.innerHTML = `${b.icon}<small>${SIDE_MARK[cur]}</small>`;
+      btn.title = `${str(b.key)}: ${str(`arena.sides.${cur}` as Parameters<typeof str>[0])}`;
+      btn.onclick = () => {
+        const next = BARRIER_SIDES[(BARRIER_SIDES.indexOf(cur) + 1) % BARRIER_SIDES.length]!;
+        if (next === 'none') delete this.cfg.barriers[b.kind];
+        else this.cfg.barriers[b.kind] = next;
+        this.actions.change(this.cfg);
         this.render();
       };
-      tools.append(b);
+      tools.append(btn);
     }
-    const rot = el('button', this.vertical ? 'on' : '', this.vertical ? '↕' : '↔');
-    rot.title = str('arena.rotate');
-    rot.onclick = () => {
-      this.vertical = !this.vertical;
-      this.render();
-    };
-    const clear = el('button', '', '🗑');
-    clear.title = str('arena.clear');
-    clear.onclick = () => {
-      this.cfg.pieces = [];
-      this.actions.change(this.cfg);
-    };
-    tools.append(rot, clear);
     r.append(tools);
 
     const row = el('div', 'row');

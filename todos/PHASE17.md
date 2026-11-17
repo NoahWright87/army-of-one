@@ -59,3 +59,8 @@ takes about 4–8 lives working together.
    hitscan (`applyShotHit`). `shotFired` still fires at the trigger pull (`flying: true`) so the
    recorder and echoes are unchanged. Turrets and fragments stay hitscan. ~10–15% more sim time
    (`docs/perf.md`).
+9. **Arena barriers** (owner follow-up): no more tapping to place. Each kind (sandbags, crate,
+   fence, half wall, rock) has two fixed spots per half (`BARRIER_SPOTS`, mirrored, tested not
+   to overlap each other or the starting blocks); its button cycles off → left → right → both.
+   Setups saved with hand-placed pieces load with no barriers (`parseArenaConfig`).
+

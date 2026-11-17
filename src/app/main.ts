@@ -1140,14 +1140,15 @@ async function startArena(): Promise<void> {
   const { ArenaPanel } = await import('../ui/arena/arena-panel');
   const arena = await import('../gen/arena');
   const KEY = 'army-of-one.arena.v1';
-  let cfg: ArenaConfig = {
+  const defaults: ArenaConfig = {
     left: { preset: 'human', units: { rifleman: 1 } },
     right: { preset: 'normal', units: { rifleman: 3 } },
-    pieces: [],
+    barriers: {},
   };
+  let cfg = defaults;
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (raw) cfg = JSON.parse(raw) as typeof cfg;
+    if (raw) cfg = arena.parseArenaConfig(JSON.parse(raw), defaults);
   } catch {
     // defaults
   }
@@ -1191,7 +1192,7 @@ async function startArena(): Promise<void> {
     ],
   );
   arenaScene.hooks = {
-    onTap: (x, y) => panel.tap(x, y),
+    onTap: () => {}, // barriers are buttons now, not placed by tapping
     onState: (st) => panel.showState(st),
     onReady: () => arenaScene.loadFight(panel.config, seed),
   };

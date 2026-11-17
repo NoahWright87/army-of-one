@@ -191,7 +191,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   HUD; walled bases are breached into play (`breachPockets`); tech points buy roles
   (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`).
 - Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
-  side by role, HUMAN / CPU presets, cover by tapping, GO, and 20 headless fights for win rates
+  side by role, HUMAN / CPU presets, barrier buttons (each kind off / left / right / both halves,
+  at fixed mirrored spots), GO, and 20 headless fights for win rates
   (`src/gen/arena.ts`). The AI can drive either side (`SquadDef.team`, `SquadDef.skill`).
   Spawn points carry an `approach` path: new soldiers and echoes run in along it during the
   lead-in (`src/render/run-in.ts`, drawn by the battle scene; for show only, [D112]).

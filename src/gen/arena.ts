@@ -1,7 +1,7 @@
 /**
  * (PHASE17) The dev arena ([D142]): a TABS-style balance test. Two sides of AI soldiers (roles and
  * counts), each with a skill preset (HUMAN = the player's stats with no AI handicaps, or the CPU
- * at a difficulty), cover pieces placed by hand, and GO. Both sides walk to the middle and fight
+ * at a difficulty), barriers switched on per side at fixed spots, and GO. Both sides walk to the middle and fight
  * until one side is gone. `runArena` plays it headless; `runArenaBatch` repeats it with the
  * formations jittered for win rates. Pure and deterministic.
  */
@@ -39,10 +39,78 @@ export interface ArenaPiece {
   vertical?: boolean;
 }
 
+/** Which halves of the field a kind of barrier is on. */
+export type BarrierSides = 'none' | 'left' | 'right' | 'both';
+export const BARRIER_SIDES: readonly BarrierSides[] = ['none', 'left', 'right', 'both'];
+export const BARRIER_KINDS: readonly ArenaPiece['kind'][] = [
+  'sandbags',
+  'crate',
+  'fence',
+  'halfWall',
+  'rock',
+];
+
 export interface ArenaConfig {
   left: ArenaSide;
   right: ArenaSide;
-  pieces: ArenaPiece[];
+  /** Each kind of barrier, on neither, one or both halves (at its fixed spots). */
+  barriers: Partial<Record<ArenaPiece['kind'], BarrierSides>>;
+}
+
+/**
+ * Fixed spots for each kind of barrier on the left half (the right half mirrors them), laid out
+ * so none overlap each other or the starting formations.
+ */
+export const BARRIER_SPOTS: Readonly<Record<ArenaPiece['kind'], readonly ArenaPiece[]>> = {
+  sandbags: [
+    { kind: 'sandbags', x: 480, y: 380, vertical: true },
+    { kind: 'sandbags', x: 480, y: 620, vertical: true },
+  ],
+  crate: [
+    { kind: 'crate', x: 560, y: 250 },
+    { kind: 'crate', x: 560, y: 750 },
+  ],
+  fence: [
+    { kind: 'fence', x: 640, y: 150, vertical: true },
+    { kind: 'fence', x: 640, y: 850, vertical: true },
+  ],
+  halfWall: [
+    { kind: 'halfWall', x: 420, y: 180, vertical: true },
+    { kind: 'halfWall', x: 420, y: 820, vertical: true },
+  ],
+  rock: [
+    { kind: 'rock', x: 700, y: 320 },
+    { kind: 'rock', x: 700, y: 680 },
+  ],
+  window: [],
+  bunkerWindow: [],
+};
+
+/** The barrier pieces a setup puts on the field. */
+export function arenaPieces(cfg: ArenaConfig): ArenaPiece[] {
+  const out: ArenaPiece[] = [];
+  for (const kind of BARRIER_KINDS) {
+    const sides = cfg.barriers?.[kind] ?? 'none';
+    for (const p of BARRIER_SPOTS[kind]) {
+      if (sides === 'left' || sides === 'both') out.push(p);
+      if (sides === 'right' || sides === 'both') out.push({ ...p, x: ARENA_W - p.x });
+    }
+  }
+  return out;
+}
+
+/** A stored setup, or the defaults for anything missing (old setups had hand-placed pieces). */
+export function parseArenaConfig(raw: unknown, fallback: ArenaConfig): ArenaConfig {
+  if (!raw || typeof raw !== 'object') return fallback;
+  const o = raw as Partial<ArenaConfig>;
+  const side = (s: unknown, d: ArenaSide): ArenaSide =>
+    s && typeof s === 'object' && 'preset' in s && 'units' in s ? (s as ArenaSide) : d;
+  const barriers: ArenaConfig['barriers'] = {};
+  for (const k of BARRIER_KINDS) {
+    const v = (o.barriers as Record<string, unknown> | undefined)?.[k];
+    if (BARRIER_SIDES.includes(v as BarrierSides)) barriers[k] = v as BarrierSides;
+  }
+  return { left: side(o.left, fallback.left), right: side(o.right, fallback.right), barriers };
 }
 
 export const ARENA_W = 1600;
@@ -133,7 +201,7 @@ export function arenaMap(cfg: ArenaConfig, seed = 0): MapDef {
   };
   const cover: CoverDef[] = [];
   const walls: Rect[] = [...borderWalls(ARENA_W, ARENA_H)];
-  cfg.pieces.forEach((p, i) => {
+  arenaPieces(cfg).forEach((p, i) => {
     if (p.kind === 'rock') walls.push(pieceRect(p));
     else cover.push({ id: `piece-${i}`, rect: pieceRect(p), material: p.kind });
   });
