@@ -512,6 +512,7 @@ async function startGame(): Promise<void> {
         onPickMission: pickMission,
         onOpenEditor: openEditor,
         onOpenDev: () => openScene('arena'),
+        onOpenTextLab: () => openScene('textlab'),
         onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         campaign: {

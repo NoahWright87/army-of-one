@@ -23,6 +23,9 @@ export const LAB_H = 900;
 export const LAB_PLAYER = 'you';
 const SPEED = 190;
 const R = 12;
+/** Touch stick: full speed this far (screen px) from where the finger went down; dead zone. */
+const STICK_R = 60;
+const STICK_DEAD = 8;
 
 export const LAB_SIGNS: readonly SignDef[] = [
   { id: 's1', x: 220, y: 170, kind: 'plain', textKey: 'sign.lab.plain' },
@@ -85,6 +88,10 @@ export class TextLabScene extends Phaser.Scene {
   private firefightUntil = 0;
   private nextFirefightShot = 0;
   private zoom = 1;
+  /** Touch: the movement stick (screen px), and where the last tap fired. */
+  private stick: { id: number; ox: number; oy: number; x: number; y: number } | null = null;
+  private stickGfx!: Phaser.GameObjects.Graphics;
+  private touchAim: { x: number; y: number; until: number } | null = null;
 
   constructor() {
     super('textlab');
@@ -128,10 +135,30 @@ export class TextLabScene extends Phaser.Scene {
       left: K.LEFT,
       right: K.RIGHT,
     }) as typeof this.keys;
+    // Mouse: click fires. Touch ([D144]): the first finger is a movement stick (drag from
+    // where it went down), a second finger taps to fire at that spot.
+    this.input.addPointer(2);
+    this.stickGfx = this.add.graphics().setDepth(DEPTH.reticle);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (p.wasTouch) {
+        if (!this.stick) this.stick = { id: p.id, ox: p.x, oy: p.y, x: p.x, y: p.y };
+        else this.fire(p.x, p.y);
+        return;
+      }
       if (p.button !== 0) return;
-      this.fire();
+      this.fire(p.x, p.y);
     });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.stick && p.id === this.stick.id) {
+        this.stick.x = p.x;
+        this.stick.y = p.y;
+      }
+    });
+    const lift = (p: Phaser.Input.Pointer) => {
+      if (this.stick && p.id === this.stick.id) this.stick = null;
+    };
+    this.input.on('pointerup', lift);
+    this.input.on('pointerupoutside', lift);
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
       this.setZoom(this.zoom * (dy > 0 ? 0.9 : 1.1)),
     );
@@ -344,9 +371,9 @@ export class TextLabScene extends Phaser.Scene {
     });
   }
 
-  private fire(): void {
-    const ptr = this.input.activePointer;
-    const at = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+  private fire(sx: number, sy: number): void {
+    const at = this.cameras.main.getWorldPoint(sx, sy);
+    this.touchAim = { x: at.x, y: at.y, until: this.time.now + 600 };
     const angle = Math.atan2(at.y - this.player.y, at.x - this.player.x);
     this.fired = true;
     this.tracer(
@@ -427,13 +454,47 @@ export class TextLabScene extends Phaser.Scene {
     const dt = Math.min(0.05, delta / 1000);
     // You.
     const k = this.keys;
-    const mx = Number(k.d.isDown || k.right.isDown) - Number(k.a.isDown || k.left.isDown);
-    const my = Number(k.s.isDown || k.down.isDown) - Number(k.w.isDown || k.up.isDown);
+    let mx = Number(k.d.isDown || k.right.isDown) - Number(k.a.isDown || k.left.isDown);
+    let my = Number(k.s.isDown || k.down.isDown) - Number(k.w.isDown || k.up.isDown);
+    let speed = 1;
+    this.stickGfx.clear();
+    if (this.stick) {
+      const st = this.stick;
+      const dx = st.x - st.ox;
+      const dy = st.y - st.oy;
+      const d = Math.hypot(dx, dy);
+      if (d > STICK_DEAD) {
+        mx = dx;
+        my = dy;
+        speed = Math.min(1, d / STICK_R);
+      }
+      const kx = st.ox + (d > STICK_R ? (dx / d) * STICK_R : dx);
+      const ky = st.oy + (d > STICK_R ? (dy / d) * STICK_R : dy);
+      // Drawn in world space (a scroll-factor-0 object would still be zoomed by the camera).
+      const cam = this.cameras.main;
+      const o = cam.getWorldPoint(st.ox, st.oy);
+      const kn = cam.getWorldPoint(kx, ky);
+      this.stickGfx
+        .lineStyle(3 / cam.zoom, 0xffffff, 0.35)
+        .strokeCircle(o.x, o.y, STICK_R / cam.zoom);
+      this.stickGfx.fillStyle(0xffffff, 0.45).fillCircle(kn.x, kn.y, 18 / cam.zoom);
+    }
     const len = Math.hypot(mx, my) || 1;
-    this.player.x = Phaser.Math.Clamp(this.player.x + (mx / len) * SPEED * dt, R, LAB_W - R);
-    this.player.y = Phaser.Math.Clamp(this.player.y + (my / len) * SPEED * dt, R, LAB_H - R);
+    const step = SPEED * speed * dt;
+    this.player.x = Phaser.Math.Clamp(this.player.x + (mx / len) * step, R, LAB_W - R);
+    this.player.y = Phaser.Math.Clamp(this.player.y + (my / len) * step, R, LAB_H - R);
     const ptr = this.input.activePointer;
-    const aim = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+    let aim: { x: number; y: number } = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+    if (ptr.wasTouch || this.stick) {
+      // Touch: face the last tap for a moment, else where you're walking.
+      if (this.touchAim && time < this.touchAim.until) aim = this.touchAim;
+      else if (mx || my) aim = { x: this.player.x + mx, y: this.player.y + my };
+      else
+        aim = {
+          x: this.player.x + Math.cos(this.player.facing),
+          y: this.player.y + Math.sin(this.player.facing),
+        };
+    }
     this.player.facing = Math.atan2(aim.y - this.player.y, aim.x - this.player.x);
     // Puppets wander (or flee).
     for (const p of this.puppets) {

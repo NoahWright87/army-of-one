@@ -547,6 +547,7 @@ export const STRINGS = {
   'dev.world': 'World map',
   'dev.gallery': 'Gallery',
   'dev.textlab': 'Text lab',
+  'title.textlab': 'Text lab',
   'dev.menu': '← Main menu',
   'difficulty.easy': 'Easy',
   'difficulty.easy.blurb': 'Fewer, clumsier enemies; more money; faster healing',
@@ -768,7 +769,8 @@ export const STRINGS = {
 
   // Text lab (?scene=textlab)
   'textlab.title': 'Text lab',
-  'textlab.hint': 'WASD to walk, click to fire, wheel to zoom. Stand by a sign to read it.',
+  'textlab.hint':
+    'WASD to walk, click to fire, wheel to zoom. Touch: drag to walk, tap with a second finger to fire. Stand by a sign to read it.',
   'textlab.say': 'Make someone talk',
   'textlab.sayButton': 'Say it',
   'textlab.presets': 'Try these',
