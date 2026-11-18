@@ -21,7 +21,7 @@ export type Cue =
       style: TracerStyle;
     }
   | { type: 'muzzle'; x: number; y: number; angle: number; hostile: boolean; byId: string }
-  | { type: 'impact'; x: number; y: number }
+  | { type: 'impact'; x: number; y: number; metal?: boolean }
   | {
       type: 'explosion';
       x: number;
@@ -153,7 +153,7 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         // (PHASE12-b) Armor ate the hit: a ricochet spark instead of a flash ([D70]).
         if (e.armored) {
           const p = ctx.positionOf(e.target);
-          if (p) out.push({ type: 'impact', x: p.x, y: p.y });
+          if (p) out.push({ type: 'impact', x: p.x, y: p.y, metal: true });
           sound('sfx_hit', p, 0.25);
           break;
         }

@@ -26,6 +26,9 @@ import {
 import type { SceneServices } from './services';
 import { SoundBank } from './sound-bank';
 import { WorldRenderer } from './world-renderer';
+import { VEHICLE_GALLERY_MAP, VEHICLE_CAPTIONS, vehicleGalleryView } from './vehicle-gallery';
+import { TERRAIN_GALLERY_MAP, TERRAIN_CAPTIONS, terrainGalleryView } from './terrain-gallery';
+import { COMBAT_GALLERY_MAP, COMBAT_CAPTIONS, combatGalleryView } from './combat-gallery';
 
 /**
  * `?scene=gallery`: renders the hand-written fixture (one of every entity kind and soldier
@@ -49,16 +52,31 @@ export class GalleryScene extends Phaser.Scene {
     const params = new URLSearchParams(window.location.search);
     const infantry = params.has('infantry');
     const explosions = params.has('explosions');
-    this.galleryMap = explosions
-      ? EXPLOSION_GALLERY_MAP
-      : infantry
-        ? INFANTRY_GALLERY_MAP
-        : GALLERY_MAP;
-    this.makeView = explosions
-      ? explosionGalleryView
-      : infantry
-        ? infantryGalleryView
-        : galleryView;
+    const combat = params.has('combat');
+    const terrain = params.has('terrain');
+    const vehicles = params.has('vehicles');
+    this.galleryMap = vehicles
+      ? VEHICLE_GALLERY_MAP
+      : terrain
+        ? TERRAIN_GALLERY_MAP
+        : combat
+          ? COMBAT_GALLERY_MAP
+          : explosions
+            ? EXPLOSION_GALLERY_MAP
+            : infantry
+              ? INFANTRY_GALLERY_MAP
+              : GALLERY_MAP;
+    this.makeView = vehicles
+      ? vehicleGalleryView
+      : terrain
+        ? terrainGalleryView
+        : combat
+          ? combatGalleryView
+          : explosions
+            ? explosionGalleryView
+            : infantry
+              ? infantryGalleryView
+              : galleryView;
     this.view = this.makeView(0);
     const sounds = new SoundBank(this, display);
     this.worldRenderer = new WorldRenderer(this, this.galleryMap, this.view, display, sounds, {
@@ -67,11 +85,17 @@ export class GalleryScene extends Phaser.Scene {
     this.worldRenderer.onCue = (c) => {
       if (c.type === 'liveDamaged' && display.incomingFire) this.services.hud.flashDamage(0.5);
     };
-    for (const c of explosions
-      ? EXPLOSION_CAPTIONS
-      : infantry
-        ? INFANTRY_CAPTIONS
-        : GALLERY_CAPTIONS) {
+    for (const c of vehicles
+      ? VEHICLE_CAPTIONS
+      : terrain
+        ? TERRAIN_CAPTIONS
+        : combat
+          ? COMBAT_CAPTIONS
+          : explosions
+            ? EXPLOSION_CAPTIONS
+            : infantry
+              ? INFANTRY_CAPTIONS
+              : GALLERY_CAPTIONS) {
       this.add
         .text(c.x, c.y, c.text, {
           fontFamily: 'ui-monospace, monospace',

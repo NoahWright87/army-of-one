@@ -200,23 +200,23 @@ show the owner** (README.md workflow). Total: 49 files.
 
 | Done | File | Canvas | Draw |
 |---|---|---|---|
-| [ ] | `base_truck_gold.png` | 192×128 | truck base, **gold** finish |
-| [ ] | `base_truck_silver.png` | 192×128 | truck base, **silver** finish |
-| [ ] | `base_truck_gold-tarnished.png` | 192×128 | truck base, **gold-tarnished** finish |
-| [ ] | `base_truck_silver-tarnished.png` | 192×128 | truck base, **silver-tarnished** finish |
-| [ ] | `base_tank_gold.png` | 256×192 | tank base, **gold** finish |
-| [ ] | `base_tank_silver.png` | 256×192 | tank base, **silver** finish |
-| [ ] | `base_tank_gold-tarnished.png` | 256×192 | tank base, **gold-tarnished** finish |
-| [ ] | `base_tank_silver-tarnished.png` | 256×192 | tank base, **silver-tarnished** finish |
-| [ ] | `hull_truck_ally.png` | 192×128 | Gun truck hull: military cargo truck seen from straight above, cab toward +x, open bed behind with a ring mount hole (the gun is a separa… |
-| [ ] | `turret_truck_ally.png` | 128×128 | Ring-mounted machine gun for the truck bed, barrel pointing +x from the center pivot, gunner shield plate in front. |
-| [ ] | `hull_truck_enemy.png` | 192×128 | Gun truck hull: military cargo truck seen from straight above, cab toward +x, open bed behind with a ring mount hole (the gun is a separa… |
-| [ ] | `turret_truck_enemy.png` | 128×128 | Ring-mounted machine gun for the truck bed, barrel pointing +x from the center pivot, gunner shield plate in front. |
-| [ ] | `wreck_truck.png` | 192×128 | Burnt, blown-open wreck of the hull above (no turret), charred black with scorch marks. Faction-neutral. |
-| [ ] | `hull_tank_ally.png` | 256×192 | Tank hull seen from straight above: wide tracks either side, engine deck at the back, turret ring (empty circle) in the middle (the turre… |
-| [ ] | `turret_tank_ally.png` | 192×192 | Tank turret seen from straight above, round hatch near the center pivot, long cannon pointing +x (barrel tip within 4 px of the canvas ed… |
-| [ ] | `hull_tank_enemy.png` | 256×192 | Tank hull seen from straight above: wide tracks either side, engine deck at the back, turret ring (empty circle) in the middle (the turre… |
-| [ ] | `turret_tank_enemy.png` | 192×192 | Tank turret seen from straight above, round hatch near the center pivot, long cannon pointing +x (barrel tip within 4 px of the canvas ed… |
-| [ ] | `wreck_tank.png` | 256×192 | Burnt, blown-open wreck of the hull above (no turret), charred black with scorch marks. Faction-neutral. |
-| [ ] | `shadow_truck.png` | 224×160 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
-| [ ] | `shadow_tank.png` | 288×224 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
+| [x] | `base_truck_gold.png` | 192×128 | truck base, **gold** finish |
+| [x] | `base_truck_silver.png` | 192×128 | truck base, **silver** finish |
+| [x] | `base_truck_gold-tarnished.png` | 192×128 | truck base, **gold-tarnished** finish |
+| [x] | `base_truck_silver-tarnished.png` | 192×128 | truck base, **silver-tarnished** finish |
+| [x] | `base_tank_gold.png` | 256×192 | tank base, **gold** finish |
+| [x] | `base_tank_silver.png` | 256×192 | tank base, **silver** finish |
+| [x] | `base_tank_gold-tarnished.png` | 256×192 | tank base, **gold-tarnished** finish |
+| [x] | `base_tank_silver-tarnished.png` | 256×192 | tank base, **silver-tarnished** finish |
+| [x] | `hull_truck_ally.png` | 192×128 | Gun truck hull: military cargo truck seen from straight above, cab toward +x, open bed behind with a ring mount hole (the gun is a separa… |
+| [x] | `turret_truck_ally.png` | 128×128 | Ring-mounted machine gun for the truck bed, barrel pointing +x from the center pivot, gunner shield plate in front. |
+| [x] | `hull_truck_enemy.png` | 192×128 | Gun truck hull: military cargo truck seen from straight above, cab toward +x, open bed behind with a ring mount hole (the gun is a separa… |
+| [x] | `turret_truck_enemy.png` | 128×128 | Ring-mounted machine gun for the truck bed, barrel pointing +x from the center pivot, gunner shield plate in front. |
+| [x] | `wreck_truck.png` | 192×128 | Burnt, blown-open wreck of the hull above (no turret), charred black with scorch marks. Faction-neutral. |
+| [x] | `hull_tank_ally.png` | 256×192 | Tank hull seen from straight above: wide tracks either side, engine deck at the back, turret ring (empty circle) in the middle (the turre… |
+| [x] | `turret_tank_ally.png` | 192×192 | Tank turret seen from straight above, round hatch near the center pivot, long cannon pointing +x (barrel tip within 4 px of the canvas ed… |
+| [x] | `hull_tank_enemy.png` | 256×192 | Tank hull seen from straight above: wide tracks either side, engine deck at the back, turret ring (empty circle) in the middle (the turre… |
+| [x] | `turret_tank_enemy.png` | 192×192 | Tank turret seen from straight above, round hatch near the center pivot, long cannon pointing +x (barrel tip within 4 px of the canvas ed… |
+| [x] | `wreck_tank.png` | 256×192 | Burnt, blown-open wreck of the hull above (no turret), charred black with scorch marks. Faction-neutral. |
+| [x] | `shadow_truck.png` | 224×160 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |
+| [x] | `shadow_tank.png` | 288×224 | GENERATED, not painted: a soft, radially symmetric dark blob (centered, black, alpha fading to 0 at the edge) that the renderer offsets i… |

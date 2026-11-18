@@ -7,7 +7,16 @@
  */
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { GROUND, isGroundKind } from '../../content/ground';
+import { TERRAIN_ART } from '../../content/terrain-art';
 import Phaser from 'phaser';
+import {
+  PROJECTILE_ART,
+  bulletArt,
+  IMPACT_SHEET,
+  impactAnimationKey,
+  impactRow,
+  type ProjectileArt,
+} from '../../content/combat-art';
 import {
   EXPLOSION_SHEETS,
   explosionAnimationKey,
@@ -27,6 +36,7 @@ import { rectViewCenter } from '../geometry';
 import { interpPos, lerp, lerpAngle, nearById, SNAP_DISTANCE } from '../interp';
 import { emptyVisual, soldierVisual } from '../soldier-style';
 import { pilotMiniature, corpsePose } from '../pilot-miniatures';
+import { vehicleMiniature } from '../vehicle-miniatures';
 import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 import { flagHeights } from '../../sim/entities/capture-point';
 import { FreeList, KeyedPool } from './pool';
@@ -38,7 +48,7 @@ const VEHICLE_BODY = {
   tank: DEFAULT_TUNING.drive.tank.bodyRadius,
 } as const;
 
-/** (PHASE12-d) Role icon textures, rasterised from the PLACEHOLDER SVGs in content/role-icons. */
+/** Role icon textures rasterised from the shared tactical SVGs in content/role-icons. */
 const ROLE_ICON_PX = 64;
 const roleIconKey = (roleId: RoleId) => `role_icon_${roleId}`;
 function ensureRoleIconTextures(scene: Phaser.Scene): void {
@@ -130,18 +140,6 @@ export class WorldRenderer {
   /** (PHASE12-b) Each cover piece's drawing, by id; destroyed ones are hidden ([Q40]). */
   private readonly coverPieces = new Map<string, Phaser.GameObjects.Graphics>();
   private rubbleGfx!: Phaser.GameObjects.Graphics;
-  /** (PHASE12-b) Vehicle hulls and turrets, redrawn every frame. */
-  private vehicleGfx!: Phaser.GameObjects.Graphics;
-  private readonly vehicleDraws: {
-    x: number;
-    y: number;
-    facing: number;
-    turret: number;
-    tank: boolean;
-    role: string;
-    alive: boolean;
-    alpha: number;
-  }[] = [];
   private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
   /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
@@ -195,6 +193,8 @@ export class WorldRenderer {
   private readonly links: KeyedPool<Tile>;
   private readonly allPools: { begin(): void; end(): void }[];
   private readonly effectImages: FreeList<Phaser.GameObjects.Sprite>;
+  private readonly projectiles: KeyedPool<Img>;
+  private readonly vehicleTurrets: KeyedPool<Img>;
 
   private readonly overlayGfx: Phaser.GameObjects.Graphics;
   private readonly tracerGfx: Phaser.GameObjects.Graphics;
@@ -231,6 +231,8 @@ export class WorldRenderer {
         .setDepth(depth)
         .setResolution(2);
     this.soldiers = new KeyedPool(img(DEPTH.echoes));
+    this.projectiles = new KeyedPool(img(DEPTH.effects - 0.5));
+    this.vehicleTurrets = new KeyedPool(img(DEPTH.echoes));
     this.miniatureBases = new KeyedPool(img(DEPTH.echoes));
     this.miniatureShadows = new KeyedPool(img(DEPTH.echoes));
     this.liveMarkers = new KeyedPool(img(DEPTH.liveMarker));
@@ -263,6 +265,8 @@ export class WorldRenderer {
         .setDepth(DEPTH.overlays),
     );
     this.allPools = [
+      this.projectiles,
+      this.vehicleTurrets,
       this.soldiers,
       this.miniatureBases,
       this.miniatureShadows,
@@ -295,7 +299,6 @@ export class WorldRenderer {
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
     this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
-    this.vehicleGfx = scene.add.graphics().setDepth(DEPTH.icons - 1);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
@@ -308,12 +311,12 @@ export class WorldRenderer {
   private drawStatic(): void {
     const { scene, map } = this;
     scene.add
-      .tileSprite(0, 0, map.width, map.height, 'ground_tile')
+      .tileSprite(0, 0, map.width, map.height, TERRAIN_ART.G)
       .setOrigin(0)
       .setDepth(DEPTH.ground);
     if (map.ground) drawGround(scene, map.ground);
     for (const w of map.water) {
-      scene.add.tileSprite(w.x, w.y, w.w, w.h, 'water_tile').setOrigin(0).setDepth(DEPTH.water);
+      scene.add.tileSprite(w.x, w.y, w.w, w.h, TERRAIN_ART.W).setOrigin(0).setDepth(DEPTH.water);
     }
     // (PHASE13-d) Ground outside this level ([D109]): seen, not entered.
     if (map.bounds?.length) {
@@ -331,7 +334,14 @@ export class WorldRenderer {
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls) shadow.fillRect(w.x + 5, w.y + 5, w.w, w.h);
     for (const w of map.walls) {
-      scene.add.tileSprite(w.x, w.y, w.w, w.h, 'wall_tile').setOrigin(0).setDepth(DEPTH.walls);
+      const kind =
+        map.ground?.rows[Math.floor(w.y / map.ground.cellSize)]?.[
+          Math.floor(w.x / map.ground.cellSize)
+        ];
+      scene.add
+        .tileSprite(w.x, w.y, w.w, w.h, kind === 'K' ? TERRAIN_ART.K : TERRAIN_ART.X)
+        .setOrigin(0)
+        .setDepth(DEPTH.walls);
     }
     const outline = scene.add.graphics().setDepth(DEPTH.walls + 0.5);
     outline.lineStyle(2, 0x15181b, 1);
@@ -552,29 +562,29 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
-    // (PHASE17) PLACEHOLDER bullets in flight ([D145]): a short bright streak behind each.
+    // Weapon-specific images retain the existing hostile/friendly readability cue.
     const prevB = this.prev.bullets ?? [];
     for (const b of this.cur.bullets ?? []) {
       const p = prevB.find((x) => x.id === b.id);
       const x = p ? lerp(p.x, b.x, a) : b.x;
       const y = p ? lerp(p.y, b.y, a) : b.y;
-      const cx = Math.cos(b.angle);
-      const cy = Math.sin(b.angle);
-      g.lineStyle(3, b.hostile ? 0xff7a5c : 0xfff1a0, 0.95);
-      g.lineBetween(x - cx * 18, y - cy * 18, x, y);
+      this.drawProjectile(`bullet:${b.id}`, bulletArt(b.weapon), x, y, b.angle, b.hostile);
     }
-    // (PHASE12-a) PLACEHOLDER rockets: a pale body with a flame trail ([D62]).
+    // Tank shells use the large pointed round; bazookas use the finned rocket.
     const prevR = this.prev.rockets ?? [];
     for (const r of this.cur.rockets ?? []) {
       const p = prevR.find((x) => x.id === r.id);
       const x = p ? lerp(p.x, r.x, a) : r.x;
       const y = p ? lerp(p.y, r.y, a) : r.y;
-      const cx = Math.cos(r.angle);
-      const cy = Math.sin(r.angle);
-      g.lineStyle(4, 0xffa040, 0.8);
-      g.lineBetween(x - cx * 22, y - cy * 22, x - cx * 6, y - cy * 6);
-      g.lineStyle(5, 0xd8d8c8, 1);
-      g.lineBetween(x - cx * 6, y - cy * 6, x + cx * 6, y + cy * 6);
+      this.drawProjectile(
+        `rocket:${r.id}`,
+        r.shell ? 'rifle' : 'rocket',
+        x,
+        y,
+        r.angle,
+        false,
+        r.shell ? 1.25 : 1,
+      );
     }
     const prev = this.prev.grenades ?? [];
     for (const gr of this.cur.grenades ?? []) {
@@ -585,11 +595,39 @@ export class WorldRenderer {
       g.fillStyle(0x000000, 0.35);
       g.fillEllipse(x + z * 0.15, y + z * 0.15, 9, 6);
       const blink = gr.fuse > 0.7 && Math.floor(nowMs / 90) % 2 === 0;
-      g.fillStyle(blink ? 0xff5040 : 0x3f5a2a, 1);
-      g.fillCircle(x, y - z * 0.6, 4 + z * 0.03);
-      g.lineStyle(1, 0x111111, 1);
-      g.strokeCircle(x, y - z * 0.6, 4 + z * 0.03);
+      const obj = this.drawProjectile(
+        `grenade:${gr.id}`,
+        'grenade',
+        x,
+        y - z * 0.6,
+        0,
+        false,
+        1 + z * 0.0075,
+      );
+      if (blink) obj.setTint(0xff5040);
     }
+  }
+
+  private drawProjectile(
+    id: string,
+    art: ProjectileArt,
+    x: number,
+    y: number,
+    angle: number,
+    hostile: boolean,
+    scale = 1,
+  ): Img {
+    const spec = PROJECTILE_ART[art];
+    const obj = this.projectiles.get(id);
+    obj
+      .setTexture(spec.key)
+      .setPosition(x, y)
+      .setRotation(angle)
+      .setScale((spec.displayWidth / spec.width) * scale)
+      .setAlpha(1);
+    obj.clearTint();
+    if (hostile) obj.setTint(0xff997a);
+    return obj;
   }
 
   // ---- cues ---------------------------------------------------------------------------------
@@ -620,9 +658,27 @@ export class WorldRenderer {
           );
           break;
         }
-        case 'impact':
-          this.spawnEffect('impact', c.x, c.y, nowMs, 140, 0.7, 0.6);
+        case 'impact': {
+          const row = impactRow(c.x, c.y, c.metal);
+          const obj = this.effectImages.take();
+          obj
+            .stop()
+            .setTexture(IMPACT_SHEET.key, row * IMPACT_SHEET.columns)
+            .setPosition(c.x, c.y)
+            .setRotation(0)
+            .setScale(0.28)
+            .setAlpha(1);
+          obj.play(impactAnimationKey(row));
+          this.effects.push({
+            obj,
+            startMs: nowMs,
+            durationMs: (IMPACT_SHEET.columns / IMPACT_SHEET.frameRate) * 1000,
+            baseScale: 0.28,
+            grow: 0,
+            animated: true,
+          });
           break;
+        }
         case 'explosion': {
           const spec = EXPLOSION_SHEETS[c.size];
           const obj = this.effectImages.take();
@@ -685,7 +741,9 @@ export class WorldRenderer {
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i]!;
       const t = (nowMs - e.startMs) / e.durationMs;
-      if (t >= 1) {
+      // Native animations start on Sprite.preUpdate (one frame after a cue is flushed).
+      // Let completion retire them so the last frame is never clipped by the wall-clock timer.
+      if (e.animated ? !e.obj.anims.isPlaying : t >= 1) {
         e.obj.stop();
         this.effectImages.give(e.obj);
         this.effects.splice(i, 1);
@@ -749,7 +807,6 @@ export class WorldRenderer {
 
   private drawSoldiers(a: number, f: RenderFrame): void {
     const r = this.opts.spriteRadius;
-    this.vehicleDraws.length = 0;
     const now = f.nowMs;
     // (05-b) Off-screen culling: anything outside the camera view (plus a margin for sprites,
     // labels and HP bars) is simply not drawn this frame; the pools hide it. The live soldier is
@@ -800,12 +857,48 @@ export class WorldRenderer {
         v.label = null;
       }
       const mini = pilotMiniature(s.roleId, s.role, s.alive);
-      const texture = mini?.figure ?? v.texture;
+      const vehicle = vehicleMiniature(s.roleId, s.role, s.alive);
+      const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
+      const texture = vehicle?.hull ?? mini?.figure ?? v.texture;
       const opacity = mini && !s.alive ? Math.max(v.alpha, 0.55) : v.alpha;
       const pose = mini && !s.alive ? corpsePose(px, py, s.deathDirection ?? s.facing, r) : null;
       const figureX = pose?.x ?? px;
       const figureY = pose?.y ?? py;
       const figureFacing = pose?.facing ?? facing;
+      if (vehicle) {
+        v.label = null;
+        const scale = (vBody * 2) / fitPx(vehicle.hull);
+        this.miniatureBases
+          .get(s.id)
+          .setTexture(vehicle.base)
+          .setPosition(px, py)
+          .setRotation(facing)
+          .setScale(scale)
+          .setAlpha(opacity * (s.alive ? 1 : 0.45))
+          .setDepth(v.depth - 0.1);
+        this.miniatureShadows
+          .get(s.id)
+          .setTexture(vehicle.shadow)
+          .setPosition(px + shadowDx, py + shadowDy)
+          .setRotation(0)
+          .setScale(scale)
+          .setAlpha(opacity)
+          .setDepth(v.depth - 0.2);
+        if (vehicle.turret) {
+          const aim = prev
+            ? lerpAngle(prev.turret ?? prev.facing, s.turret ?? facing, a)
+            : (s.turret ?? facing);
+          const turret = this.vehicleTurrets.get(s.id);
+          turret
+            .setTexture(vehicle.turret)
+            .setPosition(px, py)
+            .setRotation(aim)
+            .setScale(scale)
+            .setAlpha(opacity)
+            .setDepth(v.depth + 0.1);
+          if (!this.applyHitFlash(turret, s.id, now)) this.clearTint(turret);
+        }
+      }
       if (mini) {
         v.label = null; // Numbers stay on the timeline, not the miniature.
         const scale = (r * 2) / fitPx(mini.figure);
@@ -834,20 +927,6 @@ export class WorldRenderer {
       spr.setTexture(texture).setDepth(v.depth);
       if (spr.x !== figureX || spr.y !== figureY) spr.setPosition(figureX, figureY);
       if (spr.rotation !== figureFacing) spr.setRotation(figureFacing);
-      // (PHASE12-b) Vehicles: the sprite grows to the body; a hull and turret go on top.
-      const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
-      if (vBody > 0) {
-        this.vehicleDraws.push({
-          x: px,
-          y: py,
-          facing,
-          turret: s.turret ?? facing,
-          tank: s.roleId === 'tank',
-          role: s.role,
-          alive: s.alive,
-          alpha: opacity,
-        });
-      }
       const scale =
         (((vBody > 0 ? vBody : r) * 2) / fitPx(texture)) * (mini ? INFANTRY_FIGURE_SCALE : 1);
       if (spr.scaleX !== scale || spr.scaleY !== scale) spr.setScale(scale);
@@ -870,7 +949,7 @@ export class WorldRenderer {
         this.livePosBuf.y = py;
         this.livePos = this.livePosBuf;
       }
-      if (v.liveMarker && !mini) {
+      if (v.liveMarker && !mini && !vehicle) {
         const m = this.liveMarkers.get(s.id);
         const pulse = 1 + 0.06 * Math.sin(now / 160);
         m.setTexture('soldier_live_marker')
@@ -913,57 +992,6 @@ export class WorldRenderer {
       }
     }
     this.culledSoldiers = culled;
-    this.drawVehicleBodies();
-  }
-
-  /** (PHASE12-b) PLACEHOLDER vehicle art: a hull box along the heading and a turret/barrel. */
-  private drawVehicleBodies(): void {
-    const g = this.vehicleGfx;
-    g.clear();
-    for (const d of this.vehicleDraws) {
-      const len = d.tank ? 64 : 56;
-      const wid = d.tank ? 50 : 32;
-      const color = !d.alive
-        ? 0x2b2b2b
-        : d.role === 'enemy'
-          ? 0x8a3a2a
-          : d.role === 'live'
-            ? 0x9a8a3a
-            : 0x5f7080;
-      const c = Math.cos(d.facing);
-      const sn = Math.sin(d.facing);
-      const pt = (fx: number, fy: number) =>
-        new Phaser.Math.Vector2(d.x + c * fx - sn * fy, d.y + sn * fx + c * fy);
-      const hull = [
-        pt(len / 2, -wid / 2),
-        pt(len / 2, wid / 2),
-        pt(-len / 2, wid / 2),
-        pt(-len / 2, -wid / 2),
-      ];
-      g.fillStyle(color, d.alpha);
-      g.fillPoints(hull, true);
-      g.lineStyle(2, 0x111111, d.alpha);
-      g.strokePoints(hull, true);
-      if (!d.alive) continue;
-      if (!d.tank) {
-        // Cab at the front.
-        g.fillStyle(0x222222, d.alpha * 0.6);
-        g.fillPoints(
-          [
-            pt(len / 2, -wid / 2),
-            pt(len / 2, wid / 2),
-            pt(len / 4, wid / 2),
-            pt(len / 4, -wid / 2),
-          ],
-          true,
-        );
-      }
-      const barrel = d.tank ? 44 : 26;
-      g.lineStyle(d.tank ? 8 : 5, 0x1a1a1a, d.alpha);
-      g.lineBetween(d.x, d.y, d.x + Math.cos(d.turret) * barrel, d.y + Math.sin(d.turret) * barrel);
-      g.fillStyle(d.tank ? 0x444444 : 0x333333, d.alpha);
-      g.fillCircle(d.x, d.y, d.tank ? 15 : 9);
-    }
   }
 
   /** The camera's world-space view rectangle, grown by `margin`. */
@@ -1342,22 +1370,32 @@ export function vehicleSpriteSize(v: Pick<VehicleView, 'w' | 'h' | 'heading'>): 
 }
 
 /**
- * (PHASE13-a) Painted ground ([D87]): flat placeholder colours with a short stepped blend into
- * each different neighbour, standing in for real transition art. Water is drawn by `map.water`.
+ * Static terrain textures grouped into row runs, with the existing short transition bands.
+ * Global texture offsets prevent restarts at cell boundaries. Water is drawn by `map.water`.
  */
 function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['ground']>): void {
-  const g = scene.add.graphics().setDepth(DEPTH.ground + 0.1);
+  const g = scene.add.graphics().setDepth(DEPTH.ground + 0.2);
   const cs = ground.cellSize;
   const kindAt = (c: number, r: number) => {
     const ch = ground.rows[r]?.[c];
     return ch !== undefined && isGroundKind(ch) ? ch : null;
   };
   ground.rows.forEach((row, r) => {
-    for (let c = 0; c < row.length; c++) {
+    for (let c = 0; c < row.length;) {
       const k = kindAt(c, r);
-      if (!k || !GROUND[k].passable) continue;
-      g.fillStyle(GROUND[k].color, 0.85);
-      g.fillRect(c * cs, r * cs, cs, cs);
+      if (!k) {
+        c++;
+        continue;
+      }
+      const start = c;
+      while (c < row.length && kindAt(c, r) === k) c++;
+      if (!GROUND[k].passable) continue;
+      const tile = scene.add
+        .tileSprite(start * cs, r * cs, (c - start) * cs, cs, TERRAIN_ART[k])
+        .setOrigin(0)
+        .setDepth(DEPTH.ground + 0.1);
+      tile.tilePositionX = start * cs;
+      tile.tilePositionY = r * cs;
     }
   });
   // Blend: each land cell takes a fading band of a different land neighbour's colour.
@@ -1377,7 +1415,7 @@ function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['ground']>):
         const o = kindAt(nc, nr);
         if (!o || o === k || !GROUND[o].passable) continue;
         for (let i = 0; i < steps; i++) {
-          g.fillStyle(GROUND[o].color, 0.35 * (1 - i / steps));
+          g.fillStyle(GROUND[o].color, 0.16 * (1 - i / steps));
           const d = i * band;
           const x = c * cs;
           const y = r * cs;

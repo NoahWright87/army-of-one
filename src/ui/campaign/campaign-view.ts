@@ -9,6 +9,7 @@ import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { ROLES } from '../../content/roles';
 import { roleIconSvg } from '../../content/role-icons';
+import { helmetSvg } from '../../content/ui-icons';
 import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficulty';
 import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
@@ -356,7 +357,11 @@ export class CampaignView {
       tags.prepend(st);
       if (!taken) {
         const info = this.actions.levelInfo(lv.index);
-        const e = el('span', 'chip', `🪖×${info.enemies}`);
+        const e = el('span', 'chip');
+        e.innerHTML = `${helmetSvg(16)}<span>×${info.enemies}</span>`;
+        e.style.display = 'inline-flex';
+        e.style.alignItems = 'center';
+        e.style.gap = '3px';
         e.title = str('campaign.enemies');
         tags.append(e);
       }

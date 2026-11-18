@@ -116,3 +116,11 @@ report. Art taste calls (exact paint colors, which pose) are yours to make insid
 
 Animated VFX have a separate sheet spec: [EXPLOSIONS.md](EXPLOSIONS.md). Review them in game
 with `?scene=gallery&explosions=1`. Character art remains static ([A127]).
+
+## Combat, terrain, UI and vehicle continuation
+
+All 49 miniature files are now delivered and integrated. See
+[COMBAT-ENVIRONMENT.md](COMBAT-ENVIRONMENT.md) for bullet-impact animations, projectiles,
+terrain textures, UI icons, review routes, reproduction prompts and the remaining prop backlog.
+This owner-authorized continuation includes the renderer/manifest integration described as a
+separate phase above. Campaign decision numbers retain their D prefix; art decisions use A.

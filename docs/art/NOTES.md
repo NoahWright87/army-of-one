@@ -1,5 +1,26 @@
 # Art notes
 
+## 2026-11-18 — combat, environment, interface and tier-3 vehicles
+
+Continued PR #22 on top of the merged campaign/projectile work. Delivered five projectile
+textures, a four-variation six-frame bullet-impact sheet, nine repeating terrain textures and
+all 20 vehicle layers. All 49 miniature files pass required checks with zero errors. Seven
+warnings: the four earlier gunner/fallen edge warnings, the existing rifleman faction contour
+warning, and antialiased truck-turret edges in both factions. No threshold was relaxed.
+
+Vehicle turrets share the hull's `fitPx` even when their canvases are smaller; the manifest test
+now checks that relationship instead of incorrectly requiring the footprint to fit the turret
+canvas. Native projectile/impact pools preserve existing motion, fuse cues, hit timing and the
+range-end puff fix. Interface icons remain native SVGs, with exported inspectable copies.
+
+See [COMBAT-ENVIRONMENT.md](COMBAT-ENVIRONMENT.md) for the exact file inventory, saved prompts,
+preparation commands, gallery URLs and remaining battlefield-prop work. The branch merge also
+disambiguates art decision numbers (A116–A127) from the campaign's D116–D146. Normalized local
+checkout line endings for verification and excluded generated review sheets from the production
+asset glob. A lossless shared miniature atlas fixes rotating-layer clipping exposed by software
+WebGL with many individual textures, without changing GPU batch settings. Native animation
+completion retires effects, allowing all six impact frames to display.
+
 Running log for whoever draws the miniatures (Codex, a human, or both). Newest first. Record what you
 changed from the brief and why, warnings from `npm run check:art` you chose not to fix (with the
 reason), questions for the owner, and anything the integration phase

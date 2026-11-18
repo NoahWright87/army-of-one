@@ -1,5 +1,5 @@
 /**
- * Checks and review sheets for the miniature art ([D116]–[D121], docs/art/). Pure functions over
+ * Checks and review sheets for the miniature art ([A116]–[A121], docs/art/). Pure functions over
  * raw RGBA buffers (pngjs only for file IO in the CLI), so they're unit-tested on synthetic
  * images. Deterministic: no randomness, no time.
  */

@@ -60,6 +60,8 @@ export interface RocketView {
   x: number;
   y: number;
   angle: number;
+  /** Presentation metadata for the tank shell that shares the rocket simulation. */
+  shell?: boolean;
 }
 
 export interface GrenadeView {
@@ -216,7 +218,14 @@ export interface WorldView {
   /** (PHASE12-a) Optional so older fixtures still type-check. */
   rockets?: RocketView[];
   /** (PHASE17) Bullets in flight ([D145]). */
-  bullets?: { id: string; x: number; y: number; angle: number; hostile: boolean }[];
+  bullets?: {
+    id: string;
+    x: number;
+    y: number;
+    angle: number;
+    hostile: boolean;
+    weapon?: string;
+  }[];
   /** (PHASE12-b) Ids of destroyed cover pieces ([Q40]). */
   coverDestroyed?: string[];
   /**

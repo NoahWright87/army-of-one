@@ -19,33 +19,33 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 ## Tasks
 
-- [ ] **Manifest.** Add an entry per `miniatureFiles()` item (`mini_*` keys, `fitPx`, size, brief
+- [x] **Manifest.** Add an entry per `miniatureFiles()` item (`mini_*` keys, `fitPx`, size, brief
       from the spec, `status: 'placeholder'` until real art lands). Keep the rule "code uses keys
       only".
-- [ ] **Placeholders.** Extend `npm run gen:placeholders` to draw simple stand-ins for every
+- [x] **Placeholders (superseded by delivered final PNGs).** Extend `npm run gen:placeholders` to draw simple stand-ins for every
       `mini_*` key (gold/silver/tarnished discs, octagons, squares, plinths; a dark oval figure with a
       barrel, per role a distinguishing mark; the generated shadow blobs are *final*, not placeholders).
       Placeholders must obey the art rules too (top-down, radially lit), so the checker passes them.
-- [ ] **Style rules (pure, unit-tested).** In `soldier-style.ts` map a soldier's state to
+- [x] **Style rules (pure, unit-tested).** In `soldier-style.ts` map a soldier's state to
       `{ baseKey, figureKey, alpha, … }`: live → `gold`; echo / static → `gold-tarnished`; enemy →
       `silver`; dead → unarmed fallen figure off the vanished base, along lethal-hit direction ([A125]). Role → shape via `BASE_SHAPE_BY_ROLE`.
-- [ ] **Renderer layers.** Per soldier: shadow (not rotated, offset in screen space), base (not
+- [x] **Renderer layers.** Per soldier: shadow (not rotated, offset in screen space), base (not
       rotated by aim; rotated by the camera if it rotates), figure (`rotation = facing`). Vehicles: base
       + hull rotate with the heading, the turret on top with its own aim, wreck on death. Retire the
       procedural vehicle hull drawing and the role-icon sprite (keep the icon behind a setting if it
       still helps in the respawn screen).
-- [ ] **Pools and performance.** This triples sprites per soldier. Use the existing pools and
+- [x] **Pools and performance.** This triples sprites per soldier. Use the existing pools and
       culling (`src/render/phaser/pool.ts`, `cullOffscreen`), only touch what changed, and re-run
       `npm run bench` / the stress mode (`?stress=100`, 400) against `docs/perf.md`. Consider baking
       base+shadow into one texture per finish if the sprite count hurts.
-- [ ] **Gallery.** Add every state × role × finish to `?scene=gallery` (the visual test page), plus a
+- [x] **Gallery.** Add every state × role × finish to `?scene=gallery` (the visual test page), plus a
       swarm view (50+ echoes, one live piece) at the real 32 px size.
-- [ ] **Camera rotation.** Verify with the camera rotated 0/90/180/270: bases and figures must not
+- [x] **Camera rotation.** Verify with the camera rotated 0/90/180/270: bases and figures must not
       show a light direction or shadow shifting. (Shadows stay offset in *screen* space.)
 - [ ] **Animation hooks (optional, cheap).** Slide tilt/squash when starting/stopping, figure turn
       easing (aim lag like a turret), recoil kick, tip-over on death, a "placed on the table" drop at
       deploy/echo spawn. All as tweens on layers; no new art.
-- [ ] Keep it playable with placeholders at every step. `npm run lint && npm run lint:purity &&
+- [x] Keep it playable with placeholders at every step. `npm run lint && npm run lint:purity &&
       npm run test && npm run build` must pass.
 
 ## ⛔ Decisions needed
@@ -107,3 +107,17 @@ Infantry completion validation: all 639 tests pass with the cloud worker/timeout
 lint, purity lint, production build and tier-2 required art checks. Visually inspected the
 rotation sheet, both swarm sheets and the running infantry gallery. Warnings are explained
 in `docs/art/NOTES.md`; checker thresholds are unchanged.
+
+
+### Vehicle and combat/environment continuation (2026-11-18)
+
+All 49 miniature files are delivered and registered. Vehicles use separate pooled bases, hulls,
+shadows and turrets, with turret-free wrecks. Procedural vehicle bodies are retired. A shared
+lossless atlas keeps asset keys and pivots while reducing GPU texture switching and eliminating
+software-WebGL clipping. Camera rotations 0/90/180/270 were reviewed in the native vehicle gallery.
+
+Added animated bullet impacts, weapon-specific projectiles, nine terrain textures and native
+SVG role/HUD icons. See docs/art/COMBAT-ENVIRONMENT.md for inventory, reproduction and prop backlog.
+Synthetic 100/400-unit browser fixtures stabilize their pools; a 25/100-life headless smoke bench
+also runs with flying bullets. These are smoke checks, not a hardware performance certification.
+Optional character animation hooks remain deferred; character images remain static.

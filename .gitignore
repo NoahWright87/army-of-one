@@ -7,3 +7,4 @@ coverage
 
 # Generated review sheets for the miniature art (npm run check:art -- --sheets)
 assets/miniatures/_review
+art-source/

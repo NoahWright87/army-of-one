@@ -5,7 +5,7 @@
 import { ASSET_MANIFEST, type AssetKey } from '../../content/assets';
 import { resolveAssetUrls } from './resolve-asset-urls';
 
-const files = import.meta.glob('/assets/**/*.{png,wav,ogg,mp3,webp}', {
+const files = import.meta.glob(['/assets/**/*.{png,wav,ogg,mp3,webp}', '!/assets/**/_review/**'], {
   eager: true,
   query: '?url',
   import: 'default',
