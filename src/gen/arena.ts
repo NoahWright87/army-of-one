@@ -184,7 +184,8 @@ export function arenaMap(cfg: ArenaConfig, seed = 0): MapDef {
     for (const r of ROLES) for (let k = 0; k < (s.units[r.id] ?? 0); k++) roles.push(r.id);
     const list = roles.slice(0, ARENA_MAX_PER_SIDE);
     if (list.length === 0) return null;
-    const at = formation(list.length, side === 'left' ? 260 : ARENA_W - 260, rng);
+    const home = side === 'left' ? 260 : ARENA_W - 260;
+    const at = formation(list.length, home, rng);
     return {
       id: side,
       ...(side === 'left' ? { team: 'player' as const } : {}),
@@ -195,8 +196,15 @@ export function arenaMap(cfg: ArenaConfig, seed = 0): MapDef {
         facing: side === 'left' ? 0 : Math.PI,
       })),
       order: { kind: 'guard' },
-      // Both sides head for the middle and meet there.
-      rally: [centre, { x: centre.x, y: centre.y - 160 }, { x: centre.x, y: centre.y + 160 }],
+      // Their own ground and the middle, so every role's leash reaches from where it starts to
+      // where the fight is.
+      rally: [
+        { x: home, y: centre.y },
+        { x: (home + centre.x) / 2, y: centre.y },
+        centre,
+        { x: centre.x, y: centre.y - 160 },
+        { x: centre.x, y: centre.y + 160 },
+      ],
     };
   };
   const cover: CoverDef[] = [];

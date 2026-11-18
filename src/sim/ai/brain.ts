@@ -52,7 +52,17 @@ import type { SimEvent } from '../events';
 import { soldierIndex } from '../soldier-index';
 
 export type Behavior =
-  'protect' | 'hold' | 'patrol' | 'roam' | 'approach' | 'engage' | 'cover' | 'retreat' | 'evade';
+  | 'protect'
+  | 'hold'
+  | 'patrol'
+  | 'roam'
+  | 'approach'
+  | 'engage'
+  | 'cover'
+  | 'retreat'
+  | 'evade'
+  /** (PHASE17) A Shield getting in front of its friends. */
+  | 'screen';
 
 /** Plain-data AI state, kept on the soldier (so snapshots carry it). */
 export interface AiState {
@@ -88,6 +98,8 @@ export interface AiState {
   roamSpot?: Vec2 | null;
   /** (PHASE17) Where this retreat is headed: away from the threat. */
   retreatTo?: Vec2 | null;
+  /** (PHASE17) A Shield's spot in front of its friends. */
+  screenSpot?: Vec2 | null;
   /** Loitering until this tick (unset while moving). */
   loiterUntil?: Tick;
   /** Going to help: sprints. */
@@ -419,6 +431,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     patrol: 0,
     roam: 0,
     protect: 0,
+    screen: 0,
   };
   let coverSpot: Vec2 | null = null;
   if (p.grenade) scores.evade = 2;
@@ -459,6 +472,24 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       const d = distance(s, coverSpot);
       const near = 1 - Math.min(1, d / t.coverSearchRadius);
       scores.cover = prof.coverPreference * (0.4 + 0.6 * near) * (underFire ? 1.1 : 0.85);
+    }
+  }
+  // (PHASE17) Machine Gunners dig in: cover facing the threat (searched further afield), as
+  // soon as a threat is known; standing there mounts the gun.
+  if (prof.digIn && p.targetPos && !ai.wounded) {
+    const spot = findCoverSpot(world, s, p.targetPos, t.digInRadius);
+    if (spot) {
+      coverSpot = spot;
+      scores.cover = Math.max(scores.cover, 0.7 + 0.4 * prof.digIn);
+    }
+  }
+  // (PHASE17) Shields screen: in front of nearby friends, between them and the threat.
+  ai.screenSpot = null;
+  if (prof.screen && p.targetPos && !ai.wounded) {
+    const spot = screenSpot(world, s, p.targetPos);
+    if (spot) {
+      ai.screenSpot = spot;
+      scores.screen = 0.7 + 0.45 * prof.screen;
     }
   }
   if (p.target && p.targetVisible) {
@@ -541,6 +572,7 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
     'cover',
     'engage',
     'protect',
+    'screen',
     'approach',
     'roam',
     'patrol',
@@ -609,6 +641,9 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
       break;
     case 'cover':
       dest = coverSpot;
+      break;
+    case 'screen':
+      dest = ai.screenSpot ?? null;
       break;
     case 'approach': {
       const tp = p.targetPos!;
@@ -688,9 +723,14 @@ function setDest(world: World, s: SoldierState, ai: AiState, dest: Vec2 | null):
  * A spot behind a cover piece (relative to `threat`) within `ai.coverSearchRadius`: the side of
  * the piece facing away from the threat, at the point nearest the soldier. Nearest spot wins.
  */
-export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2 | null {
+export function findCoverSpot(
+  world: World,
+  s: SoldierState,
+  threat: Vec2,
+  radius?: number,
+): Vec2 | null {
   const t = world.tuning;
-  const R = t.ai.coverSearchRadius;
+  const R = radius ?? t.ai.coverSearchRadius;
   const off = t.soldier.wallRadius + 6;
   let best: Vec2 | null = null;
   let bestD = Infinity;
@@ -720,6 +760,39 @@ export function findCoverSpot(world: World, s: SoldierState, threat: Vec2): Vec2
     bestD = d;
   }
   return best;
+}
+
+/**
+ * (PHASE17) A Shield's spot: just in front of the nearest friends (not other shields), on the
+ * line to the threat, spread sideways per shield. Null with no friends near or no room.
+ */
+function screenSpot(world: World, s: SoldierState, threat: Vec2): Vec2 | null {
+  const t = world.tuning.ai;
+  const r2 = t.screenRadius ** 2;
+  const friends = world.state.soldiers.filter(
+    (a) =>
+      a !== s &&
+      a.alive &&
+      a.ai &&
+      a.team === s.team &&
+      (a.roleId ?? 'rifleman') !== 'shield' &&
+      distanceSq(a, s) <= r2,
+  );
+  if (friends.length === 0) return null;
+  const c = centroid(friends);
+  const dx = threat.x - c.x;
+  const dy = threat.y - c.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return null;
+  const ux = dx / len;
+  const uy = dy / len;
+  let front = 0;
+  for (const a of friends) front = Math.max(front, (a.x - c.x) * ux + (a.y - c.y) * uy);
+  const ahead = Math.min(front + t.screenAhead, len - t.screenAhead);
+  if (ahead <= 0) return null;
+  const side = (hash01(`${salt(world)}${s.id}:screen`) - 0.5) * 140;
+  const spot = { x: c.x + ux * ahead - uy * side, y: c.y + uy * ahead + ux * side };
+  return isWalkable(world, spot) ? spot : null;
 }
 
 /** (PHASE17) Where the danger is: the middle of the foes it can see nearby (null: none). */

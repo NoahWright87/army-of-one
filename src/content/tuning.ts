@@ -351,6 +351,11 @@ export interface Tuning {
     retreatMargin: number;
     /** (PHASE17) With nowhere better, a retreat goes this far straight away. */
     retreatDistance: number;
+    /** (PHASE17) How far a Machine Gunner looks for cover to dig in at. */
+    digInRadius: number;
+    /** (PHASE17) A Shield screens friends within this radius, this far ahead of the front one. */
+    screenRadius: number;
+    screenAhead: number;
     /**
      * (PHASE17) Regroup ([D138]): a wounded soldier healed back to `regroupHp` joins the best
      * squad within `regroupRadius` (more living soldiers; one holding a point counts extra).
@@ -866,6 +871,9 @@ export const DEFAULT_TUNING: Tuning = {
     coverAdvance: 30, // TUNE
     retreatMargin: 80, // TUNE
     retreatDistance: 300, // TUNE
+    digInRadius: 520, // TUNE
+    screenRadius: 500, // TUNE
+    screenAhead: 70, // TUNE
     regroupHp: 0.9, // TUNE [D138]
     regroupRadius: 2000, // TUNE [D138]
     sprints: true, // TUNE

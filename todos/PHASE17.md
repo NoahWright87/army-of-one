@@ -83,3 +83,14 @@ takes about 4–8 lives working together.
     pushing in on a target hidden behind cover, and protecting a hurt squadmate outranks
     joining a rush.
 
+12. **Shields and Machine Gunners stood around** (owner): arena squads' rally points were all
+    mid-field, out of the Shield's (320) and MG's (380) leash from where they start, so they
+    held; and neither role had a behaviour of its own. Arena rally points now run from each
+    side's start to the middle. New `screen` behaviour (`AiProfile.screen`, Shield 1): a spot
+    just in front of the nearest non-shield friends on the line to the threat, spread sideways
+    per shield (`ai.screenRadius`, `screenAhead`). `AiProfile.digIn` (MG 1): as soon as a threat
+    is known, cover facing it within `ai.digInRadius`; standing there mounts. Probe (4 of the
+    role + 4 riflemen vs 8 riflemen, barriers): Shield screening 0 → 48% (holding 65 → 19%);
+    MG at cover 0 → 60%, mounted 0 → 42%. Outcomes vs 6 riflemen with cover (20 fights): 4
+    rifle + 2 Shield 1-19, 4 rifle + 2 MG 7-9 (4 long draws), 6 rifle 9-11. Shields behave now
+    but still lose: a balance question (pistol, speed, what the shield blocks) for the arena.
