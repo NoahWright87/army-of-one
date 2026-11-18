@@ -3,51 +3,99 @@
  * of the post, as if the soldier leaned in to read it. Walk away (or fire) and it shrinks back
  * into the post. The frame is the sign kind's (wood → wooden frame, clipboard → paper) unless the
  * sign names another.
+ *
+ * (PHASE18) A sign's text can come from the app (`content`), and it can carry buttons: tap or
+ * click them once the sign is open, or press 1–9 (E / Enter for the first). Buttons are DOM
+ * elements laid over the frame, so taps work above the touch controls and a click never fires
+ * the gun.
  */
 import type Phaser from 'phaser';
 import { fitPx } from '../../content/assets';
 import { FRAME_STYLES, SIGN_KINDS, type SignDef } from '../../content/sign-styles';
 import { strDynamic } from '../../content/strings';
 import type { WorldTextTuning } from '../../content/world-text';
+import { injectStyle } from '../../ui/dom';
 import { DEPTH } from '../depth';
 import { easeOutBack, getEffect, hash01, type GlyphPose } from './effects';
 import { fontStack, loadWorldTextFonts } from './fonts';
 import { layoutGlyphs, parseLine } from './markup';
 import { SIGN_IDLE, stepSign, type SignState } from './signpost-model';
 
-/** World size of a signpost sprite. */
+/** World size of a signpost sprite (unless the sign says otherwise). */
 const POST_SIZE = 30;
-/** The read ring around a post (world units). */
-const RING_R = 22;
+/** Button rows inside a frame (screen px). */
+const BTN_H = 30;
+const BTN_GAP = 6;
+const BTN_MIN_W = 190;
+
+export interface SignButton {
+  label: string;
+  run(): void;
+}
+
+export interface SignContent {
+  /** Speech markup. */
+  text: string;
+  buttons?: readonly SignButton[];
+}
+
+export interface SignpostOptions {
+  /** The sign's text and buttons when it opens (default: its `textKey`, no buttons). */
+  content?: (def: SignDef) => SignContent | null;
+  /** Where the buttons go (default: document.body). */
+  domRoot?: HTMLElement;
+}
 
 interface Sign {
   def: SignDef;
   post: Phaser.GameObjects.Image;
   state: SignState;
-  /** Built on first open (the font has loaded by then). */
+  /** Built each time it opens (its content may have changed). */
   frame: Phaser.GameObjects.Container | null;
   frameW: number;
   frameH: number;
   glyphs: { txt: Phaser.GameObjects.Text; x: number; y: number; effects: string[] }[];
+  buttons: { el: HTMLButtonElement; y: number }[];
+  /** Button area width and left edge (frame-local px). */
+  btnX: number;
+  btnW: number;
 }
+
+const css = `
+.aoo-signbtns { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
+.aoo-signbtns button { position: absolute; pointer-events: auto; box-sizing: border-box;
+  font: 600 13px/1 system-ui, sans-serif; color: #f4efe0; background: #3d4628;
+  border: 2px solid #c8c0a0; border-radius: 6px; cursor: pointer; padding: 0 8px;
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  touch-action: manipulation; }
+.aoo-signbtns button:hover { background: #56623a; border-color: #ffd34d; }
+.aoo-signbtns button .k { color: #ffd34d; margin-right: 6px; }
+`;
 
 export class SignpostLayer {
   private readonly signs: Sign[] = [];
   private readonly ring: Phaser.GameObjects.Graphics;
+  private readonly btnRoot: HTMLElement;
+  private readonly onKey: (e: KeyboardEvent) => void;
   private lastMs = -1;
 
   constructor(
     private readonly scene: Phaser.Scene,
     defs: readonly SignDef[],
     public tuning: WorldTextTuning,
+    private readonly opts: SignpostOptions = {},
   ) {
     loadWorldTextFonts();
+    injectStyle('aoo-signbtns-style', css);
+    this.btnRoot = document.createElement('div');
+    this.btnRoot.className = 'aoo-signbtns';
+    (opts.domRoot ?? document.body).appendChild(this.btnRoot);
     this.ring = scene.add.graphics().setDepth(DEPTH.signs);
     for (const def of defs) {
       const key = SIGN_KINDS[def.kind].post;
       const post = scene.add
         .image(def.x, def.y, key)
-        .setScale(POST_SIZE / fitPx(key))
+        .setScale((def.size ?? POST_SIZE) / fitPx(key))
         .setDepth(DEPTH.objectives);
       this.signs.push({
         def,
@@ -57,17 +105,19 @@ export class SignpostLayer {
         frameW: 0,
         frameH: 0,
         glyphs: [],
+        buttons: [],
+        btnX: 0,
+        btnW: 0,
       });
     }
+    this.onKey = (e) => this.key(e);
+    window.addEventListener('keydown', this.onKey);
+    scene.events.once('shutdown', () => this.destroy());
   }
 
-  /** Drop every built frame (after the text tuning changed). */
+  /** Rebuild every sign's frame (after the look or the content changed). Open ones stay open. */
   rebuild(): void {
-    for (const s of this.signs) {
-      s.frame?.destroy();
-      s.frame = null;
-      s.glyphs = [];
-    }
+    for (const s of this.signs) this.drop(s);
   }
 
   /**
@@ -77,27 +127,26 @@ export class SignpostLayer {
     const dt = this.lastMs < 0 ? 0 : Math.min(100, nowMs - this.lastMs);
     this.lastMs = nowMs;
     const t = this.tuning.sign;
-    const zoom = this.scene.cameras.main.zoom || 1;
+    const cam = this.scene.cameras.main;
+    const zoom = cam.zoom || 1;
     this.ring.clear();
     for (const s of this.signs) {
+      const size = s.def.size ?? POST_SIZE;
+      const readR = s.def.radius ?? t.readRadius + Math.max(0, (size - POST_SIZE) / 2);
+      const tt = { ...t, readRadius: readR, closeRadius: t.closeRadius + (readR - t.readRadius) };
       const d = reader ? Math.hypot(reader.x - s.def.x, reader.y - s.def.y) : null;
-      s.state = stepSign(s.state, dt, d, fired, t);
+      s.state = stepSign(s.state, dt, d, fired, tt);
       if (s.state.phase === 'reading' && s.state.ring > 0) {
+        const r = Math.max(22, size * 0.6);
         this.ring.lineStyle(2, 0xffffff, 0.35);
-        this.ring.strokeCircle(s.def.x, s.def.y, RING_R);
+        this.ring.strokeCircle(s.def.x, s.def.y, r);
         this.ring.lineStyle(4, 0xffd34d, 0.95);
         this.ring.beginPath();
-        this.ring.arc(
-          s.def.x,
-          s.def.y,
-          RING_R,
-          -Math.PI / 2,
-          -Math.PI / 2 + s.state.ring * Math.PI * 2,
-        );
+        this.ring.arc(s.def.x, s.def.y, r, -Math.PI / 2, -Math.PI / 2 + s.state.ring * Math.PI * 2);
         this.ring.strokePath();
       }
       if (s.state.open <= 0) {
-        s.frame?.setVisible(false);
+        if (s.frame) this.drop(s);
         s.post.setAlpha(1);
         continue;
       }
@@ -105,15 +154,19 @@ export class SignpostLayer {
       const f = s.frame!;
       // Grow from the post (its size on screen) to full size above it.
       const p = s.state.phase === 'closing' ? s.state.open ** 2 : easeOutBack(s.state.open, 1.3);
-      const postPx = POST_SIZE * zoom;
+      const postPx = Math.min(size, 60) * zoom;
       const startScale = Math.min(1, postPx / Math.max(s.frameW, s.frameH));
       const scale = startScale + (1 - startScale) * p;
+      const base = s.def.y - (size > 60 ? size * 0.3 : 0);
       const lift = (t.hoverPx + s.frameH / 2) * p;
+      const fx = s.def.x;
+      const fy = base - lift / zoom;
       f.setVisible(true)
-        .setPosition(s.def.x, s.def.y - lift / zoom)
+        .setPosition(fx, fy)
         .setScale(scale / zoom)
         .setAlpha(Math.min(1, s.state.open * 3));
-      s.post.setAlpha(1 - 0.4 * Math.min(1, s.state.open));
+      s.post.setAlpha(size > 60 ? 1 : 1 - 0.4 * Math.min(1, s.state.open));
+      this.placeButtons(s, fx, fy, s.state.phase === 'open');
       for (let i = 0; i < s.glyphs.length; i++) {
         const g = s.glyphs[i]!;
         if (!g.effects.length) continue;
@@ -137,10 +190,56 @@ export class SignpostLayer {
     }
   }
 
+  /** Lays the DOM buttons over the frame's button slots (only once it's fully open). */
+  private placeButtons(s: Sign, fx: number, fy: number, show: boolean): void {
+    if (!s.buttons.length) return;
+    const cam = this.scene.cameras.main;
+    const canvas = this.scene.game.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const k = rect.width / (this.scene.scale.width || 1);
+    const zoom = cam.zoom || 1;
+    const midX = cam.scrollX + cam.width / 2;
+    const midY = cam.scrollY + cam.height / 2;
+    // Frame centre on the canvas, then each slot in screen px (the frame is drawn at 1/zoom).
+    const cx = ((fx - midX) * zoom + cam.width / 2) * k + rect.left;
+    const cy = ((fy - midY) * zoom + cam.height / 2) * k + rect.top;
+    for (const b of s.buttons) {
+      b.el.style.display = show ? '' : 'none';
+      if (!show) continue;
+      b.el.style.left = `${cx + (s.btnX - s.frameW / 2) * k}px`;
+      b.el.style.top = `${cy + (b.y - s.frameH / 2) * k}px`;
+      b.el.style.width = `${s.btnW * k}px`;
+      b.el.style.height = `${BTN_H * k}px`;
+    }
+  }
+
+  private key(e: KeyboardEvent): void {
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const open = this.signs.find((s) => s.state.phase === 'open' && s.buttons.length);
+    if (!open) return;
+    let i = -1;
+    if (/^[1-9]$/.test(e.key)) i = Number(e.key) - 1;
+    else if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') i = 0;
+    const b = open.buttons[i];
+    if (!b) return;
+    e.preventDefault();
+    b.el.click();
+  }
+
+  private drop(s: Sign): void {
+    s.frame?.destroy();
+    s.frame = null;
+    s.glyphs = [];
+    for (const b of s.buttons) b.el.remove();
+    s.buttons = [];
+  }
+
   private build(s: Sign): void {
     const t = this.tuning.sign;
     const style = FRAME_STYLES[s.def.frame ?? SIGN_KINDS[s.def.kind].frame];
-    const parsed = parseLine(strDynamic(s.def.textKey), {
+    const content = this.opts.content?.(s.def) ?? { text: strDynamic(s.def.textKey) };
+    const parsed = parseLine(content.text, {
       ...this.tuning.speech,
       autoAllWords: 999,
     });
@@ -182,10 +281,12 @@ export class SignpostLayer {
       maxX = Math.max(maxX, p.x + hw);
       minY = Math.min(minY, p.y - (made[i]!.height - sz * 0.3) / 2);
     });
-    const tw = maxX - minX;
+    const buttons = content.buttons ?? [];
+    const tw = Math.max(maxX - minX, buttons.length ? BTN_MIN_W : 0);
     const th = -minY;
+    const btnBlock = buttons.length ? buttons.length * (BTN_H + BTN_GAP) + BTN_GAP : 0;
     const w = Math.max(style.slice * 2 + 8, tw + style.padX * 2);
-    const h = Math.max(style.slice * 2, th + style.padY * 2);
+    const h = Math.max(style.slice * 2, th + btnBlock + style.padY * 2);
     const box = this.scene.add.nineslice(
       0,
       0,
@@ -200,13 +301,36 @@ export class SignpostLayer {
     );
     const c = this.scene.add.container(0, 0, [box]).setDepth(DEPTH.signs);
     s.glyphs = [];
+    // Text at the top of the frame, buttons under it.
+    const textTop = -h / 2 + style.padY;
     made.forEach((txt, i) => {
       if (!txt) return;
       const x = placed[i]!.x - (minX + maxX) / 2;
-      const y = placed[i]!.y + th / 2;
+      const y = placed[i]!.y + th + textTop;
       txt.setPosition(x, y);
       c.add(txt);
       s.glyphs.push({ txt, x, y, effects: parsed.glyphs[i]!.effects });
+    });
+    s.btnX = style.padX;
+    s.btnW = w - style.padX * 2;
+    s.buttons = buttons.map((b, i) => {
+      const el = document.createElement('button');
+      el.type = 'button';
+      if (i < 9) {
+        const kEl = document.createElement('span');
+        kEl.className = 'k';
+        kEl.textContent = String(i + 1);
+        el.append(kEl);
+      }
+      el.append(document.createTextNode(b.label));
+      el.style.display = 'none';
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        b.run();
+      });
+      this.btnRoot.appendChild(el);
+      return { el, y: style.padY + th + BTN_GAP + i * (BTN_H + BTN_GAP) };
     });
     s.frame = c;
     s.frameW = w;
@@ -214,10 +338,12 @@ export class SignpostLayer {
   }
 
   destroy(): void {
+    window.removeEventListener('keydown', this.onKey);
     for (const s of this.signs) {
-      s.frame?.destroy();
+      this.drop(s);
       s.post.destroy();
     }
     this.ring.destroy();
+    this.btnRoot.remove();
   }
 }

@@ -606,6 +606,50 @@ function signRecipes() {
       }
       return r;
     },
+    sign_map_table: (r: Raster) => {
+      r.paint(box(130, 84, 124, 74, 6), hex('#000000', 0.3));
+      r.shape(box(128, 80, 124, 74, 6), '#6b4a2a', OUT, 3);
+      r.shade(
+        (x, y) => mix(hex('#c9b98a'), hex('#a8c48a'), noise(x >> 4, y >> 4, 21) * 0.9),
+        box(128, 80, 110, 62, 2),
+      );
+      r.paint(segment(40, 60, 120, 100, 2.5), hex('#c0392b', 0.9));
+      r.paint(segment(120, 100, 200, 50, 2.5), hex('#c0392b', 0.9));
+      for (const [x, y] of [
+        [40, 60],
+        [120, 100],
+        [200, 50],
+      ] as const) {
+        r.shape(circle(x, y, 5), '#e74c3c', OUT, 1.5);
+      }
+      return r;
+    },
+    sign_tv: (r: Raster) => {
+      post(r);
+      r.shape(box(32, 28, 22, 16, 3), '#2b2f36', OUT, 2.5);
+      return r.paint(box(32, 28, 17, 11, 2), '#5aa0c8');
+    },
+    sign_trophy: (r: Raster) => {
+      r.shape(box(32, 32, 24, 20, 2), '#5a3d22', OUT, 2.5);
+      r.paint(box(32, 32, 20, 16, 1), hex('#bfe3ff', 0.6));
+      r.shape(circle(22, 32, 5), '#ffd34d', OUT, 1.5);
+      r.shape(regular(36, 30, 6, 5), '#c0c6cc', OUT, 1.5);
+      return r.shape(circle(45, 34, 4), '#cd7f32', OUT, 1.5);
+    },
+    sign_gun_table: (r: Raster) => {
+      r.shape(box(48, 24, 44, 18, 3), '#7a5a3a', OUT, 2.5);
+      r.paint(segment(14, 16, 50, 16, 2), '#2a2a2a');
+      r.paint(segment(18, 26, 60, 26, 2.5), '#2a2a2a');
+      r.paint(segment(56, 14, 84, 14, 3.5), '#4f5a34');
+      r.shape(circle(76, 30, 4), '#4f5a34', OUT, 1.5);
+      return r.shape(circle(66, 32, 4), '#4f5a34', OUT, 1.5);
+    },
+    hub_banner: (r: Raster) => {
+      r.shape(box(256, 64, 248, 56, 4), '#4f5a34', OUT, 3);
+      r.paint(box(256, 64, 238, 46, 2), hex('#3d4628', 0.8));
+      for (const x of [20, 492]) r.shape(circle(x, 14, 4), '#c8c0a0', OUT, 1.5);
+      return r;
+    },
     frame_plain: (r: Raster) => frame(r, hex('#c9d1d9', 0.95), hex('#14181d', 0.9), 3, 10),
     frame_wood: (r: Raster) =>
       frame(

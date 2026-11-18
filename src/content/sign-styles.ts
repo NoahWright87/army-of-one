@@ -61,6 +61,11 @@ export const SIGN_KINDS = {
   wood: { post: 'sign_post_wood', frame: 'wood' },
   clipboard: { post: 'sign_clipboard', frame: 'clipboard' },
   plate: { post: 'sign_plate', frame: 'plate' },
+  // (PHASE18) HQ furniture you read like a sign.
+  mapTable: { post: 'sign_map_table', frame: 'wood' },
+  tv: { post: 'sign_tv', frame: 'plain' },
+  trophy: { post: 'sign_trophy', frame: 'wood' },
+  guns: { post: 'sign_gun_table', frame: 'plate' },
 } as const satisfies Record<string, SignKind>;
 
 export type SignKindId = keyof typeof SIGN_KINDS;
@@ -75,4 +80,8 @@ export interface SignDef {
   textKey: string;
   /** A different frame than the kind's. */
   frame?: FrameId;
+  /** World width of the object (default 30): a big table is much wider than a post. */
+  size?: number;
+  /** Read from this far (world units) instead of `tuning.sign.readRadius` (big objects). */
+  radius?: number;
 }

@@ -1,4 +1,5 @@
 import type { Tuning } from '../content/tuning';
+import type { RoleId } from '../contracts/mission';
 import { quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
@@ -15,7 +16,7 @@ import {
   createCapturePoints,
   stepCapturePoints,
 } from './entities/capture-point';
-import { createGates } from './entities/gate';
+import { createGates, toggleGate } from './entities/gate';
 import { interact, isLeverOn } from './entities/lever';
 import { createMines, stepMines } from './entities/mine';
 import { createObjectives, objectiveMaxHp, objectiveRadius } from './entities/objective';
@@ -178,6 +179,50 @@ export function setSoldierFlags(world: World, id: SoldierId, flags: SoldierFlags
   if (flags.interactive !== undefined) s.interactive = flags.interactive;
   if (flags.minHp !== undefined) s.minHp = flags.minHp;
   if (flags.kinematic !== undefined) s.kinematic = flags.kinematic;
+}
+
+/**
+ * (PHASE18) Gives a soldier a fresh life in place: full HP, a new role if asked, at a position.
+ * Same id, so whoever drives it keeps driving it. For the HQ (role rack, range respawns); a
+ * battle never does this.
+ */
+export function resetSoldier(
+  world: World,
+  id: SoldierId,
+  opts: { roleId?: RoleId; position?: Vec2; facing?: number } = {},
+): void {
+  const st = world.state;
+  const i = st.soldiers.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`Unknown soldier ${id}`);
+  const old = st.soldiers[i]!;
+  const fresh = createSoldier(
+    old.id,
+    old.ordinal,
+    old.spawnPointId,
+    opts.position ?? { x: old.x, y: old.y },
+    opts.facing ?? old.facing,
+    world.tuning,
+    {
+      roleId: opts.roleId ?? old.roleId,
+      ...(old.team ? { team: old.team } : {}),
+      controllable: old.controllable,
+      interactive: old.interactive,
+      minHp: old.minHp,
+      kinematic: old.kinematic,
+    },
+  );
+  quantizeSoldier(fresh);
+  // In place: lookups (the soldier index) keep pointing at the same object.
+  const rec = old as unknown as Record<string, unknown>;
+  for (const k of Object.keys(rec)) delete rec[k];
+  Object.assign(old, fresh);
+  emit(world, { kind: 'soldierSpawned', tick: st.tick, id });
+}
+
+/** (PHASE18) Opens or closes a gate by id (no-op if already so). */
+export function setGateOpen(world: World, id: string, open: boolean): void {
+  const i = world.state.gates.findIndex((g) => g.id === id);
+  if (i >= 0 && world.state.gates[i]!.open !== open) toggleGate(world, i);
 }
 
 /**

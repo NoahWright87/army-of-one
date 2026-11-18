@@ -408,6 +408,45 @@ export const IMAGE_ASSETS = {
     'A stencilled military warning plate on a post.',
     `${TOPDOWN}. An olive-drab riveted metal plate on a post, 64×64, transparent background.`,
   ),
+  // (PHASE18) HQ signposts: things you walk up to in the hub.
+  sign_map_table: img(
+    'sign_map_table',
+    256,
+    160,
+    "The HQ's campaign table: a big map spread on a table (read it to start the campaign).",
+    `${TOPDOWN}. A large wooden planning table seen from above with a military campaign map ` +
+      'spread on it, pins and markers, 256×160, transparent background.',
+  ),
+  sign_tv: img(
+    'sign_tv',
+    64,
+    64,
+    'A TV / projector in the HQ: read it to watch replays.',
+    `${TOPDOWN}. An old field TV or slide projector on a stand, 64×64, transparent background.`,
+  ),
+  sign_trophy: img(
+    'sign_trophy',
+    64,
+    64,
+    'A trophy case in the HQ: read it to see your records.',
+    `${TOPDOWN}. A glass trophy case with medals and cups, 64×64, transparent background.`,
+  ),
+  sign_gun_table: img(
+    'sign_gun_table',
+    96,
+    48,
+    'The shooting range gun table: read it to pick a class.',
+    `${TOPDOWN}. A long table with rifles, a machine gun, a bazooka and grenades laid out, ` +
+      '96×48, transparent background.',
+  ),
+  hub_banner: img(
+    'hub_banner',
+    512,
+    128,
+    'The HQ lobby banner (the title, in the world). The game draws the words on it.',
+    'A wide olive-drab military banner/poster hanging on a wall, plain middle for a title, ' +
+      'stitched edges, 512×128, transparent background. No text.',
+  ),
   frame_plain: img(
     'frame_plain',
     96,

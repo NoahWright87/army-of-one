@@ -19,6 +19,8 @@ import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
 import { TextLabScene } from '../render/phaser/textlab-scene';
+import { startHub } from './hub-main';
+import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
 import { PreloadScene } from '../render/phaser/preload-scene';
 import type { SceneServices } from '../render/phaser/services';
@@ -129,8 +131,20 @@ export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 const params = new URLSearchParams(window.location.search);
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
-const mode: 'game' | 'gallery' | 'sandbox' | 'arena' | 'textlab' =
-  sceneParam === 'gallery'
+/**
+ * (PHASE18) The HQ ([D153]) is the front door: `/` with nothing else asked for. `?scene=title`
+ * is the old title menu; missions, autoplay, stress runs and shared replays go to the game.
+ */
+const wantsHub =
+  sceneParam === 'hub' ||
+  (sceneParam === null &&
+    !params.has('mission') &&
+    !params.has('autoplay') &&
+    !params.has('stress') &&
+    !packedFromHash(window.location.hash));
+const mode: 'game' | 'gallery' | 'sandbox' | 'arena' | 'textlab' | 'hub' = wantsHub
+  ? 'hub'
+  : sceneParam === 'gallery'
     ? 'gallery'
     : sceneParam === 'sandbox'
       ? 'sandbox'
@@ -185,8 +199,11 @@ const campaignBattle =
  * screen's top bar and an action in the settings panel (not a floating button: it covered the
  * role button).
  */
-const backTo: { label: string; run(): void } | null =
-  MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+/** (PHASE18) Started from the HQ: straight into the mission, and a way back. */
+const fromHub = params.get('go') === '1';
+const backTo: { label: string; run(): void } | null = fromHub
+  ? { label: str('hub.back'), run: () => openHub() }
+  : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
     ? {
         label: str(
           campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
@@ -198,6 +215,16 @@ const backTo: { label: string; run(): void } | null =
             : openEditor,
       }
     : null;
+
+/** (PHASE18) Back to the HQ. */
+function openHub(): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  if (dev) url.searchParams.set('dev', dev);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
 
 function readStoredMission(): string | null {
   try {
@@ -312,6 +339,7 @@ function makeControls(
   map: MapDef,
   tuning: Tuning,
   liveId: string,
+  opts: { autoAim?: boolean } = {},
 ): InputSource {
   const sc = scheme();
   // (PHASE12-d) Touch aiming: tap-to-aim (touch the field; also overrides auto-aim while held),
@@ -333,7 +361,8 @@ function makeControls(
   const base: InputSource = sc.touch
     ? new TouchInput(touchControls, { tuning, toWorld })
     : new KeyboardMouseInput(scene);
-  if (!sc.autoAim) return base;
+  // (PHASE18) The HQ: no auto-aim/auto-fire (it would keep closing the signs you read).
+  if (!sc.autoAim || opts.autoAim === false) return base;
   return new AutoAimInput(base, {
     map,
     tuning,
@@ -402,7 +431,7 @@ const game = new Phaser.Game({
   render: { powerPreference: 'high-performance', antialias: display.antialias },
   scene: [
     new PreloadScene(
-      mode === 'game'
+      mode === 'game' || mode === 'hub'
         ? null
         : mode === 'gallery'
           ? 'gallery'
@@ -422,6 +451,18 @@ const game = new Phaser.Game({
 });
 if (mode === 'arena') void startArena();
 if (mode === 'textlab') void startTextLab();
+if (mode === 'hub') {
+  startHub({
+    game,
+    tuning: gameTuning(),
+    uiRoot,
+    assetsReady,
+    makeInput: (scene, liveId) =>
+      makeControls(scene, HUB_MAP, gameTuning(), liveId, { autoAim: false }),
+    hideHud: () => hud.setVisible(false),
+    missionNameKey: libraryNameKey,
+  });
+}
 
 // (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
 // and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
@@ -452,7 +493,7 @@ window.addEventListener('resize', () => {
   if (display.renderScale === 'auto') applyRenderScale();
 });
 
-if (mode !== 'game') {
+if (mode !== 'game' && mode !== 'hub') {
   panel.addAction({
     label: str('settings.action.restart'),
     run: () => {
@@ -494,7 +535,8 @@ async function startGame(): Promise<void> {
   const ui: GameUi = {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
-      if (campaignBattle) {
+      // (PHASE18) So does a skirmish picked in the HQ.
+      if (campaignBattle || fromHub) {
         if (p.canContinue) p.onContinue();
         else p.onNew();
         return;

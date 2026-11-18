@@ -133,6 +133,7 @@ export class BattleScene extends Phaser.Scene {
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
+    this.session.overlay?.create(this);
 
     const startCountdown = () => {
       this.countdownTicks = DEMO_COUNTDOWN_TICKS;
@@ -242,6 +243,11 @@ export class BattleScene extends Phaser.Scene {
       liveId: this.liveId,
       pointer: frozen ? null : this.source.pointerWorld(),
     });
+    this.session.overlay?.update(
+      time,
+      this.worldRenderer.soldierRenderPos(this.liveId, alpha),
+      this.lastInput,
+    );
     this.renderMs = ema(this.renderMs, performance.now() - r0, 0.05);
 
     // (06-c) The HUD only changes when the sim steps (the view object is replaced then).

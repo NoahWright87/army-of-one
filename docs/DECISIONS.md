@@ -704,6 +704,16 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
 - **[D152] Every soldier has a random name and a rank that suits their role.** Lines use them:
   `{rankShort} is down!` → "Sarge is down!".
 
+- **[D153] The HQ is the front door** (owner, 2026-11). A hub you walk around like a battle
+  (Hades-style): a military headquarters. Signs show the options; signs can carry buttons. The
+  lobby has the ARMY OF ONE banner (the title screen is a poster in the world). A skirmish room:
+  a clipboard picks the mission (handmade or random), which opens a gate you walk out of to
+  start; a TV shows skirmish replays. The war room: a big campaign table (continue / new), a
+  projector with campaign replays, a trophy case with records. Out a door, the shooting range:
+  a gun table picks your class on the spot, targets at several ranges, cover of each kind; die
+  and you're straight back. Dev tools in a side room, open to all for now. Later: the first
+  visit loads a tutorial mission, re-enterable from the HQ.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -1007,3 +1017,8 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q62] Who may talk in a fight (PHASE18).** Built: the player's own soldier only shouts
   warnings and "I got you" (saves) during a fight; other flavour waits for calm. Limits per
   situation are in `CATEGORY_RULES` (src/render/worldtext/barks.ts) and `world-text.ts`.
+- **[Q63] HQ details (PHASE18).** Built: picking a skirmish with a save for that mission
+  continues it (like the old Continue); "New campaign" over one in progress asks first (the old
+  menu's confirm). Touch has no auto-aim/auto-fire in the HQ (it kept closing the signs); tap to
+  fire on the range. Watching a replay opens the old replay viewer (`?scene=title`), which ends
+  on the old menu, not back in the HQ.

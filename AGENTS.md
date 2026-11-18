@@ -102,7 +102,10 @@ npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
-In the browser: `/` is the game (title → respawn screen → lead-in → battle → …, PHASE04).
+In the browser: `/` is the HQ (PHASE18, [D153]: a hub you walk around; signs with buttons start
+the campaign or a skirmish). `?scene=title` is the old title menu and the game flow (title →
+respawn screen → lead-in → battle → …, PHASE04); `?mission=<id>` also goes to the game
+(`&go=1`: straight in, with a "← HQ" button).
 `/?scene=gallery` renders every entity/soldier state from a fixture (visual test page),
 `/?scene=sandbox` is the old free-play battle, `/?screen=respawn&fixture=<name>` the respawn
 screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,

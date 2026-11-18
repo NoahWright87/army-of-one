@@ -25,6 +25,15 @@ export interface BattleSession {
    * lead-in. When present the scene never calls `step` on `world` itself.
    */
   driver?: SessionDriver;
+  /** (PHASE18) Extra things drawn over the world (the HQ's signs and labels). */
+  overlay?: SessionOverlay;
+}
+
+/** (PHASE18) Scene-side extras of a session: created with the scene, updated every frame. */
+export interface SessionOverlay {
+  create(scene: Phaser.Scene): void;
+  /** After the world is drawn: the live soldier's drawn position and this frame's input. */
+  update(nowMs: number, live: Vec2 | null, input: SoldierInput): void;
 }
 
 /** What the scene needs from a driven battle (app/live-run.ts implements it). */
