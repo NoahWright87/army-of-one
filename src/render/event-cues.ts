@@ -82,6 +82,10 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
 
   for (const e of events) {
     switch (e.kind) {
+      // (PHASE17) A flying bullet hit something or landed spent: a puff where it stopped.
+      case 'bulletStopped':
+        out.push({ type: 'impact', x: e.x, y: e.y });
+        break;
       case 'shotFired': {
         const shooterKind = ctx.kindOf(e.by);
         const friendly = shooterKind === 'soldier';

@@ -189,7 +189,9 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   heal and regroup (`tuning.ai`); a level is won by every exit + a key position (entries you
   hold start green) or by killing every enemy (`map.winByKillAll`); flag/helmet icons on the
   HUD; walled bases are breached into play (`breachPockets`); tech points buy roles
-  (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`).
+  (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`), slow
+  and weaken past their range and land ([D146]); near misses alert the AI, who lay down covering
+  fire (`ai.suppress*`).
 - Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
   side by role, HUMAN / CPU presets, barrier buttons (each kind off / left / right / both halves,
   at fixed mirrored spots), GO, 🔁 auto-repeat with a running tally, and 20 headless fights for

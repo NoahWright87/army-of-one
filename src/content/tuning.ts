@@ -56,6 +56,13 @@ export interface Tuning {
   bullets: {
     enabled: boolean;
     speed: { rifle: number; mg: number; pistol: number; sniper: number; shotgun: number };
+    /**
+     * (PHASE17) Past its range a bullet slows by this share per second (exponentially), its
+     * damage falling with its speed, until it's below `minSpeedShare` of full and lands
+     * ([D146]). Bigger = drops sooner. 0 = stops dead at range.
+     */
+    drag: { rifle: number; mg: number; pistol: number; sniper: number; shotgun: number };
+    minSpeedShare: number;
   };
   soldier: {
     maxHp: number;
@@ -351,6 +358,14 @@ export interface Tuning {
     retreatMargin: number;
     /** (PHASE17) With nowhere better, a retreat goes this far straight away. */
     retreatDistance: number;
+    /**
+     * (PHASE17) Covering fire ([D146]): shot at within `suppressSeconds`, it fires back at where
+     * the shots came from (± `suppressAimError` rad) when that's within `suppressReach` × its
+     * weapon's range; behind cover it holds and shoots out to that reach instead of chasing.
+     */
+    suppressSeconds: number;
+    suppressReach: number;
+    suppressAimError: number;
     /** (PHASE17) How far a Machine Gunner looks for cover to dig in at. */
     digInRadius: number;
     /** (PHASE17) A Shield screens friends within this radius, this far ahead of the front one. */
@@ -623,6 +638,10 @@ export const DEFAULT_TUNING: Tuning = {
     enabled: true,
     // TUNE [D145]: a rifle bullet takes ~0.25 s to its full range; a sprinter can step out of it
     speed: { rifle: 2100, mg: 2300, pistol: 1600, sniper: 3600, shotgun: 1500 },
+    // TUNE [D146]: about how much further each carries past its range before landing:
+    // rifle ~490, MG ~640, pistol ~220, sniper ~840, shotgun ~130
+    drag: { rifle: 3, mg: 2.5, pistol: 5, sniper: 3, shotgun: 8 },
+    minSpeedShare: 0.3, // TUNE [D146]
   },
   soldier: {
     maxHp: 100, // TUNE
@@ -872,6 +891,9 @@ export const DEFAULT_TUNING: Tuning = {
     retreatMargin: 80, // TUNE
     retreatDistance: 300, // TUNE
     digInRadius: 520, // TUNE
+    suppressSeconds: 5, // TUNE [D146]
+    suppressReach: 1.8, // TUNE [D146]: about where its bullets land
+    suppressAimError: 0.12, // TUNE [D146]: ±7°, firing at a place, not a person
     screenRadius: 500, // TUNE
     screenAhead: 70, // TUNE
     regroupHp: 0.9, // TUNE [D138]

@@ -220,7 +220,11 @@ export function stepAi(
   const ours = st.soldiers.filter(isOurEligible);
   const theirs = st.soldiers.filter((o) => o.team === 'enemy' && isEligible(o));
   // (PHASE13) A hit tells the soldier (and its squad) where the shot came from.
-  for (const e of lastEvents) if (e.kind === 'damaged' && e.by) hearHit(world, e.target, e.by);
+  for (const e of lastEvents) {
+    if (e.kind === 'damaged' && e.by) hearHit(world, e.target, e.by);
+    // (PHASE17) A bullet whizzing past: it knows roughly where it came from ([D146]).
+    else if (e.kind === 'nearMiss') hearHit(world, e.target, e.by, { x: e.fromX, y: e.fromY });
+  }
   if (st.tick % 60 === 0) {
     checkRouts(world);
     checkRegroups(world); // (PHASE17) [D138]
@@ -495,6 +499,19 @@ function think(world: World, s: SoldierState, ai: AiState, ours: readonly Soldie
   if (p.target && p.targetVisible) {
     const d = distance(s, p.target);
     if (d <= range * 0.95) scores.engage = 0.6 + prof.aggression * 0.2;
+    // (PHASE17) Behind cover it stays and shoots, out to its bullets' reach ([D146]).
+    else if (covered && d <= range * t.suppressReach) scores.engage = 0.75;
+  }
+  // (PHASE17) Covered, the target in sight and within reach: hold the cover rather than chase.
+  // (Can't see past it: stepping up to the cover is still allowed.)
+  if (
+    covered &&
+    p.targetVisible &&
+    p.targetPos &&
+    distance(s, p.targetPos) <= range * t.suppressReach
+  ) {
+    if (!ai.rushing) scores.approach *= 0.2;
+    scores.hold = Math.max(scores.hold, 0.55);
   }
   if (p.targetPos) {
     const d = distance(s, p.targetPos);
@@ -864,15 +881,17 @@ export function retreatSpot(
  * One of ours hit an AI soldier: it now knows where the shot came from (and wakes), its squad
  * hears about it, and squadmates nearby may come to protect it.
  */
-function hearHit(world: World, targetId: string, byId: string): void {
+function hearHit(world: World, targetId: string, byId: string, from?: Vec2): void {
   const idx = soldierIndex(world.state.soldiers);
   const victim = idx.get(targetId);
   const by = idx.get(byId);
   const ai = victim?.ai;
-  if (!victim || !ai || !victim.alive || !by || by.ai) return;
+  // (PHASE17) Any shooter of the other side (AI ones too: the arena), not friendly fire.
+  if (!victim || !ai || !victim.alive || !by || by.team === victim.team) return;
   const tick = world.state.tick;
   ai.hurtTick = tick;
-  ai.lastSeen = { x: by.x, y: by.y, tick };
+  const at = from ?? by;
+  ai.lastSeen = { x: at.x, y: at.y, tick };
   if (!ai.awake) ai.awake = true;
   ai.nextThink = Math.min(ai.nextThink, tick + 1);
   shareWithSquad(world, victim, ai);
@@ -1338,6 +1357,26 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   }
 
   let fire = false;
+  // (PHASE17) Covering fire ([D146]): shot at recently by someone it can't see (or no longer
+  // sees), it fires at where the shots came from, if that's within its bullets' reach.
+  const t17 = skillOf(world, s);
+  const suppressing =
+    !live &&
+    !!ai.lastSeen &&
+    tick - ai.hurtTick <= secondsToTicks(t17.suppressSeconds) &&
+    ai.behavior !== 'evade' &&
+    ai.behavior !== 'retreat' &&
+    !!gunOf(s, world.tuning) &&
+    distance(s, ai.lastSeen) <= weaponRange(world, s) * t17.suppressReach;
+  if (suppressing) {
+    const jitter = hash01(`${salt(world)}${s.id}@${tick}:suppress`) * 2 - 1;
+    aim += jitter * t17.suppressAimError;
+    const on = secondsToTicks(t17.burstSeconds);
+    const off = secondsToTicks(Math.max(t17.burstPauseSeconds, 0.6));
+    const phase =
+      (tick + Math.floor(hash01(`${salt(world)}${s.id}:burst`) * (on + off))) % (on + off);
+    fire = phase < on;
+  }
   if (live && tick >= ai.reactAt && ai.behavior !== 'evade') {
     const d = distance(s, live);
     const gun = gunOf(s, world.tuning);

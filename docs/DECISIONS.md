@@ -666,6 +666,13 @@ buy. The echo loop only matters when one soldier can't win alone.
   button), and sprinting is faster.
 - **[D145] Bullets fly.** Gun shots become fast projectiles (visible streaks; speed per gun), so
   sprinting and zig-zagging can dodge. Same simulation for fast-forward and live (determinism).
+- **[D146] Bullet drop and covering fire** (owner, 2026-11). A gun's range is its range at full
+  speed and damage; past it a bullet slows (per gun), does less damage with its speed, and lands
+  when too slow (a puff where it lands). Soldiers shot at (a hit, or a bullet whizzing close past)
+  know roughly where it came from: they scramble for cover and fire back toward it, even beyond
+  their range or sight, for a few seconds. Behind cover with the enemy in sight and within their
+  bullets' reach, they stay and shoot instead of chasing. Two soldiers spraying at each other from
+  far off is a feature.
 - Later: cover and concealment content (bushes, trenches, doors, windows), more tile types,
   owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
   Grenadier and Machine Gunner need cover to shine).

@@ -71,10 +71,11 @@ describe('reacting to being shot', () => {
     const w = createWorld(map, T);
     soldierAt(w, { x: 300, y: 500 });
     let fired = false;
-    for (let i = 0; i < 90 && !fired; i++) {
+    // (PHASE17) It fires back at once now (covering fire) while it steps up.
+    for (let i = 0; i < 90; i++) {
       if (i % 20 === 0) hit(w, 'E1');
       const events = run(w, 2, { S1: idle(0) });
-      fired = events.some((e) => e.kind === 'shotFired' && e.by === 'E1');
+      fired ||= events.some((e) => e.kind === 'shotFired' && e.by === 'E1');
     }
     const e = getSoldier(w, 'E1')!;
     expect(e.x).toBeLessThan(680); // moved up to the sandbags

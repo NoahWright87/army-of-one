@@ -27,6 +27,10 @@ export type SimEvent =
        */
       flying?: true;
     }
+  /** (PHASE17) A flying bullet stopped: hit something, or `landed` spent ([D146]). */
+  | { kind: 'bulletStopped'; tick: Tick; by: string; x: number; y: number; landed?: true }
+  /** (PHASE17) A bullet whizzed close past an enemy soldier, fired from (fromX, fromY). */
+  | { kind: 'nearMiss'; tick: Tick; target: string; by: string; fromX: number; fromY: number }
   | {
       kind: 'damaged';
       tick: Tick;

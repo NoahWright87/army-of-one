@@ -94,3 +94,14 @@ takes about 4–8 lives working together.
     MG at cover 0 → 60%, mounted 0 → 42%. Outcomes vs 6 riflemen with cover (20 fights): 4
     rifle + 2 Shield 1-19, 4 rifle + 2 MG 7-9 (4 long draws), 6 rifle 9-11. Shields behave now
     but still lose: a balance question (pistol, speed, what the shield blocks) for the arena.
+13. **Bullet drop and covering fire** ([D146]): `tuning.bullets.drag` per gun (share of speed lost
+    per second past range, exponential) and `minSpeedShare`; damage × speed share past range;
+    `bulletStopped` (with `landed`) → an impact puff. `nearMiss` events when a bullet passes within
+    `NEAR_MISS_RADIUS` of an enemy soldier (once each); the AI hears them like hits, with the
+    shot's origin as the threat. `hearHit` now listens to any shooter of the other side (AI ones
+    too: arena fights never reacted to AI shooters before). Covering fire: shot at within
+    `ai.suppressSeconds`, no live target, the origin within `ai.suppressReach` × range → fire
+    there in bursts (± `ai.suppressAimError`). Covered with the target visible within that reach:
+    engage, approach ×0.2. Arena 10v10 with cover: 5-5, ~12 s; one fight: 305 shots, 91 landed
+    spent, 705 near misses. Bench unchanged.
+
