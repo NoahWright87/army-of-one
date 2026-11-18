@@ -244,6 +244,7 @@ type PlaceholderImageKey = Exclude<
   | `terrain_${string}`
   | `cover_${string}`
   | `rubble_${string}`
+  | `ui_${string}`
 >;
 
 export const IMAGE_RECIPES: Record<PlaceholderImageKey, (r: Raster) => Raster> = {

@@ -62,9 +62,8 @@ layouts, manifest mappings, exact strip joins and transparent window/slit openin
 mobile Chrome checks cover the gallery, 90/180/270-degree cameras, real Compound/generated maps,
 repeated destruction/restoration, unchanged map data, stable scene object counts and shutdown.
 
-## Still outside this batch
+## Follow-up delivery
 
-Mines/scorches, HQ/objective states, gates/levers, bridge states/debris and capture/deployment
-markers/flags remain placeholder art. Muzzle flash and optional UI overlay/decorative art are also
-still available as later batches. Infantry, playable vehicles, ground, explosions, impacts and
-projectiles retain their delivered art.
+[The final image pass](FINAL-IMAGE-PASS.md) now supplies the other structures, objectives, scorch,
+capture/status art, muzzle flash, title/panel/campaign art and compatibility textures. Idle and
+armed mine illustrations remain the sole image placeholders after the generator blocked the base art.

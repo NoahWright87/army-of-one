@@ -14,6 +14,7 @@ import { EXPLOSION_SHEETS, type ExplosionSize } from './explosions';
 import { IMPACT_SHEET, PROJECTILE_ART } from './combat-art';
 import { MINIATURE_ATLAS } from './miniature-atlas';
 import { BATTLEFIELD_FILES, type BattlefieldArtKey } from './battlefield-art';
+import { FINISHED_ART } from './finished-art';
 
 export type AssetStatus = 'placeholder' | 'final';
 
@@ -62,6 +63,17 @@ function img(
   replacementBrief: string,
   fitPx?: number,
 ): ImageAssetDef {
+  const final = FINISHED_ART[key];
+  if (final)
+    return {
+      kind: 'image',
+      file: final.file,
+      size: { w: final.w, h: final.h },
+      ...(final.fitPx === undefined ? {} : { fitPx: final.fitPx }),
+      represents,
+      replacementBrief: final.brief,
+      status: 'final',
+    };
   return {
     kind: 'image',
     file: ph(key, 'png'),
@@ -165,6 +177,27 @@ function battlefieldImage(key: BattlefieldArtKey): ImageAssetDef {
 }
 
 export const IMAGE_ASSETS = {
+  ui_title_background: img(
+    'ui_title_background',
+    1536,
+    1024,
+    'Title-screen tabletop artwork.',
+    'Quiet overhead miniature battlefield backdrop with no text.',
+  ),
+  ui_panel: img(
+    'ui_panel',
+    256,
+    256,
+    'Reusable illustrated interface panel.',
+    'Dark metal and felt panel with restrained brass corner details.',
+  ),
+  ui_campaign_background: img(
+    'ui_campaign_background',
+    1536,
+    1024,
+    'Campaign-map war-room table surround.',
+    'Quiet overhead campaign tabletop surround with no text.',
+  ),
   cover_sandbags: battlefieldImage('cover_sandbags'),
   cover_crate: battlefieldImage('cover_crate'),
   cover_fence: battlefieldImage('cover_fence'),

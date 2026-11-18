@@ -750,6 +750,11 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   to make their height/arc clear. Presentation only: projectile speed, collision and damage stay
   unchanged. First-pass colours/widths/durations are adjustable visual tuning.
 
+- **[A130] Finish the remaining image content (owner, 2026-11-18).** Complete the remaining
+  battlefield props/states, status/effect images and decorative title/UI/campaign artwork in one
+  pass. Keep existing gameplay and interactions. Campaign art surrounds the real generated map;
+  title text and controls remain native UI.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

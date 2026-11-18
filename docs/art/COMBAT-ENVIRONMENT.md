@@ -107,17 +107,10 @@ Validation: 718 tests plus lint, purity and build. Browser review covers all thr
 light/dark terrain, zoom/rotation, paused history, the Tracers toggle, pool reuse, removal and
 real live/enemy shots. No new raster assets are required for these procedural effects.
 
-## Remaining battlefield art
+## Remaining image audit
 
-The miniature checklist is complete; the entire game's placeholder manifest is not.
-[Cover, material debris and fixed turrets are now delivered](BATTLEFIELD-PROPS.md). Remaining:
-
-- Mines/armed mines/scorch marks, HQ/objective intact and destroyed.
-- Gates, levers, bridge state/debris art and capture/spawn markers/flags.
-- Muzzle flash and legacy non-miniature overlays remain placeholder images; several soldier
-  fallback images and ground placeholders are retained for compatibility even though new art
-  handles normal gameplay.
-
-Audio remains placeholder and is outside this image pass. Decorative UI panels, campaign-map
-illustration and title artwork are separate future taste decisions; this pass updates the shared
-role and enemy-counter icon content without changing those flows.
+[Cover, debris and fixed turrets](BATTLEFIELD-PROPS.md) and the
+[remaining structures, effects, UI and compatibility art](FINAL-IMAGE-PASS.md) are delivered.
+Only the idle/armed mine pictures remain image placeholders: the image tool rejected the base
+illustration after an initial failure. Scorch art is delivered. Audio remains placeholder and is outside
+the image request. See the final-pass document for prompts, reproduction, checks and review routes.

@@ -130,3 +130,7 @@ editor and game ([A128]); base surfaces are combined with reusable edge/corner m
 
 Cover, material debris and fixed turrets are now painted and integrated too:
 [battlefield prop inventory, prompts, reproduction and review](BATTLEFIELD-PROPS.md).
+
+The [remaining image delivery](FINAL-IMAGE-PASS.md) covers structures, capture/status art, title,
+panels and campaign presentation. Only idle/armed mine illustrations remain placeholders because
+the image generator rejected those requests; audio is still outside this image pass.

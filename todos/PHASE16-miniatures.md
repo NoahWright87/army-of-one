@@ -148,3 +148,19 @@ Thirteen new PNGs are registered; the three obsolete turret placeholders are rem
 generator. Cover shadows now disappear on destruction. No simulation or map format changes.
 See `docs/art/BATTLEFIELD-PROPS.md`. Validation: 723 tests, lint, purity and production build;
 desktop/mobile checks cover rotation, repeated state changes, Compound/generated maps and shutdown.
+
+### Remaining image pass ([A130], 2026-11-18)
+
+- [x] Deliver scorch, objectives, gates, levers, bridge states and capture pad.
+- [x] Deliver flags/pole, insertion marker, status rings/noise/warning/X/O and muzzle flash.
+- [x] Integrate title illustration, reusable panel frame and campaign table surround.
+- [x] Replace unused legacy soldier/vehicle/terrain/effect placeholders with compatibility exports.
+- [x] Add focused gallery, exact prompts, packaging and layout/transparency tests.
+- [ ] Idle/armed mine paintings: generation failed and the retry was rejected (`illicit`).
+  Existing sprites are retained and explicitly marked placeholder; no alternate generator used.
+
+38 new PNGs and 11 editable SVG sources are registered/exported; 35 obsolete placeholders are
+removed. The three DOM-only images are excluded from Phaser GPU loading. Raised bridges now
+visually reveal their gap; all collision/simulation rules and recording formats are unchanged.
+728 tests, lint, purity and build pass. Desktop/mobile and Pages-subpath review is recorded in
+`docs/art/FINAL-IMAGE-PASS.md`. Audio remains outside this request.

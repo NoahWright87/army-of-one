@@ -14,6 +14,7 @@ import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficu
 import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
+import { paintedPanelCss, tabletopBackground } from '../art-theme';
 import {
   drawBoardGround,
   displayOwner,
@@ -99,6 +100,9 @@ const css = `
   .aoo-cp .stage { height: 60vh; flex: none; }
   .aoo-cp aside { border-left: 0; border-top: 1px solid #262c33; overflow: visible; }
 }
+${paintedPanelCss('.aoo-cp aside')}
+.aoo-cp .stage { background: ${tabletopBackground('ui_campaign_background')}; }
+.aoo-cp aside { box-sizing: border-box; }
 `;
 
 export class CampaignView {

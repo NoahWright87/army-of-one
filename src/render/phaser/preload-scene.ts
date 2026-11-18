@@ -24,6 +24,7 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     for (const a of ASSET_MANIFEST) {
+      if (a.key.startsWith('ui_')) continue; // DOM presentation only; avoid large unused GPU textures.
       if (a.key.startsWith('mini_') && a.key !== MINIATURE_ATLAS.key) continue;
       if (a.kind === 'image') {
         if (a.sheet) this.load.spritesheet(a.key, assetUrl(a.key), a.sheet);

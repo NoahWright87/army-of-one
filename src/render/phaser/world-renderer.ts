@@ -9,6 +9,7 @@ import { DEFAULT_TUNING, PROJECTILE_VISUAL_TUNING } from '../../content/tuning';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
 import { ProjectileTrails, projectileStyle } from '../projectile-trails';
 import { coverArtLayout } from '../cover-art';
+import { bridgeDeckOpacity, structureArtLayout } from '../structure-art';
 import { drawGround } from './terrain-ground';
 import { isPaintedRect } from '../terrain/transition-rules';
 import { TERRAIN_ART } from '../../content/terrain-art';
@@ -169,7 +170,7 @@ export class WorldRenderer {
   private readonly gates: KeyedPool<Img>;
   private readonly levers: KeyedPool<Img>;
   private readonly bridgeBases: KeyedPool<Tile>;
-  private readonly bridgeTops: KeyedPool<Tile>;
+  private readonly bridgeTops: KeyedPool<Img>;
   private readonly objectives: KeyedPool<Img>;
   private readonly captureBases: KeyedPool<Img>;
   private readonly flagPoles: KeyedPool<Img>;
@@ -239,7 +240,7 @@ export class WorldRenderer {
     this.gates = new KeyedPool(img(DEPTH.gates));
     this.levers = new KeyedPool(img(DEPTH.levers));
     this.bridgeBases = new KeyedPool(tile(DEPTH.bridges));
-    this.bridgeTops = new KeyedPool(tile(DEPTH.bridges + 0.5));
+    this.bridgeTops = new KeyedPool(img(DEPTH.bridges + 0.5));
     this.objectives = new KeyedPool(img(DEPTH.objectives));
     this.captureBases = new KeyedPool(img(DEPTH.decals));
     this.flagPoles = new KeyedPool(img(DEPTH.objectives + 1));
@@ -1139,7 +1140,7 @@ export class WorldRenderer {
       spr
         .setTexture(blink ? 'mine_armed' : 'mine')
         .setPosition(m.x, m.y)
-        .setScale(armed ? 1.1 : 0.9)
+        .setScale((32 / fitPx('mine')) * (armed ? 1.1 : 0.9))
         .setDepth(DEPTH.mines);
       if (armed && mode !== 'off') {
         g.lineStyle(2, 0xff3030, blink ? 0.9 : 0.5).strokeCircle(m.x, m.y, m.blastRadius);
@@ -1172,12 +1173,13 @@ export class WorldRenderer {
 
   private drawGates(): void {
     for (const gt of this.cur.gates) {
-      const c = rectViewCenter(gt);
+      const c = structureArtLayout(gt, 'x');
       this.gates
         .get(gt.id)
         .setTexture(gt.open ? 'gate_open' : 'gate_closed')
         .setPosition(c.x, c.y)
-        .setDisplaySize(gt.w, gt.h);
+        .setRotation(c.rotation)
+        .setDisplaySize(c.width, c.height);
     }
   }
 
@@ -1185,24 +1187,30 @@ export class WorldRenderer {
     const bridges = this.cur.bridges;
     for (let i = 0; i < bridges.length; i++) {
       const b = bridges[i]!;
-      const c = rectViewCenter(b);
+      const c = structureArtLayout(b, 'y');
       const prev = nearById(this.prev.bridges, i, b.id);
       const raised = prev ? lerp(prev.raised, b.raised, a) : b.raised;
+      const { width, height, rotation } = c;
       const base = this.bridgeBases.get(b.id);
       base
         .setTexture(b.state === 'destroyed' ? 'bridge_destroyed' : 'bridge_down')
         .setPosition(c.x, c.y)
-        .setSize(b.w, b.h)
-        .setAlpha(b.state === 'destroyed' ? 1 : 1 - raised * 0.6);
+        .setSize(width, height)
+        .setRotation(rotation)
+        .setTileScale(
+          b.state === 'destroyed' ? width / fitPx('bridge_destroyed') : 64 / fitPx('bridge_down'),
+          b.state === 'destroyed' ? height / fitPx('bridge_destroyed') : 64 / fitPx('bridge_down'),
+        )
+        .setAlpha(bridgeDeckOpacity(raised, b.state === 'destroyed'));
       if (b.state === 'destroyed' || raised <= 0.001) continue;
-      // Raised part: hazard stripes fading in, slightly "lifted" (scaled up) as it rises.
+      // One pair of raised abutments per bridge, leaving the actual middle passage visible.
       const top = this.bridgeTops.get(b.id);
       top
         .setTexture('bridge_up')
         .setPosition(c.x, c.y)
-        .setSize(b.w, b.h)
-        .setScale(1 + 0.06 * raised)
-        .setAlpha(0.25 + 0.75 * raised);
+        .setRotation(rotation)
+        .setDisplaySize(width * (1 + 0.06 * raised), height * (1 + 0.06 * raised))
+        .setAlpha(raised);
     }
   }
 
@@ -1213,7 +1221,8 @@ export class WorldRenderer {
       this.levers
         .get(l.id)
         .setTexture(l.on ? 'lever_b' : 'lever_a')
-        .setPosition(l.x, l.y);
+        .setPosition(l.x, l.y)
+        .setScale(32 / fitPx(l.on ? 'lever_b' : 'lever_a'));
       if (this.settings.leverLinks) {
         const target = this.targetCenter(l.targetId);
         if (target) this.drawLink(l.id, l.x, l.y, target.x, target.y, l.on ? 0x40e070 : 0xb0b6bd);
