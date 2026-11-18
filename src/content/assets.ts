@@ -13,6 +13,7 @@ import { miniatureFiles } from './miniatures';
 import { EXPLOSION_SHEETS, type ExplosionSize } from './explosions';
 import { IMPACT_SHEET, PROJECTILE_ART } from './combat-art';
 import { MINIATURE_ATLAS } from './miniature-atlas';
+import { BATTLEFIELD_FILES, type BattlefieldArtKey } from './battlefield-art';
 
 export type AssetStatus = 'placeholder' | 'final';
 
@@ -151,7 +152,29 @@ function terrainImage(name: string): ImageAssetDef {
   };
 }
 
+function battlefieldImage(key: BattlefieldArtKey): ImageAssetDef {
+  const s = BATTLEFIELD_FILES[key];
+  return {
+    kind: 'image',
+    file: `battlefield/${s.file}`,
+    size: { w: s.width, h: s.height },
+    represents: s.brief,
+    replacementBrief: `${TOPDOWN}. Painted tabletop resin. ${s.brief} No baked shadows, text or insignia.`,
+    status: 'final',
+  };
+}
+
 export const IMAGE_ASSETS = {
+  cover_sandbags: battlefieldImage('cover_sandbags'),
+  cover_crate: battlefieldImage('cover_crate'),
+  cover_fence: battlefieldImage('cover_fence'),
+  cover_halfWall: battlefieldImage('cover_halfWall'),
+  cover_window: battlefieldImage('cover_window'),
+  cover_bunkerWindow: battlefieldImage('cover_bunkerWindow'),
+  rubble_sandbags: battlefieldImage('rubble_sandbags'),
+  rubble_wood: battlefieldImage('rubble_wood'),
+  rubble_concrete: battlefieldImage('rubble_concrete'),
+  rubble_metal: battlefieldImage('rubble_metal'),
   mini_atlas: {
     kind: 'image',
     file: 'atlases/miniatures.png',
@@ -334,27 +357,9 @@ export const IMAGE_ASSETS = {
     'Lane ends alive / resumable (timeline O).',
     'Bold green O ring, 32×32, readable at 16 px.',
   ),
-  turret_base: img(
-    'turret_base',
-    64,
-    64,
-    'Fixed enemy turret mount (does not rotate).',
-    `${TOPDOWN}. Armored octagonal turret mount, 64×64, hostile red accents.`,
-  ),
-  turret_gun: img(
-    'turret_gun',
-    64,
-    64,
-    'Turret barrel; rotates to aim. Pivot is the image center.',
-    `${TOPDOWN}. Turret barrel/head, 64×64, pointing right (+x) from the center pivot.`,
-  ),
-  turret_wreck: img(
-    'turret_wreck',
-    64,
-    64,
-    'A destroyed turret.',
-    `${TOPDOWN}. Charred, broken turret mount with smoke stains, 64×64.`,
-  ),
+  turret_base: battlefieldImage('turret_base'),
+  turret_gun: battlefieldImage('turret_gun'),
+  turret_wreck: battlefieldImage('turret_wreck'),
   mine: img('mine', 32, 32, 'A landmine, idle.', `${TOPDOWN}. Small dark landmine, 32×32.`),
   mine_armed: img(
     'mine_armed',

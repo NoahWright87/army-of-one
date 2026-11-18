@@ -8,6 +8,7 @@
 import { DEFAULT_TUNING, PROJECTILE_VISUAL_TUNING } from '../../content/tuning';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
 import { ProjectileTrails, projectileStyle } from '../projectile-trails';
+import { coverArtLayout } from '../cover-art';
 import { drawGround } from './terrain-ground';
 import { isPaintedRect } from '../terrain/transition-rules';
 import { TERRAIN_ART } from '../../content/terrain-art';
@@ -118,31 +119,11 @@ type Txt = Phaser.GameObjects.Text;
 type Tile = Phaser.GameObjects.TileSprite;
 type MutableVec2 = { x: number; y: number };
 
-/**
- * (07-c) PLACEHOLDER cover look per material ([D32]): plain Graphics fills until real art exists.
- * `hatch` draws a diagonal mesh (chain link). Replace with tile assets via the manifest later.
- */
-const COVER_STYLE: Record<string, { fill: number; alpha: number; line: number; hatch?: boolean }> =
-  {
-    fence: { fill: 0x9aa4ad, alpha: 0.18, line: 0xc8d0d8, hatch: true },
-    sandbags: { fill: 0xb59a64, alpha: 1, line: 0x6e5a33 },
-    halfWall: { fill: 0x8d8f92, alpha: 1, line: 0x4b4d50 },
-    window: { fill: 0x7fb7d9, alpha: 0.45, line: 0xd5ecfa },
-    bunkerWindow: { fill: 0x3e4a55, alpha: 1, line: 0x9fb2c2 },
-    crate: { fill: 0x8a5a2e, alpha: 1, line: 0x4a2e14 },
-  };
-const COVER_STYLE_DEFAULT: { fill: number; alpha: number; line: number; hatch?: boolean } = {
-  fill: 0x999999,
-  alpha: 1,
-  line: 0x444444,
-};
-
 export class WorldRenderer {
   /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
   private coverGfx!: Phaser.GameObjects.Graphics;
-  /** (PHASE12-b) Each cover piece's drawing, by id; destroyed ones are hidden ([Q40]). */
-  private readonly coverPieces = new Map<string, Phaser.GameObjects.Graphics>();
-  private rubbleGfx!: Phaser.GameObjects.Graphics;
+  /** Static cover quads are reused when destruction/replay switches their texture. */
+  private readonly coverPieces = new Map<string, { sprite: Tile; shadow: Tile }>();
   private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
   private readonly projectileTrails = new ProjectileTrails();
@@ -181,6 +162,7 @@ export class WorldRenderer {
   private readonly roleIcons: KeyedPool<Img>;
   private readonly labels: KeyedPool<Txt>;
   private readonly turretBases: KeyedPool<Img>;
+  private readonly turretShadows: KeyedPool<Img>;
   private readonly turretGuns: KeyedPool<Img>;
   private readonly mines: KeyedPool<Img>;
   private readonly vehicles: KeyedPool<Img>;
@@ -250,6 +232,7 @@ export class WorldRenderer {
     ensureRoleIconTextures(scene);
     this.labels = new KeyedPool(text(DEPTH.labels, 11));
     this.turretBases = new KeyedPool(img(DEPTH.turrets));
+    this.turretShadows = new KeyedPool(img(DEPTH.turrets - 0.25));
     this.turretGuns = new KeyedPool(img(DEPTH.turrets + 0.5));
     this.mines = new KeyedPool(img(DEPTH.mines));
     this.vehicles = new KeyedPool(img(DEPTH.vehicles));
@@ -284,6 +267,7 @@ export class WorldRenderer {
       this.roleIcons,
       this.labels,
       this.turretBases,
+      this.turretShadows,
       this.turretGuns,
       this.mines,
       this.vehicles,
@@ -305,7 +289,6 @@ export class WorldRenderer {
     );
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
-    this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.bridges + 0.5);
     this.projectileTrailGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.projectileCoreGfx = scene.add.graphics().setDepth(DEPTH.effects - 0.25);
@@ -362,41 +345,20 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water)
       if (!isPaintedRect(map.ground, w, ['W'])) outline.strokeRect(w.x, w.y, w.w, w.h);
-    // (07-c) Partial cover ([D32]), by material.
+    // Tiled sections retain material proportions at every authored length/orientation.
     for (const c of map.cover ?? []) {
-      // (PHASE12-b) One graphics object per piece, so a destroyed piece can be hidden ([Q40]).
-      const cover = scene.add.graphics().setDepth(DEPTH.walls);
-      this.coverPieces.set(c.id, cover);
-      const st = COVER_STYLE[c.material] ?? COVER_STYLE_DEFAULT;
-      const { x, y, w, h } = c.rect;
-      if (st.alpha >= 1) {
-        shadow.fillRect(x + 3, y + 3, w, h);
-      }
-      cover.fillStyle(st.fill, st.alpha);
-      cover.fillRect(x, y, w, h);
-      cover.lineStyle(st.hatch ? 1 : 2, st.line, st.hatch ? 0.8 : 1);
-      if (st.hatch) {
-        // Chain link: a diagonal mesh clipped to the rect (good enough for a thin fence).
-        const step = 8;
-        for (let d = -h; d < w; d += step) {
-          const x0 = x + Math.max(0, d);
-          const y0 = y + Math.max(0, -d);
-          const len = Math.min(w - Math.max(0, d), h - Math.max(0, -d));
-          if (len > 0) cover.lineBetween(x0, y0, x0 + len, y0 + len);
-        }
-        cover.strokeRect(x, y, w, h);
-      } else {
-        cover.strokeRect(x, y, w, h);
-        if (c.material === 'sandbags') {
-          // Bag seams.
-          const along = w >= h;
-          const n = Math.max(1, Math.round((along ? w : h) / 20));
-          for (let i = 1; i < n; i++) {
-            if (along) cover.lineBetween(x + (i * w) / n, y, x + (i * w) / n, y + h);
-            else cover.lineBetween(x, y + (i * h) / n, x + w, y + (i * h) / n);
-          }
-        }
-      }
+      const l = coverArtLayout(c, false);
+      const make = (dx: number, dy: number) =>
+        scene.add
+          .tileSprite(l.x + dx, l.y + dy, l.width, l.height, l.key)
+          .setRotation(l.rotation)
+          .setTileScale(l.tileScale);
+      const sprite = make(0, 0).setDepth(DEPTH.walls);
+      const contact = make(3, 3)
+        .setTint(0x000000)
+        .setAlpha(0.28)
+        .setDepth(DEPTH.walls - 0.25);
+      this.coverPieces.set(c.id, { sprite, shadow: contact });
     }
     for (const sp of map.spawnPoints) {
       // Forward (capture) spawn markers are drawn with their capture point, only while ours.
@@ -504,26 +466,22 @@ export class WorldRenderer {
     this.updateLoops();
   }
 
-  /** (PHASE12-b) Hides destroyed cover and draws PLACEHOLDER rubble where it stood ([Q40]). */
+  /** Texture swap only; destruction/collision still belongs entirely to the sim. */
   private drawRubble(): void {
     const down = this.cur.coverDestroyed ?? [];
     const key = down.join(',');
     if (key === this.rubbleKey) return;
     this.rubbleKey = key;
-    const g = this.rubbleGfx;
-    g.clear();
-    for (const [id, gfx] of this.coverPieces) gfx.setVisible(!down.includes(id));
     for (const def of this.map.cover ?? []) {
-      if (!down.includes(def.id)) continue;
-      const { x, y, w, h } = def.rect;
-      g.fillStyle(0x4a4236, 0.6);
-      const n = Math.max(3, Math.round((w * h) / 120));
-      for (let i = 0; i < n; i++) {
-        // Fixed pseudo-random scatter per piece (render only).
-        const fx = ((i * 0.618034 + def.id.length * 0.1) % 1) * w;
-        const fy = ((i * 0.414214 + 0.3) % 1) * h;
-        g.fillCircle(x + fx, y + fy, 2 + (i % 3));
-      }
+      const destroyed = down.includes(def.id);
+      const piece = this.coverPieces.get(def.id)!;
+      const l = coverArtLayout(def, destroyed);
+      piece.sprite
+        .setTexture(l.key)
+        .setSize(l.width, l.height)
+        .setTileScale(l.tileScale)
+        .setDepth(destroyed ? DEPTH.decals : DEPTH.walls);
+      piece.shadow.setVisible(!destroyed);
     }
   }
 
@@ -1114,13 +1072,28 @@ export class WorldRenderer {
       const t = turrets[i]!;
       const base = this.turretBases.get(t.id);
       const destroyed = t.state === 'destroyed';
-      base.setTexture(destroyed ? 'turret_wreck' : 'turret_base').setPosition(t.x, t.y);
+      const key = destroyed ? 'turret_wreck' : 'turret_base';
+      base
+        .setTexture(key)
+        .setPosition(t.x, t.y)
+        .setScale(64 / fitPx(key));
+      this.turretShadows
+        .get(t.id)
+        .setTexture(key)
+        .setPosition(t.x + 3, t.y + 4)
+        .setScale(64 / fitPx(key))
+        .setTint(0x000000)
+        .setAlpha(destroyed ? 0.18 : 0.28);
       if (!this.applyHitFlash(base, t.id, f.nowMs)) this.clearTint(base);
       if (destroyed) continue;
       const prev = nearById(this.prev.turrets, i, t.id);
       const aim = prev ? lerpAngle(prev.aim, t.aim, a) : t.aim;
       const gun = this.turretGuns.get(t.id);
-      gun.setTexture('turret_gun').setPosition(t.x, t.y).setRotation(aim);
+      gun
+        .setTexture('turret_gun')
+        .setPosition(t.x, t.y)
+        .setRotation(aim)
+        .setScale(64 / fitPx('turret_gun'));
       const ranges = this.settings.turretRanges;
       const active = t.state === 'tracking' || t.state === 'windup';
       if (ranges === 'always' || (ranges === 'active' && active)) {

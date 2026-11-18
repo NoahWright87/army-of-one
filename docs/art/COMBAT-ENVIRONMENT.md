@@ -109,11 +109,10 @@ real live/enemy shots. No new raster assets are required for these procedural ef
 
 ## Remaining battlefield art
 
-The miniature checklist is complete; the entire game's placeholder manifest is not. The next
-coherent art batch is battlefield objects and cover:
+The miniature checklist is complete; the entire game's placeholder manifest is not.
+[Cover, material debris and fixed turrets are now delivered](BATTLEFIELD-PROPS.md). Remaining:
 
-- Sandbags, crates, fences, half-walls, windows and bunker windows currently use procedural art.
-- Static turrets and wrecks, mines/armed mines/scorch marks, HQ/objective intact and destroyed.
+- Mines/armed mines/scorch marks, HQ/objective intact and destroyed.
 - Gates, levers, bridge state/debris art and capture/spawn markers/flags.
 - Muzzle flash and legacy non-miniature overlays remain placeholder images; several soldier
   fallback images and ground placeholders are retained for compatibility even though new art

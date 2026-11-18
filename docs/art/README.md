@@ -127,3 +127,6 @@ separate phase above. Campaign decision numbers retain their D prefix; art decis
 
 Terrain painting now uses [automatic textured transitions](TERRAIN-TRANSITIONS.md) in both the
 editor and game ([A128]); base surfaces are combined with reusable edge/corner masks.
+
+Cover, material debris and fixed turrets are now painted and integrated too:
+[battlefield prop inventory, prompts, reproduction and review](BATTLEFIELD-PROPS.md).

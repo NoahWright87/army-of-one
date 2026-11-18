@@ -135,3 +135,16 @@ Views expose existing projectile owners/allegiances; simulation, saves and recor
 unchanged. Bounded tick-position history handles catch-up, pause, removal, seeks and jumps, with
 tests for interpolation/age/distance clipping. Validation: 718 tests, lint, purity lint and build;
 desktop/mobile browser checks cover colours, zoom/rotation, toggle, pool reuse and cleanup.
+
+### Cover and fixed turret batch (2026-11-18)
+
+- [x] Deliver six neutral cover materials, four debris materials and three fixed-turret layers.
+- [x] Tile long cover at fixed scale inside its original rectangle; rotate vertical strips.
+- [x] Swap debris on destruction and restore intact cover/shadows when replay moves back.
+- [x] Preserve fixed-turret gun rotation, warning tint, hit flash and wreck behavior.
+- [x] Add `?scene=gallery&props=1`, packaging/prompt records and layout/alpha/join tests.
+
+Thirteen new PNGs are registered; the three obsolete turret placeholders are removed by the
+generator. Cover shadows now disappear on destruction. No simulation or map format changes.
+See `docs/art/BATTLEFIELD-PROPS.md`. Validation: 723 tests, lint, purity and production build;
+desktop/mobile checks cover rotation, repeated state changes, Compound/generated maps and shutdown.

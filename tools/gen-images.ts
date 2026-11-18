@@ -238,7 +238,12 @@ function tile(r: Raster, fn: (x: number, y: number) => Rgba): Raster {
 
 type PlaceholderImageKey = Exclude<
   ImageKey,
-  `mini_${string}` | `fx_${string}` | `projectile_${string}` | `terrain_${string}`
+  | `mini_${string}`
+  | `fx_${string}`
+  | `projectile_${string}`
+  | `terrain_${string}`
+  | `cover_${string}`
+  | `rubble_${string}`
 >;
 
 export const IMAGE_RECIPES: Record<PlaceholderImageKey, (r: Raster) => Raster> = {
