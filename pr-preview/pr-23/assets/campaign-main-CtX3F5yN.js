@@ -1,4 +1,4 @@
-import{b as e,g as t,n,p as r,t as i}from"./dom-0xynsoTQ.js";import{M as a,_ as o,b as s,g as c}from"./editor-storage-DhFXkfkJ.js";import{C as l,T as u,_ as d,b as f,c as p,d as m,f as h,g,i as _,l as v,m as y,n as b,o as x,p as S,r as C,s as w,u as T,v as E,w as D,x as O,y as k}from"./campaign-storage-zhukFM0_.js";import{i as A}from"./role-icons-C1MC78SR.js";import{i as j,n as M,r as N,t as P}from"./map-draw-CXlJKsYJ.js";var F=`
+import{b as e,g as t,n,p as r,t as i}from"./dom-BdyXP140.js";import{M as a,_ as o,b as s,g as c}from"./editor-storage-TOp8gSeO.js";import{C as l,T as u,_ as d,b as f,c as p,d as m,f as h,g,i as _,l as v,m as y,n as b,o as x,p as S,r as C,s as w,u as T,v as E,w as D,x as O,y as k}from"./campaign-storage-DjdS1e7u.js";import{i as A}from"./role-icons-C1MC78SR.js";import{i as j,n as M,r as N,t as P}from"./map-draw-DPTheQfQ.js";var F=`
 .aoo-cp { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px;
   font: 14px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #0d1014; }
 .aoo-cp .stage { position: relative; overflow: auto; }
