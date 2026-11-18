@@ -684,7 +684,7 @@ export class WorldRenderer {
       const width = ((smoke ? 5 : t.minCorePixels) * (0.3 + 0.7 * s.strength)) / zoom;
       g.lineStyle(width + 2 / zoom, 0x171b20, fade * (smoke ? 0.18 : 0.65));
       g.lineBetween(s.x0, s.y0, s.x1, s.y1);
-      g.lineStyle(width, smoke ? 0xc7c0ac : style.color, fade * (smoke ? 0.4 : 0.9));
+      g.lineStyle(width, style.color, fade * (smoke ? 0.4 : 0.9));
       g.lineBetween(s.x0, s.y0, s.x1, s.y1);
       if (!smoke) {
         g.lineStyle(width * 0.45, style.core, fade * 0.8);
