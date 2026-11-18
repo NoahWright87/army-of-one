@@ -378,6 +378,68 @@ export const IMAGE_ASSETS = {
     'The aim cursor at the mouse position.',
     'Thin crosshair reticle, 32×32, white with dark outline, readable on any ground.',
   ),
+  // Signposts: the object in the world, and the frame its text opens in (9-slice, 24 px corners).
+  sign_post_plain: img(
+    'sign_post_plain',
+    64,
+    64,
+    'A plain signpost in the world (readable: stand by it).',
+    `${TOPDOWN}. A small grey metal sign on a post, 64×64, transparent background.`,
+  ),
+  sign_post_wood: img(
+    'sign_post_wood',
+    64,
+    64,
+    'A wooden signpost in the world.',
+    `${TOPDOWN}. A rough wooden plank sign nailed to a post, 64×64, transparent background.`,
+  ),
+  sign_clipboard: img(
+    'sign_clipboard',
+    64,
+    64,
+    'A clipboard of orders hung on a wall or crate.',
+    `${TOPDOWN}. A brown clipboard with a cream sheet of paper and a metal clip, slightly ` +
+      'askew, 64×64, transparent background.',
+  ),
+  sign_plate: img(
+    'sign_plate',
+    64,
+    64,
+    'A stencilled military warning plate on a post.',
+    `${TOPDOWN}. An olive-drab riveted metal plate on a post, 64×64, transparent background.`,
+  ),
+  frame_plain: img(
+    'frame_plain',
+    96,
+    96,
+    'The default frame a sign opens in.',
+    '9-slice frame, 96×96 with 24 px corners: dark translucent panel, thin light border, ' +
+      'rounded corners. The centre stretches.',
+  ),
+  frame_wood: img(
+    'frame_wood',
+    96,
+    96,
+    "A wooden sign's frame when read.",
+    '9-slice frame, 96×96 with 24 px corners: wooden planks with a darker wooden border and ' +
+      'nails in the corners. The centre stretches.',
+  ),
+  frame_clipboard: img(
+    'frame_clipboard',
+    96,
+    96,
+    "A clipboard's frame when read: paper on a clipboard.",
+    '9-slice frame, 96×96 with 24 px corners: cream paper with a brown clipboard border. The ' +
+      'centre stretches.',
+  ),
+  frame_plate: img(
+    'frame_plate',
+    96,
+    96,
+    "A metal plate's frame when read.",
+    '9-slice frame, 96×96 with 24 px corners: olive-drab painted metal with rivets in the ' +
+      'corners and a worn edge. The centre stretches.',
+  ),
 } as const satisfies Record<string, ImageAssetDef>;
 
 export const SOUND_ASSETS = {

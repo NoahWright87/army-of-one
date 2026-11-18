@@ -237,6 +237,7 @@ function tile(r: Raster, fn: (x: number, y: number) => Rgba): Raster {
 }
 
 export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
+  ...signRecipes(),
   soldier_live: (r) =>
     soldier(r, { body: '#ffc928', helmet: '#d98c00', gun: '#2b2b2b', outline: OUT, ow: 3.5 }),
   soldier_echo: (r) =>
@@ -527,6 +528,113 @@ export const IMAGE_RECIPES: Record<ImageKey, (r: Raster) => Raster> = {
     return r.paint(circle(16, 16, 1.2), '#ff4040');
   },
 };
+
+// ---- signposts ------------------------------------------------------------------------------
+
+/** A post seen from above: a short stub and its shadow, under the sign. */
+function post(r: Raster): Raster {
+  r.paint(ellipse(34, 50, 9, 4), hex('#000000', 0.3));
+  return r.shape(box(32, 46, 3, 8, 1), '#5a4128', OUT, 2);
+}
+
+const woodGrain = (x: number, y: number): Rgba => {
+  const plank = Math.floor(y / 9);
+  const base = mix(hex('#8a6239'), hex('#a8794a'), noise(plank, 0, 3));
+  const seam = y % 9 === 0 ? 0.5 : 0;
+  return mix(base, hex('#2a1a0c'), seam + noise(x >> 2, y, plank) * 0.15);
+};
+
+/** 9-slice frame: an outer border, an inner panel, corner studs. */
+function frame(
+  r: Raster,
+  border: Rgba | ((x: number, y: number) => Rgba),
+  panel: Rgba | ((x: number, y: number) => Rgba),
+  bw: number,
+  radius: number,
+  stud?: string,
+): Raster {
+  const outer = box(48, 48, 46, 46, radius);
+  const inner = box(48, 48, 46 - bw, 46 - bw, Math.max(1, radius - bw / 2));
+  r.paint(grow(outer, 2), OUT);
+  r.shade((x, y) => (typeof border === 'function' ? border(x, y) : border), outer);
+  r.shade((x, y) => (typeof panel === 'function' ? panel(x, y) : panel), inner);
+  if (stud) {
+    for (const [cx, cy] of [
+      [8, 8],
+      [88, 8],
+      [8, 88],
+      [88, 88],
+    ] as const) {
+      r.shape(circle(cx, cy, 2.6), stud, OUT, 1);
+    }
+  }
+  return r;
+}
+
+function signRecipes() {
+  return {
+    sign_post_plain: (r: Raster) => {
+      post(r);
+      return r.shape(box(32, 30, 20, 12, 2), '#8c949c', OUT, 2.5);
+    },
+    sign_post_wood: (r: Raster) => {
+      post(r);
+      r.paint(grow(box(32, 30, 22, 13, 1, -0.05), 2.5), OUT);
+      r.shade((x, y) => woodGrain(x, y), box(32, 30, 22, 13, 1, -0.05));
+      r.paint(circle(13, 24, 1.4), '#2a2a2a');
+      return r.paint(circle(51, 22, 1.4), '#2a2a2a');
+    },
+    sign_clipboard: (r: Raster) => {
+      r.paint(box(34, 35, 17, 22, 2, 0.12), hex('#000000', 0.3));
+      r.shape(box(32, 32, 17, 22, 3, 0.12), '#7a5232', OUT, 2.5);
+      r.paint(box(32, 34, 13, 17, 1, 0.12), '#efe6cf');
+      for (let i = 0; i < 4; i++)
+        r.paint(box(32 - i * 0.6, 28 + i * 6, 9, 0.8, 0, 0.12), hex('#5a6470', 0.8));
+      return r.shape(box(30.5, 12, 7, 3, 1.5, 0.12), '#b8bec6', OUT, 1.5);
+    },
+    sign_plate: (r: Raster) => {
+      post(r);
+      r.shape(box(32, 30, 21, 13, 2), '#4f5a34', OUT, 2.5);
+      r.paint(box(32, 30, 12, 2.2), '#e8dfbd');
+      for (const [x, y] of [
+        [14, 20],
+        [50, 20],
+        [14, 40],
+        [50, 40],
+      ] as const) {
+        r.paint(circle(x, y, 1.6), '#2a2f1e');
+      }
+      return r;
+    },
+    frame_plain: (r: Raster) => frame(r, hex('#c9d1d9', 0.95), hex('#14181d', 0.9), 3, 10),
+    frame_wood: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(woodGrain(y, x), hex('#2a1a0c'), 0.35),
+        (x, y) => woodGrain(x, y),
+        9,
+        6,
+        '#3a3a3a',
+      ),
+    frame_clipboard: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(hex('#7a5232'), hex('#5a3a20'), noise(x >> 3, y >> 3, 4) * 0.5),
+        hex('#f1ead6'),
+        8,
+        8,
+      ),
+    frame_plate: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(hex('#3d4628'), hex('#2a301b'), noise(x >> 1, y >> 1, 8) * 0.6),
+        (x, y) => mix(hex('#56623a'), hex('#4a5531'), noise(x >> 2, y >> 2, 6) * 0.6),
+        7,
+        4,
+        '#c8c0a0',
+      ),
+  };
+}
 
 export function renderImage(key: ImageKey, w: number, h: number): Raster {
   return IMAGE_RECIPES[key](new Raster(w, h));

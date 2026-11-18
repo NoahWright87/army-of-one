@@ -192,6 +192,11 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`), slow
   and weaken past their range and land ([D146]); near misses alert the AI, who lay down covering
   fire (`ai.suppress*`).
+- Words in the world (PHASE18, [D147]–[D152]): `?scene=textlab` (also linked from the arena) to
+  try signposts, speech markup and soldiers' chatter, and tune the look. Code in
+  `src/render/worldtext/`, tuning in `src/content/world-text.ts`, names in
+  `src/content/soldier-names.ts`, lines in strings.ts (`bark.*`, `sign.*`). Chatter runs in every
+  battle (F2 → Display turns it off); it is not recorded.
 - Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
   side by role, HUMAN / CPU presets, barrier buttons (each kind off / left / right / both halves,
   at fixed mirrored spots), GO, 🔁 auto-repeat with a running tally, and 20 headless fights for

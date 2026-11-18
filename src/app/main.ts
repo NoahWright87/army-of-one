@@ -18,6 +18,7 @@ import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
+import { TextLabScene } from '../render/phaser/textlab-scene';
 import type { ArenaConfig } from '../gen/arena';
 import { PreloadScene } from '../render/phaser/preload-scene';
 import type { SceneServices } from '../render/phaser/services';
@@ -128,14 +129,16 @@ export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 const params = new URLSearchParams(window.location.search);
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
-const mode: 'game' | 'gallery' | 'sandbox' | 'arena' =
+const mode: 'game' | 'gallery' | 'sandbox' | 'arena' | 'textlab' =
   sceneParam === 'gallery'
     ? 'gallery'
     : sceneParam === 'sandbox'
       ? 'sandbox'
       : sceneParam === 'arena' // (PHASE17) the dev arena ([D142])
         ? 'arena'
-        : 'game';
+        : sceneParam === 'textlab' // in-world text: signposts, speech, chatter
+          ? 'textlab'
+          : 'game';
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
@@ -389,6 +392,7 @@ let markAssetsReady: () => void = () => {};
 const assetsReady = new Promise<void>((resolve) => (markAssetsReady = resolve));
 
 const arenaScene = new ArenaScene(services);
+const textLabScene = new TextLabScene();
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -404,16 +408,20 @@ const game = new Phaser.Game({
           ? 'gallery'
           : mode === 'arena'
             ? 'arena'
-            : 'battle',
+            : mode === 'textlab'
+              ? 'textlab'
+              : 'battle',
       () => markAssetsReady(),
     ),
     new BattleScene(services),
     new GalleryScene(services),
     new ReplayScene(services),
     arenaScene,
+    textLabScene,
   ],
 });
 if (mode === 'arena') void startArena();
+if (mode === 'textlab') void startTextLab();
 
 // (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
 // and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
@@ -1197,6 +1205,7 @@ async function startArena(): Promise<void> {
       { label: str('dev.editor'), href: href('editor') },
       { label: str('dev.world'), href: href('world') },
       { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.textlab'), href: href('textlab') },
       { label: str('dev.menu'), href: href(null) },
     ],
   );
@@ -1245,4 +1254,36 @@ function libraryNameKey(missionId: string): string | null {
   if (parseWorldMissionId(missionId)) return 'map.world.name';
   if (parseGenMissionId(missionId)) return 'map.generated.name';
   return null;
+}
+
+/** The text lab: signposts, speech and chatter to try out (its panel drives the scene). */
+async function startTextLab(): Promise<void> {
+  hud.setVisible(false);
+  const { TextLabPanel } = await import('../ui/textlab/textlab-panel');
+  const href = (scene: string | null) => {
+    const u = new URL(window.location.href);
+    u.search = '';
+    if (scene) u.searchParams.set('scene', scene);
+    return u.toString();
+  };
+  const panel = new TextLabPanel(
+    uiRoot,
+    textLabScene.tuning,
+    {
+      say: (id, text) => textLabScene.say(id, text),
+      situation: (s) => textLabScene.situation(s),
+      firefight: (sec) => textLabScene.firefight(sec),
+      zoom: (z) => textLabScene.setZoom(z),
+      tuningChanged: () => textLabScene.applyTuning(),
+      isHot: () => (textLabScene.sys.isActive() ? textLabScene.hot : false),
+    },
+    [
+      { label: str('dev.textlab'), href: href('textlab'), here: true },
+      { label: str('dev.arena'), href: href('arena') },
+      { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.menu'), href: href(null) },
+    ],
+  );
+  textLabScene.onRoster = (list) => panel.setSpeakers(list);
+  if (textLabScene.sys.isActive()) panel.setSpeakers(textLabScene.speakers());
 }

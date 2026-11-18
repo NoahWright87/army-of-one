@@ -677,6 +677,33 @@ buy. The echo loop only matters when one soldier can't win alone.
   owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
   Grenadier and Machine Gunner need cover to shine).
 
+## Words in the world (owner session 2026-11, PHASE18)
+
+Onboarding should come from the world, not tutorial text: a tutorial mission that doesn't feel
+like one, built from in-world text. Short, glanceable, never in the way of the action.
+
+- **[D147] Signposts.** Readable objects in the world. Stand by one: a ring fills (like a
+  grenade wind-up), then its frame grows up out of the post, as if you leaned in to read it; walk
+  away or fire and it shrinks back into the post. Each kind of sign has its own frame (a wooden
+  sign → a wooden frame, a clipboard → paper on a clipboard; a plain default), and any sign can
+  name another frame. Text is a glance: a few words. Later: a hub of signs may replace the menu.
+- **[D148] Speech is text over a soldier's head, no bubble.** Contrast (outline/shadow) keeps it
+  readable on any ground; bubbles would hide the action. The words pop out of the soldier, so
+  it's obvious who's talking, and follow them.
+- **[D149] Speech markup.** Effects (shake, wave, colour, flying letters, …; easy to add more) and
+  pacing in the line itself: a short shout appears at once, a longer sentence word by word, and
+  one line can mix both ("INCOMING!!" then "Get behind something").
+- **[D150] Chatter (barks) for character, within a noise budget.** Soldiers react: grenades,
+  pinned down, low HP, a friend falling (by name), a kill, saving someone, the last enemy down,
+  spawning. In a fight only informational lines (incoming grenade) and lines away from where the
+  player is moving and aiming; when it's calm (fight over) they can be many.
+- **[D151] Chatter is not recorded.** Echoes and live soldiers react to what happens in this run,
+  so replays sound different (a different name mourned if a different soldier died). Nods to the
+  game itself: an echo shooting where an enemy no longer is ("I could've sworn I saw
+  something…"), an echo still shooting a corpse ("And stay dead!").
+- **[D152] Every soldier has a random name and a rank that suits their role.** Lines use them:
+  `{rankShort} is down!` → "Sarge is down!".
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -972,3 +999,11 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q60] Enemy funds curve (PHASE14, [D119]).** Built as proposed (14-a): a level's budget = its own budget +
   (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
   multiplier, capped at full. Battle minutes count only levels taken.
+- **[Q61] Text lab first picks (PHASE18).** The owner picks in `?scene=textlab`: speech font
+  (Bangers / Black Ops One / Russo One / Oswald / system), sizes and timings (sliders; "Copy my
+  settings" gives the numbers), whether enemies' words get a faint red tint (on), whether echoes'
+  words are fainter (on, `echoAlpha`), and whether special entrances (`[fly]`, `[slam]`, `[drop]`)
+  should still start from the speaker (now they don't; the default entrance does).
+- **[Q62] Who may talk in a fight (PHASE18).** Built: the player's own soldier only shouts
+  warnings and "I got you" (saves) during a fight; other flavour waits for calm. Limits per
+  situation are in `CATEGORY_RULES` (src/render/worldtext/barks.ts) and `world-text.ts`.
