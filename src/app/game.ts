@@ -50,6 +50,7 @@ import {
   buildLedger,
   canAfford,
   rateAt,
+  reservesLeft,
   roleCost,
   type Ledger,
 } from '../timeline/economy';
@@ -342,9 +343,11 @@ export class GameController {
    * available then covers it ([Q30]), else a free Rifleman ([D18]; quick redeploy relies on it).
    */
   affordableRole(entryTick: Tick, roleId: RoleId = this.roleId): RoleId {
-    return canAfford(this.ledger(), entryTick, roleCost(roleId, this.tuning))
-      ? roleId
-      : DEFAULT_ROLE;
+    const open = this.a.map.roles; // (PHASE14) roles locked in this campaign ([D120])
+    if (open && !open.includes(roleId)) return DEFAULT_ROLE;
+    const l = this.ledger();
+    if (reservesLeft(l, roleId) > 0) return roleId; // (PHASE14) a free reserve ([D117])
+    return canAfford(l, entryTick, roleCost(roleId, this.tuning)) ? roleId : DEFAULT_ROLE;
   }
 
   /** Deploys a spawn option from the respawn screen. */
@@ -862,6 +865,7 @@ export class GameController {
         resolvedUntil: this.resolvedUntil,
         reveal: revealOptions(this.tuning), // (06-b) revealed map
         roleId: this.roleId, // (07-c) role picker
+        ...(this.a.map.roles ? { roles: this.a.map.roles } : {}), // (PHASE14) [D120]
         // (PHASE12-c) Opens on the quick-redeploy choice: DEPLOY is one tap back in.
         preferred: quickRedeployOption(options, this.lastSpawnPointId),
         economy: this.ledger(), // (PHASE11) money

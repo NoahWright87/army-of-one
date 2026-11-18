@@ -6,7 +6,7 @@ import {
   generatedMap,
   isRuntimeMission,
 } from './editor-storage';
-import { genMissionId, parseWorldMissionId } from '../gen/mission-id';
+import { genMissionId, parseGenMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
@@ -17,6 +17,8 @@ import { DEFAULT_TUNING, withTuning } from '../content/tuning';
 import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
+import { ArenaScene } from '../render/phaser/arena-scene';
+import type { ArenaConfig } from '../gen/arena';
 import { PreloadScene } from '../render/phaser/preload-scene';
 import type { SceneServices } from '../render/phaser/services';
 import {
@@ -108,9 +110,12 @@ import {
 } from './resolve-runner';
 import { openBestStore } from './storage/indexeddb-store';
 import { generateStressMission } from './stress';
-import { attackable, newCampaign, takeLevel } from '../gen/campaign';
+import { finishLevel, settingsFor } from '../gen/campaign';
+import { DIFFICULTY } from '../content/difficulty';
+import { levelResult } from '../gen/campaign-result';
 import {
-  campaignIncludesMine,
+  applyLevelSettings,
+  createCampaign,
   campaignWorld,
   openCampaignMap,
   readCampaign,
@@ -123,8 +128,14 @@ export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 const params = new URLSearchParams(window.location.search);
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
-const mode: 'game' | 'gallery' | 'sandbox' =
-  sceneParam === 'gallery' ? 'gallery' : sceneParam === 'sandbox' ? 'sandbox' : 'game';
+const mode: 'game' | 'gallery' | 'sandbox' | 'arena' =
+  sceneParam === 'gallery'
+    ? 'gallery'
+    : sceneParam === 'sandbox'
+      ? 'sandbox'
+      : sceneParam === 'arena' // (PHASE17) the dev arena ([D142])
+        ? 'arena'
+        : 'game';
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
@@ -138,7 +149,14 @@ const MISSION_STORAGE_KEY = 'army-of-one.mission';
   // (PHASE13-b) A generated mission (`gen-<seed>`): stitched from map blocks. Also the one
   // remembered from last time.
   const want = params.get('mission') ?? readStoredMission();
-  if (want) {
+  // (PHASE14) A campaign battle: the campaign's own world and the settings the level started
+  // with ([D117], [D118], [D120], [D126]).
+  const camp = want && params.get('from') === 'campaign' ? readCampaign() : null;
+  const settings = camp && want ? settingsFor(camp, want) : null;
+  if (want && camp && settings) {
+    const gen = generatedMap(want, { world: campaignWorld(camp) });
+    if (gen) registerMap(applyLevelSettings(gen, settings));
+  } else if (want) {
     // Official blocks only, unless `pool=mine` (your saved blocks too; off by default).
     const gen = generatedMap(want, { includeMine: params.get('pool') === 'mine' });
     if (gen) registerMap(gen);
@@ -242,7 +260,11 @@ const display = bindDisplaySettings(settings);
  * turn them off anywhere.
  */
 function gameTuning() {
-  const t = effectiveTuning(settings, DEFAULT_TUNING);
+  // (PHASE16) A campaign battle runs on its difficulty ([D134]); F2 settings still win.
+  const base = campaignBattle
+    ? withTuning(DEFAULT_TUNING, DIFFICULTY[campaignBattle.difficulty].tuning)
+    : DEFAULT_TUNING;
+  const t = effectiveTuning(settings, base);
   const flag = params.get('enemies');
   const off = flag === '0' || (params.has('autoplay') && flag !== '1');
   return off ? withTuning(t, { ai: { enabled: false } }) : t;
@@ -366,6 +388,7 @@ const services: SceneServices = {
 let markAssetsReady: () => void = () => {};
 const assetsReady = new Promise<void>((resolve) => (markAssetsReady = resolve));
 
+const arenaScene = new ArenaScene(services);
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -374,14 +397,23 @@ const game = new Phaser.Game({
   // (06-c) Dual-GPU laptops: ask for the discrete GPU.
   render: { powerPreference: 'high-performance', antialias: display.antialias },
   scene: [
-    new PreloadScene(mode === 'game' ? null : mode === 'gallery' ? 'gallery' : 'battle', () =>
-      markAssetsReady(),
+    new PreloadScene(
+      mode === 'game'
+        ? null
+        : mode === 'gallery'
+          ? 'gallery'
+          : mode === 'arena'
+            ? 'arena'
+            : 'battle',
+      () => markAssetsReady(),
     ),
     new BattleScene(services),
     new GalleryScene(services),
     new ReplayScene(services),
+    arenaScene,
   ],
 });
+if (mode === 'arena') void startArena();
 
 // (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
 // and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
@@ -471,13 +503,14 @@ async function startGame(): Promise<void> {
         currentMissionId: MISSION.id,
         onPickMission: pickMission,
         onOpenEditor: openEditor,
+        onOpenDev: () => openScene('arena'),
         onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         campaign: {
           inProgress: readCampaign() !== null,
           onOpen: openCampaignMap,
           onNew: () => {
-            writeCampaign(newCampaign(Math.floor(Math.random() * 1e9), campaignIncludesMine()));
+            createCampaign();
             openCampaignMap();
           },
         },
@@ -510,7 +543,7 @@ async function startGame(): Promise<void> {
     showComplete: (stats, onPlayAgain, extra) => {
       if (campaignBattle) {
         // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
-        takeCampaignLevel();
+        if (extra) takeCampaignLevel(extra);
         if (!extra) complete.show(stats, openCampaignMap);
         else {
           showResults(extra, openCampaignMap, {
@@ -780,11 +813,12 @@ async function startGame(): Promise<void> {
       });
     }
     for (const e of readLibrary(safeLocalStorage())) {
-      const map = findOrGenerate(e.missionId);
-      if (!map) continue;
+      // (PHASE17) The name only: generating a world level's map here took seconds.
+      const nameKey = libraryNameKey(e.missionId);
+      if (!nameKey) continue;
       items.push({
         label: str('library.won', {
-          mission: strDynamic(map.nameKey),
+          mission: strDynamic(nameKey),
           soldiers: e.soldiers,
           time: formatBattleTime(e.battleTicks),
         }),
@@ -1022,13 +1056,22 @@ async function startGame(): Promise<void> {
   }
 }
 
-/** (PHASE13-d) Marks this battle's level taken in the campaign (if it could be attacked). */
-function takeCampaignLevel(): void {
+/**
+ * (PHASE13-d, PHASE14) Marks this battle's level taken in the campaign and carries its money,
+ * survivors, unlocks and battle time over ([D117]–[D119]). Only for the active level: a
+ * reload of a won level's results changes nothing.
+ */
+function takeCampaignLevel(results: CompleteResults): void {
   const c = readCampaign();
   if (!c || !worldPlaytest || c.seed !== worldPlaytest.seed) return;
-  const world = campaignWorld(c);
-  if (!attackable(world, c).includes(worldPlaytest.level)) return;
-  writeCampaign(takeLevel(world, c, worldPlaytest.level));
+  if (c.active?.missionId !== MISSION.id) return;
+  const result = levelResult({
+    level: worldPlaytest.level,
+    map: results.map,
+    tuning: results.tuning,
+    mission: results.mission,
+  });
+  if (result) writeCampaign(finishLevel(campaignWorld(c), c, result));
 }
 
 /** localStorage, or null where it's blocked (private mode). */
@@ -1078,4 +1121,128 @@ function isTyping(t: EventTarget | null): boolean {
     t instanceof HTMLSelectElement ||
     t instanceof HTMLTextAreaElement
   );
+}
+
+/** (PHASE17) Another page of the game by `?scene=` (keeps `dev`). */
+function openScene(scene: string): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  if (dev) url.searchParams.set('dev', dev);
+  url.searchParams.set('scene', scene);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
+
+/** (PHASE17) Pause between auto-repeated arena fights. */
+const ARENA_REPEAT_MS = 2500;
+
+/** (PHASE17) The dev arena ([D142]): its panel drives the arena scene. */
+async function startArena(): Promise<void> {
+  hud.setVisible(false);
+  const { ArenaPanel } = await import('../ui/arena/arena-panel');
+  const arena = await import('../gen/arena');
+  const KEY = 'army-of-one.arena.v1';
+  const defaults: ArenaConfig = {
+    left: { preset: 'human', units: { rifleman: 1 } },
+    right: { preset: 'normal', units: { rifleman: 3 } },
+    barriers: {},
+  };
+  let cfg = defaults;
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (raw) cfg = arena.parseArenaConfig(JSON.parse(raw), defaults);
+  } catch {
+    // defaults
+  }
+  let seed = 1;
+  const base = new URL(window.location.href);
+  const href = (scene: string | null) => {
+    const u = new URL(base.toString());
+    u.search = '';
+    if (scene) u.searchParams.set('scene', scene);
+    return u.toString();
+  };
+  const panel = new ArenaPanel(
+    uiRoot,
+    cfg,
+    {
+      change: (c) => {
+        try {
+          window.localStorage.setItem(KEY, JSON.stringify(c));
+        } catch {
+          // this page only
+        }
+        arenaScene.loadFight(c, seed);
+      },
+      go: () => arenaScene.go(),
+      reset: () => {
+        seed += 1;
+        arenaScene.loadFight(panel.config, seed);
+      },
+      speed: (x) => arenaScene.setSpeed(x),
+      auto: (on) => {
+        autoRepeat = on;
+        tally = { left: 0, right: 0, draws: 0 };
+        panel.showTally(on ? tally : null);
+        if (on && lastWinner) next();
+      },
+      batch: (n) =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(arena.runArenaBatch(panel.config, n, seed * 1000)), 30),
+        ),
+    },
+    [
+      { label: str('dev.arena'), href: href('arena'), here: true },
+      { label: str('dev.editor'), href: href('editor') },
+      { label: str('dev.world'), href: href('world') },
+      { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.menu'), href: href(null) },
+    ],
+  );
+  // Auto-repeat: count each result, then a fresh fight (new seed) a few seconds later.
+  let autoRepeat = false;
+  let tally = { left: 0, right: 0, draws: 0 };
+  let lastWinner: string | null = null;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const next = () => {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(() => {
+      pending = null;
+      if (!autoRepeat) return;
+      seed += 1;
+      lastWinner = null;
+      arenaScene.loadFight(panel.config, seed, true);
+    }, ARENA_REPEAT_MS);
+  };
+  arenaScene.hooks = {
+    onTap: () => {}, // barriers are buttons now, not placed by tapping
+    onState: (st) => {
+      panel.showState(st);
+      if (!st.winner) {
+        lastWinner = null;
+        return;
+      }
+      if (lastWinner) return; // already counted
+      lastWinner = st.winner;
+      if (!autoRepeat || st.tick === 0) return;
+      if (st.winner === 'left') tally.left++;
+      else if (st.winner === 'right') tally.right++;
+      else tally.draws++;
+      panel.showTally(tally);
+      next();
+    },
+    onReady: () => arenaScene.loadFight(panel.config, seed),
+  };
+  // The scene may have started before the panel loaded.
+  if (arenaScene.sys.isActive()) arenaScene.loadFight(panel.config, seed);
+}
+
+/** (PHASE17) A saved run's mission name, without building its map; null if it's unknown. */
+function libraryNameKey(missionId: string): string | null {
+  const known = findMap(missionId);
+  if (known) return known.nameKey;
+  if (parseWorldMissionId(missionId)) return 'map.world.name';
+  if (parseGenMissionId(missionId)) return 'map.generated.name';
+  return null;
 }

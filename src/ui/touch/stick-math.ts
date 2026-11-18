@@ -22,6 +22,11 @@ export function stickVector(origin: Vec2, thumb: Vec2, cfg: StickConfig): Vec2 {
   return { x: (dx / d) * mag, y: (dy / d) * mag };
 }
 
+/** (PHASE17) The thumb is out at (or past) the sprint ring, `ring` px from the origin ([D144]). */
+export function sprintRingReached(origin: Vec2, thumb: Vec2, ring: number): boolean {
+  return Math.hypot(thumb.x - origin.x, thumb.y - origin.y) >= ring * 0.92;
+}
+
 /** Where to draw the knob: the thumb, clamped to the stick's radius. */
 export function knobOffset(origin: Vec2, thumb: Vec2, radius: number): Vec2 {
   const dx = thumb.x - origin.x;

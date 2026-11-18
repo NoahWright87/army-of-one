@@ -13,7 +13,7 @@ images are only the *pieces*.
 
 Loosely **World War II**: steel helmets, bolt/semi-auto rifles, light machine guns, bazookas, trucks,
 tanks. It is a model of a war, not a depiction of one: chunky, toy-like and good-natured. No explicit gore or faces needing expression. Restrained blood marks on unarmed fallen figures
-are allowed by the updated owner direction ([D125]).
+are allowed by the updated owner direction ([A125]).
 
 - Keep everything **generic**. No real national insignia, flags, crosses, runes, unit patches or any
   hate symbols. Factions are told apart by *paint scheme and helmet silhouette only*.
@@ -119,14 +119,14 @@ real-world insignia or flags · faces looking at the camera · explicit gore · 
 photographic with depth of field · different styles between files · busy fine detail that disappears
 at 32 px.
 
-## Updated pilot direction ([D124]–[D125])
+## Updated pilot direction ([A124]–[A125])
 
 Bases are foot-sized supports, at 0.70× the original display scale, with figures at 1.6×: bodies overhang and mostly cover
 the metal. No oversized live-marker ring on miniature units. Snipers have a broad shaggy
 ghillie silhouette; Shield units have beefier padded armor. On death the base vanishes and an
 unarmed sprawled body falls beside its former position along the lethal hit direction.
 
-## Remaining infantry ([D126])
+## Remaining infantry ([A126])
 
 Grenadier: extended cocked throwing arm and oversized round grenade, no rifle. Machine Gunner:
 two helmet crowns around a crew-served receiver, bold ammo belt, box and splayed bipod.

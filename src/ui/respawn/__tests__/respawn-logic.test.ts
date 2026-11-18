@@ -1,3 +1,4 @@
+import { DEFAULT_TUNING } from '../../../content/tuning';
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../../../content/maps/mission-03';
 import type { LaneSpan, SpawnOption } from '../../../contracts/mission';
@@ -274,7 +275,7 @@ describe('options and selection', () => {
       kind: 'resume',
       soldierId: 'S1',
       resumeTick: s(58),
-      leadInFromTick: s(53),
+      leadInFromTick: s(58 - DEFAULT_TUNING.spawn.leadInSeconds),
     });
   });
 });

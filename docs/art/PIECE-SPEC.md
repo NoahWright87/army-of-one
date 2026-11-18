@@ -2,7 +2,7 @@
 
 All sizes are in **art pixels**. The game draws about **3.1 art px per world unit** everywhere, so
 figure art uses that normalization. For readability the renderer draws infantry figures at
-1.6× and their foot bases at 0.70× the original scale ([D124]). Soldiers appear about 32 px across on a normal screen
+1.6× and their foot bases at 0.70× the original scale ([A124]). Soldiers appear about 32 px across on a normal screen
 (their 100 px base is scaled down about 3×), so everything below is designed to survive heavy
 downscaling.
 
@@ -39,7 +39,7 @@ Drawn bottom to top, all centered on the same point (the piece's position):
   the *middle* of a hull, the *hub* of a turret. Weapons stick out; bodies do not wander.
 - A transparent margin of at least 2 px on every side (more where the table says).
 - `fitPx` is what the renderer maps onto the soldier's logical size; it is listed per base below and
-  is shared by that unit's base and figure, so *keep art normalization unchanged; the renderer deliberately scales infantry bases to 0.70× and figures to 1.6× ([D124])*.
+  is shared by that unit's base and figure, so *keep art normalization unchanged; the renderer deliberately scales infantry bases to 0.70× and figures to 1.6× ([A124])*.
 
 ## 2. Bases
 
@@ -53,7 +53,7 @@ All four finishes of a shape have the **identical outline, pixel for pixel**; on
 | `truck` | 192×128 | rounded rectangle 160×96, 20 px corner radius, long axis = x | 160 | gun truck |
 | `tank` | 256×192 | rectangle 200×152 with 28 px chamfered corners, long axis = x | 200 | tank |
 
-Which role stands on which base is **confirmed** ([D122] in DECISIONS.md): it lives in
+Which role stands on which base is **confirmed** ([A122] in DECISIONS.md): it lives in
 `BASE_SHAPE_BY_ROLE` in `src/content/miniatures.ts`, and because every infantry shape is drawn in
 every finish, changing a role's shape later needs no new art.
 
@@ -68,7 +68,7 @@ Base surface and finish details are in [STYLE-BIBLE.md](STYLE-BIBLE.md). In game
 | Echo (a past life) | `gold-tarnished` (the figure is drawn semi-transparent by the engine) |
 | Static remnant (recording ran out) | `gold-tarnished` plus a flicker/scanline overlay (engine) |
 | Enemy | `silver` |
-| Dead | no base; unarmed fallen figure displaced along the lethal hit direction ([D125]) |
+| Dead | no base; unarmed fallen figure displaced along the lethal hit direction ([A125]) |
 | *(reserved)* other players | `silver-tarnished` |
 
 ## 3. Infantry figures

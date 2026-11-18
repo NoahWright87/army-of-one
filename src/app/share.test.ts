@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../content/tuning';
-import { KEEP_PER_MISSION, withEntry, type LibraryEntry } from './replay-library';
+import { KEEP_PER_MISSION, KEEP_TOTAL, withEntry, type LibraryEntry } from './replay-library';
 import { decodeRun, encodeRun, packRun, packedFromHash, unpackRun } from './share';
 import { createHarness } from './test-harness';
 
@@ -59,5 +59,12 @@ describe('replay library', () => {
     for (let i = 0; i < 5; i++) list = withEntry(list, e(`a${i}`, 'm3', i));
     list = withEntry(list, e('b0', 'm5', 10));
     expect(list.map((x) => x.id)).toEqual(['b0', 'a4', 'a3', 'a2']);
+  });
+
+  it(`keeps at most ${KEEP_TOTAL} in all (a campaign's levels are each a mission)`, () => {
+    let list: LibraryEntry[] = [];
+    for (let i = 0; i < 30; i++) list = withEntry(list, e(`w${i}`, `world-1-${i}`, i));
+    expect(list).toHaveLength(KEEP_TOTAL);
+    expect(list[0]!.id).toBe('w29');
   });
 });

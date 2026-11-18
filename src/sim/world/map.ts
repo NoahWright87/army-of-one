@@ -1,5 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import type { RoleId } from '../../contracts/mission';
+import type { Tuning } from '../../content/tuning';
 
 /** Axis-aligned rectangle; (x, y) is the top-left corner. */
 export interface Rect {
@@ -47,12 +48,17 @@ export interface CapturePointDef {
   /** Overrides `tuning.capture.radius`. */
   radius?: number;
   /** Default 'enemy'. */
-  initialStage?: 'enemy' | 'neutral';
+  initialStage?: CaptureStage; // (PHASE17) 'ours': an entry you hold ([D139])
   /**
    * Flag objective ([D17]): this point reaching 'ours' is a mission objective. The mission
    * completes once every objective (destroy targets and flag points) is done.
    */
   objective?: boolean;
+  /**
+   * (PHASE16) Objective flags with the same group count together: the mission needs
+   * `map.objectiveGroups[group]` of them, not all ([D129]). Absent = this flag is needed.
+   */
+  group?: string;
   /**
    * (PHASE11) Extra income per second of battle time while this point is ours ([D51]).
    * Default `tuning.economy.captureIncomePerSecond`.
@@ -161,6 +167,10 @@ export interface SquadDef {
   fallback?: Vec2;
   /** Hold (and retake) this capture point. */
   capturePointId?: string;
+  /** (PHASE17) The arena ([D142]): a squad on our side (default: the enemy's). */
+  team?: 'player';
+  /** (PHASE17) AI skill on top of `tuning.ai` (the arena's HUMAN / CPU presets). */
+  skill?: Partial<Tuning['ai']>;
   /**
    * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
    * `roam` temperament), retreat to the best of them, and chase within their leash of any.
@@ -209,7 +219,26 @@ export interface MapDef {
    */
   ground?: { cellSize: number; rows: string[] };
   /** (PHASE11) Starting money and base income ([D51]); defaults in `tuning.economy`. */
-  economy?: { startMoney?: number; baseIncomePerSecond?: number };
+  economy?: {
+    startMoney?: number;
+    baseIncomePerSecond?: number;
+    /**
+     * (PHASE14) Campaign reserves ([D117]): free spawns per role. The first ones of a role to
+     * spawn (by tick) cost nothing.
+     */
+    reserves?: Partial<Record<RoleId, number>>;
+  };
+  /** (PHASE17) The mission is also won by killing every enemy soldier ([D139]). */
+  winByKillAll?: boolean;
+  /** (PHASE16) How many objective flags of each group are needed ([D129]); absent = all. */
+  objectiveGroups?: Record<string, number>;
+  /**
+   * (PHASE17) The dev arena's fight seed ([D142]): salts the AI's and guns' random rolls so
+   * repeated fights differ. Absent everywhere else.
+   */
+  aiSeed?: number;
+  /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
+  roles?: readonly RoleId[];
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

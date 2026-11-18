@@ -459,6 +459,23 @@ export function galleryView(tick: Tick): WorldView {
     grenades: grenades(tick),
     coverDestroyed: ['cv-broken'],
     // (PHASE12-a) A rocket flying across the grenade column.
+    // (PHASE17) A friendly and a hostile bullet in flight ([D145]).
+    bullets: [
+      {
+        id: 'BU1',
+        x: col(6) + ((tick % 30) / 30) * 200,
+        y: ROW[2] + 140,
+        angle: 0,
+        hostile: false,
+      },
+      {
+        id: 'BU2',
+        x: col(6) + 200 - ((tick % 30) / 30) * 200,
+        y: ROW[2] + 156,
+        angle: Math.PI,
+        hostile: true,
+      },
+    ],
     rockets: [
       {
         kind: 'rocket',

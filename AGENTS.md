@@ -100,9 +100,11 @@ npm run sim -- --ticks N  # headless sim CLI (tools/sim-cli.ts)
 npm run sim -- --script breach-naive  # scripted scenario on mission-03, prints events (--list)
 npm run sim -- --scenario rescue   # PHASE03-a: X → rescue → O → resume chain (also: chain, bench)
 npm run sim -- --scenario economy  # PHASE11: plays autoplay lives, prints the money (--lives a,b --enemies)
+npm run sim -- --scenario pacing  # PHASE16: bots brute-force campaign levels, print lives/time to win
+                          # (--seeds 11,42 --levels 3 --difficulty easy,normal,hard --cap 120 --json)
 npm run gen -- --seed N  # PHASE13-b: print a generated level (--budget B, --ground; --coverage N sweeps seeds)
 npm run check:art                  # checks the miniature art in assets/miniatures/ (docs/art/; --sheets, --priority N, --require)
-npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03)
+npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission-03; --hitscan: bullets off)
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
@@ -179,6 +181,28 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   `?mission=world-<seed>-<level>-<budget>-h<held…>-r<turns>&from=campaign` (`h`: neighbours held,
   `r`: quarter turns to fit the screen, `src/gen/rotate-map.ts`): no title screen, "← Campaign"
   goes back, and a win marks the level taken. Your saved blocks are only used with `pool=mine`.
+  PHASE14 ([D116]–[D126]): one level at a time (the active level, Resume only); money,
+  income, reserves (survivors as free spawns) and unlocked roles carry over
+  (`src/gen/campaign-result.ts`, `applyLevelSettings` in `src/app/campaign-storage.ts`); level
+  tags (Elite enemies, Unlocks, Income+) and enemy funds that grow with battle time.
+  PHASE16 ([D127]–[D135]): shorter levels (`carve.levelBlocks`), a level is won by a majority of
+  its exits (`map.objectiveGroups`), regeneration (`soldier.regen`), and Easy/Normal/Hard per
+  campaign (`src/content/difficulty.ts`, picked on the campaign map before the first attack).
+  [D136]: only exits are capture points (`carve.extraCapturePoints`; ingress points in
+  `src/gen/ingress.ts` are off), many weaker enemies (`ai.enemyHpScale`/`enemyDamageScale`),
+  exits guarded (`carve.exitGuardWeight`, `exitHoldRadius`).
+  PHASE17 ([D137]–[D145]): enemies rush when they outnumber you and flee when outnumbered,
+  heal and regroup (`tuning.ai`); a level is won by every exit + a key position (entries you
+  hold start green) or by killing every enemy (`map.winByKillAll`); flag/helmet icons on the
+  HUD; walled bases are breached into play (`breachPockets`); tech points buy roles
+  (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`), slow
+  and weaken past their range and land ([D146]); near misses alert the AI, who lay down covering
+  fire (`ai.suppress*`).
+- Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
+  side by role, HUMAN / CPU presets, barrier buttons (each kind off / left / right / both halves,
+  at fixed mirrored spots), GO, 🔁 auto-repeat with a running tally, and 20 headless fights for
+  win rates
+  (`src/gen/arena.ts`). The AI can drive either side (`SquadDef.team`, `SquadDef.skill`).
   Spawn points carry an `approach` path: new soldiers and echoes run in along it during the
   lead-in (`src/render/run-in.ts`, drawn by the battle scene; for show only, [D112]).
 - World map generator (PHASE13-c): `?scene=world[&seed=N]` (title-screen link). The whole board

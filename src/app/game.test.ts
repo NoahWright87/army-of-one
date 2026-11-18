@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../content/maps/mission-03';
+import { DEFAULT_TUNING } from '../content/tuning';
 import type { LaneTruth } from '../contracts/mission';
 import { loadMission } from '../persistence/mission-store';
 import { secondsToTicks } from '../sim/core/time';
@@ -12,7 +13,7 @@ import { HeadlessBattleHost } from './headless';
 import { createHarness } from './test-harness';
 
 const lane = (lanes: readonly LaneTruth[], id: string) => lanes.find((l) => l.soldierId === id)!;
-const LEAD_IN = secondsToTicks(5);
+const LEAD_IN = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
 
 describe('the loop: first death → rescue → resume → mission complete', () => {
   it('plays through with the scrubber finding the rescue', async () => {
@@ -33,7 +34,7 @@ describe('the loop: first death → rescue → resume → mission complete', () 
 
     // Life 1: S1 walks into T1.
     await h.play('breach-slow');
-    // The very first soldier gets a full 5 s countdown over a frozen battlefield ([D25]).
+    // The very first soldier gets a full countdown over a frozen battlefield ([D25]).
     expect(h.runs[0]!.countdownAtStart).toBe(LEAD_IN);
     expect(h.runs[0]!.run.holdTicks).toBe(LEAD_IN);
     await h.settle();

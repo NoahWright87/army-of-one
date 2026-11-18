@@ -131,7 +131,8 @@ describe('Shotgunner ([D61])', () => {
     const at = (x: number) => {
       const w = world(
         arena({ turrets: [{ id: 't1', position: { x, y: 500 }, facing: Math.PI }] }),
-        { turret: { range: 1 }, shotgun: { pelletSpread: 0 } },
+        // Hitscan (PHASE17): the damage lands this tick, at the distance fired.
+        { turret: { range: 1 }, shotgun: { pelletSpread: 0 }, bullets: { enabled: false } },
       );
       const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'shotgun' });
       run(w, 1, { [id]: fire(0) });

@@ -1,5 +1,5 @@
 /**
- * Miniature-art spec ([D116]–[D121]): the one source of truth for the collectible-miniature
+ * Miniature-art spec ([A116]–[A121]): the one source of truth for the collectible-miniature
  * look. Every soldier/vehicle is drawn as LAYERS: a shadow, a metal base (gold/silver, polished or
  * tarnished) and a painted figure that rotates on top of it to aim.
  *
@@ -127,7 +127,7 @@ export const BASES: Record<BaseShape, BaseSpec> = {
 
 /**
  * Which base each role stands on. Light infantry round; armored infantry angular (octagon);
- * heavy weapons square; vehicles their own long plinths. Confirmed in [D122]: change a role's
+ * heavy weapons square; vehicles their own long plinths. Confirmed in [A122]: change a role's
  * shape here and the art needs no changes (every infantry shape is drawn in every finish).
  */
 export const BASE_SHAPE_BY_ROLE: Record<RoleId, BaseShape> = {

@@ -46,7 +46,8 @@ export function createCapturePoints(defs: readonly CapturePointDef[]): CapturePo
     progress: 0,
     emptyTicks: 0,
     contributors: [],
-    capturedTick: null,
+    // (PHASE17) Ours from the start ([D139]): taken at tick 0.
+    capturedTick: d.initialStage === 'ours' ? 0 : null,
   }));
 }
 
@@ -179,7 +180,28 @@ export function allObjectivesDone(world: World): boolean {
   const flags = (world.map.capturePoints ?? []).filter((d) => d.objective);
   if (st.objectives.length === 0 && flags.length === 0) return false;
   if (!st.objectives.every((o) => o.destroyed)) return false;
-  return flags.every((d) => st.capturePoints.find((c) => c.id === d.id)?.stage === 'ours');
+  const ours = (id: string) => st.capturePoints.find((c) => c.id === id)?.stage === 'ours';
+  // (PHASE16) Grouped flags need only so many of the group ([D129]); the rest, every one.
+  const groups = world.map.objectiveGroups ?? {};
+  const taken = new Map<string, { ours: number; all: number }>();
+  for (const d of flags) {
+    const g = d.group !== undefined && groups[d.group] !== undefined ? d.group : null;
+    if (g === null) {
+      if (!ours(d.id)) return false;
+      continue;
+    }
+    const n = taken.get(g) ?? { ours: 0, all: 0 };
+    n.all++;
+    if (ours(d.id)) n.ours++;
+    taken.set(g, n);
+  }
+  for (const [g, n] of taken) if (n.ours < Math.min(n.all, groups[g]!)) return false;
+  return true;
+}
+
+/** (PHASE16) How many of `n` exits a level needs: a majority, ⌊n/2⌋ + 1 ([D129]). */
+export function majorityOf(n: number): number {
+  return n <= 0 ? 0 : Math.floor(n / 2) + 1;
 }
 
 /** Flag captured: completes the mission if it was the last objective. Credits a live captor. */

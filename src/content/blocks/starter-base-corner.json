@@ -21,7 +21,7 @@
   ],
   "items": [
     {"id":"slit1","kind":"cover","rect":[7.25,3,0.5,2],"material":"bunkerWindow","priority":0},
-    {"id":"t2","kind":"turret","at":[10,4],"facing":135,"priority":2},
+    {"id":"t2","kind":"turret","at":[10,4],"facing":135,"priority":3},
     {"id":"rally3","kind":"rally","at":[10.5,6.2],"group":"corner","priority":0},
     {"id":"rally4","kind":"rally","at":[8.8,3.5],"group":"corner","priority":0},
     {"id":"c5","kind":"cover","rect":[2.5,10,2.5,0.5],"material":"sandbags","priority":0},
@@ -29,7 +29,7 @@
     {"id":"obj7","kind":"objective","at":[11,2.5],"priority":0}
   ],
   "groups": [
-    {"id":"corner","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2}]},
+    {"id":"corner","units":[{"role":"gunner","priority":2},{"role":"rifleman","priority":2}]},
     {"id":"outside","units":[{"role":"rifleman","priority":3}]}
   ]
 }

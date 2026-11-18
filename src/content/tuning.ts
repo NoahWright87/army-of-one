@@ -49,8 +49,29 @@ export interface VehicleDrive {
  * unless the name says Ticks, angles in radians.
  */
 export interface Tuning {
+  /**
+   * (PHASE17) Soldiers' gun shots fly as bullets ([D145]) at these speeds (units/s) instead of
+   * hitting at once, so they can be dodged. Off: hitscan (the scripted tests' world).
+   */
+  bullets: {
+    enabled: boolean;
+    speed: { rifle: number; mg: number; pistol: number; sniper: number; shotgun: number };
+    /**
+     * (PHASE17) Past its range a bullet slows by this share per second (exponentially), its
+     * damage falling with its speed, until it's below `minSpeedShare` of full and lands
+     * ([D146]). Bigger = drops sooner. 0 = stops dead at range.
+     */
+    drag: { rifle: number; mg: number; pistol: number; sniper: number; shotgun: number };
+    minSpeedShare: number;
+  };
   soldier: {
     maxHp: number;
+    /**
+     * (PHASE16) Slight health regeneration for our soldiers ([D133]): after `delaySeconds`
+     * without damage, `perSecond` HP back, up to max. perSecond 0 = off (Hard). Not vehicles,
+     * not enemies.
+     */
+    regen: { perSecond: number; delaySeconds: number; enemies: boolean };
     /** Walking speed, units/second. */
     speed: number;
     /** Visual size of the sprite ([D14]: largest). */
@@ -304,6 +325,58 @@ export interface Tuning {
      * walk, sprinting is more) ([D50]). Re-rolled every tick, so moving targets get missed.
      */
     movingTargetError: number;
+    /**
+     * (PHASE16) Extra ± aim error (radians) per 500 units to the target ([D132]), re-rolled
+     * every tick: the AI misses more at range than the player does.
+     */
+    distanceAimError: number;
+    /**
+     * (PHASE16) Guns fire in bursts of this many seconds, then pause ([D132]). 0 = no pauses.
+     * Each soldier's cycle is offset, so a squad doesn't pause together.
+     */
+    burstSeconds: number;
+    burstPauseSeconds: number;
+    /**
+     * (PHASE16) Many weaker enemies ([D136]): enemy soldiers' max HP × this, and the damage
+     * they deal to ours × `enemyDamageScale`. Turrets and mines are unchanged.
+     */
+    enemyHpScale: number;
+    enemyDamageScale: number;
+    /**
+     * (PHASE17) Numbers ([D137]): an enemy counts awake allies within `numbersRadius` (+1 for
+     * itself) against our soldiers within it of its target; at `rushRatio`× or more it rushes
+     * in, at `fleeRatio`× fewer it flees.
+     */
+    numbersRadius: number;
+    rushRatio: number;
+    fleeRatio: number;
+    /** (PHASE17) Sprint to cover only when it's this close; else walk there shooting. */
+    coverSprintRadius: number;
+    /** (PHASE17) Cover may be at most this much closer to the shooter than you are. */
+    coverAdvance: number;
+    /** (PHASE17) A retreat's rally point must be this much further from the threat. */
+    retreatMargin: number;
+    /** (PHASE17) With nowhere better, a retreat goes this far straight away. */
+    retreatDistance: number;
+    /**
+     * (PHASE17) Covering fire ([D146]): shot at within `suppressSeconds`, it fires back at where
+     * the shots came from (± `suppressAimError` rad) when that's within `suppressReach` × its
+     * weapon's range; behind cover it holds and shoots out to that reach instead of chasing.
+     */
+    suppressSeconds: number;
+    suppressReach: number;
+    suppressAimError: number;
+    /** (PHASE17) How far a Machine Gunner looks for cover to dig in at. */
+    digInRadius: number;
+    /** (PHASE17) A Shield screens friends within this radius, this far ahead of the front one. */
+    screenRadius: number;
+    screenAhead: number;
+    /**
+     * (PHASE17) Regroup ([D138]): a wounded soldier healed back to `regroupHp` joins the best
+     * squad within `regroupRadius` (more living soldiers; one holding a point counts extra).
+     */
+    regroupHp: number;
+    regroupRadius: number;
     /** (07-e) AI soldiers sprint to cover under fire, away from grenades and when retreating. */
     sprints: boolean;
     /** (PHASE13) Rally points ([Q54]): soldiers keep about this far apart when they settle. */
@@ -561,14 +634,24 @@ const NONE = { front: 0, side: 0, rear: 0, frontArc: 0, rearArc: 0 };
 const all = (a: number) => ({ front: a, side: a, rear: a, frontArc: 360, rearArc: 0 });
 
 export const DEFAULT_TUNING: Tuning = {
+  bullets: {
+    enabled: true,
+    // TUNE [D145]: a rifle bullet takes ~0.25 s to its full range; a sprinter can step out of it
+    speed: { rifle: 2100, mg: 2300, pistol: 1600, sniper: 3600, shotgun: 1500 },
+    // TUNE [D146]: about how much further each carries past its range before landing:
+    // rifle ~490, MG ~640, pistol ~220, sniper ~840, shotgun ~130
+    drag: { rifle: 3, mg: 2.5, pistol: 5, sniper: 3, shotgun: 8 },
+    minSpeedShare: 0.3, // TUNE [D146]
+  },
   soldier: {
     maxHp: 100, // TUNE
+    regen: { perSecond: 2, delaySeconds: 5, enemies: true }, // TUNE [D133], [D138]
     speed: 190, // TUNE
     spriteRadius: 16, // TUNE
     hitboxRadius: 11, // TUNE
     blockerRadius: 4, // TUNE
     wallRadius: 10, // TUNE
-    sprintMultiplier: 1.6, // TUNE
+    sprintMultiplier: 1.9, // TUNE [D144]: worth it (was 1.6)
   },
   rifle: {
     damage: 25, // TUNE
@@ -783,9 +866,9 @@ export const DEFAULT_TUNING: Tuning = {
     wakeRadius: 900, // TUNE: about a screen and a half
     sleepRadius: 1300, // TUNE
     thinkSeconds: 0.25, // TUNE
-    sightRange: 600, // TUNE
+    sightRange: 600, // TUNE [D137]: past the rifle's 520 again
     memorySeconds: 4, // TUNE
-    reactionSeconds: 0.45, // TUNE: [D47] beatable on purpose
+    reactionSeconds: 0.35, // TUNE: [D47] beatable on purpose; [D137] quicker again
     aimError: 0.05, // TUNE: about ±3°
     commitSeconds: 0.8, // TUNE
     coverSearchRadius: 260, // TUNE
@@ -795,6 +878,26 @@ export const DEFAULT_TUNING: Tuning = {
     maxCandidates: 6, // TUNE
     replanSeconds: 1, // TUNE
     movingTargetError: 0.12, // TUNE: ±7° at a walk, ±11° at a sprint
+    distanceAimError: 0.02, // TUNE [D132], [D137]: ±1.1° more at 500 units
+    burstSeconds: 1.5, // TUNE [D132]
+    burstPauseSeconds: 0.4, // TUNE [D137]
+    enemyHpScale: 1, // TUNE [D136], [D137]: full strength again
+    enemyDamageScale: 1, // TUNE [D136], [D137]
+    numbersRadius: 450, // TUNE [D137]
+    rushRatio: 2, // TUNE [D137]: twice as many rush
+    fleeRatio: 2, // TUNE [D137]: half as many flee
+    coverSprintRadius: 140, // TUNE [D137]
+    coverAdvance: 30, // TUNE
+    retreatMargin: 80, // TUNE
+    retreatDistance: 300, // TUNE
+    digInRadius: 520, // TUNE
+    suppressSeconds: 5, // TUNE [D146]
+    suppressReach: 1.8, // TUNE [D146]: about where its bullets land
+    suppressAimError: 0.12, // TUNE [D146]: ±7°, firing at a place, not a person
+    screenRadius: 500, // TUNE
+    screenAhead: 70, // TUNE
+    regroupHp: 0.9, // TUNE [D138]
+    regroupRadius: 2000, // TUNE [D138]
     sprints: true, // TUNE
     roamSpacing: 70, // TUNE
     attackedSeconds: 3, // TUNE
@@ -862,7 +965,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 4, // TUNE: one soldier takes 8 s for both stages
+    stageSeconds: 3.25, // TUNE [D128]: one soldier takes 6.5 s for both stages
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE
@@ -892,7 +995,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   spawn: {
     intervalSeconds: 2, // TUNE [D7]
-    leadInSeconds: 5, // TUNE [D5]
+    leadInSeconds: 2, // TUNE [D5], [D128]
     minResumeHp: 0.1, // TUNE [D76]
   },
   deathBeatSeconds: 0.6, // TUNE (06-c: was 1; [D28] cut the waits)
@@ -990,7 +1093,7 @@ export const BLOCK_TUNING = {
     cols: 2, // TUNE
     rows: 10, // TUNE
     /** Default enemy budget per block of a random level ([D86]). */
-    budgetPerBlock: 45, // TUNE
+    budgetPerBlock: 15, // TUNE [D131] (was 45)
     /** The top row gets (1 + ramp) × the bottom row's share: later is harder. */
     ramp: 2, // TUNE
   },
@@ -1005,30 +1108,70 @@ export const BLOCK_TUNING = {
     /** …and at most this many repairs per cell of the board in all. */
     repairBudget: 2, // TUNE
   },
-  /** (PHASE13-d) A random campaign across a world map ([D106]). */
+  /** (PHASE13-d, PHASE14) A random campaign across a world map ([D106], [D116]–[D126]). */
   campaign: {
-    /** Each level taken raises the next levels' budgets by this fraction of their own. */
-    budgetGrowthPerLevel: 0.12, // TUNE
+    /**
+     * Enemy funds ([D119], [Q60]): a level's budget moves from its own toward its full budget
+     * as campaign battle time adds up, reaching full after this many minutes.
+     */
+    minutesToFull: 30, // TUNE
+    /** "Elite enemies" levels ([D121]): budget × this (capped at full). */
+    eliteBudget: 1.5, // TUNE
+    /** Roles you start with ([D120]); the rest are unlocked by levels. */
+    starterRoles: ['rifleman', 'grenadier', 'gunner', 'shield'] as const,
+    /** Levels tagged Income+ ([D121], [Q59]) per world. */
+    incomeLevels: 3, // TUNE
+    /** Base income per second each Income+ level taken adds for the rest of the campaign. */
+    incomeBonus: 0.5, // TUNE
+    /** Extra levels marked Elite at random (besides those holding big rewards), as a share. */
+    eliteShare: 0.1, // TUNE
+    /** (PHASE17) Tech points for taking a level ([D141]): base, + dead end, + elite. */
+    techBase: 1, // TUNE
+    techDeadEnd: 1, // TUNE
+    techElite: 1, // TUNE
+    /** (PHASE17) Tech points each locked role costs ([D141]). */
+    roleTech: { shotgun: 2, sniper: 3, bazooka: 3, truck: 4, tank: 6 }, // TUNE
   },
   /** (PHASE13-d) Carving the world into levels by its terrain ([D107]–[D110], `gen/carve.ts`). */
   carve: {
     /** Each front (band of levels) is this many block rows deep, at random. */
-    bandBlocks: [6, 11] as const, // TUNE
+    bandBlocks: [3, 6] as const, // TUNE [D127]: shorter levels (was 6–11)
     /** A level aims for this many blocks' worth of walkable ground ([D110]). */
-    levelBlocks: 20, // TUNE
+    levelBlocks: 10, // TUNE [D127] (was 20)
     /** Less walkable ground than this joins a neighbouring level. */
-    minLevelBlocks: 5, // TUNE
+    minLevelBlocks: 3, // TUNE
     /** A level with less ground than this merges into its neighbour ([D110]). */
-    mergeBelowBlocks: 10, // TUNE
+    mergeBelowBlocks: 5, // TUNE
     /** A walled-off pocket joins a level up to this many tiles away. */
     orphanReach: 20, // TUNE
     /** Islands this big (tiles) get a bridge if one this long (tiles) reaches the mainland. */
     islandMinTiles: 80, // TUNE
+    /** (PHASE17) Walled-in ground this big (tiles) gets a breach cut into it ([D143]). */
+    pocketMinTiles: 60, // TUNE
     maxBridge: 12, // TUNE
     /** How far (blocks) a border may wander from its nominal line to find a narrow place. */
     borderSlack: 3, // TUNE
     /** Borders keep at least this many blocks apart. */
-    minGap: 3, // TUNE
+    minGap: 2, // TUNE
+    /**
+     * (PHASE16) Capture points at natural ingress points ([D130]): one every this many tiles
+     * along the way from the entries, none within `ingressKeepAway` tiles of another, none
+     * within `ingressEndMargin` tiles of the far end.
+     */
+    /**
+     * (PHASE16, [D136]) Off: a level's only capture points are its exits (and island
+     * outposts); blocks' own points and ingress points aren't made.
+     */
+    extraCapturePoints: false, // TUNE
+    /** (PHASE16) A block holding an exit gets this much more of the level's budget ([D136]). */
+    exitGuardWeight: 3, // TUNE
+    /** (PHASE16) The nearest squad within this many units of an exit holds it ([D136]). */
+    exitHoldRadius: 1500, // TUNE
+    /** (PHASE17) The key position keeps this many tiles from exits and entries ([D139]). */
+    keyKeepAway: 12, // TUNE
+    ingressEvery: 18, // TUNE: about 1.2 blocks
+    ingressKeepAway: 10, // TUNE
+    ingressEndMargin: 6, // TUNE
     /** Side-to-side splits move by up to ± half this many blocks at random. */
     splitJitter: 2, // TUNE
     /** Unwalkable spots (cover, walls, ponds) this close to a level count as inside it. */
@@ -1052,8 +1195,8 @@ export const BLOCK_TUNING = {
     /** Six bands of levels: a campaign of 5–6 levels from the start to the base. */
     rows: 60, // TUNE
     /** Enemy budget per block in the first band and the last field band ([D86]). */
-    budgetPerBlockFirst: 30, // TUNE
-    budgetPerBlockLast: 80, // TUNE
+    budgetPerBlockFirst: 18, // TUNE [D131], [D136], [D137]: full-strength enemies again
+    budgetPerBlockLast: 50, // TUNE [D131], [D136], [D137]
     /** The enemy base's band gets this much more per block. */
     baseBudgetBonus: 1.3, // TUNE
   },

@@ -1,3 +1,4 @@
+import { soldierMaxHp } from '../entities/soldier';
 /**
  * (07-d) Enemy soldier AI ([D44]–[D47]): same soldiers, AI-driven, deterministic.
  */
@@ -89,7 +90,7 @@ describe('enemy squads ([D44])', () => {
     const id = soldierAt(w, { x: 300, y: 500 }, { minHp: 1 });
     const events = run(w, 400, { [id]: idle(0) });
     expect(ofKind(events, 'shotFired').some((e) => e.by === 'E1')).toBe(true);
-    expect(getSoldier(w, 'E2')!.hp).toBe(T.soldier.maxHp);
+    expect(getSoldier(w, 'E2')!.hp).toBe(soldierMaxHp(T, 'rifleman', 'enemy'));
     expect(getSoldier(w, id)!.hp).toBeLessThan(T.soldier.maxHp);
   });
 
@@ -99,8 +100,10 @@ describe('enemy squads ([D44])', () => {
       ai: { ...T.ai, sightRange: 1 },
     });
     const id = soldierAt(w, { x: 200, y: 500 });
+    // (PHASE17) Bullets fly ([D145]): a few ticks to get there.
     run(w, 3, { [id]: { ...idle(0), fire: true } });
-    expect(getSoldier(w, 'E1')!.hp).toBeLessThan(T.soldier.maxHp);
+    run(w, 20, { [id]: idle(0) });
+    expect(getSoldier(w, 'E1')!.hp).toBeLessThan(soldierMaxHp(T, 'rifleman', 'enemy'));
   });
 
   it('approaches a target out of range, but not beyond its leash', () => {

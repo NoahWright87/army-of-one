@@ -23,7 +23,7 @@
     {"id":"c1","kind":"cover","rect":[3.5,7,2,0.5],"material":"sandbags","priority":0},
     {"id":"c2","kind":"cover","rect":[9.5,7,2,0.5],"material":"sandbags","priority":0},
     {"id":"c3","kind":"cover","rect":[10.5,3,0.5,2],"material":"halfWall","priority":2},
-    {"id":"t4","kind":"turret","at":[11.5,4],"facing":90,"priority":2},
+    {"id":"t4","kind":"turret","at":[11.5,4],"facing":90,"priority":3},
     {"id":"rally5","kind":"rally","at":[4.5,6.4],"group":"check","priority":0},
     {"id":"rally6","kind":"rally","at":[10.5,6.4],"group":"check","priority":0},
     {"id":"rally7","kind":"rally","at":[5,3.5],"group":"check","priority":0},

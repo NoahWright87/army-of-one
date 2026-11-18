@@ -32,6 +32,6 @@
   ],
   "groups": [
     {"id":"yard","units":[{"role":"rifleman","priority":1},{"role":"rifleman","priority":2},{"role":"gunner","priority":3}]},
-    {"id":"motor","units":[{"role":"truck","priority":3},{"role":"rifleman","priority":4},{"role":"bazooka","priority":5}]}
+    {"id":"motor","units":[{"role":"truck","priority":5},{"role":"rifleman","priority":4},{"role":"bazooka","priority":5}]}
   ]
 }

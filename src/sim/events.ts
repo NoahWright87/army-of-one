@@ -21,7 +21,16 @@ export type SimEvent =
       hitId?: string;
       /** (PHASE12-a) The soldier weapon that fired it (recorded with the shot when it matters). */
       weapon?: ShotWeapon;
+      /**
+       * (PHASE17) A flying bullet ([D145]): `hitX`/`hitY` is the end of its range, not a hit;
+       * the bullet is drawn from the view and hits when it gets there.
+       */
+      flying?: true;
     }
+  /** (PHASE17) A flying bullet stopped: hit something, or `landed` spent ([D146]). */
+  | { kind: 'bulletStopped'; tick: Tick; by: string; x: number; y: number; landed?: true }
+  /** (PHASE17) A bullet whizzed close past an enemy soldier, fired from (fromX, fromY). */
+  | { kind: 'nearMiss'; tick: Tick; target: string; by: string; fromX: number; fromY: number }
   | {
       kind: 'damaged';
       tick: Tick;

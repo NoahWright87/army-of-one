@@ -9,7 +9,16 @@ import { borderWalls, type MapDef } from '../world/map';
  * (07-d) The pre-enemy rules: the maps' enemy squads stay home. The scripted Breach stories
  * (echo mechanics, captures, timelines) are about history, not about fighting soldiers.
  */
-export const CLASSIC_TUNING: Tuning = withTuning(DEFAULT_TUNING, { ai: { enabled: false } });
+/**
+ * Scripted tests: no enemy AI, hitscan shots, and the pre-PHASE16 lead-in and capture time the
+ * scripted scenarios were timed against.
+ */
+export const CLASSIC_TUNING: Tuning = withTuning(DEFAULT_TUNING, {
+  ai: { enabled: false },
+  spawn: { leadInSeconds: 5 },
+  capture: { stageSeconds: 4 },
+  bullets: { enabled: false }, // (PHASE17) hitscan, as the scripted scenarios were timed
+});
 
 /** A 1000×1000 walled arena with one spawn point; pass entities/walls to add. */
 export function arena(extra: Partial<MapDef> = {}): MapDef {

@@ -33,7 +33,7 @@
     {"id":"obj10","kind":"objective","at":[7.5,5],"priority":0}
   ],
   "groups": [
-    {"id":"hq","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":2},{"role":"shotgun","priority":3}]},
+    {"id":"hq","units":[{"role":"gunner","priority":2},{"role":"rifleman","priority":2},{"role":"rifleman","priority":2},{"role":"shotgun","priority":4}]},
     {"id":"porch","units":[{"role":"rifleman","priority":3},{"role":"grenadier","priority":4}]}
   ]
 }

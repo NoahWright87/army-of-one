@@ -22,6 +22,10 @@ doc's notes. 07-d added enemy soldiers with AI ([D44]–[D48]). Open questions [
 for the owner. Base new work on the top of the stack (or on
 `main` once the stack is merged).
 
+**Next (2026-11-16):** PHASE14, the campaign basics ([D116]–[D126]): money, income, enemy
+strength (by battle time), reserves and unlocks carry over; the world map tells the story between
+levels; After Action Report and a one-screen final report. A continuous campaign is parked.
+
 **Then (owner session 2026-11):** the owner set the next direction ([D51]–[D58]): an economy
 on the timeline (PHASE11, built: see its notes), four new roles (12-a, built), vehicles + armor + Mission 5 (12-b, built), seeded generation of levels and the
 world map (13), campaign and progression (14), and sharing: weekly seed, leaderboards,
@@ -82,9 +86,12 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [13-a](PHASE13-a.md) | Block format + block editor MVP (`?scene=editor`) | 12-b | — | Built |
 | [13-b](PHASE13-b.md) | Budgets, rotate/flip, one generated level, block library | 13-a | — | Built |
 | [13-c](PHASE13-c.md) | World map board: frame, fill, carve, objectives; generator viewer | 13-b | — | First slice built |
-| [14](PHASE14.md) | Campaign, metagame, progression | 11, 13 | — | Sketch |
+| 13-d | Random campaign, terrain carving, crossings, run-in ([D106]–[D115], notes in [13-c](PHASE13-c.md)) | 13-c | — | Built |
+| [14](PHASE14.md) | **Campaign**: carry-over, world map story, reports ([D116]–[D126]) | 13-d | — | Planned |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
 | [16](PHASE16-miniatures.md) | **Miniature pieces**: layered gold/silver-base soldiers and vehicles ([D116]–[D121]); art brief in `docs/art/` | 12-b | art delivery | Planned (art brief + checker built) |
+| [16](PHASE16.md) | **Pacing & difficulty**: shorter levels, weaker AI, regen, Easy/Normal/Hard, pacing benchmark ([D127]–[D135]) | 14-a | 14-b, 14-c | Planned |
+| [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | Built |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

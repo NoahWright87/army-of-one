@@ -12,7 +12,7 @@ Owner requested quicker bursts. Small explosions now play at 30 fps (~267 ms), l
 24 fps (~333 ms), retaining all eight frames and all three variations. Pooled-effect lifetimes
 are derived from those rates. No sheet or simulation changes.
 
-## 2026-11-17 — animated overhead explosion sheets ([D127])
+## 2026-11-17 — animated overhead explosion sheets ([A127])
 
 Delivered `assets/effects/explosion_small.png` (1024×384, 128 px frames) and
 `explosion_large.png` (2048×768, 256 px frames). Each has three variation rows and eight frame
@@ -33,7 +33,7 @@ and the running gameplay-pool gallery at multiple animation phases.
 
 ## 2026-11-17 — tier 2 infantry and a slightly larger base
 
-Owner approved proceeding with the other soldiers ([D126]). Delivered all 12 tier-2 files:
+Owner approved proceeding with the other soldiers ([A126]). Delivered all 12 tier-2 files:
 four square-base finishes plus ally/enemy Grenadier, Gunner, Shotgunner and Bazooka. Base
 scale increased from 0.55 to 0.70; figure scale remains 1.6.
 
@@ -52,7 +52,7 @@ renderer. Infantry art is complete; tier-3 vehicle art has not started.
 
 ## 2026-11-17 — owner feedback: feet-sized bases, silhouettes and directional deaths
 
-Implemented D124/D125. Infantry base rendering is 55% of the old diameter; figures keep their
+Implemented A124/A125. Infantry base rendering is 55% of the old diameter; figures keep their
 art normalization; the renderer draws figures at 1.6× the original miniature scale so body
 size is legible without the old oversized disc. Hitboxes are unchanged. Removed the oversized
 live-marker ring on miniature units. Sniper now has a broad shaggy
@@ -94,8 +94,8 @@ See PHASE16 implementation notes for integration scope.
 ## 2026-11-17 — tier 1 pilot for owner review
 
 Delivered all 17 pilot PNGs. These are candidates for the style checkpoint, not owner-approved
-final art. No renderer or manifest changes; PHASE16 still owns integration. Q59/Q60 are now
-resolved in DECISIONS.md (D122/D123). The owner reiterated strict overhead projection.
+final art. No renderer or manifest changes; PHASE16 still owns integration. AQ59/AQ60 are now
+resolved in DECISIONS.md (A122/A123). The owner reiterated strict overhead projection.
 
 - Generated painted-miniature masters, extracted layers, normalized canvas/pivots and downsampled.
   Standing figures show helmet crowns, shoulders and weapons, without faces, chests or boots.

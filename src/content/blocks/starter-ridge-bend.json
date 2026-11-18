@@ -26,6 +26,6 @@
     {"id":"obj4","kind":"objective","at":[4,2.5],"priority":0}
   ],
   "groups": [
-    {"id":"bend","units":[{"role":"rifleman","priority":1},{"role":"sniper","priority":3}]}
+    {"id":"bend","units":[{"role":"rifleman","priority":1},{"role":"sniper","priority":4}]}
   ]
 }

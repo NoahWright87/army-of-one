@@ -4,7 +4,7 @@ import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
 import { allObjectivesDone } from '../entities/capture-point';
 import { armMine } from '../entities/mine';
 import { objectiveRadius } from '../entities/objective';
-import { isEligible, type SoldierState } from '../entities/soldier';
+import { isEligible, soldierMaxHp, type SoldierState } from '../entities/soldier';
 import { laneInfo, vehicleRect } from '../entities/traffic';
 import { emit, type World } from '../state';
 import { circleOverlapsRect } from '../world/collision';
@@ -26,6 +26,11 @@ export function damageSoldier(
   kind: string = cause,
 ): void {
   if (!isEligible(s) || amount <= 0) return;
+  // (PHASE16) Enemies hit softer ([D136]).
+  const scale = world.tuning.ai.enemyDamageScale;
+  if (scale !== 1 && by !== undefined && s.team !== 'enemy') {
+    if (world.state.soldiers.find((o) => o.id === by)?.team === 'enemy') amount *= scale;
+  }
   // (PHASE12-b) Unified armor ([D70]).
   const armor = armorFrom(roleArmor(world.tuning, s.roleId), s, s.facing, from);
   const through = throughArmor(armor, pierceOf(world.tuning, kind));
@@ -35,6 +40,7 @@ export function damageSoldier(
   s.hp = Math.max(s.hp - amount, s.minHp, 0);
   const tick = world.state.tick;
   const applied = before - s.hp;
+  if (raw > 0) s.hurtTick = tick; // (PHASE16) regeneration waits ([D133])
   if (applied > 0 || (raw > 0 && through < 0.3)) {
     emit(world, {
       kind: 'damaged',
@@ -54,6 +60,13 @@ export function damageSoldier(
     const dy = from ? s.y - from.y : 0;
     s.deathDirection = dx !== 0 || dy !== 0 ? Math.atan2(dy, dx) : s.facing;
     emit(world, { kind: 'soldierDied', tick, id: s.id, cause, ...(by ? { by } : {}) });
+    // (PHASE17) Killing every enemy soldier also wins ([D139]).
+    const st = world.state;
+    if (s.team === 'enemy' && world.map.winByKillAll && !st.missionComplete) {
+      if (!st.soldiers.some((o) => o.team === 'enemy' && o.alive)) {
+        st.missionComplete = { tick, ...(by ? { by } : {}) };
+      }
+    }
   }
 }
 
@@ -177,4 +190,22 @@ export function detonateMine(world: World, index: number, by: string): void {
   (map.mines ?? []).forEach((def, i) => {
     if (i !== index && distanceSq(def.position, c) <= r2) armMine(st.mines[i]!, chain);
   });
+}
+
+/**
+ * (PHASE16) Slight regeneration ([D133]): soldiers (not vehicles; enemies too with
+ * `regen.enemies`, [D138]) unhurt for
+ * `soldier.regen.delaySeconds` get `perSecond` HP back, up to max.
+ */
+export function stepRegen(world: World): void {
+  const r = world.tuning.soldier.regen;
+  if (!(r.perSecond > 0)) return;
+  const tick = world.state.tick;
+  const wait = secondsToTicks(r.delaySeconds);
+  for (const s of world.state.soldiers) {
+    if (!isEligible(s) || s.drive || (s.team === 'enemy' && !r.enemies)) continue;
+    if (s.hurtTick !== undefined && tick - s.hurtTick < wait) continue;
+    const max = soldierMaxHp(world.tuning, s.roleId, s.team);
+    if (s.hp < max) s.hp = Math.min(max, s.hp + r.perSecond / 60);
+  }
 }

@@ -46,6 +46,7 @@ import {
   type RespawnUpdate,
   moneyTip,
   optionMoney,
+  roleLocked,
   roleMoney,
   shownEconomy,
   initialSelection,
@@ -233,6 +234,7 @@ export class RespawnScreen {
 
   /** (07-c) Picks the role for the next new soldier ([D36]). */
   pickRole(roleId: RoleId): void {
+    if (roleLocked(this.props, roleId)) return; // (PHASE14) [D120]
     this.props = { ...this.props, roleId };
     this.props.onRole?.(roleId);
     this.renderOptions();
@@ -724,14 +726,16 @@ export class RespawnScreen {
     const avail = o ? optionMoney(o, this.props) : null;
     const items = ROLES.map((r, i) => {
       const rm = money.find((x) => x.roleId === r.id);
-      const off = !!rm && !rm.affordable;
+      const shut = roleLocked(this.props, r.id); // (PHASE14) [D120]
+      const off = shut || (!!rm && !rm.affordable);
       const sel = r.id === roleId;
+      const tip = shut ? str('respawn.roleLocked') : str(r.blurbKey);
       return (
         `<button type="button" class="rs-rm-item${sel ? ' sel' : ''}${off ? ' poor' : ''}" data-role="${esc(r.id)}"` +
-        `${off ? ' disabled' : ''} title="${esc(str(r.blurbKey))}">` +
+        `${off ? ' disabled' : ''} title="${esc(tip)}">` +
         roleIconSvg(r.id, 24) +
         `<span class="n">${esc(str(r.nameKey))}</span>` +
-        (rm ? `<span class="p">${esc(rm.price)}</span>` : '') +
+        (shut ? `<span class="p">🔒</span>` : rm ? `<span class="p">${esc(rm.price)}</span>` : '') +
         `<span class="k">${i + 1}</span></button>`
       );
     });

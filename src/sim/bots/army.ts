@@ -51,10 +51,10 @@ export interface ArmyLife {
 }
 
 export function pickKind(rng: RngState, mix: BotMix): BotKind {
-  const total = BOT_KINDS.reduce((n, k) => n + Math.max(0, mix[k]), 0);
+  const total = BOT_KINDS.reduce((n, k) => n + Math.max(0, mix[k] ?? 0), 0);
   let x = nextFloat(rng) * total;
   for (const k of BOT_KINDS) {
-    x -= Math.max(0, mix[k]);
+    x -= Math.max(0, mix[k] ?? 0);
     if (x < 0) return k;
   }
   return BOT_KINDS[0]!;
@@ -153,7 +153,7 @@ export class ArmyBuilder {
 
 /** Counts of each kind in a plan list (for reports). */
 export function kindCounts(plans: readonly BotPlan[]): Record<BotKind, number> {
-  const out = { route: 0, hunter: 0, idler: 0, crowd: 0 } as Record<BotKind, number>;
+  const out = { route: 0, hunter: 0, idler: 0, crowd: 0, assault: 0 } as Record<BotKind, number>;
   for (const p of plans) out[p.kind]++;
   return out;
 }

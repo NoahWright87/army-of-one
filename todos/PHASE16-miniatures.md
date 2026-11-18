@@ -1,6 +1,6 @@
 # PHASE16: Miniature pieces (layered soldiers and vehicles)
 
-**Goal:** draw soldiers and vehicles as collectible miniatures on gold/silver bases ([D116]–[D121]):
+**Goal:** draw soldiers and vehicles as collectible miniatures on gold/silver bases ([A116]–[A121]):
 a shadow, a base that slides, and a figure that turns to aim, instead of one rotating sprite plus a
 role icon. The art brief and checker are already written; this phase wires the layers into the
 renderer. **Rendering only: no sim, recording or timeline changes.**
@@ -12,7 +12,7 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 - `docs/art/README.md` (the two hard rules: top-down, and works at every rotation), `PIECE-SPEC.md`.
 - `src/content/miniatures.ts`: sizes, file names/keys, `BASE_SHAPE_BY_ROLE`, `miniatureFiles()`.
-- [D116]–[D123] in `docs/DECISIONS.md`.
+- [A116]–[A123] in `docs/DECISIONS.md`.
 - Today's code: `src/render/soldier-style.ts` (`soldierVisual`: texture/alpha/depth per state),
   `src/render/phaser/world-renderer.ts` (`drawSoldiers`, vehicle hull/turret drawing, role icons,
   live marker, shield ring), `src/content/assets.ts` (manifest), `docs/perf.md`.
@@ -28,7 +28,7 @@ renderer against generated placeholders and swap the real PNGs in when they land
       Placeholders must obey the art rules too (top-down, radially lit), so the checker passes them.
 - [ ] **Style rules (pure, unit-tested).** In `soldier-style.ts` map a soldier's state to
       `{ baseKey, figureKey, alpha, … }`: live → `gold`; echo / static → `gold-tarnished`; enemy →
-      `silver`; dead → unarmed fallen figure off the vanished base, along lethal-hit direction ([D125]). Role → shape via `BASE_SHAPE_BY_ROLE`.
+      `silver`; dead → unarmed fallen figure off the vanished base, along lethal-hit direction ([A125]). Role → shape via `BASE_SHAPE_BY_ROLE`.
 - [ ] **Renderer layers.** Per soldier: shadow (not rotated, offset in screen space), base (not
       rotated by aim; rotated by the camera if it rotates), figure (`rotation = facing`). Vehicles: base
       + hull rotate with the heading, the turret on top with its own aim, wreck on death. Retire the
@@ -50,8 +50,8 @@ renderer against generated placeholders and swap the real PNGs in when they land
 
 ## ⛔ Decisions needed
 
-- [Q59] resolved by [D122]: use the proposed base shapes in the data file.
-- [Q60] resolved by [D123]: use the proposed static/fallen states.
+- [AQ59] resolved by [A122]: use the proposed base shapes in the data file.
+- [AQ60] resolved by [A123]: use the proposed static/fallen states.
 
 ## Notes from implementation
 
@@ -81,7 +81,7 @@ Validation: lint, purity lint, production build and all 635 tests passed. Tests 
 `node node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=2 --testTimeout=30000`
 for this cloud environment (no repository test settings changed).
 
-### Owner feedback follow-up ([D124]–[D125])
+### Owner feedback follow-up ([A124]–[A125])
 
 Foot bases are 0.55× their old scale; figure layers independently use 1.6× for legibility.
 No large live ring on miniature units. Sniper/Shield silhouettes and unarmed fallen art were
@@ -95,7 +95,7 @@ purity lint, art checks and production build. Inspected the running gallery with
 pilot silhouettes and directional corpse examples. Art checker warnings are documented in
 `docs/art/NOTES.md`; no thresholds were loosened.
 
-### Remaining infantry ([D126])
+### Remaining infantry ([A126])
 
 Tier-2 art is delivered and registered: all seven infantry roles now use miniature layers.
 Bases increased to 0.70×; figures remain 1.6×. The Machine Gunner's two-person crew is one

@@ -105,6 +105,10 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
     });
   for (const e of events) {
     switch (e.kind) {
+      // (PHASE17) A flying bullet hit something or landed spent: a puff where it stopped.
+      case 'bulletStopped':
+        out.push({ type: 'impact', x: e.x, y: e.y });
+        break;
       case 'shotFired': {
         const shooterKind = ctx.kindOf(e.by);
         const friendly = shooterKind === 'soldier';
@@ -117,14 +121,17 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
             NEAR_MISS_DISTANCE;
           if (hitsLive || near) style = 'incoming';
         }
-        out.push({
-          type: 'tracer',
-          fromX: e.fromX,
-          fromY: e.fromY,
-          toX: e.hitX,
-          toY: e.hitY,
-          style,
-        });
+        // (PHASE17) A flying bullet is drawn as itself, not as a tracer to its range ([D145]).
+        if (!e.flying) {
+          out.push({
+            type: 'tracer',
+            fromX: e.fromX,
+            fromY: e.fromY,
+            toX: e.hitX,
+            toY: e.hitY,
+            style,
+          });
+        }
         out.push({
           type: 'muzzle',
           x: e.fromX,
@@ -133,7 +140,9 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
           hostile: !friendly,
           byId: e.by,
         });
-        out.push({ type: 'impact', x: e.hitX, y: e.hitY });
+        // A flying bullet's hitX/hitY is just where its range runs out: its puff comes from
+        // `bulletStopped`, where (and when) it really stops.
+        if (!e.flying) out.push({ type: 'impact', x: e.hitX, y: e.hitY });
         const from = { x: e.fromX, y: e.fromY };
         if (shooterKind === 'turret')
           sound('sfx_turret_shot', from, style === 'incoming' ? 1 : 0.8);

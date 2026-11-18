@@ -552,6 +552,17 @@ export class WorldRenderer {
   private drawGrenades(a: number, nowMs: number): void {
     const g = this.grenadeGfx;
     g.clear();
+    // (PHASE17) PLACEHOLDER bullets in flight ([D145]): a short bright streak behind each.
+    const prevB = this.prev.bullets ?? [];
+    for (const b of this.cur.bullets ?? []) {
+      const p = prevB.find((x) => x.id === b.id);
+      const x = p ? lerp(p.x, b.x, a) : b.x;
+      const y = p ? lerp(p.y, b.y, a) : b.y;
+      const cx = Math.cos(b.angle);
+      const cy = Math.sin(b.angle);
+      g.lineStyle(3, b.hostile ? 0xff7a5c : 0xfff1a0, 0.95);
+      g.lineBetween(x - cx * 18, y - cy * 18, x, y);
+    }
     // (PHASE12-a) PLACEHOLDER rockets: a pale body with a flame trail ([D62]).
     const prevR = this.prev.rockets ?? [];
     for (const r of this.cur.rockets ?? []) {

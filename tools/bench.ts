@@ -22,7 +22,7 @@ import { writeFileSync } from 'node:fs';
 import { serialize } from 'node:v8';
 import { gzipSync } from 'node:zlib';
 import { findMap } from '../src/content/maps';
-import { DEFAULT_TUNING } from '../src/content/tuning';
+import { DEFAULT_TUNING, withTuning } from '../src/content/tuning';
 import type { MissionState, SoldierRecord } from '../src/contracts/mission';
 import { MissionSaver } from '../src/persistence/mission-store';
 import { MemoryStore } from '../src/persistence/storage';
@@ -57,7 +57,9 @@ const seed = Number(arg('seed', '1'));
 const life = arg('life', '30,100').split(',').map(Number) as [number, number];
 const naive = flag('naive');
 if (naive) setSimPerf(SIM_PERF_OFF);
-const tuning = DEFAULT_TUNING;
+const tuning = process.argv.includes('--hitscan')
+  ? withTuning(DEFAULT_TUNING, { bullets: { enabled: false } }) // (PHASE17) compare
+  : DEFAULT_TUNING;
 
 function stats(xs: number[]): { mean: number; p95: number; max: number } {
   if (!xs.length) return { mean: 0, p95: 0, max: 0 };

@@ -10,7 +10,12 @@ import { CLASSIC_TUNING as DEFAULT_TUNING } from './helpers';
 import { SnapshotStore } from '../attempt/snapshots';
 import { outcomeHash } from '../attempt/outcome-hash';
 import { secondsToTicks } from '../core/time';
-import { CAPTURE_FULL, captureRatePerTick, decayPerTick } from '../entities/capture-point';
+import {
+  CAPTURE_FULL,
+  captureRatePerTick,
+  decayPerTick,
+  majorityOf,
+} from '../entities/capture-point';
 import { createWorld, getSoldier, getView, spawnSoldier, step, type World } from '../sim';
 import { borderWalls, type MapDef } from '../world/map';
 import { isSpawnPointOpen } from '../world/spawn-points';
@@ -189,6 +194,43 @@ describe('capture point mechanics', () => {
     putSoldiers(w2, 1);
     run(w2, 2 * STAGE_TICKS_1 + 5);
     expect(w2.state.missionComplete).toBeNull();
+  });
+
+  it('grouped flags: a majority of the group wins ([D129], PHASE16)', () => {
+    const flag = ARENA.capturePoints![0]!;
+    const grouped = (need: number): MapDef => ({
+      ...ARENA,
+      id: 'group-arena',
+      capturePoints: [
+        { ...flag, id: 'cp', objective: true, group: 'exits' },
+        { ...flag, id: 'b', objective: true, group: 'exits' }, // same spot: taken together
+        { ...flag, id: 'c', objective: true, group: 'exits', position: { x: 1100, y: 100 } },
+      ],
+      objectiveGroups: { exits: need },
+    });
+    const w = createWorld(grouped(2), T);
+    putSoldiers(w, 1);
+    run(w, 2 * STAGE_TICKS_1 + 5);
+    expect(w.state.missionComplete).not.toBeNull();
+    const all = createWorld(grouped(3), T);
+    putSoldiers(all, 1);
+    run(all, 2 * STAGE_TICKS_1 + 5);
+    expect(all.state.missionComplete).toBeNull();
+    // An ungrouped flag is still needed on top of the group.
+    const extra = createWorld(
+      {
+        ...grouped(2),
+        capturePoints: [
+          ...grouped(2).capturePoints!,
+          { ...flag, id: 'hq', objective: true, position: { x: 1100, y: 700 } },
+        ],
+      },
+      T,
+    );
+    putSoldiers(extra, 1);
+    run(extra, 2 * STAGE_TICKS_1 + 5);
+    expect(extra.state.missionComplete).toBeNull();
+    expect([1, 2, 3, 4, 5].map(majorityOf)).toEqual([1, 2, 2, 3, 3]);
   });
 
   it('capture tuning is honored (stageSeconds)', () => {
