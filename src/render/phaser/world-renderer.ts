@@ -5,7 +5,9 @@
  * Per sim step:   renderer.onStep(prevView, curView)   → effects/sounds from that tick's events
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
-import { DEFAULT_TUNING } from '../../content/tuning';
+import { DEFAULT_TUNING, PROJECTILE_VISUAL_TUNING } from '../../content/tuning';
+import { TICKS_PER_SECOND } from '../../sim/core/time';
+import { ProjectileTrails, projectileStyle } from '../projectile-trails';
 import { drawGround } from './terrain-ground';
 import { isPaintedRect } from '../terrain/transition-rules';
 import { TERRAIN_ART } from '../../content/terrain-art';
@@ -105,7 +107,7 @@ const DASH_TEXTURE = 'aoo_dash';
 const HIT_FLASH_MS = 90;
 const TRACER_STYLE: Record<TracerStyle, { color: number; width: number; alpha: number }> = {
   live: { color: 0xffe066, width: 2, alpha: 0.95 },
-  friendly: { color: 0xcfe0ee, width: 1.5, alpha: 0.5 },
+  friendly: { color: 0xb5a47a, width: 1.5, alpha: 0.5 },
   hostile: { color: 0xff8a3d, width: 2, alpha: 0.85 },
   incoming: { color: 0xff2020, width: 4, alpha: 1 },
   fragment: { color: 0xffb060, width: 1.5, alpha: 0.85 }, // (07-c) always drawn
@@ -143,6 +145,9 @@ export class WorldRenderer {
   private rubbleGfx!: Phaser.GameObjects.Graphics;
   private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
+  private readonly projectileTrails = new ProjectileTrails();
+  private readonly projectileTrailGfx: Phaser.GameObjects.Graphics;
+  private readonly projectileCoreGfx: Phaser.GameObjects.Graphics;
   /** (07-c) The aim circle (current spread cone) and the MG mount ring around the reticle. */
   private reticleGfx!: Phaser.GameObjects.Graphics;
   private cur: WorldView;
@@ -214,6 +219,7 @@ export class WorldRenderer {
   ) {
     this.cur = initialView;
     this.prev = initialView;
+    this.projectileTrails.record(initialView.tick, projectilePositions(initialView));
     const img = (depth: number) => () =>
       skipNoOpSetters(scene.add.image(0, 0, '__DEFAULT').setDepth(depth));
     const tile = (depth: number) => () =>
@@ -300,7 +306,9 @@ export class WorldRenderer {
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
     this.rubbleGfx = scene.add.graphics().setDepth(DEPTH.walls);
-    this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
+    this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.bridges + 0.5);
+    this.projectileTrailGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
+    this.projectileCoreGfx = scene.add.graphics().setDepth(DEPTH.effects - 0.25);
     this.reticleGfx = scene.add.graphics().setDepth(DEPTH.reticle);
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
     this.hpGfx = scene.add.graphics().setDepth(DEPTH.hpBars);
@@ -416,6 +424,7 @@ export class WorldRenderer {
   onStep(prev: WorldView, cur: WorldView, liveId: string | null): void {
     this.cur = cur;
     this.prev = prev;
+    this.projectileTrails.record(cur.tick, projectilePositions(cur));
     for (const t of cur.turrets) if (t.state !== 'windup') this.windupTargets.delete(t.id);
     // State changes that have no event of their own.
     for (let i = 0; i < cur.mines.length; i++) {
@@ -487,7 +496,7 @@ export class WorldRenderer {
     this.drawSoldiers(a, f);
     this.drawCoverAndThrows(f);
     this.drawRubble();
-    this.drawGrenades(a, f.nowMs);
+    this.drawGrenades(a, f);
 
     for (const p of this.allPools) p.end();
     this.drawEffects(f.nowMs);
@@ -565,16 +574,30 @@ export class WorldRenderer {
   }
 
   /** (07-c) Grenades in flight: a shadow on the ground and the grenade raised by its height. */
-  private drawGrenades(a: number, nowMs: number): void {
+  private drawGrenades(a: number, f: RenderFrame): void {
     const g = this.grenadeGfx;
     g.clear();
-    // Weapon-specific images retain the existing hostile/friendly readability cue.
+    this.projectileTrailGfx.clear();
+    this.projectileCoreGfx.clear();
+    const renderTick = lerp(this.prev.tick, this.cur.tick, a);
+    const zoom = Math.max(
+      1 / PROJECTILE_VISUAL_TUNING.maxZoomCompensation,
+      this.scene.cameras.main.zoom,
+    );
+    // Histories contain actual travel only; never a predicted line out to weapon range.
     const prevB = this.prev.bullets ?? [];
-    for (const b of this.cur.bullets ?? []) {
-      const p = prevB.find((x) => x.id === b.id);
+    const bullets = this.cur.bullets ?? [];
+    for (let i = 0; i < bullets.length; i++) {
+      const b = bullets[i]!;
+      const p = nearById(prevB, i, b.id);
       const x = p ? lerp(p.x, b.x, a) : b.x;
       const y = p ? lerp(p.y, b.y, a) : b.y;
-      this.drawProjectile(`bullet:${b.id}`, bulletArt(b.weapon), x, y, b.angle, b.hostile);
+      const id = `bullet:${b.id}`;
+      const style = projectileStyle(b.hostile, b.by, f.liveId);
+      const alpha = style.alpha * (style.alpha < 1 && this.settings.dimEchoes ? 0.7 : 1);
+      this.drawProjectile(id, bulletArt(b.weapon), x, y, b.angle, b.hostile).setAlpha(alpha);
+      this.drawProjectileTrail(id, x, y, renderTick, zoom, style, alpha, b.weapon === 'shotgun');
+      this.drawProjectileCore(x, y, b.angle, zoom, style.core, alpha);
     }
     // Tank shells use the large pointed round; bazookas use the finned rocket.
     const prevR = this.prev.rockets ?? [];
@@ -582,15 +605,20 @@ export class WorldRenderer {
       const p = prevR.find((x) => x.id === r.id);
       const x = p ? lerp(p.x, r.x, a) : r.x;
       const y = p ? lerp(p.y, r.y, a) : r.y;
+      const id = `rocket:${r.id}`;
+      const style = projectileStyle(r.hostile ?? false, r.by, f.liveId);
+      const alpha = style.alpha * (style.alpha < 1 && this.settings.dimEchoes ? 0.7 : 1);
       this.drawProjectile(
-        `rocket:${r.id}`,
+        id,
         r.shell ? 'rifle' : 'rocket',
         x,
         y,
         r.angle,
-        false,
+        r.hostile ?? false,
         r.shell ? 1.25 : 1,
-      );
+      ).setAlpha(alpha);
+      this.drawProjectileTrail(id, x, y, renderTick, zoom, style, alpha, false, !r.shell);
+      if (r.shell) this.drawProjectileCore(x, y, r.angle, zoom, style.core, alpha);
     }
     const prev = this.prev.grenades ?? [];
     for (const gr of this.cur.grenades ?? []) {
@@ -598,20 +626,89 @@ export class WorldRenderer {
       const x = p ? lerp(p.x, gr.x, a) : gr.x;
       const y = p ? lerp(p.y, gr.y, a) : gr.y;
       const z = p ? lerp(p.z, gr.z, a) : gr.z;
-      g.fillStyle(0x000000, 0.35);
-      g.fillEllipse(x + z * 0.15, y + z * 0.15, 9, 6);
-      const blink = gr.fuse > 0.7 && Math.floor(nowMs / 90) % 2 === 0;
+      const cam = this.scene.cameras.main;
+      const origin = cam.getWorldPoint(0, 0);
+      const shadow = cam.getWorldPoint(z * 0.15 * cam.zoom, z * 0.15 * cam.zoom);
+      const raised = cam.getWorldPoint(0, -z * 0.6 * cam.zoom);
+      const sx = x + shadow.x - origin.x;
+      const sy = y + shadow.y - origin.y;
+      const width =
+        PROJECTILE_VISUAL_TUNING.grenadeShadowWidth +
+        z * PROJECTILE_VISUAL_TUNING.grenadeShadowHeightSpread;
+      const opacity = Math.max(0.22, 0.44 - z * 0.004);
+      // Soft outer penumbra, darker contact center; higher grenades cast broader, fainter shadows.
+      g.fillStyle(0x000000, opacity * 0.25);
+      g.fillEllipse(sx, sy, width * 1.5, width);
+      g.fillStyle(0x000000, opacity * 0.45);
+      g.fillEllipse(sx, sy, width, width * 0.66);
+      g.fillStyle(0x000000, opacity * 0.6);
+      g.fillEllipse(sx, sy, width * 0.62, width * 0.4);
+      const blink = gr.fuse > 0.7 && Math.floor(f.nowMs / 90) % 2 === 0;
       const obj = this.drawProjectile(
         `grenade:${gr.id}`,
         'grenade',
-        x,
-        y - z * 0.6,
+        x + raised.x - origin.x,
+        y + raised.y - origin.y,
         0,
         false,
         1 + z * 0.0075,
       );
       if (blink) obj.setTint(0xff5040);
     }
+  }
+
+  private drawProjectileTrail(
+    id: string,
+    x: number,
+    y: number,
+    tick: number,
+    zoom: number,
+    style: ReturnType<typeof projectileStyle>,
+    alpha: number,
+    pellet: boolean,
+    smoke = false,
+  ): void {
+    if (!this.settings.tracers) return;
+    const t = PROJECTILE_VISUAL_TUNING;
+    const segments = this.projectileTrails.segments(
+      id,
+      x,
+      y,
+      tick,
+      ((smoke ? t.smokeMs : t.trailMs) / 1000) * TICKS_PER_SECOND,
+      smoke ? t.smokeMaxLength : pellet ? t.pelletTrailMaxLength : t.trailMaxLength,
+    );
+    const g = this.projectileTrailGfx;
+    for (const s of segments) {
+      const fade = s.strength * alpha;
+      const width = ((smoke ? 5 : t.minCorePixels) * (0.3 + 0.7 * s.strength)) / zoom;
+      g.lineStyle(width + 2 / zoom, 0x171b20, fade * (smoke ? 0.18 : 0.65));
+      g.lineBetween(s.x0, s.y0, s.x1, s.y1);
+      g.lineStyle(width, smoke ? 0xc7c0ac : style.color, fade * (smoke ? 0.4 : 0.9));
+      g.lineBetween(s.x0, s.y0, s.x1, s.y1);
+      if (!smoke) {
+        g.lineStyle(width * 0.45, style.core, fade * 0.8);
+        g.lineBetween(s.x0, s.y0, s.x1, s.y1);
+      }
+    }
+  }
+
+  private drawProjectileCore(
+    x: number,
+    y: number,
+    angle: number,
+    zoom: number,
+    color: number,
+    alpha: number,
+  ): void {
+    const g = this.projectileCoreGfx;
+    const width = PROJECTILE_VISUAL_TUNING.minCorePixels / zoom;
+    const dx = Math.cos(angle) * width;
+    const dy = Math.sin(angle) * width;
+    g.lineStyle(width + 2 / zoom, 0x171b20, alpha * 0.9);
+    g.lineBetween(x - dx, y - dy, x + dx, y + dy);
+    g.lineStyle(width, color, alpha);
+    g.lineBetween(x - dx, y - dy, x + dx, y + dy);
   }
 
   private drawProjectile(
@@ -1367,6 +1464,14 @@ function ensureDashTexture(scene: Phaser.Scene): void {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, DASH, 2);
   tex.refresh();
+}
+
+/** Namespaces preserve uniqueness even in hand-authored gallery fixtures. */
+function projectilePositions(view: WorldView) {
+  return [
+    ...(view.bullets ?? []).map((b) => ({ id: `bullet:${b.id}`, x: b.x, y: b.y })),
+    ...(view.rockets ?? []).map((r) => ({ id: `rocket:${r.id}`, x: r.x, y: r.y })),
+  ];
 }
 
 /** Sprite size (length along heading, width across) from a vehicle's world-axis extents. */

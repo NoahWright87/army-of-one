@@ -60,6 +60,9 @@ export interface RocketView {
   x: number;
   y: number;
   angle: number;
+  /** Presentation only: owner and allegiance for projectile readability. */
+  by?: string;
+  hostile?: boolean;
   /** Presentation metadata for the tank shell that shares the rocket simulation. */
   shell?: boolean;
 }
@@ -224,6 +227,8 @@ export interface WorldView {
     y: number;
     angle: number;
     hostile: boolean;
+    /** Presentation only: distinguish the current soldier's fire from echoes. */
+    by?: string;
     weapon?: string;
   }[];
   /** (PHASE12-b) Ids of destroyed cover pieces ([Q40]). */

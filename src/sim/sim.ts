@@ -336,6 +336,7 @@ export function getView(world: World): WorldView {
       y: b.y,
       angle: b.shot.angle,
       hostile: b.shot.team === 'enemy',
+      by: b.shot.by,
       weapon: b.shot.weapon,
     })),
     rockets: (st.rockets ?? []).map((r) => ({
@@ -344,6 +345,8 @@ export function getView(world: World): WorldView {
       x: r.x,
       y: r.y,
       angle: r.angle,
+      by: r.by,
+      hostile: r.team === 'enemy',
       ...(r.kind === 'shell' ? { shell: true } : {}),
     })),
     grenades: (st.grenades ?? []).map((g) => ({

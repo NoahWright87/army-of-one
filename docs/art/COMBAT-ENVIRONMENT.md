@@ -87,6 +87,26 @@ frame rates are not a hardware performance promise.
 Review screenshots: [combat](review/combat.png), [terrain](review/terrain.png),
 [vehicles](review/vehicles.png). The live galleries are better for judging motion and scale.
 
+## Projectile readability follow-up (2026-11-18)
+
+`?scene=gallery&trails=1` compares player, echo and enemy fire on grass, concrete and road.
+Bullets and tank shells have short tapered trails with bright, dark-edged cores. Player fire is
+warm gold, echoes muted gold and enemy fire coral. Rockets have short smoke trails. The existing
+Tracers setting hides trails while retaining the core; Dim echoes further subdues echo fire.
+`PROJECTILE_VISUAL_TUNING` in `src/content/tuning.ts` controls duration, length and screen size.
+
+History contains only actual positions, is bounded to eight ticks, resets on seeks/jumps and
+retires with the projectile. There is no predicted full-range beam, and ballistics are unchanged.
+Bullet/rocket views now expose existing owner/allegiance metadata; no save-format changes.
+
+Grenades already had a small ground shadow. It now has a soft edge and a stronger center, grows
+and fades with height, and stays separated from the grenade in screen space as the camera turns.
+Infantry and vehicle contact shadows and the simple wall/cover shadows remain in use.
+
+Validation: 718 tests plus lint, purity and build. Browser review covers all three palettes,
+light/dark terrain, zoom/rotation, paused history, the Tracers toggle, pool reuse, removal and
+real live/enemy shots. No new raster assets are required for these procedural effects.
+
 ## Remaining battlefield art
 
 The miniature checklist is complete; the entire game's placeholder manifest is not. The next

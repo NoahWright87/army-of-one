@@ -29,6 +29,7 @@ import { WorldRenderer } from './world-renderer';
 import { VEHICLE_GALLERY_MAP, VEHICLE_CAPTIONS, vehicleGalleryView } from './vehicle-gallery';
 import { TERRAIN_GALLERY_MAP, TERRAIN_CAPTIONS, terrainGalleryView } from './terrain-gallery';
 import { COMBAT_GALLERY_MAP, COMBAT_CAPTIONS, combatGalleryView } from './combat-gallery';
+import { TRAIL_GALLERY_MAP, TRAIL_CAPTIONS, trailGalleryView } from './trail-gallery';
 import {
   TRANSITION_GALLERY_MAP,
   TRANSITION_CAPTIONS,
@@ -61,6 +62,7 @@ export class GalleryScene extends Phaser.Scene {
     const terrain = params.has('terrain');
     const vehicles = params.has('vehicles');
     const transitions = params.has('transitions');
+    const trails = params.has('trails');
     this.galleryMap = transitions
       ? TRANSITION_GALLERY_MAP
       : vehicles
@@ -74,6 +76,7 @@ export class GalleryScene extends Phaser.Scene {
               : infantry
                 ? INFANTRY_GALLERY_MAP
                 : GALLERY_MAP;
+    if (trails) this.galleryMap = TRAIL_GALLERY_MAP;
     this.makeView = transitions
       ? transitionGalleryView
       : vehicles
@@ -87,6 +90,7 @@ export class GalleryScene extends Phaser.Scene {
               : infantry
                 ? infantryGalleryView
                 : galleryView;
+    if (trails) this.makeView = trailGalleryView;
     this.view = this.makeView(0);
     const sounds = new SoundBank(this, display);
     this.worldRenderer = new WorldRenderer(this, this.galleryMap, this.view, display, sounds, {
@@ -95,19 +99,21 @@ export class GalleryScene extends Phaser.Scene {
     this.worldRenderer.onCue = (c) => {
       if (c.type === 'liveDamaged' && display.incomingFire) this.services.hud.flashDamage(0.5);
     };
-    for (const c of transitions
-      ? TRANSITION_CAPTIONS
-      : vehicles
-        ? VEHICLE_CAPTIONS
-        : terrain
-          ? TERRAIN_CAPTIONS
-          : combat
-            ? COMBAT_CAPTIONS
-            : explosions
-              ? EXPLOSION_CAPTIONS
-              : infantry
-                ? INFANTRY_CAPTIONS
-                : GALLERY_CAPTIONS) {
+    for (const c of trails
+      ? TRAIL_CAPTIONS
+      : transitions
+        ? TRANSITION_CAPTIONS
+        : vehicles
+          ? VEHICLE_CAPTIONS
+          : terrain
+            ? TERRAIN_CAPTIONS
+            : combat
+              ? COMBAT_CAPTIONS
+              : explosions
+                ? EXPLOSION_CAPTIONS
+                : infantry
+                  ? INFANTRY_CAPTIONS
+                  : GALLERY_CAPTIONS) {
       this.add
         .text(c.x, c.y, c.text, {
           fontFamily: 'ui-monospace, monospace',

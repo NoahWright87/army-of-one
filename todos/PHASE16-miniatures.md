@@ -121,3 +121,17 @@ SVG role/HUD icons. See docs/art/COMBAT-ENVIRONMENT.md for inventory, reproducti
 Synthetic 100/400-unit browser fixtures stabilize their pools; a 25/100-life headless smoke bench
 also runs with flying bullets. These are smoke checks, not a hardware performance certification.
 Optional character animation hooks remain deferred; character images remain static.
+
+### Projectile readability follow-up (2026-11-18)
+
+- [x] Add short, tapered trails behind actual projectile travel; bright outlined cores retain a
+  minimum screen thickness. Warm gold player fire, muted gold echoes and coral enemy fire ([A129]).
+- [x] Keep the existing Tracers setting; turning it off hides trails while preserving visible cores.
+- [x] Add short rocket smoke trails and the same allegiance treatment to tank shells.
+- [x] Strengthen grenade shadows and preserve their screen-space separation during camera rotation.
+- [x] Add `?scene=gallery&trails=1` with all three allegiances on grass, concrete and road.
+
+Views expose existing projectile owners/allegiances; simulation, saves and recordings are
+unchanged. Bounded tick-position history handles catch-up, pause, removal, seeks and jumps, with
+tests for interpolation/age/distance clipping. Validation: 718 tests, lint, purity lint and build;
+desktop/mobile browser checks cover colours, zoom/rotation, toggle, pool reuse and cleanup.

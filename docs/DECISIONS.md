@@ -744,6 +744,12 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   unchanged. Reusable masks may composite the existing textures; richer shore/cliff edge art
   can be supplied later without changing how maps are painted.
 
+- **[A129] Projectile readability (owner, 2026-11-18).** Short fading trails and high-contrast
+  cores make flying rounds readable. Enemy trails use a distinct colour; the current player and
+  echoes share a colour family, with echoes subdued. Grenades retain ground shadows, strengthened
+  to make their height/arc clear. Presentation only: projectile speed, collision and damage stay
+  unchanged. First-pass colours/widths/durations are adjustable visual tuning.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
