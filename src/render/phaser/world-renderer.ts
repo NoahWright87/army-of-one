@@ -6,7 +6,8 @@
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
 import { DEFAULT_TUNING } from '../../content/tuning';
-import { GROUND, isGroundKind } from '../../content/ground';
+import { drawGround } from './terrain-ground';
+import { isPaintedRect } from '../terrain/transition-rules';
 import { TERRAIN_ART } from '../../content/terrain-art';
 import Phaser from 'phaser';
 import {
@@ -316,6 +317,7 @@ export class WorldRenderer {
       .setDepth(DEPTH.ground);
     if (map.ground) drawGround(scene, map.ground);
     for (const w of map.water) {
+      if (isPaintedRect(map.ground, w, ['W'])) continue;
       scene.add.tileSprite(w.x, w.y, w.w, w.h, TERRAIN_ART.W).setOrigin(0).setDepth(DEPTH.water);
     }
     // (PHASE13-d) Ground outside this level ([D109]): seen, not entered.
@@ -332,8 +334,10 @@ export class WorldRenderer {
     }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
-    for (const w of map.walls) shadow.fillRect(w.x + 5, w.y + 5, w.w, w.h);
+    for (const w of map.walls)
+      if (!isPaintedRect(map.ground, w, ['K', 'X'])) shadow.fillRect(w.x + 5, w.y + 5, w.w, w.h);
     for (const w of map.walls) {
+      if (isPaintedRect(map.ground, w, ['K', 'X'])) continue;
       const kind =
         map.ground?.rows[Math.floor(w.y / map.ground.cellSize)]?.[
           Math.floor(w.x / map.ground.cellSize)
@@ -345,9 +349,11 @@ export class WorldRenderer {
     }
     const outline = scene.add.graphics().setDepth(DEPTH.walls + 0.5);
     outline.lineStyle(2, 0x15181b, 1);
-    for (const w of map.walls) outline.strokeRect(w.x, w.y, w.w, w.h);
+    for (const w of map.walls)
+      if (!isPaintedRect(map.ground, w, ['K', 'X'])) outline.strokeRect(w.x, w.y, w.w, w.h);
     outline.lineStyle(2, 0x0e2a44, 0.9);
-    for (const w of map.water) outline.strokeRect(w.x, w.y, w.w, w.h);
+    for (const w of map.water)
+      if (!isPaintedRect(map.ground, w, ['W'])) outline.strokeRect(w.x, w.y, w.w, w.h);
     // (07-c) Partial cover ([D32]), by material.
     for (const c of map.cover ?? []) {
       // (PHASE12-b) One graphics object per piece, so a destroyed piece can be hidden ([Q40]).
@@ -1367,64 +1373,4 @@ function ensureDashTexture(scene: Phaser.Scene): void {
 export function vehicleSpriteSize(v: Pick<VehicleView, 'w' | 'h' | 'heading'>): [number, number] {
   const vertical = Math.abs(Math.sin(v.heading)) > Math.SQRT1_2;
   return vertical ? [v.h, v.w] : [v.w, v.h];
-}
-
-/**
- * Static terrain textures grouped into row runs, with the existing short transition bands.
- * Global texture offsets prevent restarts at cell boundaries. Water is drawn by `map.water`.
- */
-function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['ground']>): void {
-  const g = scene.add.graphics().setDepth(DEPTH.ground + 0.2);
-  const cs = ground.cellSize;
-  const kindAt = (c: number, r: number) => {
-    const ch = ground.rows[r]?.[c];
-    return ch !== undefined && isGroundKind(ch) ? ch : null;
-  };
-  ground.rows.forEach((row, r) => {
-    for (let c = 0; c < row.length;) {
-      const k = kindAt(c, r);
-      if (!k) {
-        c++;
-        continue;
-      }
-      const start = c;
-      while (c < row.length && kindAt(c, r) === k) c++;
-      if (!GROUND[k].passable) continue;
-      const tile = scene.add
-        .tileSprite(start * cs, r * cs, (c - start) * cs, cs, TERRAIN_ART[k])
-        .setOrigin(0)
-        .setDepth(DEPTH.ground + 0.1);
-      tile.tilePositionX = start * cs;
-      tile.tilePositionY = r * cs;
-    }
-  });
-  // Blend: each land cell takes a fading band of a different land neighbour's colour.
-  const steps = 3;
-  const band = cs * 0.12;
-  ground.rows.forEach((row, r) => {
-    for (let c = 0; c < row.length; c++) {
-      const k = kindAt(c, r);
-      if (!k || !GROUND[k].passable) continue;
-      const near: [number, number, 'n' | 'e' | 's' | 'w'][] = [
-        [c, r - 1, 'n'],
-        [c + 1, r, 'e'],
-        [c, r + 1, 's'],
-        [c - 1, r, 'w'],
-      ];
-      for (const [nc, nr, side] of near) {
-        const o = kindAt(nc, nr);
-        if (!o || o === k || !GROUND[o].passable) continue;
-        for (let i = 0; i < steps; i++) {
-          g.fillStyle(GROUND[o].color, 0.16 * (1 - i / steps));
-          const d = i * band;
-          const x = c * cs;
-          const y = r * cs;
-          if (side === 'n') g.fillRect(x, y + d, cs, band);
-          else if (side === 's') g.fillRect(x, y + cs - d - band, cs, band);
-          else if (side === 'w') g.fillRect(x + d, y, band, cs);
-          else g.fillRect(x + cs - d - band, y, band, cs);
-        }
-      }
-    }
-  });
 }

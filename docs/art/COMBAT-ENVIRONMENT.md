@@ -20,6 +20,9 @@ All 49 miniature files in PIECE-SPEC.md are now delivered. Infantry and explosio
 preserved. The built-in imagegen tool generated the new raster masters; exact prompts are in
 [generated-prompts.json](generated-prompts.json). UI icons extend the existing vector system.
 
+Terrain follow-up: [automatic edges/corners and textured editor painting](TERRAIN-TRANSITIONS.md)
+replace the old flat-colour transition bands. Review at `?scene=gallery&transitions=1`.
+
 Impact rows are earth/dust, steel sparks, stone/chips and an alternative steel ricochet. Dust
 variations alternate on ordinary bullet stops; armor cues use the spark rows. This does not
 infer a new ground-material hit rule. Flying shots do not produce a puff at their initial range
@@ -72,8 +75,8 @@ and the resolved art questions AQ59/AQ60, so merging the branches does not erase
 
 ## Verification
 
-703 tests pass, including pixel-exact atlas/frame checks, projectile margins, impact growth/fade
-and stop-event routing. ESLint/Prettier, purity lint and the production build pass. The miniature
+710 tests pass, including terrain edge/corner rules, pixel-exact atlas/frame checks, projectile
+margins, impact growth/fade and stop-event routing. ESLint/Prettier, purity lint and the production build pass. The miniature
 checker reports all 49 delivered, zero errors and seven documented warnings. A production build
 under the PR's Pages-style subpath was checked in desktop and mobile Chrome with no runtime or
 resource errors. Native impact frames 1–6 were observed. Vehicle views at 0/90/180/270 and the

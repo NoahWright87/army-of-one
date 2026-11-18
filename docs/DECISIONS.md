@@ -736,6 +736,14 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
   columns are successive frames. Strict overhead projection applies to every frame. Initial
   delivery: three variations × eight frames per size, native Phaser sprite-sheet playback.
 
+- **[A128] Painted terrains choose their own transitions (owner, 2026-11-17).** The terrain
+  editor should work like Warcraft II's: paint terrain types, and choose connecting edges,
+  inner/outer corners and junctions automatically. The editor preview and game use the same
+  transition rules. A broad colour gradient between flat tiles is not the intended result.
+  This is a visual rule; tile passability, collision and the stored ground-letter format stay
+  unchanged. Reusable masks may composite the existing textures; richer shore/cliff edge art
+  can be supplied later without changing how maps are painted.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

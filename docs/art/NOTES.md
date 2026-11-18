@@ -1,5 +1,17 @@
 # Art notes
 
+## 2026-11-18 — automatic terrain painting and transitions ([A128])
+
+Replaced the three flat-colour border bands with neighbour-aware masks that composite the actual
+textures. The 47 canonical fringe shapes cover cardinal/diagonal connections and inner/outer
+corners. Natural, bank/shore, rock and built-surface edges share one runtime atlas, with source
+phases and extruded gutters to avoid texture/filtering seams. Editor painting previews the
+same rules, caches unchanged ground, and refreshes for painting and undo/redo.
+
+Ground-letter data, generation and collision rules are unchanged. Duplicate square overlays
+from terrain-derived water/wall rectangles are skipped visually; explicit geometry stays.
+See TERRAIN-TRANSITIONS.md for the shape/art distinction, test cases and remaining art options.
+
 ## 2026-11-18 — combat, environment, interface and tier-3 vehicles
 
 Continued PR #22 on top of the merged campaign/projectile work. Delivered five projectile

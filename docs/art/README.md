@@ -124,3 +124,6 @@ All 49 miniature files are now delivered and integrated. See
 terrain textures, UI icons, review routes, reproduction prompts and the remaining prop backlog.
 This owner-authorized continuation includes the renderer/manifest integration described as a
 separate phase above. Campaign decision numbers retain their D prefix; art decisions use A.
+
+Terrain painting now uses [automatic textured transitions](TERRAIN-TRANSITIONS.md) in both the
+editor and game ([A128]); base surfaces are combined with reusable edge/corner masks.
