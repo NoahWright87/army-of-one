@@ -327,6 +327,7 @@ export class BattleScene extends Phaser.Scene {
 
   /** (06-a) Camera goal for a soldier at `pos` aiming at `aim`: look-ahead, capped on screen. */
   private lookAhead(pos: { x: number; y: number }, aim: number): { x: number; y: number } {
+    if (this.session.noLookAhead) return { x: pos.x, y: pos.y };
     const { display } = this.services;
     const cam = this.cameras.main;
     const zoom = display.cameraZoom || 1;

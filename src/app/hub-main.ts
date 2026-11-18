@@ -15,6 +15,7 @@ import type { Tuning } from '../content/tuning';
 import { cloneWorldText } from '../content/world-text';
 import { genMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { formatBattleTime } from '../sim/core/time';
+import type { WorldView } from '../sim/view';
 import type { InputSource } from '../render/input/input-source';
 import { DEPTH } from '../render/depth';
 import { loadWorldTextFonts } from '../render/worldtext/fonts';
@@ -228,7 +229,23 @@ export function startHub(deps: HubDeps): void {
       world: driver.world,
       liveId: driver.liveId,
       driver,
-      makeInput: (scene: Phaser.Scene) => deps.makeInput(scene, driver.liveId),
+      // No firing while pressing a sign's button (the game hears clicks anywhere on the page).
+      makeInput: (scene: Phaser.Scene) => {
+        const base = deps.makeInput(scene, driver.liveId);
+        return {
+          ...base,
+          read: (pos) => {
+            const input = base.read(pos);
+            return signs?.blocksFire() ? { ...input, fire: false } : input;
+          },
+          pointerWorld: () => base.pointerWorld(),
+          destroy: () => base.destroy(),
+          ...(base.observe ? { observe: (v: WorldView) => base.observe!(v) } : {}),
+          ...(base.manualAim ? { manualAim: () => base.manualAim!() } : {}),
+          ...(base.aimTarget ? { aimTarget: () => base.aimTarget!() } : {}),
+        };
+      },
+      noLookAhead: true,
       overlay: {
         create: (scene: Phaser.Scene) => {
           deps.hideHud();

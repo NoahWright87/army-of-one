@@ -27,6 +27,8 @@ const POST_SIZE = 30;
 const BTN_H = 30;
 const BTN_GAP = 6;
 const BTN_MIN_W = 190;
+/** More buttons than this: two columns (a tall menu would cover the soldier). */
+const BTN_ONE_COLUMN_MAX = 5;
 
 export interface SignButton {
   label: string;
@@ -55,7 +57,8 @@ interface Sign {
   frameW: number;
   frameH: number;
   glyphs: { txt: Phaser.GameObjects.Text; x: number; y: number; effects: string[] }[];
-  buttons: { el: HTMLButtonElement; y: number }[];
+  /** Each button's top-left in the frame (px). */
+  buttons: { el: HTMLButtonElement; x: number; y: number }[];
   /** Button area width and left edge (frame-local px). */
   btnX: number;
   btnW: number;
@@ -78,6 +81,10 @@ export class SignpostLayer {
   private readonly btnRoot: HTMLElement;
   private readonly onKey: (e: KeyboardEvent) => void;
   private lastMs = -1;
+  /** The pointer is over a sign button, or a press that started on one is still held. */
+  private hovering = 0;
+  private pressing = false;
+  private readonly onUp = () => (this.pressing = false);
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -112,6 +119,8 @@ export class SignpostLayer {
     }
     this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
+    window.addEventListener('pointerup', this.onUp);
+    window.addEventListener('pointercancel', this.onUp);
     scene.events.once('shutdown', () => this.destroy());
   }
 
@@ -159,8 +168,13 @@ export class SignpostLayer {
       const scale = startScale + (1 - startScale) * p;
       const base = s.def.y - (size > 60 ? size * 0.3 : 0);
       const lift = (t.hoverPx + s.frameH / 2) * p;
-      const fx = s.def.x;
-      const fy = base - lift / zoom;
+      // Keep the frame on screen (a tall menu near the top of the view, a sign at the edge).
+      const halfW = (s.frameW * scale) / 2 / zoom;
+      const halfH = (s.frameH * scale) / 2 / zoom;
+      const m = 8 / zoom;
+      const view = cam.worldView;
+      const fx = clamp(s.def.x, view.x + halfW + m, view.right - halfW - m);
+      const fy = clamp(base - lift / zoom, view.y + halfH + m, view.bottom - halfH - m);
       f.setVisible(true)
         .setPosition(fx, fy)
         .setScale(scale / zoom)
@@ -206,7 +220,7 @@ export class SignpostLayer {
     for (const b of s.buttons) {
       b.el.style.display = show ? '' : 'none';
       if (!show) continue;
-      b.el.style.left = `${cx + (s.btnX - s.frameW / 2) * k}px`;
+      b.el.style.left = `${cx + (b.x - s.frameW / 2) * k}px`;
       b.el.style.top = `${cy + (b.y - s.frameH / 2) * k}px`;
       b.el.style.width = `${s.btnW * k}px`;
       b.el.style.height = `${BTN_H * k}px`;
@@ -227,10 +241,20 @@ export class SignpostLayer {
     b.el.click();
   }
 
+  /**
+   * A click or tap on a sign's button must not also fire the gun (the game hears mouse presses
+   * anywhere on the page): the input source drops `fire` while this is true.
+   */
+  blocksFire(): boolean {
+    return this.hovering > 0 || this.pressing;
+  }
+
   private drop(s: Sign): void {
     s.frame?.destroy();
     s.frame = null;
     s.glyphs = [];
+    // A button removed under the pointer never sends pointerleave.
+    if (s.buttons.some((b) => b.el.matches(':hover'))) this.hovering = 0;
     for (const b of s.buttons) b.el.remove();
     s.buttons = [];
   }
@@ -282,9 +306,11 @@ export class SignpostLayer {
       minY = Math.min(minY, p.y - (made[i]!.height - sz * 0.3) / 2);
     });
     const buttons = content.buttons ?? [];
-    const tw = Math.max(maxX - minX, buttons.length ? BTN_MIN_W : 0);
+    const cols = buttons.length > BTN_ONE_COLUMN_MAX ? 2 : 1;
+    const rows = Math.ceil(buttons.length / cols);
+    const tw = Math.max(maxX - minX, buttons.length ? BTN_MIN_W * cols + BTN_GAP * (cols - 1) : 0);
     const th = -minY;
-    const btnBlock = buttons.length ? buttons.length * (BTN_H + BTN_GAP) + BTN_GAP : 0;
+    const btnBlock = buttons.length ? rows * (BTN_H + BTN_GAP) + BTN_GAP : 0;
     const w = Math.max(style.slice * 2 + 8, tw + style.padX * 2);
     const h = Math.max(style.slice * 2, th + btnBlock + style.padY * 2);
     const box = this.scene.add.nineslice(
@@ -312,7 +338,7 @@ export class SignpostLayer {
       s.glyphs.push({ txt, x, y, effects: parsed.glyphs[i]!.effects });
     });
     s.btnX = style.padX;
-    s.btnW = w - style.padX * 2;
+    s.btnW = (w - style.padX * 2 - BTN_GAP * (cols - 1)) / cols;
     s.buttons = buttons.map((b, i) => {
       const el = document.createElement('button');
       el.type = 'button';
@@ -324,13 +350,29 @@ export class SignpostLayer {
       }
       el.append(document.createTextNode(b.label));
       el.style.display = 'none';
-      el.addEventListener('pointerdown', (e) => e.stopPropagation());
-      el.addEventListener('click', (e) => {
+      // Acts on press: a frame can move a little between press and release.
+      el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        e.preventDefault();
+        this.pressing = true;
         b.run();
       });
+      // Keyboard (1–9 / E) presses arrive as clicks.
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.detail === 0) b.run();
+      });
+      el.addEventListener('pointerenter', () => this.hovering++);
+      el.addEventListener('pointerleave', () => (this.hovering = Math.max(0, this.hovering - 1)));
       this.btnRoot.appendChild(el);
-      return { el, y: style.padY + th + BTN_GAP + i * (BTN_H + BTN_GAP) };
+      // Column-major: 1–5 down the left, 6–9 down the right.
+      const col = Math.floor(i / rows);
+      const row = i % rows;
+      return {
+        el,
+        x: s.btnX + col * (s.btnW + BTN_GAP),
+        y: style.padY + th + BTN_GAP + row * (BTN_H + BTN_GAP),
+      };
     });
     s.frame = c;
     s.frameW = w;
@@ -339,6 +381,8 @@ export class SignpostLayer {
 
   destroy(): void {
     window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('pointerup', this.onUp);
+    window.removeEventListener('pointercancel', this.onUp);
     for (const s of this.signs) {
       this.drop(s);
       s.post.destroy();
@@ -346,4 +390,9 @@ export class SignpostLayer {
     this.ring.destroy();
     this.btnRoot.remove();
   }
+}
+
+/** `v` within [lo, hi]; if the range is empty (too big to fit), the top/left wins. */
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(v, Math.max(lo, hi)));
 }
