@@ -783,6 +783,7 @@ export const STRINGS = {
   'textlab.sit.corpse': '⚰ Echo shoots a corpse',
   'textlab.sit.reset': '↺ Everyone back',
   'textlab.firefight': '🔥 Firefight near me (5 s)',
+  'textlab.auto': 'Soldiers chat on their own (demo)',
   'textlab.state.hot': 'Now: IN A FIGHT (only warnings + far-off chatter)',
   'textlab.state.calm': 'Now: calm (chatter flows)',
   'textlab.look': 'Look and feel',

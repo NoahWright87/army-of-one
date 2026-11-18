@@ -9,6 +9,7 @@ import { fitPx } from '../../content/assets';
 import type { RoleId } from '../../contracts/mission';
 import type { SignDef } from '../../content/sign-styles';
 import { fillVars, identityVars } from '../../content/soldier-names';
+import { stringsWithPrefix } from '../../content/strings';
 import { cloneWorldText, type WorldTextTuning } from '../../content/world-text';
 import type { SimEvent } from '../../sim/events';
 import type { SoldierView, WorldView } from '../../sim/view';
@@ -33,6 +34,20 @@ export const LAB_SIGNS: readonly SignDef[] = [
   { id: 's3', x: 700, y: 170, kind: 'clipboard', textKey: 'sign.lab.clipboard' },
   { id: 's4', x: 940, y: 170, kind: 'plate', textKey: 'sign.lab.stencil' },
   { id: 's5', x: 1180, y: 170, kind: 'wood', frame: 'clipboard', textKey: 'sign.lab.override' },
+];
+
+/** Effect showcases (the panel's presets; the auto demo says them too). */
+export const LAB_DEMOS = [
+  '[all][shake][big]INCOMING!![p=400][words] Get behind the [gold]sandbags[/]!',
+  'Hold the line... [p][slam]NOW![/]',
+  '[fly]Surprise![/] [p]Did you miss me?',
+  '[wave]La la la[/], [p]nobody here but us [small]ghosts[/].',
+  "[letters]I've got a bad feeling about this...",
+  '[pulse][red]Medic![/] [p]I need a medic!',
+  '[wobble]Too... much... coffee...[/]',
+  '[drop]Oops.[/]',
+  '[shake]CEASE FIRE! [quake][big]CEASE FIRE!![/]',
+  '[all]{rankShort}! [p=300][words]{theirFull} needs backup!',
 ];
 
 export type LabSituation =
@@ -87,6 +102,9 @@ export class TextLabScene extends Phaser.Scene {
   }[] = [];
   private firefightUntil = 0;
   private nextFirefightShot = 0;
+  /** Soldiers talk on their own every few seconds (the lab's demo; not a game rule). */
+  autoDemo = true;
+  private nextAuto = 1500;
   private zoom = 1;
   /** Touch: the movement stick (screen px), and where the last tap fired. */
   private stick: { id: number; ox: number; oy: number; x: number; y: number } | null = null;
@@ -227,6 +245,27 @@ export class TextLabScene extends Phaser.Scene {
   }
 
   /** A few seconds of shooting near you, so the noise budget switches to "in a fight". */
+  /** Someone says something, or something happens, so the lab is never silent. */
+  private demoTick(): void {
+    const alive = (enemy: boolean) =>
+      this.puppets.filter((p) => p.alive && (p.role === 'enemy') === enemy);
+    if (alive(true).length < 1 || alive(false).length < 2) {
+      this.situation('reset');
+      return;
+    }
+    const r = Math.random();
+    if (r < 0.35) {
+      const sits: LabSituation[] = ['grenade', 'pinned', 'ghost', 'manDown', 'enemyDown', 'corpse'];
+      this.situation(sits[Math.floor(Math.random() * sits.length)]!);
+      return;
+    }
+    const speakers = [...alive(false), ...alive(true)].filter((p) => !this.speech.isSpeaking(p.id));
+    const sp = speakers[Math.floor(Math.random() * speakers.length)];
+    if (!sp) return;
+    const lines = [...LAB_DEMOS, ...stringsWithPrefix('bark.')];
+    this.say(sp.id, lines[Math.floor(Math.random() * lines.length)]!);
+  }
+
   firefight(seconds: number): void {
     this.firefightUntil = this.time.now + seconds * 1000;
   }
@@ -541,6 +580,10 @@ export class TextLabScene extends Phaser.Scene {
           hitY: ty,
         });
       }
+    }
+    if (this.autoDemo && time >= this.nextAuto) {
+      this.nextAuto = time + 2200 + Math.random() * 1600;
+      this.demoTick();
     }
     // Barks.
     const view = this.view();

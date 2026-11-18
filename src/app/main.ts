@@ -1274,6 +1274,7 @@ async function startTextLab(): Promise<void> {
       say: (id, text) => textLabScene.say(id, text),
       situation: (s) => textLabScene.situation(s),
       firefight: (sec) => textLabScene.firefight(sec),
+      autoDemo: (on) => (textLabScene.autoDemo = on),
       zoom: (z) => textLabScene.setZoom(z),
       tuningChanged: () => textLabScene.applyTuning(),
       isHot: () => (textLabScene.sys.isActive() ? textLabScene.hot : false),

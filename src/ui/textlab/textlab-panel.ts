@@ -7,13 +7,15 @@ import { str, stringsWithPrefix, type StringKey } from '../../content/strings';
 import { DEFAULT_WORLD_TEXT, SPEECH_FONTS, type WorldTextTuning } from '../../content/world-text';
 import { effectNames, getEffect } from '../../render/worldtext/effects';
 import { COLORS } from '../../render/worldtext/markup';
-import type { LabSituation } from '../../render/phaser/textlab-scene';
+import { LAB_DEMOS, type LabSituation } from '../../render/phaser/textlab-scene';
 import { el, injectStyle } from '../dom';
 
 export interface TextLabHooks {
   say(speakerId: string, markup: string): void;
   situation(s: LabSituation): void;
   firefight(seconds: number): void;
+  /** Soldiers talk on their own every few seconds. */
+  autoDemo(on: boolean): void;
   zoom(z: number): void;
   /** The tuning object was edited in place. */
   tuningChanged(): void;
@@ -51,18 +53,6 @@ const css = `
 `;
 
 /** Effect showcases (the bark lines below show them in context). */
-const DEMOS = [
-  '[all][shake][big]INCOMING!![p=400][words] Get behind the [gold]sandbags[/]!',
-  'Hold the line... [p][slam]NOW![/]',
-  '[fly]Surprise![/] [p]Did you miss me?',
-  '[wave]La la la[/], [p]nobody here but us [small]ghosts[/].',
-  "[letters]I've got a bad feeling about this...",
-  '[pulse][red]Medic![/] [p]I need a medic!',
-  '[wobble]Too... much... coffee...[/]',
-  '[drop]Oops.[/]',
-  '[shake]CEASE FIRE! [quake][big]CEASE FIRE!![/]',
-  '[all]{rankShort}! [p=300][words]{theirFull} needs backup!',
-];
 
 /** Sliders: [section, key, min, max, step]. */
 const SLIDERS: [keyof WorldTextTuning, string, number, number, number][] = [
@@ -127,7 +117,7 @@ export class TextLabPanel {
     const say = this.section('textlab.say', true);
     this.speakerSel = el('select');
     const input = el('textarea');
-    input.value = DEMOS[0]!;
+    input.value = LAB_DEMOS[0]!;
     const go = el('button', '', str('textlab.sayButton'));
     go.onclick = () => this.hooks.say(this.speakerSel.value, input.value);
     input.onkeydown = (e) => {
@@ -149,7 +139,7 @@ export class TextLabPanel {
       chips.append(b);
     };
     chips.append(el('h4', '', str('textlab.presets')));
-    DEMOS.forEach(chip);
+    LAB_DEMOS.forEach(chip);
     for (const cat of [
       'grenadeWarn',
       'allyDown',
@@ -185,7 +175,13 @@ export class TextLabPanel {
     }
     const ff = el('button', '', str('textlab.firefight'));
     ff.onclick = () => this.hooks.firefight(5);
-    sit.append(ff, this.stateEl);
+    const autoRow = el('label');
+    const auto = el('input');
+    auto.type = 'checkbox';
+    auto.checked = true;
+    auto.onchange = () => this.hooks.autoDemo(auto.checked);
+    autoRow.append(auto, document.createTextNode(' ' + str('textlab.auto')));
+    sit.append(ff, el('br'), autoRow, this.stateEl);
 
     // Look.
     const look = this.section('textlab.look', true);
