@@ -241,6 +241,11 @@ export class SignpostLayer {
     b.el.click();
   }
 
+  /** Some sign is open (or opening / closing). */
+  anyOpen(): boolean {
+    return this.signs.some((s) => s.state.open > 0);
+  }
+
   /**
    * A click or tap on a sign's button must not also fire the gun (the game hears mouse presses
    * anywhere on the page): the input source drops `fire` while this is true.

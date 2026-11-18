@@ -213,7 +213,7 @@ export function displaySettingDefs(): SettingDef[] {
       group: C,
       label: str('settings.cameraLookAhead'),
       type: 'choice',
-      default: 'upAim',
+      default: 'aim', // owner: centred, panning toward the aim (not always north)
       options: [
         { value: 'off', label: str('settings.cameraLookAhead.off') },
         { value: 'up', label: str('settings.cameraLookAhead.up') },

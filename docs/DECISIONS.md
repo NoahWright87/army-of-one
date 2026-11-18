@@ -714,6 +714,12 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   and you're straight back. Dev tools in a side room, open to all for now. Later: the first
   visit loads a tutorial mission, re-enterable from the HQ.
 
+- **[D154] The camera centres on your soldier and pans toward your aim** (owner, 2026-11),
+  not always north: action comes from every side (being shot from behind, the range). The pan
+  grows with how far out the cursor is, up to the look-ahead distance (`display.cameraLookAhead`
+  defaults to 'aim'; `AIM_PAN` in `src/render/camera-look-ahead.ts`). Replaces the 'upAim'
+  default from 06-a.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

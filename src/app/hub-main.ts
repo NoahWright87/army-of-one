@@ -245,7 +245,7 @@ export function startHub(deps: HubDeps): void {
           ...(base.aimTarget ? { aimTarget: () => base.aimTarget!() } : {}),
         };
       },
-      noLookAhead: true,
+      holdLookAhead: () => signs?.anyOpen() ?? false,
       overlay: {
         create: (scene: Phaser.Scene) => {
           deps.hideHud();

@@ -39,6 +39,8 @@ export class BattleScene extends Phaser.Scene {
   private worldRenderer!: WorldRenderer;
   private sounds!: SoundBank;
   private cam = { x: 0, y: 0 };
+  /** The last look-ahead offset (held while the session asks, PHASE18). */
+  private ahead = { x: 0, y: 0 };
   /** (06-a) Facing used for the look-ahead before the live soldier appears. */
   private homeFacing = -Math.PI / 2;
   private countdownTicks: number | null = null;
@@ -230,7 +232,12 @@ export class BattleScene extends Phaser.Scene {
       } else {
         this.lookAim = aim;
       }
-      const goal = this.lookAhead(target, this.lookAim);
+      // Pan toward the cursor in proportion to how far out it is (none in a countdown).
+      const goal = this.lookAhead(
+        target,
+        this.lookAim,
+        counting ? undefined : this.lastInput.aimDistance,
+      );
       this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
     }
     cam.centerOn(this.cam.x, this.cam.y);
@@ -326,8 +333,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** (06-a) Camera goal for a soldier at `pos` aiming at `aim`: look-ahead, capped on screen. */
-  private lookAhead(pos: { x: number; y: number }, aim: number): { x: number; y: number } {
-    if (this.session.noLookAhead) return { x: pos.x, y: pos.y };
+  private lookAhead(
+    pos: { x: number; y: number },
+    aim: number,
+    aimDistance?: number,
+  ): { x: number; y: number } {
+    // (PHASE18) The HQ holds the view still while a sign is open (its buttons mustn't slide).
+    if (this.session.holdLookAhead?.()) {
+      return { x: pos.x + this.ahead.x, y: pos.y + this.ahead.y };
+    }
     const { display } = this.services;
     const cam = this.cameras.main;
     const zoom = display.cameraZoom || 1;
@@ -335,10 +349,16 @@ export class BattleScene extends Phaser.Scene {
     const live = this.view.soldiers.find((s) => s.id === this.liveId);
     const far = live?.gun === 'sniper' ? this.world.tuning.sniper.lookAheadMultiplier : 1;
     const ahead = capLookAhead(
-      lookAheadOffset(display.cameraLookAhead, display.cameraLookAheadDistance * far, aim),
+      lookAheadOffset(
+        display.cameraLookAhead,
+        display.cameraLookAheadDistance * far,
+        aim,
+        aimDistance,
+      ),
       cam.width / 2 / zoom,
       cam.height / 2 / zoom,
     );
+    this.ahead = ahead;
     return { x: pos.x + ahead.x, y: pos.y + ahead.y };
   }
 

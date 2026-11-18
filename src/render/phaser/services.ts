@@ -27,8 +27,8 @@ export interface BattleSession {
   driver?: SessionDriver;
   /** (PHASE18) Extra things drawn over the world (the HQ's signs and labels). */
   overlay?: SessionOverlay;
-  /** (PHASE18) The camera stays on the soldier (no look-ahead): signs' buttons don't slide. */
-  noLookAhead?: boolean;
+  /** (PHASE18) While true the look-ahead holds still (an HQ sign is open: its buttons mustn't slide). */
+  holdLookAhead?: () => boolean;
 }
 
 /** (PHASE18) Scene-side extras of a session: created with the scene, updated every frame. */

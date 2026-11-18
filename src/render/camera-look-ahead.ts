@@ -14,11 +14,27 @@ import type { Vec2 } from '../sim/core/vec';
 export type LookAheadMode = 'off' | 'up' | 'aim' | 'upAim';
 export const LOOK_AHEAD_MODES: readonly LookAheadMode[] = ['off', 'up', 'aim', 'upAim'];
 
-/** World-space offset from the soldier to the camera centre. `aim` is radians (0 = +x). */
-export function lookAheadOffset(mode: LookAheadMode | string, distance: number, aim: number): Vec2 {
+/**
+ * How far the camera pans toward the cursor, as a share of the cursor's distance from the
+ * soldier (capped at the look-ahead distance): aim close and the view stays centred.
+ */
+export const AIM_PAN = 0.5; // TUNE
+
+/**
+ * World-space offset from the soldier to the camera centre. `aim` is radians (0 = +x).
+ * `aimDistance`: how far away the cursor is (absent: the full distance, e.g. touch or a
+ * countdown looking along the soldier's facing).
+ */
+export function lookAheadOffset(
+  mode: LookAheadMode | string,
+  distance: number,
+  aim: number,
+  aimDistance?: number,
+): Vec2 {
   const d = Math.max(0, distance);
   const up = { x: 0, y: -d };
-  const toward = { x: Math.cos(aim) * d, y: Math.sin(aim) * d };
+  const reach = aimDistance === undefined ? d : Math.min(d, Math.max(0, aimDistance) * AIM_PAN);
+  const toward = { x: Math.cos(aim) * reach, y: Math.sin(aim) * reach };
   switch (mode) {
     case 'up':
       return up;
