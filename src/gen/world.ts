@@ -19,6 +19,7 @@ import type { BlockDef } from './block';
 import { blockTotalCost } from './budget';
 import {
   boardTiles,
+  breachPockets,
   bridgeIslands,
   carveBoard,
   type BoardTiles,
@@ -60,6 +61,8 @@ export interface GeneratedWorld {
   hq: number;
   /** Bridged islands' outposts ([y, x] board tiles): optional capture points ([D111]). */
   outposts: [number, number][];
+  /** (PHASE17) Walled pockets breached into play ([D143]): a tile near each one's middle. */
+  fortresses: [number, number][];
 }
 
 export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): GeneratedWorld {
@@ -80,6 +83,9 @@ export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): Ge
   // Islands near the shore get a bridge, and an outpost to take ([D111]).
   const outposts = bridgeIslands(grid, tiles);
   if (outposts.length) tiles = boardTiles(grid);
+  // (PHASE17) Walled bases get a way in, and are played ([D143]).
+  const fortresses = breachPockets(grid, tiles);
+  if (fortresses.length) tiles = boardTiles(grid);
   const carving = carveBoard(tiles, rng);
   const { owner, crossings } = carving;
   const hq = levelAtBlock(owner, tiles.w, 0, hqCol, carving.levels.length);
@@ -117,6 +123,7 @@ export function generateWorld(pool: readonly BlockDef[], opts: WorldOptions): Ge
     crossings,
     hq,
     outposts,
+    fortresses,
   };
 }
 

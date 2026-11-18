@@ -87,7 +87,8 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
   spawnSquads(world, ({ id, squad, role, position, facing }) => {
     const s = createSoldier(id, Number(id.slice(1)), squad.id, position, facing, tuning, {
       roleId: role,
-      team: 'enemy',
+      // (PHASE17) Arena squads can be ours ([D142]).
+      ...(squad.team === 'player' ? {} : { team: 'enemy' as const }),
     });
     quantizeSoldier(s);
     world.state.soldiers.push(s);
@@ -165,6 +166,8 @@ export function getSoldier(world: World, id: SoldierId): SoldierState | undefine
 }
 
 import { soldierIndex } from './soldier-index';
+import { stepRegen } from './combat/damage';
+import { stepBullets } from './combat/shots';
 export { soldierIndex };
 
 /** Changes a soldier's flags (e.g. an echo taking over a live soldier, or a lead-in ending). */
@@ -266,6 +269,7 @@ export function step(
   stepMines(world);
   stepGrenades(world);
   stepRockets(world);
+  stepBullets(world); // (PHASE17) [D145]
   stepTraffic(world);
   stepBridges(world);
 
@@ -278,6 +282,8 @@ export function step(
     s.y = p.y;
     quantizeSoldier(s);
   }
+
+  stepRegen(world); // (PHASE16) [D133]
 
   // (05-a) Capture points read the final positions of the tick.
   stepCapturePoints(world);
@@ -307,7 +313,7 @@ export function getView(world: World): WorldView {
       y: s.y,
       facing: s.facing,
       hp: s.hp,
-      maxHp: soldierMaxHp(tuning, s.roleId),
+      maxHp: soldierMaxHp(tuning, s.roleId, s.team),
       alive: s.alive,
       role:
         s.team === 'enemy'
@@ -321,6 +327,14 @@ export function getView(world: World): WorldView {
         ? { windup: windupProgress(world, s), windupAim: s.windupAim }
         : {}),
       ...aimView(world, s),
+    })),
+    // (PHASE17) Bullets in flight ([D145]).
+    bullets: (st.bullets ?? []).map((b) => ({
+      id: b.id,
+      x: b.x,
+      y: b.y,
+      angle: b.shot.angle,
+      hostile: b.shot.team === 'enemy',
     })),
     rockets: (st.rockets ?? []).map((r) => ({
       kind: 'rocket' as const,

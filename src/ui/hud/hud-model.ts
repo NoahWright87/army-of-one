@@ -6,6 +6,40 @@ import type { CapturePointView, ObjectiveView, SoldierView, WorldView } from '..
 
 export type HudStatus = 'alive' | 'leadIn' | 'dead' | 'none';
 
+/** (PHASE17) An objective flag on the HUD ([D140]): ours, being taken (0..1), or theirs. */
+export interface FlagIcon {
+  state: 'ours' | 'taking' | 'theirs';
+  progress: number;
+}
+
+/** (PHASE17) Flag icons for the objective capture points ([D140]). */
+export function flagIcons(points: readonly CapturePointView[]): FlagIcon[] {
+  return points
+    .filter((c) => c.objective)
+    .map((c) =>
+      c.stage === 'ours'
+        ? { state: 'ours', progress: 1 }
+        : c.progress > 0 || c.stage === 'neutral'
+          ? {
+              state: 'taking',
+              progress: c.stage === 'neutral' ? 0.5 + c.progress / 2 : c.progress / 2,
+            }
+          : { state: 'theirs', progress: 0 },
+    );
+}
+
+/** (PHASE17) Enemy soldiers alive, or null if the map never had any ([D140]). */
+export function enemiesLeft(view: WorldView): number | null {
+  let any = false;
+  let n = 0;
+  for (const s of view.soldiers) {
+    if (s.role !== 'enemy') continue;
+    any = true;
+    if (s.alive) n++;
+  }
+  return any ? n : null;
+}
+
 export interface HudModel {
   clock: string;
   soldierLabel: string;
@@ -14,6 +48,13 @@ export interface HudModel {
   hpFraction: number;
   status: HudStatus;
   objective: string;
+  /**
+   * (PHASE17) Objective flags as icons ([D140]): one per flag, in map order. Empty: the
+   * objective text shows instead.
+   */
+  flags: FlagIcon[];
+  /** (PHASE17) Enemy soldiers left, or null on a map without any ([D140]). */
+  enemiesLeft: number | null;
   missionComplete: boolean;
   /** (PHASE11) "$120", or null with the economy off / no driver. */
   money: string | null;
@@ -82,6 +123,8 @@ export function buildHudModel(
     hpFraction: s && s.alive ? hpFraction(s.hp, s.maxHp) : 0,
     status: soldierStatus(s),
     objective: objectiveText(view.objectives, complete, view.capturePoints),
+    flags: flagIcons(view.capturePoints),
+    enemiesLeft: enemiesLeft(view),
     missionComplete: complete,
     money: money ? formatMoney(money.balance) : null,
     ...(money

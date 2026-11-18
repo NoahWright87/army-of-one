@@ -92,6 +92,55 @@ export function boardTiles(grid: readonly (readonly GrownCell[])[]): BoardTiles 
 }
 
 /**
+ * (PHASE17) Walled pockets ([D143]): walkable ground of `carve.pocketMinTiles` or more that's cut
+ * off by walls or rocks (not water: islands are `bridgeIslands`') gets a way in cut through the
+ * thinnest part of its wall (`connect`, mutating `grid`), so a walled base is played instead of
+ * blacked out. Returns a tile near each breached pocket's middle ([y, x]).
+ */
+export function breachPockets(grid: GrownCell[][], t: BoardTiles): [number, number][] {
+  const tune = BLOCK_TUNING.carve;
+  const { w, h, walk, open, ground } = t;
+  const seen = new Uint8Array(w * h);
+  const out: [number, number][] = [];
+  const yx = (i: number): [number, number] => [Math.floor(i / w), i % w];
+  let targets: [number, number][] | null = null;
+  for (let s = 0; s < w * h; s++) {
+    if (!open[s] || walk[s] || seen[s]) continue;
+    const pocket = flood([s], w, h, (j) => open[j] === 1 && !walk[j] && !seen[j]);
+    for (const i of pocket) seen[i] = 1;
+    if (pocket.length < tune.pocketMinTiles) continue;
+    const wet = pocket.some((i) =>
+      neighbours4(i, w, h).some((j) => ground[Math.floor(j / w)]![j % w] === 'W'),
+    );
+    if (wet) continue;
+    if (!targets) {
+      targets = [];
+      for (let i = 0; i < w * h; i++) if (walk[i]) targets.push(yx(i));
+    }
+    connect(grid, pocket.map(yx), targets);
+    let sx = 0;
+    let sy = 0;
+    for (const i of pocket) {
+      sx += i % w;
+      sy += Math.floor(i / w);
+    }
+    const mx = sx / pocket.length;
+    const my = sy / pocket.length;
+    let best = pocket[0]!;
+    let bestD = Infinity;
+    for (const i of pocket) {
+      const d = ((i % w) - mx) ** 2 + (Math.floor(i / w) - my) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    out.push(yx(best));
+  }
+  return out;
+}
+
+/**
  * (PHASE13-d) Islands (walkable ground cut off by water) of `carve.islandMinTiles` or more, within
  * `carve.maxBridge` tiles of water from the mainland, get a bridge (cut into `grid`). Returns a
  * tile near each bridged island's middle ([y, x]): an outpost to take there.

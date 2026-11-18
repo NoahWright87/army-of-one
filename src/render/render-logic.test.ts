@@ -203,6 +203,16 @@ describe('event cues', () => {
   const tracer = (cues: Cue[]) =>
     cues.find((c) => c.type === 'tracer') as Extract<Cue, { type: 'tracer' }>;
 
+  it('(PHASE17) a flying bullet puffs where it stops, not at the end of its range', () => {
+    const fired = eventCues([shot({ flying: true })], ctx);
+    expect(fired.some((c) => c.type === 'impact')).toBe(false);
+    expect(fired.some((c) => c.type === 'tracer')).toBe(false);
+    const stopped = eventCues([{ kind: 'bulletStopped', tick: 2, by: 'T1', x: 250, y: 100 }], ctx);
+    expect(stopped).toContainEqual({ type: 'impact', x: 250, y: 100 });
+    // A hitscan shot still puffs at its hit point.
+    expect(eventCues([shot({})], ctx)).toContainEqual({ type: 'impact', x: 100, y: 100 });
+  });
+
   it('hostile fire that hits or grazes the live soldier is "incoming"', () => {
     expect(tracer(eventCues([shot({ hitId: 'S1' })], ctx)).style).toBe('incoming');
     expect(tracer(eventCues([shot({ hitX: 50, hitY: 120 })], ctx)).style).toBe('incoming');

@@ -33,7 +33,7 @@
     {"id":"obj11","kind":"objective","at":[7.5,2],"priority":0}
   ],
   "groups": [
-    {"id":"slits","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2}]},
-    {"id":"yard","units":[{"role":"sniper","priority":3},{"role":"rifleman","priority":4},{"role":"grenadier","priority":5}]}
+    {"id":"slits","units":[{"role":"gunner","priority":2},{"role":"rifleman","priority":2}]},
+    {"id":"yard","units":[{"role":"sniper","priority":4},{"role":"rifleman","priority":4},{"role":"grenadier","priority":5}]}
   ]
 }

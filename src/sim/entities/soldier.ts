@@ -78,6 +78,8 @@ export interface SoldierState {
   moveFrac: number;
   /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
   sprinting?: boolean;
+  /** (PHASE16) Last tick this soldier took damage ([D133]: regeneration waits after it). */
+  hurtTick?: Tick;
   /**
    * (PHASE12-b) A vehicle's driving state ([D63], [D64]); absent for soldiers. For a vehicle,
    * `facing` is the hull's heading (what's recorded); the turret aims separately.
@@ -134,7 +136,7 @@ export function createSoldier(
     x: position.x,
     y: position.y,
     facing,
-    hp: soldierMaxHp(tuning, flags.roleId),
+    hp: soldierMaxHp(tuning, flags.roleId, flags.team),
     ...(isVehicleRole(flags.roleId) ? { drive: { speed: 0, turret: facing, hits: {} } } : {}),
     alive: true,
     controllable: flags.controllable ?? true,
@@ -193,9 +195,19 @@ export function hitRadiusOf(tuning: Tuning, s: SoldierState): number {
   return driveOf(tuning, s.roleId)?.bodyRadius ?? tuning.soldier.hitboxRadius;
 }
 
-/** (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). */
-export function soldierMaxHp(tuning: Tuning, roleId: RoleId | undefined): number {
-  return Math.round(tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1));
+/**
+ * (PHASE12-a) Max HP by role ([D61]: the Shotgunner is tougher). (PHASE16) Enemies ×
+ * `ai.enemyHpScale`: many weaker enemies ([D136]).
+ */
+export function soldierMaxHp(
+  tuning: Tuning,
+  roleId: RoleId | undefined,
+  team?: SoldierTeam,
+): number {
+  const scale = team === 'enemy' ? tuning.ai.enemyHpScale : 1;
+  return Math.round(
+    tuning.soldier.maxHp * (tuning.roleStats?.[roleId ?? 'rifleman']?.hp ?? 1) * scale,
+  );
 }
 
 /** (PHASE12-a) Walking speed by role ([D62]: the Bazooka is slower). */

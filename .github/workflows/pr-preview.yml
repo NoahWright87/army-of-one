@@ -3,6 +3,8 @@
 # - Opened / updated PR: build the app and publish dist/ to the `gh-pages` branch under
 #   pr-preview/pr-<N>/, then post (or update) one comment on the PR with the link.
 # - Closed / merged PR: delete pr-preview/pr-<N>/ from `gh-pages` and update the comment.
+# - The site root is the game on `main` (deploy-main.yml); the list of live previews is
+#   pr-preview/index.html. This job only ever writes under pr-preview/.
 #
 # One-time repo setup: Settings → Pages → Build and deployment → "Deploy from a branch",
 # branch `gh-pages`, folder `/ (root)`.
@@ -89,7 +91,8 @@ jobs:
               cp -R dist/. "site/$dir/"
             fi
             touch site/.nojekyll
-            # Regenerate the landing page listing every live preview.
+            mkdir -p site/pr-preview
+            # Regenerate the page listing every live preview (the root is main's game).
             {
               echo '<!doctype html><html lang="en"><meta charset="utf-8">'
               echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -100,11 +103,11 @@ jobs:
               for d in $(ls -d site/pr-preview/pr-* 2>/dev/null | sort -t- -k3 -n); do
                 n="${d##*/pr-}"
                 found=1
-                echo "<li><a href=\"pr-preview/pr-${n}/\">PR #${n} preview</a> (<a href=\"https://github.com/${REPO}/pull/${n}\">pull request</a>)</li>"
+                echo "<li><a href=\"pr-${n}/\">PR #${n} preview</a> (<a href=\"https://github.com/${REPO}/pull/${n}\">pull request</a>)</li>"
               done
               [ "$found" = 1 ] || echo '<li>No open previews.</li>'
-              echo "</ul><p><a href=\"https://github.com/${REPO}\">${REPO}</a></p></html>"
-            } > site/index.html
+              echo "</ul><p><a href=\"../\">Play main</a> · <a href=\"https://github.com/${REPO}\">${REPO}</a></p></html>"
+            } > site/pr-preview/index.html
             git -C site add -A
           }
 

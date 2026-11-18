@@ -55,6 +55,10 @@ export interface AiProfile {
   outranged: 'charge' | 'fallback';
   /** (PHASE13) How keen it is to step between a hurt squadmate and the shooter (0..1). */
   protect: number;
+  /** (PHASE17) How keen it is to get in front of its friends (the Shield, 0..1). */
+  screen?: number;
+  /** (PHASE17) How keen it is to dig in at cover facing the threat (the MG, 0..1). */
+  digIn?: number;
 }
 
 /**
@@ -179,6 +183,7 @@ export const ROLES: readonly RoleDef[] = [
       }, // TUNE
       outranged: 'fallback', // TUNE
       protect: 0, // TUNE
+      digIn: 1, // TUNE (PHASE17): heads for cover facing the threat and mounts there
     },
   },
   // (PHASE12-a) [D59]–[D62]. Costs are first guesses ([D51]).
@@ -242,6 +247,7 @@ export const ROLES: readonly RoleDef[] = [
       }, // TUNE
       outranged: 'charge', // TUNE
       protect: 1, // TUNE
+      screen: 1, // TUNE (PHASE17): gets in front
     },
   },
   {

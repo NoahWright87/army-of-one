@@ -83,7 +83,19 @@ describe('AI vs moving targets ([D50])', () => {
           },
         ],
       }),
-      { ...T, ai: { ...T.ai, aimError: 0, sprints: false } },
+      {
+        ...T,
+        // Only the moving-target error: no range error, bursts or sight limit (PHASE16).
+        ai: {
+          ...T.ai,
+          aimError: 0,
+          sprints: false,
+          distanceAimError: 0,
+          burstPauseSeconds: 0,
+          sightRange: 900,
+        },
+        bullets: { ...T.bullets, enabled: false }, // hit or miss from the shot itself
+      },
     );
     const id = soldierAt(w, { x: 450, y: 150 }, { minHp: 1 });
     let shots = 0;

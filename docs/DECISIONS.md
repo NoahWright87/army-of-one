@@ -470,7 +470,8 @@ top, [D102]).
   taken raises the next levels' enemy budgets (`tuning.campaign.budgetGrowthPerLevel`, on top
   of the bands' own ramp). Taking the enemy HQ's level wins the campaign. One campaign at a
   time; nothing else carries over yet ([D91]). The handmade missions stay on the title screen
-  under the campaign button.
+  under the campaign button. (PHASE14, [D116]–[D126], replaces the per-level growth with battle
+  time and adds what carries over.)
 
 ## Levels cut to the terrain (owner session 2026-11, PHASE13-d)
 
@@ -531,6 +532,150 @@ objectives.
 - **[D100] A torn-up squad joins a healthy one.** Below `ai.routStrength` of its starting
   strength, a squad falls back to the nearest squad still above `ai.healthyStrength` and
   defends that squad's ground from then on, so tension builds toward strongholds.
+
+## The campaign (owner session 2026-11, PHASE14)
+
+The owner considered one continuous campaign (shared clock across levels, soldiers walking
+between live levels, leaving a level mid-battle to take a neighbour) and parked it as a later,
+larger effort. PHASE14 is the basics: levels are still fought one at a time, but money, enemy
+strength and surviving soldiers carry over, and the world map tells the story between levels.
+
+- **[D116] Taking the enemy HQ's level wins the campaign** (confirms [D106]). Other levels are
+  optional: you take them for what they give. The final report counts how many you took.
+- **[D117] Survivors become reserves.** When you win a level, every soldier of ours alive at the
+  win, plus every rescued soldier (an O) never resumed, joins one campaign-wide pool of
+  reserves. A reserve keeps its role (a surviving tank is still a tank) and is a **free spawn**:
+  it enters at full HP from any entry at any time, like a new soldier you didn't pay for. A
+  reserve who dies is gone; unused reserves stay in the pool. The pool is shown waiting at the
+  edge of the level they came from, for show only.
+- **[D118] Money carries over.** Your balance at the win is the next level's starting money
+  (debt resets to $0). Some levels raise income: their bonuses add to your base income for the
+  rest of the campaign, so later battles have a lot more money and are more dramatic.
+- **[D119] Enemy strength grows with battle time.** A hidden campaign stat, the enemy's funds,
+  grows with every minute of battle time you spend (the battle time of the levels you take).
+  Each level's enemy budget moves from its own starting budget toward its full budget as it
+  grows, so late levels are full. Replaces `budgetGrowthPerLevel` (per level taken). Quick wins
+  mean weaker enemies later.
+- **[D120] Starting roster: Rifleman, Grenadier, Machine Gunner and Shield.** The other roles
+  (Sniper, Shotgunner, Bazooka, Gun truck, Tank) are unlocked by taking levels that offer them.
+  Every role must be unlockable in every world.
+- **[D121] Level tags stay simple.** Enemies are all budget based, so the only threat tag is
+  **Elite enemies** (a level with a higher budget than its neighbours). Rewards are **Unlocks:
+  \<role\>** and **Income+**; income and cash come from objectives on the map (capture points,
+  bounties), not from special spawn logic. Big rewards go together with elite enemies, and the
+  best ones tend to sit at dead ends, off the way to the HQ. All levels' tags are visible from
+  the start, so you can plan a route. The map shows what matters for your choice, not raw
+  numbers (no block counts or budgets).
+- **[D122] One level at a time; you can retreat.** Attacking a level makes it the campaign's
+  active level. You can leave it for the map at any time (it keeps its save), but until it's won
+  the only thing you can do there is resume it: other levels can be looked at, not attacked.
+  Retreating costs nothing. A campaign can't be lost, only scored. A won level is locked: you
+  can watch its replay, not change it. (Owner, 2026-11: one at a time keeps carry-over simple:
+  money, reserves and enemy funds settle once, in order, and a level's held neighbours can't
+  change under its save.)
+- **[D123] The map tells the story between levels** (SMB3 overworld style). Back on the map
+  after a win: the level gets a "taken" outline; enemy levels bolster ("+🔫", "+🛡️" pills float
+  up and fade); the soldiers who fought pour into the level, the dead turn into ☠️, the
+  survivors wait at its edge (the reserves); your income ticks up. WW2-style arrows show where
+  you can attack from (the start edge or held ground). A final animation of soldiers moving
+  across the map comes later.
+- **[D124] Reports.** After a level: the existing results screen (same stats, radar, replay)
+  extended with the campaign: reserves gained, money carried, income and unlocks gained, battle
+  time; Continue goes to the map. After the HQ: a final report (money earned and spent, battle
+  time and real time, soldiers spawned and lost, levels taken) that fits one screen without
+  scrolling, so it's easy to screenshot.
+- **[D125] The title screen is the campaign.** Start Campaign, plus Resume Campaign when one is
+  saved; starting a new one while one is saved asks first. The editor, random levels and the
+  hand-made missions move under "More…". One campaign at a time.
+- **[D126] A campaign keeps its blocks.** It stores the blocks it was made from, so editing
+  your blocks can't change a campaign in progress (answers that part of [Q58]).
+
+## Pacing and difficulty (owner session 2026-11, PHASE16)
+
+Playtest: the core loop is fun, but levels are a slog (Breach too; bigger maps make it worse),
+especially on a phone. An hour in, no level was done.
+
+- **[D127] Progress in a ~30-minute session.** Each level is much shorter (smaller levels, about
+  half of today's); the world map stays the same size, so a campaign can still be long.
+- **[D128] Shorter lead-in.** The countdown and run-in before each life go from 5 s to about 2 s:
+  less waiting, and soldiers arrive closer together, so they're easier to coordinate and save.
+  A flag stage takes 3–3.5 s (was 4).
+- **[D129] Win a level by taking most of its exits.** Only exits into other levels count; you need
+  a majority: ⌊n/2⌋ + 1 (1→1, 2→2, 3→2, 4→3, 5→3). The HQ (and the far-end flag of a level with
+  no exits) is always needed. Taking the level takes all of it: every exit counts as yours
+  afterwards (spawns from all of them in the next levels).
+- **[D130] (Off for now, [D136].) More capture points, at natural ingress points.** Levels get capture points along the
+  way (each a forward spawn), so you can jump further into the fight and spend what you've saved.
+  They go on roads, clearings, corners and the edges of buildings; the middle of a field only when
+  there's nothing else.
+- **[D131] Unit strength is content.** No explicit tiers: blocks give heavy units (snipers,
+  vehicles) low priority, so low early budgets buy simple troops. Enemy budgets start much lower.
+- **[D132] Weaker enemies than you.** The AI is worse than the player: shorter sight than your
+  rifle's range, slower to react, more misses (worse with distance), pauses between bursts.
+- **[D133] Slight health regeneration** after a few seconds without being hurt, so unavoidable
+  chip damage isn't permanent. Off on Hard. (Later: a Hospital capture point boosts it.)
+- **[D134] Difficulty is chosen per campaign** (Easy / Normal / Hard), because it can change the
+  world's generation. Presets set enemy budgets, AI handicaps, regeneration and starting money.
+- **[D135] Pacing is measured.** A headless benchmark brute-forces generated levels (random-ish
+  lives that lean toward the objectives; enemies that attack) and reports lives and battle time
+  to win, so tuning has a target.
+- **[D136] Many weaker enemies; only exits are capture points** (owner playtest, 2026-11: the
+  first pass was too easy, with too few enemies and capture points everywhere). Levels have more
+  enemies (higher budgets), each weaker than you (less HP, less damage, `ai.enemyHpScale` /
+  `enemyDamageScale`), so fights have tension without being a slog. A level's capture points
+  are its exits (plus optional island outposts, [D111]); no in-level forward points
+  (`carve.extraCapturePoints` off; supersedes [D130] for now). Exits are guarded: blocks holding
+  an exit get more of the budget, and the nearest squad holds and retakes each exit flag.
+- Mines are fine as they are (owner). Later: concealment (bushes, trenches; running makes you
+  visible, snipers start concealed) and a phone pass (zoom out, smaller minimap, keep the target
+  on screen).
+
+## Making fights matter (owner session 2026-11, PHASE17)
+
+Playtest of a whole Normal campaign: most levels fell to one or two soldiers; the AI stood still,
+ran back and forth without firing, and lost 6-v-1 fights; thousands of dollars and nothing to
+buy. The echo loop only matters when one soldier can't win alone.
+
+- **[D137] Enemies are competent and aggressive.** Undoes most of [D132]: sight at least the
+  rifle's range, quick reactions, full HP and damage (`ai.enemyHpScale`/`enemyDamageScale` back
+  to 1). They shoot back when attacked and sprint only to close in, escape or reach nearby cover.
+  **Outnumbering you, they rush; outnumbered, they flee.** Players can lure them into traps and
+  flank them with echoes. Difficulty presets still tune them.
+- **[D138] Enemies regenerate and regroup.** Wounded enemies who get away heal like ours, and
+  join a squad nearby (preferring one near objectives, with more living soldiers), then patrol
+  there: escaped enemies reinforce what you still have to take.
+- **[D139] A level is won by taking every objective, or killing every enemy soldier.** Objectives:
+  every exit plus one prominent position (the centre of an open field, a corner of the map, the
+  inner room of a fortress). Entries you hold are yours from the start (green flags). Replaces
+  [D129].
+- **[D140] The objective HUD is icons.** A row of flags that turn green when taken, and a 🪖×N
+  counter of enemies left that becomes single helmets once ~10 are left. Glanceable while
+  fighting; less text everywhere.
+- **[D141] Tech points buy roles.** A secondary currency, a reward for taking a level (more for
+  dead ends and harder levels). On the world map, the roles you don't have are greyed icons you
+  buy with tech points. Replaces level unlocks ([D120]'s unlocks, [D121]'s "Unlocks:" tag).
+  Money carries over in full; it must be worth spending (every soldier worth its cost; the free
+  Rifleman is not the best).
+- **[D142] A dev arena.** A footer "Dev" link opens tools, including a TABS-style arena: soldiers
+  on each side (role, count), each side HUMAN / CPU EASY / CPU NORMAL / CPU HARD (the stats that
+  setting gives), cover pieces to place, GO, see who wins. AI drives both sides. For balance.
+- **[D143] Generated levels aren't trivially short.** No exit (objective) right next to an entry;
+  walled bases are playable levels (elite ones, with rewards), not blacked out.
+- **[D144] Touch controls:** the first finger anywhere is the movement stick; a second finger
+  tapping fires at that spot. Pushing the stick out to an outer ring sprints (no separate
+  button), and sprinting is faster.
+- **[D145] Bullets fly.** Gun shots become fast projectiles (visible streaks; speed per gun), so
+  sprinting and zig-zagging can dodge. Same simulation for fast-forward and live (determinism).
+- **[D146] Bullet drop and covering fire** (owner, 2026-11). A gun's range is its range at full
+  speed and damage; past it a bullet slows (per gun), does less damage with its speed, and lands
+  when too slow (a puff where it lands). Soldiers shot at (a hit, or a bullet whizzing close past)
+  know roughly where it came from: they scramble for cover and fire back toward it, even beyond
+  their range or sight, for a few seconds. Behind cover with the enemy in sight and within their
+  bullets' reach, they stay and shoot instead of chasing. Two soldiers spraying at each other from
+  far off is a feature.
+- Later: cover and concealment content (bushes, trenches, doors, windows), more tile types,
+  owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
+  Grenadier and Machine Gunner need cover to shine).
 
 ## Platform & process
 
@@ -816,8 +961,14 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   and fill tiles nothing fits by extending what's around them (grass grows into grass, water
   surrounded by water becomes a lake). Planned as a second pass after 1 × 1 matching.
 
-- **[Q58] Campaign details still open (PHASE13-d).** (Attacking from the side: answered by
-  [D107].) Whether losing or abandoning a level
-  costs anything; what carries over between levels (money, unlocks, bonus blocks [D91]); whether
-  a campaign keeps using your saved blocks if you edit them mid-campaign (today the world is
-  rebuilt from the current blocks, so editing one can change an unfinished campaign's map).
+- **[Q58] (Resolved by [D116]–[D126].)** Campaign details (PHASE13-d): losing or abandoning a
+  level, what carries over, and saved blocks edited mid-campaign.
+- **[Q59] Where Income+ comes from (PHASE14).** Built (14-a): taking an Income+ level adds
+  `campaign.incomeBonus`/s for the rest of the campaign (you capture its objectives to win it).
+  First proposal, not built: a level's income objectives (capture
+  points with `income`, e.g. island outposts [D111]) that are ours at the win add their income
+  to your base income for the rest of the campaign; a level tagged Income+ is one that has them.
+  "Unlocks: \<role\>" is a level reward with no map object (it doesn't change spawn logic).
+- **[Q60] Enemy funds curve (PHASE14, [D119]).** Built as proposed (14-a): a level's budget = its own budget +
+  (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
+  multiplier, capped at full. Battle minutes count only levels taken.

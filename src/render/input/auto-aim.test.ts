@@ -5,7 +5,12 @@ import { arena } from '../../sim/__tests__/helpers';
 import { createWorld, getView, spawnSoldier } from '../../sim/sim';
 import { damageShare } from '../../sim/combat/armor';
 import type { WorldView } from '../../sim/view';
-import { knobOffset, looksLikeTouch, stickVector } from '../../ui/touch/stick-math';
+import {
+  knobOffset,
+  looksLikeTouch,
+  sprintRingReached,
+  stickVector,
+} from '../../ui/touch/stick-math';
 import {
   AutoAimInput,
   autoAimError,
@@ -233,5 +238,14 @@ describe('rocket auto-aim (PHASE12-d)', () => {
     });
     off.observe(getView(w));
     expect(off.read({ x: 100, y: 500 }).aim).toBe(2);
+  });
+});
+
+describe('sprint ring (PHASE17, [D144])', () => {
+  it('sprints only with the thumb out at the outer ring', () => {
+    const o = { x: 100, y: 100 };
+    expect(sprintRingReached(o, { x: 160, y: 100 }, 80)).toBe(false);
+    expect(sprintRingReached(o, { x: 176, y: 100 }, 80)).toBe(true);
+    expect(sprintRingReached(o, { x: 100, y: 200 }, 80)).toBe(true);
   });
 });

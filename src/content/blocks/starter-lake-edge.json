@@ -28,6 +28,6 @@
     {"id":"obj6","kind":"objective","at":[3,3],"priority":0}
   ],
   "groups": [
-    {"id":"shore","units":[{"role":"gunner","priority":1},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"sniper","priority":4}]}
+    {"id":"shore","units":[{"role":"gunner","priority":2},{"role":"rifleman","priority":2},{"role":"rifleman","priority":3},{"role":"sniper","priority":4}]}
   ]
 }

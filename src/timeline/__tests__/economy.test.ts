@@ -17,6 +17,7 @@ import {
   formatMoney,
   moneyCurve,
   rateAt,
+  reservesLeft,
 } from '../economy';
 import { applyLossObservation } from '../losses';
 import { deriveSpawnOptions } from '../spawn-options';
@@ -238,5 +239,32 @@ describe('economy ([D51]–[D54])', () => {
     };
     const closed = deriveSpawnOptions(MAP, [], [], rules, caps, losses);
     expect(closed.some((o) => o.kind === 'new' && o.spawnPointId === 'fwd')).toBe(false);
+  });
+});
+
+describe('campaign reserves (PHASE14, [D117])', () => {
+  const map: MapDef = { ...MAP, economy: { reserves: { gunner: 1 } } };
+  it('the first spawn of a reserved role is free, later ones pay', () => {
+    const soldiers = [soldier(1, 60, 'gunner'), soldier(2, 120, 'gunner')];
+    const l = buildLedger({ map, tuning: T, soldiers, lanes: soldiers.map((s) => lane(s.id)) });
+    expect(l.purchases.map((p) => [p.cost, !!p.reserve])).toEqual([
+      [0, true],
+      [50, false],
+    ]);
+    expect(reservesLeft(l, 'gunner')).toBe(0);
+  });
+  it('a pending life uses a reserve left over, and never-spawned soldiers use none', () => {
+    const soldiers = [soldier(1, 60, 'gunner')];
+    const l = buildLedger({
+      map,
+      tuning: T,
+      soldiers,
+      lanes: [lane('S1', { kind: 'neverSpawned' })],
+      pending: { tick: 600, roleId: 'gunner' },
+    });
+    expect(l.purchases).toEqual([{ tick: 600, cost: 0, roleId: 'gunner', reserve: true }]);
+    expect(reservesLeft(buildLedger({ map, tuning: T, soldiers: [], lanes: [] }), 'gunner')).toBe(
+      1,
+    );
   });
 });

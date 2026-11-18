@@ -49,6 +49,8 @@ export interface Purchase {
   roleId: RoleId;
   /** Absent for a life that has no record yet (the one being played). */
   soldierId?: SoldierId;
+  /** (PHASE14) A campaign reserve ([D117]): a free spawn, cost 0. */
+  reserve?: true;
 }
 
 /** Everything that moves the money, from one truth. */
@@ -61,6 +63,8 @@ export interface Ledger {
   bounties: Bounty[];
   /** Sorted by tick. */
   purchases: Purchase[];
+  /** (PHASE14) Campaign reserves left per role after every purchase here ([D117]). */
+  reservesLeft?: Partial<Record<RoleId, number>>;
 }
 
 export interface LedgerInput {
@@ -112,18 +116,25 @@ export function buildLedger(input: LedgerInput): Ledger {
   const neverSpawned = new Set(
     input.lanes.filter((l) => l.end.kind === 'neverSpawned').map((l) => l.soldierId),
   );
+  // Every spawn in tick order (recorded soldiers by ordinal first, then the pending life), so
+  // the first ones of a role use up the campaign's reserves of it ([D117]).
+  const spawns: { tick: Tick; roleId: RoleId; soldierId?: SoldierId }[] = input.soldiers
+    .filter((s) => !neverSpawned.has(s.id)) // [Q31]: only soldiers who spawn are charged
+    .map((s) => ({ tick: s.spawnTick, roleId: s.roleId ?? 'rifleman', soldierId: s.id }));
+  if (input.pending) spawns.push({ tick: input.pending.tick, roleId: input.pending.roleId });
+  spawns.sort((a, b) => a.tick - b.tick); // stable: ordinal order within a tick
+  const left: Partial<Record<RoleId, number>> = { ...(map.economy?.reserves ?? {}) };
   const purchases: Purchase[] = [];
-  for (const s of input.soldiers) {
-    if (neverSpawned.has(s.id)) continue; // [Q31]: only soldiers who spawn are charged
-    const roleId = s.roleId ?? 'rifleman';
-    const cost = roleCost(roleId, tuning);
-    if (cost > 0) purchases.push({ tick: s.spawnTick, cost, roleId, soldierId: s.id });
+  for (const sp of spawns) {
+    const ids = sp.soldierId !== undefined ? { soldierId: sp.soldierId } : {};
+    if ((left[sp.roleId] ?? 0) > 0) {
+      left[sp.roleId] = left[sp.roleId]! - 1;
+      purchases.push({ tick: sp.tick, cost: 0, roleId: sp.roleId, ...ids, reserve: true });
+      continue;
+    }
+    const cost = roleCost(sp.roleId, tuning);
+    if (cost > 0) purchases.push({ tick: sp.tick, cost, roleId: sp.roleId, ...ids });
   }
-  if (input.pending) {
-    const cost = roleCost(input.pending.roleId, tuning);
-    if (cost > 0) purchases.push({ tick: input.pending.tick, cost, roleId: input.pending.roleId });
-  }
-  purchases.sort((a, b) => a.tick - b.tick);
 
   return {
     enabled: eco.enabled,
@@ -132,7 +143,13 @@ export function buildLedger(input: LedgerInput): Ledger {
     incomes,
     bounties,
     purchases,
+    reservesLeft: left,
   };
+}
+
+/** (PHASE14) Campaign reserves of a role still unused in this ledger ([D117]). */
+export function reservesLeft(l: Ledger, roleId: RoleId): number {
+  return l.reservesLeft?.[roleId] ?? 0;
 }
 
 /** Accrued income (base + captures) up to tick t. */

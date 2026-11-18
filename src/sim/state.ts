@@ -1,4 +1,5 @@
 import type { RocketEntity } from './entities/rocket';
+import type { BulletEntity } from './combat/shots';
 import type { Tuning } from '../content/tuning';
 import type { IdCounters } from './core/ids';
 import type { Tick } from './core/time';
@@ -48,6 +49,8 @@ export interface WorldState {
   coverDestroyed?: string[];
   /** (PHASE12-a) Rockets in flight, sorted by id. Optional for older snapshots. */
   rockets?: RocketEntity[];
+  /** (PHASE17) Bullets in flight ([D145]), in firing order (ids rise). Optional. */
+  bullets?: BulletEntity[];
   /** (05-a) Parallel to `map.capturePoints`. */
   capturePoints: CapturePointEntity[];
   /** Events emitted during the most recent tick. */

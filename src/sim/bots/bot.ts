@@ -26,11 +26,12 @@ import { circleOverlapsRect } from '../world/collision';
 import type { MapDef, SpawnPointId } from '../world/map';
 import { cellCenter, findPath, isCellOpen, syncNav, type NavGrid } from '../world/nav';
 
-export type BotKind = 'route' | 'hunter' | 'idler' | 'crowd';
-export const BOT_KINDS: readonly BotKind[] = ['route', 'hunter', 'idler', 'crowd'];
+/** (PHASE16) 'assault': heads for the objective flags and shoots enemy soldiers ([D135]). */
+export type BotKind = 'route' | 'hunter' | 'idler' | 'crowd' | 'assault';
+export const BOT_KINDS: readonly BotKind[] = ['route', 'hunter', 'idler', 'crowd', 'assault'];
 
 /** Relative weights of each kind in an army. */
-export type BotMix = Record<BotKind, number>;
+export type BotMix = Partial<Record<BotKind, number>>;
 export const DEFAULT_BOT_MIX: BotMix = { route: 40, hunter: 15, idler: 15, crowd: 30 };
 
 export interface BotPlan {
@@ -47,6 +48,8 @@ export interface BotPlan {
   engageRange: number;
   /** After the last goal: mill around it within this radius until `maxTicks` (0 = stand). */
   millRadius: number;
+  /** (PHASE16) Also shoots enemy soldiers it can hit (assault bots). */
+  shootEnemies?: boolean;
 }
 
 export interface BotPlanParams {
@@ -171,6 +174,29 @@ export function planBot(p: BotPlanParams): BotPlan {
       plan.dwell.push(maxTicks);
       break;
     }
+    case 'assault': {
+      // (PHASE16) Toward the objective flags, nearest first (one or two of them), with a stop
+      // at a forward point on the way now and then; hold each flag long enough to take it.
+      const flags = (map.capturePoints ?? [])
+        .filter((c) => c.objective)
+        .map((c) => c.position)
+        .sort((a, b) => distance(sp, a) - distance(sp, b));
+      const forward = (map.capturePoints ?? []).filter((c) => !c.objective).map((c) => c.position);
+      const hold = secondsToTicks(tuning.capture.stageSeconds * 2 + 1);
+      if (forward.length && nextFloat(rng) < 0.5) {
+        plan.goals.push(forward[nextInt(rng, 0, forward.length - 1)]!);
+        plan.dwell.push(hold);
+      }
+      const k = Math.min(flags.length, nextInt(rng, 1, 2));
+      const pick = nextInt(rng, 0, Math.max(0, flags.length - k));
+      for (const f of flags.slice(pick, pick + k)) {
+        plan.goals.push(f);
+        plan.dwell.push(hold);
+      }
+      plan.engageRange = tuning.rifle.range * 0.9;
+      plan.shootEnemies = true;
+      break;
+    }
     case 'crowd': {
       plan.goals.push(rallyPoint(map, tuning, spawnPointId));
       plan.dwell.push(0);
@@ -243,7 +269,12 @@ function trafficAhead(world: World, me: SoldierState, dir: Vec2): boolean {
 }
 
 /** Angle to the nearest hazard a shot from here would actually hit, or null. */
-function huntTarget(world: World, me: SoldierState, range: number): number | null {
+function huntTarget(
+  world: World,
+  me: SoldierState,
+  range: number,
+  shootEnemies = false,
+): number | null {
   const { map, state: st, tuning } = world;
   let best: { d: number; angle: number } | null = null;
   const consider = (id: string, pos: Vec2, minD: number) => {
@@ -256,6 +287,12 @@ function huntTarget(world: World, me: SoldierState, range: number): number | nul
   (map.turrets ?? []).forEach((def, i) => {
     if (st.turrets[i]!.mode !== 'destroyed') consider(def.id, def.position, 0);
   });
+  // (PHASE16) Assault bots shoot enemy soldiers too.
+  if (shootEnemies) {
+    for (const e of st.soldiers) {
+      if (e.team === 'enemy' && e.alive && e.interactive) consider(e.id, e, 0);
+    }
+  }
   // Never shoot a mine you're standing next to.
   (map.mines ?? []).forEach((def, i) => {
     if (st.mines[i]!.state !== 'detonated') {
@@ -284,7 +321,8 @@ export function createBotDriver(plan: BotPlan): BotDriver {
 
     // Hunters stop and shoot whatever hazard they can hit.
     if (plan.engageRange > 0) {
-      if (ticks % HUNT_EVERY_TICKS === 1) huntAngle = huntTarget(world, me, plan.engageRange);
+      if (ticks % HUNT_EVERY_TICKS === 1)
+        huntAngle = huntTarget(world, me, plan.engageRange, plan.shootEnemies);
       if (huntAngle !== null) return { ...IDLE_INPUT, aim: huntAngle, fire: true };
     }
 
