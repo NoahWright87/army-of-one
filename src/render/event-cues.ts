@@ -117,7 +117,9 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
           hostile: !friendly,
           byId: e.by,
         });
-        out.push({ type: 'impact', x: e.hitX, y: e.hitY });
+        // A flying bullet's hitX/hitY is just where its range runs out: its puff comes from
+        // `bulletStopped`, where (and when) it really stops.
+        if (!e.flying) out.push({ type: 'impact', x: e.hitX, y: e.hitY });
         const from = { x: e.fromX, y: e.fromY };
         if (shooterKind === 'turret')
           sound('sfx_turret_shot', from, style === 'incoming' ? 1 : 0.8);

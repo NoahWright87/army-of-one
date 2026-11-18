@@ -74,3 +74,19 @@ describe('near misses and covering fire ([D146])', () => {
     expect(firedBack).toBe(true);
   });
 });
+
+describe('where a bullet stops ([D146])', () => {
+  it('a bullet that hits a wall stops on the near face, not behind it', () => {
+    const w = createWorld(arena({ walls: [{ x: 400, y: 300, w: 60, h: 400 }] }), T);
+    const me = soldierAt(w, { x: 100, y: 500 });
+    fireGun(w, me, getSoldier(w, me)!, 0, 'rifle', 'player');
+    let at: number | null = null;
+    for (let i = 0; i < 60 && at === null; i++) {
+      const ev = run(w, 1).find((e) => e.kind === 'bulletStopped');
+      if (ev && ev.kind === 'bulletStopped') at = ev.x;
+    }
+    expect(at).not.toBeNull();
+    expect(at!).toBeLessThanOrEqual(400 + 0.5);
+    expect(at!).toBeGreaterThan(380);
+  });
+});
