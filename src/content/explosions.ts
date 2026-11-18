@@ -7,7 +7,7 @@ export const EXPLOSION_SHEETS = {
     frameHeight: 128,
     columns: 8,
     rows: 3,
-    frameRate: 20,
+    frameRate: 30,
   },
   large: {
     key: 'fx_explosion_large',
@@ -16,7 +16,7 @@ export const EXPLOSION_SHEETS = {
     frameHeight: 256,
     columns: 8,
     rows: 3,
-    frameRate: 14,
+    frameRate: 24,
   },
 } as const;
 

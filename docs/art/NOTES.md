@@ -6,6 +6,12 @@ reason), questions for the owner, and anything the integration phase
 ([todos/PHASE16-miniatures.md](../../todos/PHASE16-miniatures.md)) must know (e.g. a figure that
 needed a different `fitPx`).
 
+## 2026-11-18 — faster explosion playback
+
+Owner requested quicker bursts. Small explosions now play at 30 fps (~267 ms), large at
+24 fps (~333 ms), retaining all eight frames and all three variations. Pooled-effect lifetimes
+are derived from those rates. No sheet or simulation changes.
+
 ## 2026-11-17 — animated overhead explosion sheets ([D127])
 
 Delivered `assets/effects/explosion_small.png` (1024×384, 128 px frames) and

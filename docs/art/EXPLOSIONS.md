@@ -7,8 +7,8 @@ side-view plume, horizon, mushroom cloud or baked terrain.
 
 | Sheet | Frame | Grid | PNG size | Playback | Used for |
 |---|---|---|---|---|---|
-| `explosion_small.png` | 128×128 | 8 columns × 3 rows | 1024×384 | 20 fps, 400 ms | Grenades, breaking cover |
-| `explosion_large.png` | 256×256 | 8 columns × 3 rows | 2048×768 | 14 fps, ~571 ms | Mines, rockets/shells, destroyed hazards/objectives |
+| `explosion_small.png` | 128×128 | 8 columns × 3 rows | 1024×384 | 30 fps, ~267 ms | Grenades, breaking cover |
+| `explosion_large.png` | 256×256 | 8 columns × 3 rows | 2048×768 | 24 fps, ~333 ms | Mines, rockets/shells, destroyed hazards/objectives |
 
 Rows: round lobed fireburst; jagged radial blast/dust/debris; irregular clustered fire puffs.
 Each sequence progresses through ignition, expansion, peak fire, smoke/embers and dissipation.
