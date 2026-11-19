@@ -33,7 +33,7 @@ import{_ as e,b as t,c as n,g as r,h as i,i as a,m as o,n as s,o as c,p as l,s a
 .capflag path { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
 .capflag.unconf path { fill: #35e0ff; }
 .capflag .hit { fill: transparent; }
-.capline { stroke: #4ade80; stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; }
+.capline { stroke: #4ade80; stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; pointer-events: none; }
 .mk-capture .flag { fill: #4ade80; stroke: #0b3d1f; stroke-width: 1; }
 .mk-capture .pole { stroke: #d6f5e0; stroke-width: 1.5; }
 
