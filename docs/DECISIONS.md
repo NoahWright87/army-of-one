@@ -736,6 +736,18 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   "walk it off" regen) → a rifleman behind a bullet-proof parapet (unlocks the Grenadier) →
   graduation flag → results → HQ.
 
+- **[D156] Basic training is on rails** (owner, 2026-11). "Hand the player the winning formula
+  and let them play it out": every station leaves one obvious way through and makes the
+  intended outcome happen to a player who just does the obvious thing. A checkpoint flag right
+  before each fight (you always respawn at the door); floor chevrons (`>>>`) show where to go,
+  big red ones where to sprint; the MG chute is a walled lane with no way round, its gate opens
+  a few seconds after Alpha is taken (time for the next soldier to get there and shoot the
+  mines, saving the first); ambushes are close and deadly; the respawn screen always walks you
+  back in at your newest flag. Basic training's own tuning makes the lessons land (instant
+  mines, a stronger Shield, a bigger grenade blast, quick flags).
+- **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
+  they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

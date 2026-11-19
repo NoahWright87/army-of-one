@@ -54,10 +54,16 @@ describe('basic training director', () => {
     expect(lines).toContain('bt.r4.done');
     expect(bt.roles()).toContain('shield');
     expect(BASIC_TRAINING.roles).toContain('shield');
-    const hint = bt.respawnHint([{ kind: 'new', spawnPointId: 'bt-sp-b', entryTick: 0 }]);
-    expect(hint).toMatchObject({ kind: 'role', role: 'shield' });
+    const opts = [
+      { kind: 'new' as const, spawnPointId: 'bt-start', entryTick: 0 },
+      { kind: 'new' as const, spawnPointId: 'bt-sp-b', entryTick: 0 },
+    ];
+    const hint = bt.respawnHint(opts);
+    // Back in at the newest flag, as the Shield.
+    expect(hint).toMatchObject({ kind: 'spawn', spawnPointId: 'bt-sp-b', role: 'shield' });
     bt.followed(hint!);
-    expect(bt.respawnHint([{ kind: 'new', spawnPointId: 'bt-sp-b', entryTick: 0 }])).toBeNull();
+    expect(bt.respawnHint(opts)).toMatchObject({ kind: 'spawn', spawnPointId: 'bt-sp-b' });
+    expect(bt.respawnHint(opts)).not.toHaveProperty('role');
   });
 
   it('a saved soldier (an O) is taught before anything else', () => {

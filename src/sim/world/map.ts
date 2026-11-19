@@ -259,6 +259,8 @@ export interface MapTrigger {
   id: string;
   when: { captured: string } | { destroyed: readonly string[] } | { squadDead: string };
   openGate: string;
+  /** Opens this many seconds after the condition is first met (default at once). */
+  delaySeconds?: number;
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

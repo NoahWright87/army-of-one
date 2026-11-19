@@ -772,6 +772,8 @@ export const STRINGS = {
   'spawn.basic.start': 'Barracks',
   'spawn.basic.a': 'Alpha flag',
   'spawn.basic.b': 'Bravo flag',
+  'spawn.basic.c': 'Charlie flag',
+  'spawn.basic.d': 'Delta flag',
   'spawn.basic.grad': 'Graduation',
 
   // Basic training: the drill sergeant (speech markup) and the course's signs.
@@ -790,7 +792,10 @@ export const STRINGS = {
   'bt.r3.mine': 'Watch your [red]step[/]! [p=200][shake]MINES!',
   'bt.r3.shot': 'You call that [shake]sprinting[/]?!',
   'bt.r3.back': "You got shot. You came back. [p]That's how it works here, son.",
-  'bt.r3.minesHint': 'Shoot those [red]mines[/] from back here. [p]THEN run!',
+  'bt.r3.minesHint': "Those [red]mines[/]! [p]Shoot 'em the second that gate opens. [p]THEN run!",
+  'bt.r2.gate': "When that gate opens: [shake]SPRINT![/] [p]Don't stop till you're through!",
+  'bt.flag.c': 'Flag! [p=200]Take it. [p]If it goes bad in there, you start right here.',
+  'bt.flag.d': 'Another flag. [p=200]You know the drill.',
   'bt.r3.minesEarly':
     '[shake]Shooting the mines?! [p][words]Somebody give this maggot a [gold]medal[/]!',
   'bt.r3.minesDone': "That's it! [p=200]Blow 'em from a distance! [p]Now [shake]RUN!",
@@ -823,6 +828,7 @@ export const STRINGS = {
   'bt.coach.deploy': 'Click DEPLOY to start',
   'bt.coach.deployNow': 'Now DEPLOY',
   'bt.coach.spawnA': 'Deploy at Alpha, the flag you took',
+  'bt.coach.spawn': 'Deploy at {place}, your newest flag',
   'bt.coach.resume': "He's alive! Pick his O to take over where he left off",
   'bt.coach.role': 'New class: {role}. Pick it here',
   'bt.coach.roleItem': 'Pick {role}',

@@ -52,3 +52,8 @@ doesn't feel like one. Built in a lab first so the owner can tune the look by ey
 - Basic training's progress (`aoo:bt:v1`) holds lines said, unlocks and hints followed; graduating
   sets `aoo:bt:done`. Starting it again from the HQ (`&new=1`) resets both the save and progress.
 - The first-visit redirect only happens on a bare `/`; `?scene=hub` always opens the HQ.
+- Basic training tightened ([D156]): checkpoint flags (C, D) before the fights, the R3 chute (a
+  wall where it's safe, a fence where the MG sees you), `MapTrigger.delaySeconds` (the chute gate),
+  floor chevrons (`BT_CHEVRONS`, drawn by the overlay), always-on respawn hint to the newest flag.
+  `src/sim/__tests__/basic-training.test.ts` plays a naive player through every station (incl.
+  the mine save); a browser "cold player" bot that only follows the screen was run end to end.

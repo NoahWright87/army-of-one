@@ -14,6 +14,26 @@ respawn. Read these before doing anything substantial:
    DECISIONS.md wins.**
 3. `todos/README.md` and the phase doc you were assigned.
 
+## Player experience comes first
+
+The most important thing in this repo is how it feels to a real player. Design, build and test for
+**the player coming in cold**: not a perfect user, and not you.
+
+- **They won't read much.** A few words, at a glance, while something is shooting at them. If a
+  feature needs a paragraph to be understood, it isn't done.
+- **They want fun, fast.** Every app on their phone is competing for their attention. Get them to
+  the good part quickly; never make them wait, wander or guess.
+- **Hand them the winning move and let them play it out.** Teach with the game's own mechanics
+  (a station that can only be passed one way beats any tooltip). Guided ("on rails") is fine as
+  long as it feels like they're the one doing it.
+- **Playtest as that player, honestly.** Don't teleport, script around problems, or play
+  perfectly when judging a flow. Ask: how much did I have to steer vs. how much did the game lead
+  me? Where would a newcomer hesitate, miss the point, or die "by accident"? Report what you saw,
+  including what you didn't test.
+- For guided content, back it with headless "naive player" tests that do only the obvious thing
+  and assert the intended outcome (`src/sim/__tests__/basic-training.test.ts` is the pattern),
+  plus a browser run of a bot that only follows what's on screen.
+
 ## Ground rules
 
 - **Do not invent gameplay rules.** The product owner is opinionated. If a task needs a

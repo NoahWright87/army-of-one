@@ -7,7 +7,13 @@
  * few that may repeat after a cooldown (getting shot, nagging, shooting at him).
  */
 import type { RoleId, SpawnOption } from '../contracts/mission';
-import { BASIC_TRAINING, BT_TARGETS, btRoomAt, type BtRoom } from '../content/maps/basic-training';
+import {
+  BASIC_TRAINING,
+  BT_CORRIDOR_X,
+  BT_TARGETS,
+  btRoomAt,
+  type BtRoom,
+} from '../content/maps/basic-training';
 import type { StringKey } from '../content/strings';
 import type { SoldierView, WorldView } from '../sim/view';
 import type { TextStorage } from './replay-library';
@@ -43,9 +49,21 @@ const fresh = (): BtProgress => ({
 /** What the respawn screen's coach points at. */
 export type BtHint =
   | { kind: 'deploy'; text: StringKey }
-  | { kind: 'spawn'; spawnPointId: string; text: StringKey }
   | { kind: 'resume'; soldierId: string; text: StringKey }
-  | { kind: 'role'; role: RoleId; text: StringKey };
+  /**
+   * Back in at your newest flag (`spawnPointId`, null: the start), as the newly unlocked class
+   * if there is one (`role`).
+   */
+  | {
+      kind: 'spawn';
+      spawnPointId: string | null;
+      text: StringKey;
+      place: string;
+      role?: RoleId;
+    };
+
+/** Flags' spawn points, newest (furthest north) first. */
+const FORWARD = ['bt-sp-d', 'bt-sp-c', 'bt-sp-b', 'bt-sp-a'] as const;
 
 /** Lines said again after this long (the repeatable ones). */
 const REPEAT_MS = 15_000; // TUNE
@@ -130,7 +148,7 @@ export class BasicTraining {
           break;
         case 'captureStageChanged':
           if (e.stage !== 'ours') break;
-          if (e.id === 'bt-a') out.push(...this.once(['bt.r2.done']));
+          if (e.id === 'bt-a') out.push(...this.once(['bt.r2.done', 'bt.r2.gate']));
           if (e.id === 'bt-b') {
             this.unlock('shield');
             out.push(...this.once(['bt.r4.done']));
@@ -191,25 +209,27 @@ export class BasicTraining {
       return { kind: 'resume', soldierId: resume.soldierId, text: 'bt.coach.resume' };
     }
     const role = p.unlocked.find((r) => r !== 'rifleman' && !taught(`role:${r}`));
-    if (role) return { kind: 'role', role, text: 'bt.coach.role' };
-    const a = options.find((o) => o.kind === 'new' && o.spawnPointId === 'bt-sp-a');
-    if (a && (p.deathsIn.r3 ?? 0) > 0 && !taught('spawnA')) {
-      return { kind: 'spawn', spawnPointId: 'bt-sp-a', text: 'bt.coach.spawnA' };
-    }
-    return null;
+    const sp =
+      FORWARD.find((id) => options.some((o) => o.kind === 'new' && o.spawnPointId === id)) ?? null;
+    const def = sp ? BASIC_TRAINING.spawnPoints.find((x) => x.id === sp) : undefined;
+    return {
+      kind: 'spawn',
+      spawnPointId: sp,
+      text: sp === 'bt-sp-a' && !taught('spawnA') ? 'bt.coach.spawnA' : 'bt.coach.spawn',
+      place: def?.nameKey ?? '',
+      ...(role ? { role } : {}),
+    };
   }
 
   /** The player deployed with this hint showing: it's been taught. */
   followed(h: BtHint): void {
-    const k =
-      h.kind === 'role'
-        ? `role:${h.role}`
-        : h.kind === 'resume'
-          ? 'resume'
-          : h.kind === 'spawn'
-            ? 'spawnA'
-            : 'deploy';
-    if (!this.progress.taught.includes(k)) this.progress.taught.push(k);
+    const keys: string[] = [];
+    if (h.kind === 'resume') keys.push('resume');
+    if (h.kind === 'spawn') {
+      if (h.role) keys.push(`role:${h.role}`);
+      if (h.spawnPointId === 'bt-sp-a') keys.push('spawnA');
+    }
+    for (const k of keys) if (!this.progress.taught.includes(k)) this.progress.taught.push(k);
     this.save();
   }
 
@@ -223,8 +243,12 @@ export class BasicTraining {
         return this.progress.minesDone ? [] : this.once(['bt.r3.enter']);
       case 'r4':
         return this.once(['bt.r4.enter']);
+      case 'r5f':
+        return this.once(['bt.flag.c']);
       case 'r5':
         return this.once(['bt.r5.enter']);
+      case 'r6f':
+        return this.once(['bt.flag.d']);
       case 'r6':
         return this.once(['bt.r6.enter']);
       case 'r7':
@@ -242,7 +266,7 @@ export class BasicTraining {
     if (r === 'r3' && !p.minesDone) {
       return this.again(cause === 'mine' ? 'bt.r3.mine' : 'bt.r3.shot', nowMs);
     }
-    if (r === 'r4' && me && me.x > 1006) return this.once(['bt.r4.surprise']);
+    if (r === 'r4' && me && me.x > BT_CORRIDOR_X) return this.once(['bt.r4.surprise']);
     if (r === 'r5') this.unlock('gunner');
     if (r === 'r6') this.unlock('grenadier');
     return [];

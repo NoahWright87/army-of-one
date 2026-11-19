@@ -5,7 +5,7 @@
  */
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
-import { BT_FENCE_X, BT_H, BT_SARGE_X } from '../content/maps/basic-training';
+import { BT_CHEVRONS, BT_FENCE_X, BT_H, BT_SARGE_X } from '../content/maps/basic-training';
 import type { SignDef } from '../content/sign-styles';
 import { str, type StringKey } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
@@ -44,6 +44,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let signs: SignpostLayer;
   let body: Phaser.GameObjects.Image;
   let tag: Phaser.GameObjects.Text;
+  let floor: Phaser.GameObjects.Graphics;
   const queue: { key: StringKey; at: number }[] = [];
   let lastFrame = -1;
   let quietUntil = 0;
@@ -59,6 +60,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const look = cloneWorldText();
       speech = new SpeechLayer(scene, look);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
+      floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
       body = scene.add
         .image(sarge.x, sarge.y, 'npc_sarge')
         .setScale(SARGE_SIZE / fitPx('npc_sarge'))
@@ -113,6 +115,48 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       }
       speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
       signs.update(nowMs, live, input.fire);
+      drawChevrons(floor, nowMs);
     },
   };
+}
+
+/** Spacing and size of the floor chevrons (world units). */
+const CHEVRON_GAP = 46;
+const CHEVRON_SIZE = 16;
+
+/**
+ * Where to go: chevrons on the floor, marching along each path (a brighter pulse runs from start
+ * to end). The sprint lane's are bigger and red.
+ */
+function drawChevrons(g: Phaser.GameObjects.Graphics, nowMs: number): void {
+  g.clear();
+  for (const c of BT_CHEVRONS) {
+    const dx = c.to.x - c.from.x;
+    const dy = c.to.y - c.from.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    const ux = dx / len;
+    const uy = dy / len;
+    const size = c.sprint ? CHEVRON_SIZE * 1.8 : CHEVRON_SIZE;
+    const gap = c.sprint ? CHEVRON_GAP * 1.3 : CHEVRON_GAP;
+    const n = Math.max(1, Math.floor(len / gap));
+    const color = c.sprint ? 0xff5a3c : 0xffd34d;
+    const speed = c.sprint ? 0.004 : 0.0025;
+    for (let i = 0; i <= n; i++) {
+      const x = c.from.x + ux * i * gap;
+      const y = c.from.y + uy * i * gap;
+      // The pulse: each chevron lights up as it passes.
+      const phase = (nowMs * speed - i * 0.35) % 3;
+      const lit = Math.max(0, 1 - Math.abs(((phase + 3) % 3) - 0.5));
+      g.lineStyle(c.sprint ? 7 : 5, color, 0.25 + 0.6 * lit);
+      // A "V" pointing along (ux, uy).
+      const bx = x - ux * size;
+      const by = y - uy * size;
+      g.beginPath();
+      g.moveTo(bx - uy * size, by + ux * size);
+      g.lineTo(x, y);
+      g.lineTo(bx + uy * size, by - ux * size);
+      g.strokePath();
+    }
+  }
 }

@@ -328,38 +328,41 @@ function coachSteps(h: BtHint): CoachStep[] {
     target: () => firstVisible(rs(), '.rs-deploy'),
     text,
   });
+  const pick = (key: string, text: string): CoachStep => ({
+    target: () => firstVisible(rs(), `[data-select="${key}"]`),
+    text,
+    done: () => !!rs().querySelector(`.sel[data-select="${key}"]`),
+  });
   switch (h.kind) {
     case 'deploy':
       return [deploy(str(h.text))];
-    case 'spawn':
-    case 'resume': {
-      const key = h.kind === 'spawn' ? `new:${h.spawnPointId}` : `resume:${h.soldierId}`;
-      return [
-        {
-          target: () => firstVisible(rs(), `[data-select="${key}"]`),
-          text: str(h.text),
-          done: () => !!rs().querySelector(`.sel[data-select="${key}"]`),
-        },
-        deploy(str('bt.coach.deployNow')),
-      ];
-    }
-    case 'role': {
-      const name = str(roleDef(h.role).nameKey);
-      const picked = () => firstVisible(rs(), '.rs-role-btn')?.getAttribute('title') === name;
-      const menuOpen = () => !!firstVisible(rs(), '.rs-role-menu');
-      return [
-        {
-          target: () => firstVisible(rs(), '.rs-role-btn'),
-          text: str('bt.coach.role', { role: name }),
-          done: () => menuOpen() || picked(),
-        },
-        {
-          target: () => firstVisible(rs(), `[data-role="${h.role}"]`),
-          text: str('bt.coach.roleItem', { role: name }),
-          done: picked,
-        },
-        deploy(str('bt.coach.deployNow')),
-      ];
+    case 'resume':
+      return [pick(`resume:${h.soldierId}`, str(h.text)), deploy(str('bt.coach.deployNow'))];
+    case 'spawn': {
+      const steps: CoachStep[] = [];
+      if (h.spawnPointId) {
+        steps.push(pick(`new:${h.spawnPointId}`, str(h.text, { place: strDynamic(h.place) })));
+      }
+      if (h.role) {
+        const role = h.role;
+        const name = str(roleDef(role).nameKey);
+        const picked = () => firstVisible(rs(), '.rs-role-btn')?.getAttribute('title') === name;
+        const menuOpen = () => !!firstVisible(rs(), '.rs-role-menu');
+        steps.push(
+          {
+            target: () => firstVisible(rs(), '.rs-role-btn'),
+            text: str('bt.coach.role', { role: name }),
+            done: () => menuOpen() || picked(),
+          },
+          {
+            target: () => firstVisible(rs(), `[data-role="${role}"]`),
+            text: str('bt.coach.roleItem', { role: name }),
+            done: picked,
+          },
+        );
+      }
+      steps.push(deploy(str('bt.coach.deployNow')));
+      return steps;
     }
   }
 }

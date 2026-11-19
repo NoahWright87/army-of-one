@@ -5,6 +5,7 @@
  */
 import { emit, type World } from '../state';
 import type { MapTrigger } from './map';
+import { secondsToTicks } from '../core/time';
 
 function met(world: World, t: MapTrigger): boolean {
   const st = world.state;
@@ -29,6 +30,11 @@ export function stepTriggers(world: World): void {
   const st = world.state;
   for (const t of triggers) {
     if (st.triggered?.includes(t.id) || !met(world, t)) continue;
+    if (t.delaySeconds) {
+      const met = (st.triggerMet ??= {});
+      const since = met[t.id] ?? (met[t.id] = st.tick);
+      if (st.tick - since < secondsToTicks(t.delaySeconds)) continue;
+    }
     st.triggered = [...(st.triggered ?? []), t.id].sort();
     const gate = st.gates.find((g) => g.id === t.openGate);
     if (gate && !gate.open) {
