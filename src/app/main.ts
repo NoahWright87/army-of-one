@@ -20,6 +20,11 @@ import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
 import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
+import { BasicTraining, BT_DONE_KEY, type BtHint } from './basic-training';
+import { basicTrainingOverlay } from './basic-training-overlay';
+import { BASIC_TRAINING_ID, BASIC_TRAINING_TUNING } from '../content/maps/basic-training';
+import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
+import { roleDef } from '../content/roles';
 import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
 import { PreloadScene } from '../render/phaser/preload-scene';
@@ -184,6 +189,8 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
   if (preview) registerMap(preview);
 }
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+/** (PHASE18) Basic training ([D155]): its drill sergeant and its progress (unlocks, hints). */
+const training = MISSION.id === BASIC_TRAINING_ID ? new BasicTraining(safeLocalStorage()) : null;
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
 /** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
@@ -294,7 +301,8 @@ function gameTuning() {
   const base = campaignBattle
     ? withTuning(DEFAULT_TUNING, DIFFICULTY[campaignBattle.difficulty].tuning)
     : DEFAULT_TUNING;
-  const t = effectiveTuning(settings, base);
+  // (PHASE18) Basic training: no money, enemies don't heal.
+  const t = effectiveTuning(settings, training ? withTuning(base, BASIC_TRAINING_TUNING) : base);
   const flag = params.get('enemies');
   const off = flag === '0' || (params.has('autoplay') && flag !== '1');
   return off ? withTuning(t, { ai: { enabled: false } }) : t;
@@ -310,6 +318,51 @@ const caption = new Caption(uiRoot);
 const busy = new Busy(uiRoot);
 const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
+/** (PHASE18) Points at the one control that matters (basic training's respawn hints). */
+const coach = new Coach(uiRoot);
+
+/** (PHASE18) The coach's steps for a basic-training hint on the respawn screen. */
+function coachSteps(h: BtHint): CoachStep[] {
+  const rs = () => document.querySelector('.aoo-respawn') ?? document.body;
+  const deploy = (text: string): CoachStep => ({
+    target: () => firstVisible(rs(), '.rs-deploy'),
+    text,
+  });
+  switch (h.kind) {
+    case 'deploy':
+      return [deploy(str(h.text))];
+    case 'spawn':
+    case 'resume': {
+      const key = h.kind === 'spawn' ? `new:${h.spawnPointId}` : `resume:${h.soldierId}`;
+      return [
+        {
+          target: () => firstVisible(rs(), `[data-select="${key}"]`),
+          text: str(h.text),
+          done: () => !!rs().querySelector(`.sel[data-select="${key}"]`),
+        },
+        deploy(str('bt.coach.deployNow')),
+      ];
+    }
+    case 'role': {
+      const name = str(roleDef(h.role).nameKey);
+      const picked = () => firstVisible(rs(), '.rs-role-btn')?.getAttribute('title') === name;
+      const menuOpen = () => !!firstVisible(rs(), '.rs-role-menu');
+      return [
+        {
+          target: () => firstVisible(rs(), '.rs-role-btn'),
+          text: str('bt.coach.role', { role: name }),
+          done: () => menuOpen() || picked(),
+        },
+        {
+          target: () => firstVisible(rs(), `[data-role="${h.role}"]`),
+          text: str('bt.coach.roleItem', { role: name }),
+          done: picked,
+        },
+        deploy(str('bt.coach.deployNow')),
+      ];
+    }
+  }
+}
 const complete = new CompleteScreen(uiRoot);
 const results = new ResultsScreen(uiRoot); // (07-a)
 const quickHint = new QuickRedeployHint(uiRoot);
@@ -451,7 +504,20 @@ const game = new Phaser.Game({
 });
 if (mode === 'arena') void startArena();
 if (mode === 'textlab') void startTextLab();
-if (mode === 'hub') {
+/** (PHASE18) A first visit goes to basic training; graduates land in the HQ. */
+function trainingDone(): boolean {
+  try {
+    return window.localStorage.getItem(BT_DONE_KEY) === '1';
+  } catch {
+    return true;
+  }
+}
+if (mode === 'hub' && sceneParam === null && !trainingDone()) {
+  const u = new URL(window.location.href);
+  u.searchParams.set('mission', BASIC_TRAINING_ID);
+  u.searchParams.set('go', '1');
+  window.location.replace(u.toString());
+} else if (mode === 'hub') {
   startHub({
     game,
     tuning: gameTuning(),
@@ -536,7 +602,17 @@ async function startGame(): Promise<void> {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
       // (PHASE18) So does a skirmish picked in the HQ.
-      if (campaignBattle || fromHub) {
+      if (campaignBattle || fromHub || training) {
+        // (PHASE18) Basic training from the start (the HQ's "again", or nothing saved yet).
+        const restart = params.get('new') === '1' || !p.canContinue;
+        if (training && restart) {
+          training.reset();
+          const u = new URL(window.location.href);
+          u.searchParams.delete('new');
+          window.history.replaceState(null, '', u.toString());
+          p.onNew();
+          return;
+        }
         if (p.canContinue) p.onContinue();
         else p.onNew();
         return;
@@ -578,6 +654,9 @@ async function startGame(): Promise<void> {
         ...(backTo ? { back: backTo } : {}),
       });
       respawn = screen;
+      // (PHASE18) Basic training: the coach points at what to do on this screen.
+      const hint = training?.respawnHint(props.options) ?? null;
+      if (hint) coach.show(coachSteps(hint));
       // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
       // the separate hint stays hidden while the screen is up.
       quickHint.set(null);
@@ -588,10 +667,25 @@ async function startGame(): Promise<void> {
           screen.destroy();
           if (respawn === screen) respawn = null;
           notice.show(null);
+          if (hint) {
+            coach.hide();
+            training?.followed(hint);
+          }
         },
       };
     },
     showComplete: (stats, onPlayAgain, extra) => {
+      if (training) {
+        // (PHASE18) Graduated: from now on the front door is the HQ.
+        try {
+          window.localStorage.setItem(BT_DONE_KEY, '1');
+        } catch {
+          // just this visit
+        }
+        if (!extra) complete.show(stats, openHub);
+        else showResults(extra, openHub, { title: str('bt.graduated'), playLabel: str('bt.toHq') });
+        return;
+      }
       if (campaignBattle) {
         // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
         if (extra) takeCampaignLevel(extra);
@@ -900,6 +994,8 @@ async function startGame(): Promise<void> {
         makeInput: (scene: Phaser.Scene) =>
           autopilot.inputFor(run) ??
           makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
+        // (PHASE18) Basic training's drill sergeant and signs.
+        ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
       },
     });
   };
@@ -969,7 +1065,7 @@ async function startGame(): Promise<void> {
       resumeOnReload: settings.getBool(GAME_SETTING_IDS.resumeOnReload),
       // Autoplay deploys its own first life from the respawn screen.
       skipEmptyRespawn: () =>
-        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active,
+        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active && !training,
       spinnerThresholdMs: () => settings.getNumber(GAME_SETTING_IDS.spinnerThresholdMs),
     },
     onEvent: (e) => {

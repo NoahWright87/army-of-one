@@ -24,7 +24,12 @@ doesn't feel like one. Built in a lab first so the owner can tune the look by ey
       frame; 1–9 / E keys). `/` opens it; `?scene=title` is the old menu; a skirmish started there
       is `?mission=<id>&go=1` (no title screen, "← HQ" back).
 - [ ] Signs on maps (`MapDef.signs`) and in the block editor.
-- [ ] The tutorial mission (first visit), re-enterable from the HQ.
+- [x] Basic training ([D155]): `src/content/maps/basic-training.ts` (the course),
+      `src/app/basic-training.ts` (the drill sergeant's director: lines, unlocks, respawn hints),
+      `src/app/basic-training-overlay.ts` (draws him and the course's signs), `src/ui/coach/coach.ts`
+      (the reusable UI coach). Sim additions any map can use: `MapDef.triggers` (gates that open on
+      a capture / targets down / squad dead), `ObjectiveDef.target` (practice targets),
+      `SquadDef.hold` (a gun nest that never moves).
 
 ## Notes from implementation
 
@@ -42,3 +47,8 @@ doesn't feel like one. Built in a lab first so the owner can tune the look by ey
   the battle's. New sim helpers for it: `resetSoldier` (fresh life in place, same id; used for
   the class rack and respawns) and `setGateOpen`.
 - Range targets are enemy soldiers with the AI off (`hubTuning`); they get back up after 2 s.
+- Fixed on the way (all missions): a flying bullet only fired over cover on its first tick, so a
+  gunner braced on sandbags shot into them (`castRay`'s `fireOverFrom`: judged from the shooter).
+- Basic training's progress (`aoo:bt:v1`) holds lines said, unlocks and hints followed; graduating
+  sets `aoo:bt:done`. Starting it again from the HQ (`&new=1`) resets both the save and progress.
+- The first-visit redirect only happens on a bare `/`; `?scene=hub` always opens the HQ.

@@ -17,6 +17,8 @@ export interface SayOptions {
   echo?: boolean;
   /** Default text colour (markup colours win). */
   color?: string;
+  /** (PHASE18) Never off screen: slides to the edge if the speaker is out of view. */
+  keepOnScreen?: boolean;
 }
 
 interface LiveLine {
@@ -38,6 +40,7 @@ interface LiveLine {
   box: { minX: number; maxX: number; minY: number };
   /** Lifted this far (screen px, ≤ 0) so it doesn't cover an older line. */
   shift: number;
+  keepOnScreen: boolean;
 }
 
 export class SpeechLayer {
@@ -165,6 +168,7 @@ export class SpeechLayer {
         minY: Math.min(0, ...placed.map((pl, i) => pl.y - (t.fontPx * parsed.glyphs[i]!.size) / 2)),
       },
       shift: 0,
+      keepOnScreen: !!opts.keepOnScreen,
     });
   }
 
@@ -192,7 +196,19 @@ export class SpeechLayer {
       if (Number.isNaN(l.x)) continue;
       const lt = nowMs - l.startMs;
       const fade = Math.max(0, Math.min(1, (nowMs - l.endMs) / t.fadeMs));
-      for (const c of l.layers) c.setPosition(l.x, l.y + l.shift / zoom).setScale(1 / zoom);
+      let px = l.x;
+      let py = l.y + l.shift / zoom;
+      if (l.keepOnScreen) {
+        const v = this.scene.cameras.main.worldView;
+        const m = 12 / zoom;
+        const lo = v.x - l.box.minX / zoom + m;
+        const hi = v.right - l.box.maxX / zoom - m;
+        px = Math.max(lo, Math.min(px, Math.max(lo, hi)));
+        // Clear of the HUD along the top edge.
+        const top = v.y + (t.headGapPx - l.box.minY + 64) / zoom + m;
+        py = Math.max(top, Math.min(py, v.bottom - m));
+      }
+      for (const c of l.layers) c.setPosition(px, py).setScale(1 / zoom);
       while (l.cuesFired < l.parsed.cues.length && l.parsed.cues[l.cuesFired]!.atMs <= lt) {
         l.cuesFired++;
         this.onQuake();

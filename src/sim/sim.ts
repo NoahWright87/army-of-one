@@ -17,6 +17,7 @@ import {
   stepCapturePoints,
 } from './entities/capture-point';
 import { createGates, toggleGate } from './entities/gate';
+import { stepTriggers } from './world/triggers';
 import { interact, isLeverOn } from './entities/lever';
 import { createMines, stepMines } from './entities/mine';
 import { createObjectives, objectiveMaxHp, objectiveRadius } from './entities/objective';
@@ -332,6 +333,7 @@ export function step(
 
   // (05-a) Capture points read the final positions of the tick.
   stepCapturePoints(world);
+  stepTriggers(world); // (PHASE18) mission rules: gates that open when something is done
 
   world.stepping = false;
   appendEvents(world.eventLog, st.events);
@@ -489,6 +491,7 @@ export function getView(world: World): WorldView {
         hp: o.hp,
         maxHp: objectiveMaxHp(def, tuning),
         destroyed: o.destroyed,
+        ...(def.target ? { target: true as const } : {}),
       };
     }),
     capturePoints: (map.capturePoints ?? []).map((def, i) => {

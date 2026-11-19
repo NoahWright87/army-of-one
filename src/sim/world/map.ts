@@ -137,6 +137,11 @@ export interface ObjectiveDef {
   radius?: number;
   /** Overrides `tuning.objective.maxHp`. */
   maxHp?: number;
+  /**
+   * (PHASE18) A practice target (basic training): shot down like an objective, but never part
+   * of winning the mission. Drawn as a target.
+   */
+  target?: true;
 }
 
 /**
@@ -171,6 +176,8 @@ export interface SquadDef {
   team?: 'player';
   /** (PHASE17) AI skill on top of `tuning.ai` (the arena's HUMAN / CPU presets). */
   skill?: Partial<Tuning['ai']>;
+  /** (PHASE18) Members never move from their posts: they turn, aim and fire (a gun nest). */
+  hold?: true;
   /**
    * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
    * `roam` temperament), retreat to the best of them, and chase within their leash of any.
@@ -239,6 +246,19 @@ export interface MapDef {
   aiSeed?: number;
   /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
   roles?: readonly RoleId[];
+  /**
+   * (PHASE18) Mission rules: when something happens (a point captured, targets shot down, a
+   * squad wiped out), a gate opens. Checked every tick, so a replayed life that did it does it
+   * again.
+   */
+  triggers?: MapTrigger[];
+}
+
+/** (PHASE18) "When this happens, open that gate." */
+export interface MapTrigger {
+  id: string;
+  when: { captured: string } | { destroyed: readonly string[] } | { squadDead: string };
+  openGate: string;
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

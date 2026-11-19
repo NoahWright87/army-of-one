@@ -87,6 +87,7 @@ export function objectiveText(
   capturePoints: readonly CapturePointView[] = [],
 ): string {
   if (complete) return str('mission.complete');
+  objectives = objectives.filter((o) => !o.target); // (PHASE18) practice targets
   // (05-a) Flag objectives ([D17]).
   const flags = capturePoints.filter((c) => c.objective);
   if (flags.length > 0) {

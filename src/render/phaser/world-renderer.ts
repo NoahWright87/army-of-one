@@ -1065,7 +1065,13 @@ export class WorldRenderer {
 
   private drawObjectives(): void {
     for (const o of this.cur.objectives) {
-      const key: ImageKey = o.destroyed ? 'objective_destroyed' : 'objective';
+      const key: ImageKey = o.target
+        ? o.destroyed
+          ? 'target_down'
+          : 'target_dummy'
+        : o.destroyed
+          ? 'objective_destroyed'
+          : 'objective';
       const spr = this.objectives.get(o.id);
       spr
         .setTexture(key)

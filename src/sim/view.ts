@@ -164,6 +164,8 @@ export interface ObjectiveView {
   hp: number;
   maxHp: number;
   destroyed: boolean;
+  /** (PHASE18) A practice target: not part of the win. */
+  target?: true;
 }
 
 /** (05-a) A capture point ([D10]–[D12]); a flag objective if `objective` ([D17]). */

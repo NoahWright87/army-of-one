@@ -122,9 +122,11 @@ export type HubSignId =
   | 'trophies'
   | 'guns'
   | 'range'
-  | 'dev';
+  | 'dev'
+  | 'training';
 
 export const HUB_SIGNS: readonly (SignDef & { id: HubSignId })[] = [
+  { id: 'training', x: 900, y: 1040, kind: 'clipboard', textKey: 'hub.sign.training', size: 44 },
   { id: 'welcome', x: 1200, y: 810, kind: 'wood', textKey: 'hub.sign.welcome', size: 48 },
   { id: 'skirmish', x: 440, y: 380, kind: 'clipboard', textKey: 'hub.sign.skirmish', size: 48 },
   { id: 'skirmishTv', x: 440, y: 960, kind: 'tv', textKey: 'hub.sign.replays', size: 52 },

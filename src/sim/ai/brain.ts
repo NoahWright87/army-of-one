@@ -1021,6 +1021,12 @@ export function skillOf(world: World, s: SoldierState): Tuning['ai'] {
   return sq?.skill ? { ...world.tuning.ai, ...sq.skill } : world.tuning.ai;
 }
 
+/** (PHASE18) Its original squad holds its post (`SquadDef.hold`). */
+function holdsPost(world: World, ai: AiState): boolean {
+  const id = ai.origSquad ?? ai.squad;
+  return !!(world.map.squads ?? []).find((q) => q.id === id)?.hold;
+}
+
 function centroid(ss: readonly SoldierState[]): Vec2 {
   let x = 0;
   let y = 0;
@@ -1350,6 +1356,8 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   } else if (ai.behavior === 'hold' || ai.behavior === 'roam') {
     aim = ai.homeFacing;
   }
+  // (PHASE18) A squad that holds its post never moves (a gun nest in basic training).
+  if (holdsPost(world, ai)) move = { x: 0, y: 0 };
   // (PHASE13) Roaming is a walk, not a run (unless going to help).
   if (ai.behavior === 'roam' && !ai.reinforce) {
     const pace = profileOf(s.roleId).roam.walk;

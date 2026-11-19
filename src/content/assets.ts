@@ -408,6 +408,30 @@ export const IMAGE_ASSETS = {
     'A stencilled military warning plate on a post.',
     `${TOPDOWN}. An olive-drab riveted metal plate on a post, 64×64, transparent background.`,
   ),
+  // (PHASE18) Basic training.
+  target_dummy: img(
+    'target_dummy',
+    64,
+    64,
+    'A practice target on the training range (shoot it down; not a real objective).',
+    `${TOPDOWN}. A round wooden shooting target on a stand: red and white rings, 64×64, ` +
+      'transparent background.',
+  ),
+  target_down: img(
+    'target_down',
+    64,
+    64,
+    'A practice target that has been shot down.',
+    `${TOPDOWN}. The same wooden target knocked flat, splintered, 64×64, transparent background.`,
+  ),
+  npc_sarge: img(
+    'npc_sarge',
+    64,
+    64,
+    'The drill sergeant who yells at you through basic training (not part of the fight).',
+    `${TOPDOWN}. A burly drill sergeant seen from above: campaign hat (wide brim), olive ` +
+      'uniform, 64×64, transparent background, readable at 30 px.',
+  ),
   // (PHASE18) HQ signposts: things you walk up to in the hub.
   sign_map_table: img(
     'sign_map_table',

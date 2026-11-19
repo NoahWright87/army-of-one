@@ -135,7 +135,7 @@ export class BattleScene extends Phaser.Scene {
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
-    this.session.overlay?.create(this);
+    this.session.overlay?.create(this, this.liveId);
 
     const startCountdown = () => {
       this.countdownTicks = DEMO_COUNTDOWN_TICKS;
@@ -200,6 +200,7 @@ export class BattleScene extends Phaser.Scene {
       simThisFrame += dt;
       this.stepMs = ema(this.stepMs, dt, 0.05);
       this.worldRenderer.onStep(this.prevView, this.view, this.liveId);
+      this.session.overlay?.onStep?.(this.view);
       this.source.observe?.(this.view);
       if (this.countdownTicks !== null) this.countdownTicks--;
     }

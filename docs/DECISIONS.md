@@ -720,6 +720,22 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   defaults to 'aim'; `AIM_PAN` in `src/render/camera-look-ahead.ts`). Replaces the 'upAim'
   default from 06-a.
 
+- **[D155] Basic training is the tutorial** (owner, 2026-11). The first visit loads it; after you
+  graduate the front door is the HQ (a lobby sign runs it again). Styled like early Medal of
+  Honor / Call of Duty boot camp: one long course of stations, each with a gate that opens when
+  its task is done (a mission rule any map can use: point captured / targets down / squad dead
+  → gate opens). A drill sergeant walks behind a fence beside the course yelling directions
+  (speech); signposts carry the bigger instructions; the respawn screen's coach dims everything
+  but the control that matters. You can't fail: you respawn. Money is off, classes unlock as
+  you go, enemies hold their posts and don't heal. Stations: the respawn screen (rifleman only)
+  → run north (sprint) → the range (targets; fire over cover) → capture a flag (it becomes a
+  spawn) → the MG nest and its minefield (die; respawn at the flag; shoot the mines; the Sarge
+  has words if you shoot them on the first try) → a second flag (unlocks the Shield, opens the
+  way round behind the nest) → the shotgunner surprise (respawn as the Shield; resume a saved
+  life) → the lever → riflemen behind sandbags (unlocks the Machine Gunner: brace on cover;
+  "walk it off" regen) → a rifleman behind a bullet-proof parapet (unlocks the Grenadier) →
+  graduation flag → results → HQ.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures

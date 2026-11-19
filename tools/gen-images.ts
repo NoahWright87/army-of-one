@@ -606,6 +606,24 @@ function signRecipes() {
       }
       return r;
     },
+    target_dummy: (r: Raster) => {
+      r.paint(ellipse(34, 36, 24, 22), hex('#000000', 0.3));
+      r.shape(circle(32, 32, 24), '#f4efe0', OUT, 3);
+      r.paint(ring(32, 32, 17, 5), '#c0392b');
+      r.paint(ring(32, 32, 8, 4), '#c0392b');
+      return r.paint(circle(32, 32, 3), '#c0392b');
+    },
+    target_down: (r: Raster) => {
+      r.shape(ellipse(32, 36, 26, 10, 0.2), '#a07444', OUT, 2.5);
+      return r.paint(ellipse(32, 36, 12, 4, 0.2), hex('#c0392b', 0.7));
+    },
+    npc_sarge: (r: Raster) => {
+      r.paint(ellipse(34, 36, 22, 20), hex('#000000', 0.3));
+      r.shape(circle(32, 32, 16), '#556b2f', OUT, 3);
+      r.shape(circle(32, 32, 22), '#8b6b3d', OUT, 2.5);
+      r.paint(circle(32, 32, 10), '#6b5230');
+      return r.paint(box(32, 28, 3, 10, 1), '#3d2c18');
+    },
     sign_map_table: (r: Raster) => {
       r.paint(box(130, 84, 124, 74, 6), hex('#000000', 0.3));
       r.shape(box(128, 80, 124, 74, 6), '#6b4a2a', OUT, 3);

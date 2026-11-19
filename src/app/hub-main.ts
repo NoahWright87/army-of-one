@@ -196,6 +196,16 @@ export function startHub(deps: HubDeps): void {
             },
           })),
         };
+      case 'training':
+        return {
+          text: str('hub.sign.training'),
+          buttons: [
+            {
+              label: str('hub.btn.training'),
+              run: () => go({ mission: 'basic-training', go: '1', new: '1' }),
+            },
+          ],
+        };
       case 'dev':
         return {
           text: str('hub.sign.dev'),
