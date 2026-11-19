@@ -1,4 +1,4 @@
-import{g as e,n as t,p as n,t as r,y as i}from"./dom-Bp4GLKZf.js";import{M as a,_ as o,b as s,g as c}from"./editor-storage-Czlyni05.js";import{E as l,S as u,T as d,_ as f,b as p,c as m,d as h,f as g,h as _,i as v,l as y,m as b,n as x,o as S,p as C,r as w,s as T,u as E,v as D,w as O,x as k,y as A}from"./campaign-storage-BNtogCDq.js";import{n as j,o as M,t as N}from"./art-theme-BV2GlnxI.js";import{i as P,n as F,r as I,t as L}from"./map-draw-C8iR7Fz1.js";var R=`
+import{g as e,n as t,p as n,t as r,y as i}from"./dom-Bp4GLKZf.js";import{M as a,_ as o,b as s,g as c}from"./editor-storage-Czlyni05.js";import{E as l,S as u,T as d,_ as f,b as p,c as m,d as h,f as g,h as _,i as v,l as y,m as b,n as x,o as S,p as C,r as w,s as T,u as E,v as D,w as O,x as k,y as A}from"./campaign-storage-BNtogCDq.js";import{n as j,o as M,t as N}from"./art-theme-CYDxnycr.js";import{i as P,n as F,r as I,t as L}from"./map-draw-C8iR7Fz1.js";var R=`
 .aoo-cp { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px;
   font: 14px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #0d1014; }
 .aoo-cp .stage { position: relative; overflow: auto; }
