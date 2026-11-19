@@ -23,7 +23,7 @@ const SARGE_SIZE = 36;
 /** A breath between his lines (ms). */
 const LINE_GAP_MS = 250; // TUNE
 /** A line still waiting this long is stale (you've moved on): dropped. */
-const STALE_MS = 7000; // TUNE
+const STALE_MS = 3500; // TUNE
 
 export const BT_SIGNS: readonly SignDef[] = [
   { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },

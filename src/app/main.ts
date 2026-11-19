@@ -717,7 +717,12 @@ async function startGame(): Promise<void> {
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
       const on =
-        option && !respawn && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
+        option &&
+        !respawn &&
+        settings.getBool(GAME_SETTING_IDS.quickRedeploy) &&
+        !autopilot.active &&
+        // (PHASE18) Basic training: back in through the respawn screen, where the coach points.
+        !training;
       quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
