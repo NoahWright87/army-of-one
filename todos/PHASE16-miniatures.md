@@ -156,11 +156,12 @@ desktop/mobile checks cover rotation, repeated state changes, Compound/generated
 - [x] Integrate title illustration, reusable panel frame and campaign table surround.
 - [x] Replace unused legacy soldier/vehicle/terrain/effect placeholders with compatibility exports.
 - [x] Add focused gallery, exact prompts, packaging and layout/transparency tests.
-- [ ] Idle/armed mine paintings: generation failed and the retry was rejected (`illicit`).
-  Existing sprites are retained and explicitly marked placeholder; no alternate generator used.
+- [x] Idle/armed mine paintings: delivered on the owner's requested retry; shared normalization
+  and alpha mask keep the existing blink steady. Exact prompts are in `docs/art/mine-prompts.json`.
 
-38 new PNGs and 11 editable SVG sources are registered/exported; 35 obsolete placeholders are
+40 new PNGs and 11 editable SVG sources are registered/exported; 37 obsolete placeholders are
 removed. The three DOM-only images are excluded from Phaser GPU loading. Raised bridges now
 visually reveal their gap; all collision/simulation rules and recording formats are unchanged.
-728 tests, lint, purity and build pass. Desktop/mobile and Pages-subpath review is recorded in
+The closing audit has 120 final image keys and zero image placeholders or missing files.
+729 tests, lint, purity and build pass. Desktop/mobile and Pages-subpath review is recorded in
 `docs/art/FINAL-IMAGE-PASS.md`. Audio remains outside this request.

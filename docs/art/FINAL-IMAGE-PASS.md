@@ -1,4 +1,4 @@
-# Remaining image delivery
+# Final image delivery
 
 The owner requested the rest of the image backlog in one pass: interactive props, capture and
 deployment annotations, muzzle flash/status overlays, title art, UI panels and campaign illustration.
@@ -6,24 +6,24 @@ This is an art/presentation change. Audio is outside this request.
 
 ## Delivered
 
-`src/content/finished-art.ts` lists **38 new PNGs** registered through the existing manifest:
+`src/content/finished-art.ts` lists **40 new PNGs** registered through the existing manifest:
 
 | Family | Location | Contents |
 |---|---|---|
-| Painted world objects/effect | `assets/finished/` | Scorch, objective intact/destroyed, gate open/closed, lever off/on, bridge down/up/destroyed, capture pad and muzzle flash (12) |
+| Painted world objects/effect | `assets/finished/` | Idle/armed mines, scorch, objective intact/destroyed, gate open/closed, lever off/on, bridge down/up/destroyed, capture pad and muzzle flash (14) |
 | Native status art | `assets/ui/symbols/` | Flagpole, friendly/enemy cloth flags, insertion arrow, lead-in/player rings, static overlay, interruption, X/O and compatibility reticle (11 PNGs plus editable SVG sources) |
 | Presentation | `assets/ui/` | `title-background.png`, `panel-frame.png`, `campaign-table.png` (3) |
 | Compatibility | `assets/finished/legacy/` | Five old soldier keys, traffic truck/wreck, three old terrain keys and two legacy effect stills, prepared from already delivered art (12) |
 
-All requested families are integrated. One exception remains: **idle and armed mine illustrations**.
-Idle-mine generation failed, and the retry was rejected by the built-in tool's safety filter
-(`illicit`). Without the new base illustration, the idle/armed pair is retained. No alternate
-generator or renamed prompt was used to bypass that rejection. The existing
-two mine PNGs remain explicitly marked `placeholder`, working at their original size with the same
-arming/blink behavior. The scorch decal is delivered. These are the only image placeholders left;
-15 placeholder audio clips remain separate.
+All requested image families are integrated, including the idle/armed mine pair delivered on the
+owner's requested retry. The mine variants share their normalization transform and exact alpha
+mask; only the central red status indicator changes while blinking. The existing world size,
+arming/blink behavior and collision/trigger rules are preserved.
 
-Thirty-five superseded placeholder PNGs were removed by the normal generator. No unused background
+The closing audit reports **120 image keys, all final, no missing files and zero image placeholders**.
+The 15 placeholder audio clips remain separate from this image request.
+
+Thirty-seven superseded placeholder PNGs were removed by the normal generator. No unused background
 images are uploaded to Phaser: the three `ui_*` assets are DOM-only and skipped in PreloadScene.
 
 ## Integration and behavior
@@ -49,7 +49,8 @@ images are uploaded to Phaser: the three `ui_*` assets are DOM-only and skipped 
 
 Selected painted masters were generated with the **built-in imagegen tool**, copied into the
 ignored `art-source/finished/` directory, and packaged into the committed runtime files. Exact
-selected prompts: [finished-prompts.json](finished-prompts.json). The first scorch attempt looked
+selected prompts: [finished-prompts.json](finished-prompts.json) and [mine-prompts.json](mine-prompts.json).
+The first scorch attempt looked
 like a cloud; the delivered replacement is a flat, dark soot decal.
 
 ```
@@ -67,17 +68,20 @@ effect stills are fixed-frame crops of the delivered animations, not new effects
 
 ## Review and validation
 
-- `?scene=gallery&finished=1`: mine exception, all remaining props/states, flags and overlays.
+- `?scene=gallery&finished=1`: all mine/structure states, flags and overlays.
 - `/`: title and panel art; `?scene=campaign`: campaign table and side panel.
 - `?screen=respawn&fixture=rescue`: illustrated timeline/map panels and live native SVG controls.
 - The existing fast `breach-solo` autoplay reaches the illustrated results overlay.
 
-728 tests pass, plus ESLint/Prettier, purity lint and production build. New checks cover long-axis
-layouts, bridge fade/gap behavior, actual PNG openings and identical friendly/enemy flag silhouettes.
+729 tests pass, plus ESLint/Prettier, purity lint and production build. New checks cover long-axis
+layouts, bridge fade/gap behavior, actual PNG openings, identical friendly/enemy flag silhouettes
+and steady mine silhouettes with a visible red armed indicator.
 Desktop/mobile browser review checks gallery camera rotations, gate/bridge states, flag/ring/static
 textures, DOM-only texture exclusion, all panel/backdrop URLs, 390px menu fit, campaign and respawn
-views, results and shutdown. Production is reviewed under the GitHub Pages subpath.
+views, results and shutdown. The final mine check confirms identical position/display size on both
+blink frames in desktop/mobile Chrome, with no runtime/resource errors. Production is reviewed
+under the GitHub Pages subpath.
 
 The first full suite ran beside browser/build work and hit the existing 20-second world-generation
-test timeout. With browser work closed and one test worker, all 728 tests pass; no timeout or test
+test timeout. With browser work closed and one test worker, all 729 tests pass; no timeout or test
 expectation was changed.

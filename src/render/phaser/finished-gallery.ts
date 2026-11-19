@@ -14,8 +14,8 @@ export const FINISHED_GALLERY_MAP: MapDef = {
 };
 export const FINISHED_CAPTIONS = [
   ...[
-    'Mine (retained)',
-    'Armed (retained)',
+    'Mine',
+    'Armed / blinking',
     'Scorch',
     'HQ / target',
     'Destroyed HQ',

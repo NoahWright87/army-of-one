@@ -25,3 +25,24 @@ it('friendly and enemy status flags share one silhouette', () => {
   expect([a.width, a.height]).toEqual([b.width, b.height]);
   for (let i = 3; i < a.data.length; i += 4) expect(a.data[i]).toBe(b.data[i]);
 });
+
+it('mine arming keeps its silhouette steady and lights the existing center red', () => {
+  const idle = png('mine'),
+    armed = png('mine_armed');
+  expect([idle.width, idle.height]).toEqual([armed.width, armed.height]);
+  for (let i = 3; i < idle.data.length; i += 4) expect(armed.data[i]).toBe(idle.data[i]);
+  let red = 0,
+    green = 0,
+    idleRed = 0,
+    count = 0;
+  for (let y = 29; y < 35; y++)
+    for (let x = 29; x < 35; x++) {
+      const k = (y * armed.width + x) * 4;
+      red += armed.data[k]!;
+      green += armed.data[k + 1]!;
+      idleRed += idle.data[k]!;
+      count++;
+    }
+  expect(red / count).toBeGreaterThan(idleRed / count + 35);
+  expect(red).toBeGreaterThan(green * 1.35);
+});

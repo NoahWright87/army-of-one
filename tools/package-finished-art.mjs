@@ -27,8 +27,8 @@ const bounds = (p) => {
   if (x1 <= x0 || y1 <= y0) throw Error('Empty master');
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 };
-function fit(p, w, h, margin = 4) {
-  const b = bounds(p),
+function fit(p, w, h, margin = 4, crop = bounds(p)) {
+  const b = crop,
     scale = Math.min((w - margin * 2) / b.w, (h - margin * 2) / b.h);
   const rw = Math.max(1, Math.round(b.w * scale)),
     rh = Math.max(1, Math.round(b.h * scale));
@@ -81,7 +81,17 @@ for (const [key, spec] of Object.entries(FINISHED_ART)) {
       throw Error('Missing ' + master);
     }
     const p = read(master);
-    if (key.startsWith('ui_')) out = resize(p, spec.w, spec.h);
+    if (key === 'mine_armed') {
+      // One transform and alpha mask keep the disc steady when the armed state blinks.
+      const idleMaster = read(join(source, 'mine.png'));
+      const aligned =
+        p.width === idleMaster.width && p.height === idleMaster.height
+          ? p
+          : resize(p, idleMaster.width, idleMaster.height);
+      out = fit(aligned, spec.w, spec.h, 4, bounds(idleMaster));
+      const idle = read('assets/finished/mine.png');
+      for (let i = 3; i < out.data.length; i += 4) out.data[i] = idle.data[i];
+    } else if (key.startsWith('ui_')) out = resize(p, spec.w, spec.h);
     else if (key === 'bridge_down') {
       // The surface is square; crop its painted square to remove its outer transparent padding.
       const b = bounds(p);

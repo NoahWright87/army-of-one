@@ -111,6 +111,6 @@ real live/enemy shots. No new raster assets are required for these procedural ef
 
 [Cover, debris and fixed turrets](BATTLEFIELD-PROPS.md) and the
 [remaining structures, effects, UI and compatibility art](FINAL-IMAGE-PASS.md) are delivered.
-Only the idle/armed mine pictures remain image placeholders: the image tool rejected the base
-illustration after an initial failure. Scorch art is delivered. Audio remains placeholder and is outside
-the image request. See the final-pass document for prompts, reproduction, checks and review routes.
+The closing audit has 120 final image keys, no missing image files and zero image placeholders.
+Idle/armed mine art is delivered too. Audio remains outside the image request. See the final-pass
+document for prompts, reproduction, checks and review routes.

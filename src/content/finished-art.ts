@@ -35,6 +35,20 @@ const legacy = (
 ): FinishedArtSpec => ({ ...world(key, w, h, brief, fitPx), file: `finished/legacy/${key}.png` });
 
 export const FINISHED_ART: Readonly<Record<string, FinishedArtSpec>> = {
+  mine: world(
+    'mine',
+    64,
+    64,
+    'Hand-painted olive-grey miniature mine, round disc with a central circular detail.',
+    64,
+  ),
+  mine_armed: world(
+    'mine_armed',
+    64,
+    64,
+    'The same mine silhouette with a bright coral-red central armed indicator.',
+    64,
+  ),
   mine_scorch: world(
     'mine_scorch',
     128,

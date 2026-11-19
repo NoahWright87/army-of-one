@@ -65,5 +65,5 @@ repeated destruction/restoration, unchanged map data, stable scene object counts
 ## Follow-up delivery
 
 [The final image pass](FINAL-IMAGE-PASS.md) now supplies the other structures, objectives, scorch,
-capture/status art, muzzle flash, title/panel/campaign art and compatibility textures. Idle and
-armed mine illustrations remain the sole image placeholders after the generator blocked the base art.
+capture/status art, muzzle flash, title/panel/campaign art and compatibility textures. The final
+idle/armed mine pair is delivered; the manifest now has zero image placeholders.
