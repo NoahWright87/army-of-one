@@ -7,6 +7,7 @@
 import { str, strDynamic } from '../../content/strings';
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import { el, injectStyle, setText } from '../dom';
+import { paintedPanelCss, tabletopBackground } from '../art-theme';
 
 /** (PHASE17) Saved runs shown before "Show all". */
 const LIBRARY_SHOWN = 3;
@@ -91,6 +92,12 @@ const CSS = `
   overflow: auto; background: rgba(8,10,13,.92); border: 1px solid #39424c; border-radius: 4px; padding: 6px 8px;
   font: 11px/1.3 ui-monospace, monospace; color: #b8f5c8; white-space: pre; }
 .aoo-tljson[hidden] { display: none; }
+${paintedPanelCss('.aoo-screen .card')}
+.aoo-screen.title { background: ${tabletopBackground('ui_title_background')}; }
+.aoo-screen .card { box-sizing: border-box; width: min(560px,calc(100vw - 24px)); max-width: calc(100vw - 24px); padding: 24px; }
+.aoo-screen h1 { font-size: clamp(34px,8vw,52px); }
+.aoo-screen button { min-width: min(240px,100%); max-width: 100%; }
+@media(max-width:480px) { .aoo-screen .card { padding: 18px 14px; } }
 `;
 
 function screen(parent: HTMLElement): { root: HTMLDivElement; card: HTMLDivElement } {
@@ -144,6 +151,7 @@ export class TitleScreen {
 
   constructor(parent: HTMLElement) {
     this.s = screen(parent);
+    this.s.root.classList.add('title');
   }
 
   /** (PHASE12-e) The saved replays and missions in progress (empty hides the list). */

@@ -9,10 +9,12 @@ import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { ROLES } from '../../content/roles';
 import { roleIconSvg } from '../../content/role-icons';
+import { helmetSvg } from '../../content/ui-icons';
 import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficulty';
 import type { RoleId } from '../../contracts/mission';
 import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
+import { paintedPanelCss, tabletopBackground } from '../art-theme';
 import {
   drawBoardGround,
   displayOwner,
@@ -98,6 +100,9 @@ const css = `
   .aoo-cp .stage { height: 60vh; flex: none; }
   .aoo-cp aside { border-left: 0; border-top: 1px solid #262c33; overflow: visible; }
 }
+${paintedPanelCss('.aoo-cp aside')}
+.aoo-cp .stage { background: ${tabletopBackground('ui_campaign_background')}; }
+.aoo-cp aside { box-sizing: border-box; }
 `;
 
 export class CampaignView {
@@ -356,7 +361,11 @@ export class CampaignView {
       tags.prepend(st);
       if (!taken) {
         const info = this.actions.levelInfo(lv.index);
-        const e = el('span', 'chip', `🪖×${info.enemies}`);
+        const e = el('span', 'chip');
+        e.innerHTML = `${helmetSvg(16)}<span>×${info.enemies}</span>`;
+        e.style.display = 'inline-flex';
+        e.style.alignItems = 'center';
+        e.style.gap = '3px';
         e.title = str('campaign.enemies');
         tags.append(e);
       }

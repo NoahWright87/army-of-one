@@ -1219,3 +1219,19 @@ export const BLOCK_TUNING = {
     baseBudgetBonus: 1.3, // TUNE
   },
 } as const;
+
+/** Render-only readability; never changes ballistics, collision or saved recordings. */
+export const PROJECTILE_VISUAL_TUNING = {
+  trailMs: 40, // TUNE
+  trailMaxLength: 48, // TUNE world units
+  pelletTrailMaxLength: 26, // TUNE
+  trailSegmentLength: 12, // TUNE subdivision keeps fast rounds visibly tapered between ticks
+  smokeMs: 90, // TUNE
+  smokeMaxLength: 38, // TUNE
+  minCorePixels: 2.4, // TUNE CSS pixels, independent of camera zoom/render resolution
+  maxZoomCompensation: 3, // TUNE prevent oversized markers on very distant views
+  historyTicks: 8, // TUNE bounded history covering the longest trail at 60 Hz
+  snapDistance: 192, // TUNE discard jumps/teleports rather than drawing a line across the map
+  grenadeShadowWidth: 12, // TUNE
+  grenadeShadowHeightSpread: 0.1, // TUNE
+} as const;

@@ -19,7 +19,7 @@
  * Controller state (`EchoControllerState`) is plain data and goes into world snapshots.
  */
 import type { Tuning } from '../../content/tuning';
-import type { SoldierId, SoldierRecord, Waypoint } from '../../contracts/mission';
+import type { SoldierId, SoldierRecord, Waypoint, RoleId } from '../../contracts/mission';
 import { fireGun, gunCooldownTicks, gunOf, type GunKind } from '../combat/guns';
 import { throwGrenade } from '../entities/grenade';
 import { launchRocket } from '../entities/rocket';
@@ -212,12 +212,17 @@ export class EchoController {
    * (PHASE13-d) Echoes not spawned yet: where and when they will. Read-only, for the renderer's
    * run-ins ([D112]).
    */
-  pendingArrivals(): { id: SoldierId; spawnPointId: string; spawnTick: Tick }[] {
-    const out: { id: SoldierId; spawnPointId: string; spawnTick: Tick }[] = [];
+  pendingArrivals(): { id: SoldierId; spawnPointId: string; spawnTick: Tick; roleId?: RoleId }[] {
+    const out: { id: SoldierId; spawnPointId: string; spawnTick: Tick; roleId?: RoleId }[] = [];
     for (const e of this.state.echoes) {
       if (e.mode !== 'pending') continue;
       const s = this.schedules.get(e.id)!;
-      out.push({ id: e.id, spawnPointId: s.spawnPointId, spawnTick: s.spawnTick });
+      out.push({
+        id: e.id,
+        spawnPointId: s.spawnPointId,
+        spawnTick: s.spawnTick,
+        ...(s.roleId ? { roleId: s.roleId } : {}),
+      });
     }
     return out;
   }

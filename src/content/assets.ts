@@ -9,6 +9,13 @@
  * Plain data only: this module is imported by Node tools and must stay DOM/Phaser-free.
  */
 
+import { miniatureFiles } from './miniatures';
+import { EXPLOSION_SHEETS, type ExplosionSize } from './explosions';
+import { IMPACT_SHEET, PROJECTILE_ART } from './combat-art';
+import { MINIATURE_ATLAS } from './miniature-atlas';
+import { BATTLEFIELD_FILES, type BattlefieldArtKey } from './battlefield-art';
+import { FINISHED_ART } from './finished-art';
+
 export type AssetStatus = 'placeholder' | 'final';
 
 interface AssetCommon {
@@ -28,9 +35,12 @@ export interface ImageAssetDef extends AssetCommon {
   /**
    * Pixel extent of the part of the image that maps onto the entity's logical size (e.g. the
    * soldier body diameter, which the renderer scales to 2 × spriteRadius). Defaults to `size.w`.
-   * Replacement art may change this to match its own framing.
+   * Replacement art may change this to match its own framing. Vehicle turret layers use the
+   * hull's reference footprint, which can exceed their own smaller canvas width.
    */
   fitPx?: number;
+  /** Sprite-sheet grid, loaded as native Phaser frames rather than one image. */
+  sheet?: { frameWidth: number; frameHeight: number };
 }
 
 export interface SoundAssetDef extends AssetCommon {
@@ -53,6 +63,17 @@ function img(
   replacementBrief: string,
   fitPx?: number,
 ): ImageAssetDef {
+  const final = FINISHED_ART[key];
+  if (final)
+    return {
+      kind: 'image',
+      file: final.file,
+      size: { w: final.w, h: final.h },
+      ...(final.fitPx === undefined ? {} : { fitPx: final.fitPx }),
+      represents,
+      replacementBrief: final.brief,
+      status: 'final',
+    };
   return {
     kind: 'image',
     file: ph(key, 'png'),
@@ -86,7 +107,197 @@ const TOPDOWN = 'Top-down orthographic view, transparent background';
 const SOLDIER_FRAME =
   '64×64, facing right (+x), body circle about 44 px wide and centered so rotation works';
 
+// Delivered infantry files only; missing vehicle art keeps its existing renderer.
+const miniSpecs = miniatureFiles();
+function deliveredMiniatureImage(key: string): ImageAssetDef {
+  const spec = miniSpecs.find((s) => s.key === key);
+  if (!spec) throw new Error(`Unknown miniature ${key}`);
+  return {
+    kind: 'image',
+    file: `miniatures/${spec.file}`,
+    size: spec.canvas,
+    fitPx: spec.fitPx,
+    represents: `Miniature: ${spec.subject}`,
+    replacementBrief: spec.brief,
+    // Delivered files must not be overwritten by the placeholder generator.
+    status: 'final',
+  };
+}
+
+function explosionSheet(size: ExplosionSize): ImageAssetDef {
+  const s = EXPLOSION_SHEETS[size];
+  return {
+    kind: 'image',
+    file: s.file,
+    size: { w: s.frameWidth * s.columns, h: s.frameHeight * s.rows },
+    fitPx: s.frameWidth,
+    sheet: { frameWidth: s.frameWidth, frameHeight: s.frameHeight },
+    status: 'final',
+    represents: `${size} overhead explosion animation, ${s.rows} variations × ${s.columns} frames`,
+    replacementBrief:
+      'Strict orthographic overhead radial blast, fixed centered pivot; each row is a variation, columns progress ignition/fire/debris/smoke/fade. Transparent RGBA, empty frame borders.',
+  };
+}
+
+function projectileImage(name: keyof typeof PROJECTILE_ART): ImageAssetDef {
+  const p = PROJECTILE_ART[name];
+  return {
+    kind: 'image',
+    file: p.file,
+    size: { w: p.width, h: p.height },
+    status: 'final',
+    represents: `Overhead painted ${name} projectile, facing +x.`,
+    replacementBrief:
+      'Transparent centered miniature projectile with bold dark outline and even overhead lighting.',
+  };
+}
+
+function terrainImage(name: string): ImageAssetDef {
+  return {
+    kind: 'image',
+    file: `terrain/${name}.png`,
+    size: { w: 128, h: 128 },
+    status: 'final',
+    represents: `Painted tabletop ${name} surface.`,
+    replacementBrief:
+      'Seamlessly repeating orthographic overhead material, low contrast, even lighting, no objects or baked shadows.',
+  };
+}
+
+function battlefieldImage(key: BattlefieldArtKey): ImageAssetDef {
+  const s = BATTLEFIELD_FILES[key];
+  return {
+    kind: 'image',
+    file: `battlefield/${s.file}`,
+    size: { w: s.width, h: s.height },
+    represents: s.brief,
+    replacementBrief: `${TOPDOWN}. Painted tabletop resin. ${s.brief} No baked shadows, text or insignia.`,
+    status: 'final',
+  };
+}
+
 export const IMAGE_ASSETS = {
+  ui_title_background: img(
+    'ui_title_background',
+    1536,
+    1024,
+    'Title-screen tabletop artwork.',
+    'Quiet overhead miniature battlefield backdrop with no text.',
+  ),
+  ui_panel: img(
+    'ui_panel',
+    256,
+    256,
+    'Reusable illustrated interface panel.',
+    'Dark metal and felt panel with restrained brass corner details.',
+  ),
+  ui_campaign_background: img(
+    'ui_campaign_background',
+    1536,
+    1024,
+    'Campaign-map war-room table surround.',
+    'Quiet overhead campaign tabletop surround with no text.',
+  ),
+  cover_sandbags: battlefieldImage('cover_sandbags'),
+  cover_crate: battlefieldImage('cover_crate'),
+  cover_fence: battlefieldImage('cover_fence'),
+  cover_halfWall: battlefieldImage('cover_halfWall'),
+  cover_window: battlefieldImage('cover_window'),
+  cover_bunkerWindow: battlefieldImage('cover_bunkerWindow'),
+  rubble_sandbags: battlefieldImage('rubble_sandbags'),
+  rubble_wood: battlefieldImage('rubble_wood'),
+  rubble_concrete: battlefieldImage('rubble_concrete'),
+  rubble_metal: battlefieldImage('rubble_metal'),
+  mini_atlas: {
+    kind: 'image',
+    file: 'atlases/miniatures.png',
+    size: { w: MINIATURE_ATLAS.width, h: MINIATURE_ATLAS.height },
+    status: 'final',
+    represents: 'Packed source for all miniature layers; individual keys alias its frames.',
+    replacementBrief:
+      'Generated losslessly from delivered miniature PNGs, with transparent gutters.',
+  } satisfies ImageAssetDef,
+  mini_base_truck_gold: deliveredMiniatureImage('mini_base_truck_gold'),
+  mini_base_truck_silver: deliveredMiniatureImage('mini_base_truck_silver'),
+  mini_base_truck_gold_tarnished: deliveredMiniatureImage('mini_base_truck_gold_tarnished'),
+  mini_base_truck_silver_tarnished: deliveredMiniatureImage('mini_base_truck_silver_tarnished'),
+  mini_base_tank_gold: deliveredMiniatureImage('mini_base_tank_gold'),
+  mini_base_tank_silver: deliveredMiniatureImage('mini_base_tank_silver'),
+  mini_base_tank_gold_tarnished: deliveredMiniatureImage('mini_base_tank_gold_tarnished'),
+  mini_base_tank_silver_tarnished: deliveredMiniatureImage('mini_base_tank_silver_tarnished'),
+  mini_hull_truck_ally: deliveredMiniatureImage('mini_hull_truck_ally'),
+  mini_hull_truck_enemy: deliveredMiniatureImage('mini_hull_truck_enemy'),
+  mini_turret_truck_ally: deliveredMiniatureImage('mini_turret_truck_ally'),
+  mini_turret_truck_enemy: deliveredMiniatureImage('mini_turret_truck_enemy'),
+  mini_wreck_truck: deliveredMiniatureImage('mini_wreck_truck'),
+  mini_shadow_truck: deliveredMiniatureImage('mini_shadow_truck'),
+  mini_hull_tank_ally: deliveredMiniatureImage('mini_hull_tank_ally'),
+  mini_hull_tank_enemy: deliveredMiniatureImage('mini_hull_tank_enemy'),
+  mini_turret_tank_ally: deliveredMiniatureImage('mini_turret_tank_ally'),
+  mini_turret_tank_enemy: deliveredMiniatureImage('mini_turret_tank_enemy'),
+  mini_wreck_tank: deliveredMiniatureImage('mini_wreck_tank'),
+  mini_shadow_tank: deliveredMiniatureImage('mini_shadow_tank'),
+  terrain_grass: terrainImage('grass'),
+  terrain_dirt: terrainImage('dirt'),
+  terrain_road: terrainImage('road'),
+  terrain_sand: terrainImage('sand'),
+  terrain_concrete: terrainImage('concrete'),
+  terrain_water: terrainImage('water'),
+  terrain_rocks: terrainImage('rocks'),
+  terrain_wall: terrainImage('wall'),
+  terrain_bridge: terrainImage('bridge'),
+  projectile_pellet: projectileImage('pellet'),
+  projectile_pistol: projectileImage('pistol'),
+  projectile_rifle: projectileImage('rifle'),
+  projectile_rocket: projectileImage('rocket'),
+  projectile_grenade: projectileImage('grenade'),
+  fx_impact: {
+    kind: 'image',
+    file: IMPACT_SHEET.file,
+    size: {
+      w: IMPACT_SHEET.frameWidth * IMPACT_SHEET.columns,
+      h: IMPACT_SHEET.frameHeight * IMPACT_SHEET.rows,
+    },
+    sheet: { frameWidth: IMPACT_SHEET.frameWidth, frameHeight: IMPACT_SHEET.frameHeight },
+    represents:
+      'Four overhead bullet impact animations: dust, steel sparks, stone chips, ricochet.',
+    replacementBrief:
+      'Transparent fixed-center overhead impacts; 6 sequential frames per row; 4 rows; clean transparent frame borders.',
+    status: 'final',
+  } satisfies ImageAssetDef,
+  fx_explosion_small: explosionSheet('small'),
+  fx_explosion_large: explosionSheet('large'),
+  mini_base_square_gold: deliveredMiniatureImage('mini_base_square_gold'),
+  mini_base_square_silver: deliveredMiniatureImage('mini_base_square_silver'),
+  mini_base_square_gold_tarnished: deliveredMiniatureImage('mini_base_square_gold_tarnished'),
+  mini_base_square_silver_tarnished: deliveredMiniatureImage('mini_base_square_silver_tarnished'),
+  mini_figure_grenadier_ally: deliveredMiniatureImage('mini_figure_grenadier_ally'),
+  mini_figure_grenadier_enemy: deliveredMiniatureImage('mini_figure_grenadier_enemy'),
+  mini_figure_gunner_ally: deliveredMiniatureImage('mini_figure_gunner_ally'),
+  mini_figure_gunner_enemy: deliveredMiniatureImage('mini_figure_gunner_enemy'),
+  mini_figure_shotgun_ally: deliveredMiniatureImage('mini_figure_shotgun_ally'),
+  mini_figure_shotgun_enemy: deliveredMiniatureImage('mini_figure_shotgun_enemy'),
+  mini_figure_bazooka_ally: deliveredMiniatureImage('mini_figure_bazooka_ally'),
+  mini_figure_bazooka_enemy: deliveredMiniatureImage('mini_figure_bazooka_enemy'),
+
+  mini_base_round_gold: deliveredMiniatureImage('mini_base_round_gold'),
+  mini_base_round_silver: deliveredMiniatureImage('mini_base_round_silver'),
+  mini_base_round_gold_tarnished: deliveredMiniatureImage('mini_base_round_gold_tarnished'),
+  mini_base_round_silver_tarnished: deliveredMiniatureImage('mini_base_round_silver_tarnished'),
+  mini_base_octagon_gold: deliveredMiniatureImage('mini_base_octagon_gold'),
+  mini_base_octagon_silver: deliveredMiniatureImage('mini_base_octagon_silver'),
+  mini_base_octagon_gold_tarnished: deliveredMiniatureImage('mini_base_octagon_gold_tarnished'),
+  mini_base_octagon_silver_tarnished: deliveredMiniatureImage('mini_base_octagon_silver_tarnished'),
+  mini_figure_rifleman_ally: deliveredMiniatureImage('mini_figure_rifleman_ally'),
+  mini_figure_rifleman_enemy: deliveredMiniatureImage('mini_figure_rifleman_enemy'),
+  mini_figure_sniper_ally: deliveredMiniatureImage('mini_figure_sniper_ally'),
+  mini_figure_sniper_enemy: deliveredMiniatureImage('mini_figure_sniper_enemy'),
+  mini_figure_shield_ally: deliveredMiniatureImage('mini_figure_shield_ally'),
+  mini_figure_shield_enemy: deliveredMiniatureImage('mini_figure_shield_enemy'),
+  mini_figure_fallen_ally: deliveredMiniatureImage('mini_figure_fallen_ally'),
+  mini_figure_fallen_enemy: deliveredMiniatureImage('mini_figure_fallen_enemy'),
+  mini_shadow_infantry: deliveredMiniatureImage('mini_shadow_infantry'),
+
   soldier_live: img(
     'soldier_live',
     64,
@@ -179,27 +390,9 @@ export const IMAGE_ASSETS = {
     'Lane ends alive / resumable (timeline O).',
     'Bold green O ring, 32×32, readable at 16 px.',
   ),
-  turret_base: img(
-    'turret_base',
-    64,
-    64,
-    'Fixed enemy turret mount (does not rotate).',
-    `${TOPDOWN}. Armored octagonal turret mount, 64×64, hostile red accents.`,
-  ),
-  turret_gun: img(
-    'turret_gun',
-    64,
-    64,
-    'Turret barrel; rotates to aim. Pivot is the image center.',
-    `${TOPDOWN}. Turret barrel/head, 64×64, pointing right (+x) from the center pivot.`,
-  ),
-  turret_wreck: img(
-    'turret_wreck',
-    64,
-    64,
-    'A destroyed turret.',
-    `${TOPDOWN}. Charred, broken turret mount with smoke stains, 64×64.`,
-  ),
+  turret_base: battlefieldImage('turret_base'),
+  turret_gun: battlefieldImage('turret_gun'),
+  turret_wreck: battlefieldImage('turret_wreck'),
   mine: img('mine', 32, 32, 'A landmine, idle.', `${TOPDOWN}. Small dark landmine, 32×32.`),
   mine_armed: img(
     'mine_armed',

@@ -52,9 +52,14 @@ describe('asset manifest', () => {
     }
   });
 
-  it('fitPx fits inside the image', () => {
+  it('fitPx fits inside the image or its shared vehicle hull footprint', () => {
     for (const key of Object.keys(IMAGE_ASSETS) as ImageKey[]) {
-      expect(fitPx(key)).toBeLessThanOrEqual(IMAGE_ASSETS[key].size.w);
+      const reference = key.startsWith('mini_turret_')
+        ? (key.replace('mini_turret_', 'mini_hull_') as ImageKey)
+        : key;
+      expect(fitPx(key)).toBeGreaterThan(0);
+      expect(fitPx(key)).toBeLessThanOrEqual(IMAGE_ASSETS[reference].size.w);
+      if (reference !== key) expect(fitPx(key)).toBe(fitPx(reference));
     }
   });
 });
@@ -64,6 +69,7 @@ describe('generated placeholders are up to date (rerun npm run gen:placeholders)
     for (const [key, def] of Object.entries(IMAGE_ASSETS)) {
       const onDisk = PNG.sync.read(readFileSync(join(ASSETS_DIR, def.file)));
       expect([onDisk.width, onDisk.height], key).toEqual([def.size.w, def.size.h]);
+      if (def.status !== 'placeholder') continue;
       const fresh = renderImage(key as ImageKey, def.size.w, def.size.h).toRgba8();
       expect(Buffer.compare(onDisk.data, fresh), key).toBe(0);
     }

@@ -76,6 +76,30 @@ describe('soldier hp, death and flags', () => {
     expect(view).toMatchObject({ alive: false, deathCause: 'turret' });
   });
 
+  it('keeps the lethal hit direction in state and view for corpse placement and snapshots', () => {
+    const w = world(arena());
+    const id = soldierAt(w, { x: 300, y: 500 });
+    const s = getSoldier(w, id)!;
+    damageSoldier(w, s, 1, 'east', 'rifle', { x: 600, y: 500 });
+    expect(s.deathDirection).toBeUndefined();
+    damageSoldier(w, s, 1000, 'north', 'rifle', { x: 300, y: 100 });
+    expect(s.deathDirection).toBeCloseTo(Math.PI / 2); // north hit pushes south
+    expect(getView(w).soldiers[0]!.deathDirection).toBeCloseTo(Math.PI / 2);
+    expect(structuredClone(w.state).soldiers[0]!.deathDirection).toBe(s.deathDirection);
+    // Later hits cannot turn an already dead corpse.
+    damageSoldier(w, s, 1000, 'south', 'rifle', { x: 300, y: 900 });
+    expect(s.deathDirection).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('uses the last facing for a directionless death', () => {
+    const w = world(arena());
+    const id = soldierAt(w, { x: 300, y: 500 });
+    const s = getSoldier(w, id)!;
+    s.facing = 1.2;
+    damageSoldier(w, s, 1000, undefined, 'test');
+    expect(s.deathDirection).toBe(1.2);
+  });
+
   it('minHp floors damage during a lead-in: hurt but never killed', () => {
     const w = world(arena());
     const id = soldierAt(w, { x: 100, y: 500 }, { minHp: 1 });

@@ -4,11 +4,14 @@
  * debug-model.ts); this file only touches the DOM.
  */
 import { str } from '../../content/strings';
+import { helmetSvg } from '../../content/ui-icons';
 import { el, injectStyle, setText } from '../dom';
 import { formatDebugLines, type DebugStats } from './debug-model';
 import type { HudModel } from './hud-model';
 
 const HUD_CSS = `
+.aoo-hud .helmets { display: inline-flex; align-items: center; gap: 2px; color: #e4d6b3; }
+.aoo-hud .helmets svg { flex: none; filter: drop-shadow(0 1px 1px #000); }
 .aoo-hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; color: #f1f3f5;
   font: 600 14px/1.2 system-ui, sans-serif; text-shadow: 0 1px 2px #000, 0 0 4px #000; }
 .aoo-hud .tl { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 4px; }
@@ -123,7 +126,11 @@ export class Hud {
     if (n === null) return;
     const many = n > HELMETS_SHOWN;
     this.helmetsEl.className = many ? 'helmets many' : 'helmets';
-    this.helmetsEl.textContent = many ? `🪖×${n}` : n === 0 ? '' : '🪖'.repeat(n);
+    this.helmetsEl.innerHTML = many
+      ? `${helmetSvg()}<span>×${n}</span>`
+      : n === 0
+        ? ''
+        : helmetSvg().repeat(n);
     this.helmetsEl.title = str('hud.enemiesLeft', { n });
   }
 

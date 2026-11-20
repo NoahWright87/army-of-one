@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { fireGun } from '../combat/guns';
-import { createWorld, getSoldier } from '../sim';
+import { createWorld, getSoldier, getView } from '../sim';
+import { launchRocket } from '../entities/rocket';
 import { arena, idle, run, soldierAt } from './helpers';
 
 const T = { ...DEFAULT_TUNING, ai: { ...DEFAULT_TUNING.ai, enabled: false } };
@@ -16,6 +17,21 @@ function setup() {
 }
 
 describe('bullets ([D145])', () => {
+  it('exposes owner and allegiance for rendering without changing the shot', () => {
+    const { w, shooter, target } = setup();
+    fireGun(w, shooter, getSoldier(w, shooter)!, 0, 'rifle', 'player');
+    fireGun(w, target, getSoldier(w, target)!, Math.PI, 'pistol', 'enemy');
+    launchRocket(w, target, { x: 500, y: 500 }, Math.PI, 'enemy', 'shell');
+    const before = structuredClone(w.state);
+    expect(getView(w).bullets).toEqual([
+      expect.objectContaining({ by: shooter, hostile: false, weapon: 'rifle' }),
+      expect.objectContaining({ by: target, hostile: true, weapon: 'pistol' }),
+    ]);
+    expect(getView(w).rockets).toEqual([
+      expect.objectContaining({ by: target, hostile: true, shell: true }),
+    ]);
+    expect(w.state).toEqual(before);
+  });
   it('take time to arrive, then hit', () => {
     const { w, shooter, target } = setup();
     fireGun(w, shooter, getSoldier(w, shooter)!, 0, 'rifle', 'player');

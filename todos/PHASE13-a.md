@@ -35,6 +35,17 @@ starter/official blocks, bridges and drawbridges, vehicles' patrol routes, touch
 
 ## Notes from implementation
 
+### Terrain-art follow-up (2026-11-18)
+
+- [x] Editor and game share textured automatic transitions ([A128]): eight-neighbour selection,
+  inner/outer corners, multi-material junctions, shore/bank and built/rock edge treatments.
+- [x] Painting, undo and redo rebuild the cached terrain preview. Existing ground letters and
+  block matching/collision semantics are preserved. The editor palette shows texture swatches.
+- [x] Added `?scene=gallery&transitions=1` and pure edge/corner/junction regression tests.
+
+The original flat-colour preview/stepped-band notes below describe the initial MVP; they are
+superseded for terrain drawing by this follow-up. See docs/art/TERRAIN-TRANSITIONS.md.
+
 - The editor canvas is a plain 2D canvas, not the Phaser renderer I proposed: quicker to make
   usable and nothing to keep in sync for editing. **Play** is the WYSIWYG check (it runs the
   real renderer and sim). Revisit if authors want the game's look while editing.

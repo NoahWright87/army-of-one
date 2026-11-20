@@ -27,7 +27,9 @@ import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
 import { roleDef } from '../content/roles';
 import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
-import { PreloadScene } from '../render/phaser/preload-scene';
+import { AudioPreloadScene, PreloadScene } from '../render/phaser/preload-scene';
+import { reportFatalError, runtimeContext, runtimePhase, showLoading } from './runtime-errors';
+import { createIdleLoop } from './idle-loop';
 import type { SceneServices } from '../render/phaser/services';
 import {
   Busy,
@@ -492,7 +494,17 @@ const services: SceneServices = {
 // (06-c) The game flow starts at once (title, save loading) while Phaser boots and loads assets
 // in parallel; a battle that starts before the assets are in waits for them.
 let markAssetsReady: () => void = () => {};
-const assetsReady = new Promise<void>((resolve) => (markAssetsReady = resolve));
+let failAssetsReady: (error: Error) => void = () => {};
+let imagesReady = false;
+let waitingForImages = false;
+const assetsReady = new Promise<void>((resolve, reject) => {
+  markAssetsReady = () => {
+    imagesReady = true;
+    resolve();
+  };
+  failAssetsReady = reject;
+});
+void assetsReady.catch(reportFatalError);
 
 const arenaScene = new ArenaScene(services);
 const textLabScene = new TextLabScene();
@@ -503,6 +515,9 @@ const game = new Phaser.Game({
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
   // (06-c) Dual-GPU laptops: ask for the discrete GPU.
   render: { powerPreference: 'high-performance', antialias: display.antialias },
+  // Mobile Safari otherwise starts up to 32 image requests together. Bound both
+  // resource pressure and stalled requests; Phaser retries transient network failures twice.
+  loader: { maxParallelDownloads: 6, timeout: 15_000, maxRetries: 2 },
   scene: [
     new PreloadScene(
       mode === 'game' || mode === 'hub'
@@ -515,7 +530,12 @@ const game = new Phaser.Game({
               ? 'textlab'
               : 'battle',
       () => markAssetsReady(),
+      (error) => failAssetsReady(error),
+      (done, total) => {
+        if (waitingForImages) showLoading(str('loading.images', { done, total }), 'battle');
+      },
     ),
+    new AudioPreloadScene(),
     new BattleScene(services),
     new GalleryScene(services),
     new ReplayScene(services),
@@ -556,6 +576,35 @@ if (mode === 'hub' && sceneParam === null && !sentToTraining()) {
     missionNameKey: libraryNameKey,
   });
 }
+runtimeContext(
+  () => {
+    const load = game.scene.getScene('preload').load;
+    const gl = (game.renderer as Phaser.Renderer.WebGL.WebGLRenderer).gl;
+    return {
+      mission: MISSION.id,
+      imagesReady,
+      loopRunning: game.loop.running,
+      scenes: game.scene.getScenes(true).map((s) => s.sys.settings.key),
+      renderer: game.renderer.type,
+      maxTextureSize: gl?.getParameter(gl.MAX_TEXTURE_SIZE),
+      contextLost: gl?.isContextLost(),
+      canvas: [game.canvas.width, game.canvas.height],
+      queuedImages: [...load.list].map((f) => f.key),
+      inflightImages: [...load.inflight].map((f) => f.key),
+      decodingImages: [...load.queue].map((f) => f.key),
+    };
+  },
+  () => {
+    game.pause();
+    game.loop.sleep();
+    game.sound?.stopAll();
+  },
+);
+game.events.once(Phaser.Core.Events.READY, () => {
+  game.canvas.addEventListener('webglcontextlost', () => {
+    reportFatalError(new Error('WebGL graphics context lost. The browser stopped the renderer.'));
+  });
+});
 
 // (06-c) Render resolution (`display.renderScale`): the canvas host is sized `scale` × the window
 // and the canvas is stretched back up with a CSS transform; the battle camera zooms by `scale`
@@ -613,7 +662,8 @@ const aoo: Record<string, unknown> = { game, settings, mode, services, touch: to
 
 // ---------- The game flow (PHASE04) ----------
 
-if (mode === 'game') void startGame();
+export const appReady =
+  mode === 'game' ? startGame() : mode === 'arena' ? startArena() : assetsReady;
 
 async function startGame(): Promise<void> {
   hud.setVisible(false);
@@ -768,26 +818,18 @@ async function startGame(): Promise<void> {
   const headless = new HeadlessBattleHost(clock, (run) => autopilot.inputFor(run));
   // (06-c) While no battle is on screen (title, respawn screen) Phaser's loop sleeps: no empty
   // frames drawn behind the DOM screens.
-  let sleepTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRun: LiveRun | null = null;
-  const wakeLoop = () => {
-    if (sleepTimer) clearTimeout(sleepTimer);
-    sleepTimer = null;
-    if (!game.loop.running) game.loop.wake();
-  };
-  const sleepLoopSoon = () => {
-    if (sleepTimer) clearTimeout(sleepTimer);
-    sleepTimer = setTimeout(() => {
-      sleepTimer = null;
-      if (!pendingRun && !game.scene.isActive('battle') && !game.scene.isActive('replay')) {
-        game.loop.sleep();
-      }
-    }, 200);
-  };
+  const { wake: wakeLoop, sleepSoon: sleepLoopSoon } = createIdleLoop(
+    game.loop,
+    () => imagesReady,
+    () => !!pendingRun || game.scene.isActive('battle') || game.scene.isActive('replay'),
+  );
   // Asleep on the title screen too, once the assets are in.
-  void assetsReady.then(() => {
-    if (!pendingRun && !game.scene.isActive('battle')) sleepLoopSoon();
-  });
+  void assetsReady
+    .then(() => {
+      if (!pendingRun && !game.scene.isActive('battle')) sleepLoopSoon();
+    })
+    .catch(reportFatalError);
   // (07-a) Results screen over the after-action replay ([D42]).
   const stopReplay = () => {
     results.hide();
@@ -867,20 +909,22 @@ async function startGame(): Promise<void> {
     player: ReplayPlayer,
     onControls: (c: ReplayControls) => void,
   ) => {
-    void assetsReady.then(() => {
-      if (!results.visible) return;
-      wakeLoop();
-      game.scene.start('replay', {
-        player,
-        objectives: (map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
-        insets: () => results.insets(),
-        onReady: (c: ReplayControls) => {
-          onControls(c);
-          c.setSkipQuiet(settings.getBool(GAME_SETTING_IDS.replaySkipQuiet));
-          results.attach(c);
-        },
-      });
-    });
+    void assetsReady
+      .then(() => {
+        if (!results.visible) return;
+        wakeLoop();
+        game.scene.start('replay', {
+          player,
+          objectives: (map.objectives ?? []).map((o) => ({ x: o.position.x, y: o.position.y })),
+          insets: () => results.insets(),
+          onReady: (c: ReplayControls) => {
+            onControls(c);
+            c.setSkipQuiet(settings.getBool(GAME_SETTING_IDS.replaySkipQuiet));
+            results.attach(c);
+          },
+        });
+      })
+      .catch(reportFatalError);
   };
 
   // ---------- (PHASE12-e) Shareable replays and the replay library ([D79]) ----------
@@ -1016,6 +1060,7 @@ async function startGame(): Promise<void> {
   };
 
   const startScene = (run: LiveRun) => {
+    runtimePhase(`starting battle: ${run.attempt.world.map.id}`);
     wakeLoop();
     hud.setVisible(true);
     game.scene.start('battle', {
@@ -1030,16 +1075,24 @@ async function startGame(): Promise<void> {
         ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
       },
     });
+    showLoading(null, 'battle');
   };
   const phaserHost: BattleHost = {
     start: (run: LiveRun) => {
       pendingRun = run;
-      void assetsReady.then(() => {
-        if (pendingRun !== run) return;
-        pendingRun = null;
-        startScene(run);
-        startMinimap(run);
-      });
+      // Cancel an idle timer and wake now, before waiting for image loading to complete.
+      wakeLoop();
+      waitingForImages = !imagesReady;
+      if (waitingForImages) showLoading(str('loading.level'), 'battle');
+      void assetsReady
+        .then(() => {
+          if (pendingRun !== run) return;
+          waitingForImages = false;
+          pendingRun = null;
+          startScene(run);
+          startMinimap(run);
+        })
+        .catch(reportFatalError);
     },
     stop: () => {
       pendingRun = null;

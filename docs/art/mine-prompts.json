@@ -1,0 +1,14 @@
+[
+  {
+    "key": "mine",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/mine.png",
+    "prompt": "Use case: stylized-concept. Create a replacement landmine sprite for the fictional tabletop browser game Army of One. Image 1 is the existing game sprite to redraw; image 2 is a paint-style reference only. Preserve the simple round olive-grey disc silhouette and central circular detail of image 1, rendered as a small hand-painted resin gaming miniature with a dark outline and restrained edge highlights matching image 2. Straight-down orthographic view. Idle state, no glowing light. One centered isolated sprite on a genuine transparent RGBA background with empty margins. No labels, text, scenery, people, diagrams, cutaways or construction details."
+  },
+  {
+    "key": "mine_armed",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/mine_armed.png",
+    "prompt": "Use case: precise-object-edit. Edit the attached landmine sprite for the fictional tabletop game Army of One. Keep its silhouette, size, canvas framing, position, olive-grey paint, concentric rings, texture, outline and transparent background unchanged. Change ONLY the small central circular detail into a clearly visible coral-red illuminated status indicator for the game's armed state. A restrained red highlight inside that existing center circle; no glow outside the disc, no new objects, text, diagrams, cutaways or construction details. Return one isolated transparent RGBA sprite aligned exactly with the original."
+  }
+]

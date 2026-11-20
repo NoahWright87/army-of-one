@@ -2,6 +2,7 @@
  * Maps SimEvents to presentation cues (effects, sounds, shake, hit flashes). Pure, so "incoming
  * fire toward the live soldier is obvious" is a tested rule, not a hope.
  */
+import { explosionVariation, type ExplosionSize } from '../content/explosions';
 import type { SoundKey } from '../content/assets';
 import type { SimEvent } from '../sim/events';
 import type { WorldView } from '../sim/view';
@@ -20,8 +21,15 @@ export type Cue =
       style: TracerStyle;
     }
   | { type: 'muzzle'; x: number; y: number; angle: number; hostile: boolean; byId: string }
-  | { type: 'impact'; x: number; y: number }
-  | { type: 'explosion'; x: number; y: number; radius: number }
+  | { type: 'impact'; x: number; y: number; metal?: boolean }
+  | {
+      type: 'explosion';
+      x: number;
+      y: number;
+      radius: number;
+      size: ExplosionSize;
+      variation: number;
+    }
   | { type: 'hitFlash'; targetId: string }
   | { type: 'liveDamaged'; amount: number }
   | { type: 'windup'; turretId: string; targetId: string }
@@ -80,6 +88,21 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
   const sound = (key: SoundKey, at?: { x: number; y: number }, gain = 1) =>
     out.push({ type: 'sound', key, x: at?.x ?? null, y: at?.y ?? null, gain });
 
+  const explosion = (
+    e: { id: string; tick: number },
+    size: ExplosionSize,
+    x: number,
+    y: number,
+    radius: number,
+  ) =>
+    out.push({
+      type: 'explosion',
+      size,
+      variation: explosionVariation(e.id, e.tick, size),
+      x,
+      y,
+      radius,
+    });
   for (const e of events) {
     switch (e.kind) {
       // (PHASE17) A flying bullet hit something or landed spent: a puff where it stopped.
@@ -130,7 +153,7 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         // (PHASE12-b) Armor ate the hit: a ricochet spark instead of a flash ([D70]).
         if (e.armored) {
           const p = ctx.positionOf(e.target);
-          if (p) out.push({ type: 'impact', x: p.x, y: p.y });
+          if (p) out.push({ type: 'impact', x: p.x, y: p.y, metal: true });
           sound('sfx_hit', p, 0.25);
           break;
         }
@@ -152,7 +175,7 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
       }
       // (07-c) Frag grenade: a small blast plus fragment tracers ([D37]).
       case 'grenadeExploded': {
-        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.6 });
+        explosion(e, 'small', e.x, e.y, e.radius * 1.6);
         for (const f of e.fragments) {
           out.push({
             type: 'tracer',
@@ -181,19 +204,19 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         break;
       }
       case 'rocketExploded': {
-        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius * 1.4 });
+        explosion(e, 'large', e.x, e.y, e.radius * 1.4);
         sound('sfx_explosion', e, 1);
         if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.012, durationMs: 300 });
         break;
       }
       // (PHASE12-b) Cover breaking ([Q40]).
       case 'coverDestroyed': {
-        out.push({ type: 'explosion', x: e.x, y: e.y, radius: 24 });
+        explosion(e, 'small', e.x, e.y, 24);
         sound('sfx_hit', e, 0.6);
         break;
       }
       case 'mineDetonated': {
-        out.push({ type: 'explosion', x: e.x, y: e.y, radius: e.radius });
+        explosion(e, 'large', e.x, e.y, e.radius);
         sound('sfx_explosion', e, 1);
         if (nearLive(e.x, e.y)) out.push({ type: 'shake', intensity: 0.012, durationMs: 300 });
         break;
@@ -204,7 +227,7 @@ export function eventCues(events: readonly SimEvent[], ctx: CueContext): Cue[] {
         if (!p) break;
         const kind = ctx.kindOf(e.id);
         const radius = (kind && EXPLOSION_RADIUS[kind]) ?? 40;
-        out.push({ type: 'explosion', x: p.x, y: p.y, radius });
+        explosion(e, 'large', p.x, p.y, radius);
         sound('sfx_explosion', p, 1);
         if (e.kind === 'objectiveDestroyed') sound('sfx_mission_complete', undefined, 1);
         if (nearLive(p.x, p.y) || e.kind === 'objectiveDestroyed') {

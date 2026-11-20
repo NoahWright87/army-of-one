@@ -307,8 +307,9 @@ Frame rate ([D30]):
   to that pixel count (2560×1440 → 0.75).
 - **`display.antialias`** (on; applies on reload) and `powerPreference: 'high-performance'`
   (dual-GPU laptops).
-- **Phaser's loop sleeps** while no battle is on screen (title, respawn screen), so no frames are
-  drawn behind the DOM screens. It wakes when a battle starts.
+- **Phaser's loop sleeps** while no battle is on screen (title, respawn screen), once required
+  images are ready. Deployment wakes it before waiting for assets, so the loader can advance
+  its queue. No empty frames are drawn behind an idle menu after loading.
 - **Fixed-step catch-up:** at most `debug.maxCatchUpSteps` (4, × sim speed) steps per frame. The
   backlog of up to 200 ms carries over and is caught up a few steps per frame. Beyond that it is
   dropped. Before, the cap was 8 and the backlog was dropped at once. Jitter on a slow machine no
@@ -339,3 +340,37 @@ Soldiers' gun shots fly as bullets (`tuning.bullets`) instead of hitting at once
 
 About 10–15% more sim time; still ~2% of a 16.7 ms frame. Fast-forwards and resolves fly bullets
 too (they must match live play tick for tick).
+
+## Mobile black-screen loading fix (2026-11-20)
+
+The 200 ms menu idle timer could sleep Phaser during image preload. A later deployment waited
+for `assetsReady` before waking the loop, but Phaser's loader needs updates to dispatch the
+remaining requests. Artwork increased the loading window and exposed this existing deadlock.
+
+Reproduced at 390 × 844 with image responses delayed 350 ms: after New mission → respawn,
+the loop was asleep with 62 images queued, six complete, and no requests in flight. Deploy
+left those counts unchanged. Manually waking the loop completed all 68 images and opened
+the battle. With `createIdleLoop`, it stays awake during required loading; deployment also
+cancels idle timers and wakes before awaiting images. The same sequence now completes without
+manual intervention. Menus still sleep after loading, and deployment from a sleeping menu works.
+
+Startup now bounds parallel requests to six and uses 15 s request timeouts with Phaser's two
+network retries. Required images are checked in the texture cache after loading (including
+decode failures). Audio loads separately and never gates visual startup; an idle menu may
+pause its remaining queue until the next battle wakes the loop. A 60 s inactivity deadline
+covers a decode callback that never arrives; background tabs receive a fresh visible deadline.
+
+The entry module installs error handling before importing the game or generating a map.
+Missing chunks, rejected startup/deployment promises, uncaught scene errors, missing/corrupt
+images, stalled loading and WebGL context loss show a DOM recovery screen with Reload,
+Main menu / Campaign map, and copyable error details. Diagnostics include the build URL,
+mission, loading phase/queues, renderer, display size and browser. Replay hashes and save
+contents are excluded. Fatal errors pause battle updates; recovery never clears saved progress.
+
+Verified under the production Pages subpath with mobile Chrome emulation: delayed-image
+deployment, failed and corrupt images, a missing miniature atlas/startup chunk, stalled Web
+Audio decoding, uncaught exceptions, rejected promises, forced WebGL context loss and reload
+recovery. Exception/rejection/context-loss checks retain the existing IndexedDB mission save.
+An actual campaign Attack, reload into its active level, and recovery back to the campaign map
+also pass with delayed images. All 736 tests, lint, purity checks and the production build pass.
+This is an emulated viewport and software GPU, not a physical-phone Safari test.

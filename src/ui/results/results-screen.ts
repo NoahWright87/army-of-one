@@ -8,6 +8,7 @@ import { str, type StringKey } from '../../content/strings';
 import { formatBattleTime, type Tick } from '../../sim/core/time';
 import type { ReplayControls } from '../../render/phaser/replay-scene';
 import { el, injectStyle } from '../dom';
+import { paintedPanelCss } from '../art-theme';
 import type { Bests, RadarAxis, ResultStats, ScrubMark } from './results-model';
 
 const CSS = `
@@ -53,6 +54,8 @@ const CSS = `
   .aoo-results .bar { left: 8px; right: 8px; bottom: 8px; flex-wrap: wrap; }
   .aoo-results .scrub { flex-basis: 100%; order: -1; }
 }
+${paintedPanelCss('.aoo-results .card')}
+.aoo-results .card { box-sizing: border-box; }
 `;
 
 export interface ResultsData {
