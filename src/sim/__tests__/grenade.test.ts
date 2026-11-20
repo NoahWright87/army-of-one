@@ -1,6 +1,6 @@
 /**
- * (07-c) Grenadier and frag grenades ([D36], [D37]): wind-up by distance, early release throws
- * short, bounces off walls, rolls to a stop, blast + fragments hurt everyone (own soldiers too),
+ * (07-c) Grenadier and frag grenades ([D36], [D37]): fire throws at once, then reloads
+ * (PHASE18, [D159]); bounces off walls, rolls to a stop, blast + fragments hurt everyone (own soldiers too),
  * cover stops airborne grenades by its `lobbed` share, and echoes replay throws exactly.
  */
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,6 @@ import { DEFAULT_TUNING } from '../../content/tuning';
 import { hashState } from '../core/hash';
 import { secondsToTicks } from '../core/time';
 import { throwGrenade } from '../entities/grenade';
-import { windupTicksFor } from '../combat/weapons';
 import { playLife } from '../scenarios/lives';
 import { getSoldier, getView, step } from '../sim';
 import { arena, idle, ofKind, run, soldierAt, world } from './helpers';
@@ -16,31 +15,27 @@ import { arena, idle, ofKind, run, soldierAt, world } from './helpers';
 const T = DEFAULT_TUNING;
 const FUSE = secondsToTicks(T.grenade.fuseSeconds);
 const hold = (aim: number, aimDistance: number) => ({ ...idle(aim), fire: true, aimDistance });
-const release = (aim: number, aimDistance: number) => ({ ...idle(aim), aimDistance });
 
 describe('throwing', () => {
-  it('a rifleman fires the rifle; a grenadier winds up and throws on release', () => {
+  it('a grenadier throws the moment fire is pressed, to the aimed distance (no wind-up)', () => {
     const w = world(arena());
     const g = soldierAt(w, { x: 100, y: 500 }, { roleId: 'grenadier' });
-    const need = windupTicksFor(w, 300);
-    const evs = run(w, need, { [g]: hold(0, 300) });
+    const evs = run(w, 1, { [g]: hold(0, 300) });
     expect(ofKind(evs, 'shotFired')).toHaveLength(0);
-    expect(getView(w).soldiers[0]!.windup).toBeCloseTo(1);
-    const thrown = ofKind(run(w, 1, { [g]: release(0, 300) }), 'grenadeThrown');
+    const thrown = ofKind(evs, 'grenadeThrown');
     expect(thrown).toHaveLength(1);
     expect(thrown[0]!.distance).toBeCloseTo(300);
     expect(getView(w).grenades).toHaveLength(1);
   });
 
-  it('wind-up grows with distance; releasing early throws shorter', () => {
+  it('then reloads: holding fire throws again only once the reload is done', () => {
     const w = world(arena());
-    expect(windupTicksFor(w, 400)).toBeGreaterThan(windupTicksFor(w, 100));
     const g = soldierAt(w, { x: 100, y: 500 }, { roleId: 'grenadier' });
-    const half = Math.floor(windupTicksFor(w, 400) / 2);
-    run(w, half, { [g]: hold(0, 400) });
-    const thrown = ofKind(run(w, 1, { [g]: release(0, 400) }), 'grenadeThrown')[0]!;
-    expect(thrown.distance).toBeGreaterThan(120);
-    expect(thrown.distance).toBeLessThan(260);
+    const reload = secondsToTicks(T.grenade.cooldownSeconds);
+    const evs = run(w, reload, { [g]: hold(0, 200) });
+    expect(ofKind(evs, 'grenadeThrown')).toHaveLength(1);
+    expect(getView(w).soldiers[0]!.windup).toBeGreaterThan(0.9); // the reload ring
+    expect(ofKind(run(w, 1, { [g]: hold(0, 200) }), 'grenadeThrown')).toHaveLength(1);
   });
 
   it('lands near the throw distance, rolls a bit, and explodes on its fuse', () => {

@@ -35,7 +35,6 @@ import { distance, distanceSq, leadPoint, type Vec2 } from '../core/vec';
 import { hasLineOfSight } from '../combat/shots';
 import { attackKind, currentSpread, gunOf } from '../combat/guns';
 import { damageShare, WORTH_SHOOTING } from '../combat/armor';
-import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 import {
   IDLE_INPUT,
   isEligible,
@@ -1415,14 +1414,12 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       );
       fire = !allyNear && d <= world.tuning[weapon].range;
     } else {
-      // Grenadier: don't throw onto its own squad; wind up to full, then release (throws).
+      // Grenadier: don't throw onto its own squad. Fire throws (PHASE18, [D159]).
       const allyNear = world.state.soldiers.some(
         (a) =>
           a.ai && a !== s && a.team === s.team && isEligible(a) && distanceSq(a, live) <= 110 * 110,
       );
-      const input = { move, aim, fire: true, interact: false, aimDistance: d };
-      const need = windupTicksFor(world, aimedThrowDistance(world, input));
-      fire = !allyNear && d <= world.tuning.grenade.maxRange && s.windupTicks < need;
+      fire = !allyNear && d <= world.tuning.grenade.maxRange;
     }
   }
   // (PHASE12-b) A vehicle's turret lags the aim: hold fire until it's on target.

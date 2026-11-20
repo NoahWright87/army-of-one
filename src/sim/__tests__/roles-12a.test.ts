@@ -187,15 +187,12 @@ describe('Bazooka ([D62])', () => {
   const rocketMap = (extra: Partial<MapDef> = {}) =>
     arena({ turrets: [{ id: 't1', position: { x: 600, y: 500 }, facing: Math.PI }], ...extra });
 
-  it('aims before launching; releasing early cancels', () => {
+  it('launches the moment fire is pressed, then reloads ([D159])', () => {
     const w = world(rocketMap(), { turret: { range: 1 } });
     const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'bazooka' });
-    const aim = Math.round(T.rocket.aimSeconds * 60);
-    expect(ofKind(run(w, aim - 2, { [id]: fire() }), 'rocketLaunched')).toHaveLength(0);
-    run(w, 1, { [id]: idle() });
-    expect(getSoldier(w, id)!.windupTicks).toBe(0);
-    const ev = run(w, aim + 120, { [id]: fire() });
-    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(1);
+    expect(ofKind(run(w, 1, { [id]: fire() }), 'rocketLaunched')).toHaveLength(1);
+    const ev = run(w, 120, { [id]: fire() });
+    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(0); // reloading
     expect(ofKind(ev, 'rocketExploded')).toHaveLength(1);
     expect(w.state.turrets[0]!.hp).toBe(Math.max(0, T.turret.maxHp - T.rocket.hazardDamage));
   });

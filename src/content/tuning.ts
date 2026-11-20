@@ -159,15 +159,14 @@ export interface Tuning {
     cooldownSeconds: number;
   } & GunSpread;
   /**
-   * (PHASE12-a) The Bazooka's rockets ([D62]): hold fire for `aimSeconds` to launch (releasing
-   * early cancels), then `cooldownSeconds` to reload. A rocket flies straight, explodes on what
+   * (PHASE12-a) The Bazooka's rockets ([D62]): fire launches at once (PHASE18, [D159]), then
+   * `cooldownSeconds` to reload. A rocket flies straight, explodes on what
    * it hits (passing through its own side) or at full range. The blast hurts everyone in it,
    * our own soldiers too.
    */
   rocket: {
     speed: number;
     range: number;
-    aimSeconds: number;
     cooldownSeconds: number;
     /** A direct hit on a soldier, on top of the blast. */
     directDamage: number;
@@ -196,13 +195,12 @@ export interface Tuning {
     pierce: Record<string, number>;
   };
   /**
-   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (hold to aim, then a shell),
+   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (fire, then reload),
    * slow to reload so there's a window to kill the tank.
    */
   shell: {
     speed: number;
     range: number;
-    aimSeconds: number;
     cooldownSeconds: number;
     directDamage: number;
     blastRadius: number;
@@ -271,8 +269,6 @@ export interface Tuning {
     minRange: number;
     maxRange: number;
     /** Wind-up = base + perUnit × aimed distance (a longer throw takes longer to wind up). */
-    windupBaseSeconds: number;
-    windupSecondsPerUnit: number;
     /** After a throw, before the next wind-up can start. */
     cooldownSeconds: number;
     /** From the throw. */
@@ -743,8 +739,7 @@ export const DEFAULT_TUNING: Tuning = {
   rocket: {
     speed: 700, // TUNE: units/s
     range: 700, // TUNE
-    aimSeconds: 0.6, // TUNE [D62]: takes longer to fire
-    cooldownSeconds: 2.5, // TUNE
+    cooldownSeconds: 3, // TUNE (PHASE18, [D159]): fires at once, then a long reload
     directDamage: 60, // TUNE
     blastRadius: 70, // TUNE
     blastDamage: 60, // TUNE
@@ -784,8 +779,7 @@ export const DEFAULT_TUNING: Tuning = {
   shell: {
     speed: 900, // TUNE
     range: 800, // TUNE
-    aimSeconds: 0.5, // TUNE
-    cooldownSeconds: 4, // TUNE [D72]: fires slow, a window to kill the tank
+    cooldownSeconds: 4.5, // TUNE [D72]: fires slow, a window to kill the tank ([D159]: no aim)
     directDamage: 120, // TUNE
     blastRadius: 80, // TUNE
     blastDamage: 90, // TUNE
@@ -865,9 +859,7 @@ export const DEFAULT_TUNING: Tuning = {
   grenade: {
     minRange: 60, // TUNE
     maxRange: 420, // TUNE: a bit under the rifle's range
-    windupBaseSeconds: 0.2, // TUNE
-    windupSecondsPerUnit: 0.0015, // TUNE: max range ≈ 0.8 s (PHASE18: quicker throws)
-    cooldownSeconds: 0.6, // TUNE
+    cooldownSeconds: 1.3, // TUNE (PHASE18, [D159]): the reload after a throw (no wind-up)
     fuseSeconds: 2.2, // TUNE
     throwSpeed: 640, // TUNE (PHASE18: was 480; grenades felt weak)
     gravity: 900, // TUNE

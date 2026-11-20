@@ -47,7 +47,7 @@ import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
 import { coverArcs, resolveCover, standingCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
-import { windupProgress } from './combat/weapons';
+import { reloadProgress } from './combat/weapons';
 import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/guns';
 import { simPerf } from './perf';
 import type { SoldierView, WorldView } from './view';
@@ -375,8 +375,9 @@ export function getView(world: World): WorldView {
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
       ...(s.drive ? { turret: s.drive.turret } : {}),
-      ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'
-        ? { windup: windupProgress(world, s), windupAim: s.windupAim }
+      // (PHASE18, [D159]) The Grenadier's reload fills the ring where it's aiming.
+      ...(roleDef(s.roleId).weapon === 'grenade' && reloadProgress(world, s) !== null
+        ? { windup: reloadProgress(world, s)!, windupAim: s.windupAim }
         : {}),
       ...aimView(world, s),
     })),
@@ -551,8 +552,9 @@ function aimView(
       out.mounted = mountBonus(world, s, s.facing);
     }
   } else if (weapon === 'rocket' || weapon === 'shell') {
-    // (PHASE12-a) The Bazooka's aim fills the same ring ([D62]); (PHASE12-b) the tank's too.
-    if (s.windupTicks > 0) out.mount = windupProgress(world, s);
+    // (PHASE18, [D159]) The Bazooka's / tank's reload fills the same ring.
+    const r = reloadProgress(world, s);
+    if (r !== null) out.mount = r;
   } else if (s.braceId !== null && s.mountTicks > 0) {
     out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
     out.mounted = mountBonus(world, s, s.facing);
