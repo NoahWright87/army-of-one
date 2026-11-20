@@ -763,8 +763,10 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   aim; a touch anywhere else is the move stick. While moving, a second finger aims where it
   touches and fires while held (hold = full auto), as before; standing still with the reticle
   grabbed, another finger fires. No fire button. Touch aim moves by share of the screen, not
-  pixels (owner): dragging half the screen either way moves the aim the full look reach, so a
-  portrait phone aims as far sideways as up and down. The camera keeps the aim point on screen,
+  pixels (owner): dragging half the screen's short side moves the aim the full look reach, so a
+  portrait phone aims as far sideways as up and down. One scale for both axes, so the reticle
+  always goes the way the finger goes (per-axis scales bent diagonal drags, worst for the
+  Sniper). The camera keeps the aim point on screen,
   and (except the Sniper's scope) the soldier too, zooming out when both don't fit; on phones
   the minimap is smaller and faded. In basic training this is taught by distance: R5's riflemen stand
   past auto-aim (and past their own sight) from the sandbags, so you mount the MG and aim it

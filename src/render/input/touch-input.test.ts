@@ -25,7 +25,7 @@ function fakeControls() {
 }
 
 describe('touch aiming by share of the screen (PHASE18, [D158])', () => {
-  it('half the screen sideways reaches as far as half the screen up', () => {
+  it("half the screen's short side reaches the full reach, sideways or up", () => {
     const c = fakeControls();
     const reach = 800;
     // The camera is centred on the soldier at (0, 0), 1 world unit per px.
@@ -47,12 +47,12 @@ describe('touch aiming by share of the screen (PHASE18, [D158])', () => {
     const east = input.read(me);
     expect(east.aim).toBeCloseTo(0);
     expect(east.aimDistance).toBeCloseTo(reach);
-    // A new drag up to the top edge (400 px): the same reach north.
+    // A new drag the same 200 px up: the same reach north.
     c.drag = {
       id: 2,
       start: { x: 200, y: 400 },
       fingerStart: { x: 200, y: 400 },
-      finger: { x: 200, y: 0 },
+      finger: { x: 200, y: 200 },
     };
     const north = input.read(me);
     expect(north.aim).toBeCloseTo(-Math.PI / 2);
@@ -71,5 +71,27 @@ describe('touch aiming by share of the screen (PHASE18, [D158])', () => {
     const r = input.read({ x: 0, y: 0 });
     expect(r.aim).toBeCloseTo(Math.atan2(-150, 100));
     expect(r.aimDistance).toBeCloseTo(Math.hypot(100, 150));
+  });
+
+  it('the aim goes the way the finger goes, at any angle', () => {
+    const c = fakeControls();
+    const input = new TouchInput(c as unknown as TouchControls, {
+      tuning: DEFAULT_TUNING,
+      toWorld: (x, y) => ({ x: x - 200, y: y - 400 }),
+      aimReach: () => 1300,
+    });
+    for (const [dx, dy] of [
+      [60, -110],
+      [-90, -40],
+      [30, 140],
+    ] as const) {
+      c.drag = {
+        id: dx * 1000 + dy,
+        start: { x: 200, y: 400 },
+        fingerStart: { x: 200, y: 400 },
+        finger: { x: 200 + dx, y: 400 + dy },
+      };
+      expect(input.read({ x: 0, y: 0 }).aim).toBeCloseTo(Math.atan2(dy, dx));
+    }
   });
 });

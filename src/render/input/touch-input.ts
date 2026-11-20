@@ -56,8 +56,9 @@ export class TouchInput implements InputSource {
     const a = c.aim;
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
     // (PHASE18) Aiming by finger ([D158]): it starts where the reticle was (or where the finger
-    // came down), then moves by share of the screen: half the screen either way is the full look
-    // reach, so a narrow phone aims as far sideways as up and down.
+    // came down), then moves with the finger, scaled so half the screen's short side is the full
+    // look reach: a narrow phone aims as far sideways as up and down. One scale for both axes,
+    // so the aim always goes the way the finger goes.
     const g = c.drag;
     if (!g) this.drag = null;
     if (g) {
@@ -73,9 +74,10 @@ export class TouchInput implements InputSource {
         this.drag = { id: g.id, reach, f0 };
       }
       const d = this.drag!;
-      const half = c.screenHalf();
-      let fx = d.f0.x + (g.finger.x - g.fingerStart.x) / half.x;
-      let fy = d.f0.y + (g.finger.y - g.fingerStart.y) / half.y;
+      const h = c.screenHalf();
+      const half = Math.min(h.x, h.y);
+      let fx = d.f0.x + (g.finger.x - g.fingerStart.x) / half;
+      let fy = d.f0.y + (g.finger.y - g.fingerStart.y) / half;
       const len = Math.hypot(fx, fy);
       if (len > CAMERA.maxAimShare) {
         fx *= CAMERA.maxAimShare / len;
