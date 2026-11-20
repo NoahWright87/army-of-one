@@ -20,6 +20,8 @@ import type { TextStorage } from './replay-library';
 
 const KEY = 'aoo:bt:v1';
 export const BT_DONE_KEY = 'aoo:bt:done';
+/** The first visit was sent to basic training (from then on `/` is the HQ). */
+export const BT_SENT_KEY = 'aoo:bt:sent';
 
 export interface BtProgress {
   /** Lines said (once-only ones). */

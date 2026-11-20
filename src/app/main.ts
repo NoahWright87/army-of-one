@@ -20,7 +20,7 @@ import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
 import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
-import { BasicTraining, BT_DONE_KEY, type BtHint } from './basic-training';
+import { BasicTraining, BT_DONE_KEY, BT_SENT_KEY, type BtHint } from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
 import { BASIC_TRAINING_ID, BASIC_TRAINING_TUNING } from '../content/maps/basic-training';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
@@ -507,15 +507,21 @@ const game = new Phaser.Game({
 });
 if (mode === 'arena') void startArena();
 if (mode === 'textlab') void startTextLab();
-/** (PHASE18) A first visit goes to basic training; graduates land in the HQ. */
-function trainingDone(): boolean {
+/**
+ * (PHASE18) The very first visit goes to basic training. After that `/` is the HQ, graduated or
+ * not: "← HQ" really leaves (the lobby's sign runs basic training again).
+ */
+function sentToTraining(): boolean {
   try {
-    return window.localStorage.getItem(BT_DONE_KEY) === '1';
+    if (window.localStorage.getItem(BT_DONE_KEY) === '1') return true;
+    if (window.localStorage.getItem(BT_SENT_KEY) === '1') return true;
+    window.localStorage.setItem(BT_SENT_KEY, '1');
+    return false;
   } catch {
     return true;
   }
 }
-if (mode === 'hub' && sceneParam === null && !trainingDone()) {
+if (mode === 'hub' && sceneParam === null && !sentToTraining()) {
   const u = new URL(window.location.href);
   u.searchParams.set('mission', BASIC_TRAINING_ID);
   u.searchParams.set('go', '1');

@@ -133,6 +133,8 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
 export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
+  // 2: the on-rails layout ([D156]); saves from the first layout can't replay on it.
+  rev: 2,
   width: BT_W,
   height: BT_H,
   walls: [

@@ -71,6 +71,7 @@ export class MissionSaver {
       attemptCount: state.attemptCount,
       soldierIds: state.soldiers.map((s) => s.id),
       ...(state.completed ? { completed: state.completed } : {}),
+      ...(state.mapRev ? { mapRev: state.mapRev } : {}),
     };
     // Soldiers first, so meta never references a soldier that wasn't written.
     for (const s of state.soldiers) {
@@ -225,6 +226,7 @@ export async function loadMission(store: KeyValueStore, missionId: MissionId): P
     soldiers,
     lanes,
     ...(meta.completed ? { completed: meta.completed } : {}),
+    ...(meta.mapRev ? { mapRev: meta.mapRev } : {}),
   };
   // (05-a) Older saves have no capture truth; an unreadable one is dropped, not fatal (Continue
   // re-resolves the battle from tick 0, which observes every capture again).

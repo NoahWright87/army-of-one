@@ -244,6 +244,11 @@ export interface MapDef {
    * repeated fights differ. Absent everywhere else.
    */
   aiSeed?: number;
+  /**
+   * (PHASE18) Bump when the layout changes in a way old recordings can't replay on: saves made on
+   * another revision are dropped instead of replayed ([D156]). Absent = 0.
+   */
+  rev?: number;
   /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
   roles?: readonly RoleId[];
   /**
