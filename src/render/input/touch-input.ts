@@ -4,7 +4,9 @@
  * - Aim: the right stick's direction; pushed past `AIM_FIRE` it also fires (twin-stick style),
  *   and its length sets the throw distance for the Grenadier. Without the aim stick, the soldier
  *   keeps the last aim, or faces the way it moves.
- * - Fire: the fire button (or the pushed aim stick). Interact: the interact button, shown only
+ * - (PHASE18) Tap mode: dragging the reticle aims (auto-aim yields while it's held); another
+ *   finger fires.
+ * - Fire: another finger (tap mode), or the pushed aim stick. Interact: the interact button, shown only
  *   while a lever is in reach.
  * Usually wrapped in `AutoAimInput`, which overrides the aim when it has a target.
  */
@@ -45,7 +47,7 @@ export class TouchInput implements InputSource {
     this.lastPos = soldierPos;
     const a = c.aim;
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
-    // (PHASE12-d) Tap-to-aim: aim at the touched point and fire while it's held.
+    // (PHASE18) The dragged reticle: aim there. Firing is a separate finger.
     const tapped = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
     if (tapped) {
       this.aim = Math.atan2(tapped.y - soldierPos.y, tapped.x - soldierPos.x);
@@ -62,7 +64,7 @@ export class TouchInput implements InputSource {
       move: { x: c.move.x, y: c.move.y },
       aim: this.aim,
       aimDistance: this.aimDistance,
-      fire: c.fireHeld || aLen >= AIM_FIRE || !!tapped,
+      fire: c.fireHeld || aLen >= AIM_FIRE,
       interact: c.interactLatch.consume(),
       ...(c.sprintHeld ? { sprint: true } : {}),
     };

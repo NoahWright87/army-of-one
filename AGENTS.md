@@ -176,7 +176,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   off.
 - Controls (PHASE07-b): touch devices get on-screen controls + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire, touch aiming (tap-to-aim or stick, PHASE12-d) and
-  auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`.
+  auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`. PHASE18 [D158]:
+  in tap mode, touching the reticle drags the aim, elsewhere is the move stick, another finger
+  fires (no fire button); `__aoo.touch` is the controls. Look reach / scope zoom per class:
+  `src/content/camera.ts`.
 - Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
   format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
   title screen's list. Open any `/#replay=…` link to watch it.
@@ -218,6 +221,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Basic training (PHASE18, [D155], [D156]): only the very first visit to `/` goes to
   `?mission=basic-training&go=1` (localStorage `aoo:bt:sent`; clear it to be sent again). After
   that `/` is the HQ; "← HQ" leaves; the HQ lobby's sign runs it again. `?scene=hub` opens the HQ.
+  It uses the real game's stats ([D157]): fix a station by level design or a real stat tweak,
+  never tutorial-only tuning.
 - Map revisions: bump `MapDef.rev` when a layout change would break old recordings; saves from
   another revision are dropped on boot instead of replayed.
 - Words in the world (PHASE18, [D147]–[D152]): `?scene=textlab` (also linked from the arena) to

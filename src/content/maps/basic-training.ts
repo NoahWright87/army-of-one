@@ -7,13 +7,13 @@
  *
  *        x: 40   230 242     520 680 700 780 940 1000 1012         1360
  *   y  40 ┌──────┬─┬──────────────────────────────────────────────────┐
- *         │      │┊│  R7 GRADUATION               (flag)              │
- *     400 │      │┊├──────────┤g8├──────────────────────────────────────┤
+ *         │      │┊│  R7 SNIPER RANGE ▮bags      (flag)   ┆ snipers, MGs │
+ *     400 │      │┊├┤g8├────────────────────────────────────────────────┤
  *         │      │┊│  R6 GRENADE                    ▐parapet  enemy   │
  *     700 │      │┊├──────────┤g7├──────────────────────────────────────┤
  *         │ S    │┊│  R6F  (D flag)                                   │
  *     900 │ A    │┊├──────────┤g6├──────────────────────────────────────┤
- *         │ R    │┊│  R5 AMBUSH    ▮your bags         5 riflemen       │
+ *         │ R    │┊│  R5 AMBUSH    ▮your bags (gap)    5 riflemen far │
  *    1300 │ G    │┊├──────────┤g5b├─────────────────────────────────────┤
  *         │ E    │┊│  R5F  (C flag)                                   │
  *    1520 │      │┊├──────────┤g5├──────────────────┬───────────────────┤
@@ -34,7 +34,6 @@
 import type { CoverDef, MapDef, Rect } from '../../sim/world/map';
 import { borderWalls } from '../../sim/world/map';
 import type { Vec2 } from '../../sim/core/vec';
-import type { DeepPartial, Tuning } from '../tuning';
 
 export const BASIC_TRAINING_ID = 'basic-training';
 export const BT_W = 1400;
@@ -71,6 +70,8 @@ export function btRoomAt(x: number, y: number): BtRoom {
   if (y >= BT.r2) return 'r2';
   if (x > BT_CORRIDOR_X && y >= BT.r4) return 'r4';
   if (y >= BT.r3) return 'r3';
+  // Just past the chute's exit, behind the baffle: still the chute (the mines reach up to it).
+  if (x >= CHUTE_X && x <= 1000 && y >= BT_CHUTE_EXIT_Y) return 'r3';
   if (y >= BT.r4) return 'r4';
   if (y >= BT.r5f) return 'r5f';
   if (y >= BT.r5) return 'r5';
@@ -79,6 +80,10 @@ export function btRoomAt(x: number, y: number): BtRoom {
   return 'r7';
 }
 
+/** R3 is a chute: x 700–1000, its doors at x 780–940. */
+const CHUTE_X = 700;
+/** North of the chute's exit, up to the baffle: the minefield's last rows. */
+const BT_CHUTE_EXIT_Y = 2000;
 const DOOR_X = 520;
 const DOOR_W = 160;
 const L = BT_FENCE_X + 12; // west edge of the course
@@ -92,11 +97,12 @@ function crossWall(y: number, from = L, to = R, door = DOOR_X): Rect[] {
   ];
 }
 
-/** R3 is a chute: x 700–1000, its doors at x 780–940. */
-const CHUTE_X = 700;
 const CHUTE_DOOR = 780;
 /** South of this, the chute is out of the MG's sight (a wall, not a fence, beside it). */
 export const BT_CHUTE_SAFE_Y = 2560;
+
+/** R7's door is at its west end; the sniper's sandbags are just inside it. */
+const R7_DOOR = L + 20;
 
 const gateAt = (id: string, y: number, door = DOOR_X) => ({
   id,
@@ -113,8 +119,24 @@ const cover = (
 
 /** Targets on the range (R1). */
 export const BT_TARGETS = ['bt-t1', 'bt-t2', 'bt-t3', 'bt-t4'] as const;
-/** Mines across the chute (R3), out where the MG covers it. */
-export const BT_MINES = ['bt-m1', 'bt-m2', 'bt-m3', 'bt-m4', 'bt-m5'] as const;
+/**
+ * The minefield: staggered rows from halfway up the chute, through its exit, right up to the
+ * baffle wall beyond it. No gaps, and you can't sprint through the wall: the last mines get you.
+ * Shot from the gate, they go off in a chain.
+ */
+export const BT_MINEFIELD: { id: string; position: Vec2 }[] = (() => {
+  const out: { id: string; position: Vec2 }[] = [];
+  let n = 0;
+  for (let row = 0, y = 2480; y >= 2060; row++, y -= 52) {
+    // Through the doorway (y < 2140) only the doorway's width.
+    const [x0, x1] = y < 2140 ? [790, 930] : [722, 990];
+    for (let x = x0 + (row % 2) * 32; x <= x1; x += 64) {
+      out.push({ id: `bt-m${++n}`, position: { x, y } });
+    }
+  }
+  return out;
+})();
+export const BT_MINES = BT_MINEFIELD.map((m) => m.id);
 /** Seconds after Alpha is taken before the chute's gate opens (time to get to it). */
 export const BT_CHUTE_DELAY_S = 6; // TUNE
 
@@ -128,13 +150,15 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
   { from: { x: 1060, y: 1760 }, to: { x: 1300, y: 1800 } },
   { from: { x: 600, y: 1440 }, to: { x: 600, y: 1320 } },
   { from: { x: 600, y: 840 }, to: { x: 600, y: 720 } },
+  { from: { x: 560, y: 520 }, to: { x: 380, y: 430 } },
+  { from: { x: 420, y: 370 }, to: { x: 760, y: 300 } },
 ];
 
 export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
-  // 2: the on-rails layout ([D156]); saves from the first layout can't replay on it.
-  rev: 2,
+  // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]).
+  rev: 3,
   width: BT_W,
   height: BT_H,
   walls: [
@@ -160,7 +184,7 @@ export const BASIC_TRAINING: MapDef = {
     ...crossWall(BT.r5f), // gate g5b (the C flag)
     ...crossWall(BT.r5), // gate g6 (the riflemen down)
     ...crossWall(BT.r6f), // gate g7 (the D flag)
-    ...crossWall(BT.r6), // gate g8 (the parapet rifleman down)
+    ...crossWall(BT.r6, L, R, R7_DOOR), // gate g8 (the parapet rifleman down)
   ],
   water: [],
   cover: [
@@ -171,8 +195,10 @@ export const BASIC_TRAINING: MapDef = {
     // R3: the fence the MG fires through, and the nest's heavy cover.
     cover('bt-r3-fence', 'fence', { x: 1000, y: BT.r3, w: 12, h: BT_CHUTE_SAFE_Y - BT.r3 }),
     cover('bt-mg-nest', 'sandbags', { x: 1060, y: 2380, w: 24, h: 160 }, { bullet: 0.95 }),
-    // R5: heavy sandbags right by the door for you; theirs to the east.
-    cover('bt-r5-bags', 'sandbags', { x: 690, y: 1110, w: 24, h: 170 }, { bullet: 0.85 }),
+    // R5: heavy sandbags right by the door for you, with a gap to go through (a Shield's way:
+    // too many of them). They're past auto-aim's reach: mount the MG and aim it yourself.
+    cover('bt-r5-bags', 'sandbags', { x: 690, y: 1030, w: 24, h: 110 }, { bullet: 0.95 }),
+    cover('bt-r5-bags2', 'sandbags', { x: 690, y: 1180, w: 24, h: 110 }, { bullet: 0.95 }),
     // R6: a parapet bullets can't get through: only a grenade over the top will do.
     cover(
       'bt-r6-parapet',
@@ -180,6 +206,10 @@ export const BASIC_TRAINING: MapDef = {
       { x: 940, y: 460, w: 24, h: 220 },
       { bullet: 0.98, lobbed: 0 },
     ),
+    // R7: sandbags just inside the door, for the sniper to brace on.
+    cover('bt-r7-bags', 'sandbags', { x: R7_DOOR + DOOR_W + 8, y: 320, w: 24, h: 70 }),
+    // R7: their fence, far east. Past auto-aim, past their sight, inside a braced sniper's reach.
+    cover('bt-r7-fence', 'fence', { x: 1250, y: 40, w: 12, h: 240 }),
   ],
   gates: [
     gateAt('bt-g1', BT.r1),
@@ -189,7 +219,7 @@ export const BASIC_TRAINING: MapDef = {
     gateAt('bt-g5b', BT.r5f),
     gateAt('bt-g6', BT.r5),
     gateAt('bt-g7', BT.r6f),
-    gateAt('bt-g8', BT.r6),
+    gateAt('bt-g8', BT.r6, R7_DOOR),
   ],
   levers: [{ id: 'bt-lever', position: { x: 1300, y: 2640 }, targetId: 'bt-g5' }],
   objectives: [
@@ -198,13 +228,7 @@ export const BASIC_TRAINING: MapDef = {
     { id: 'bt-t3', position: { x: 1150, y: 3700 }, radius: 18, maxHp: 50, target: true },
     { id: 'bt-t4', position: { x: 1270, y: 3800 }, radius: 18, maxHp: 50, target: true },
   ],
-  mines: [
-    { id: 'bt-m1', position: { x: 730, y: 2420 } },
-    { id: 'bt-m2', position: { x: 795, y: 2440 } },
-    { id: 'bt-m3', position: { x: 855, y: 2415 } },
-    { id: 'bt-m4', position: { x: 915, y: 2440 } },
-    { id: 'bt-m5', position: { x: 972, y: 2420 } },
-  ],
+  mines: BT_MINEFIELD,
   capturePoints: [
     { id: 'bt-a', nameKey: 'spawn.basic.a', position: { x: 860, y: 3030 } },
     { id: 'bt-b', nameKey: 'spawn.basic.b', position: { x: 650, y: 1830 } },
@@ -213,7 +237,7 @@ export const BASIC_TRAINING: MapDef = {
     {
       id: 'bt-grad',
       nameKey: 'spawn.basic.grad',
-      position: { x: 700, y: 220 },
+      position: { x: 920, y: 260 },
       objective: true,
     },
   ],
@@ -242,13 +266,12 @@ export const BASIC_TRAINING: MapDef = {
     })),
   ],
   squads: [
-    // R3: the MG nest. Deadly to anyone walking; a sprinter is a hard target.
+    // R3: the MG nest.
     {
       id: 'bt-nest',
       hold: true,
       members: [{ role: 'gunner', position: { x: 1110, y: 2460 }, facing: Math.PI }],
       order: { kind: 'guard' },
-      skill: { reactionSeconds: 0.2, aimError: 0.02, movingTargetError: 0.3 },
     },
     // The corridor: a shotgunner round the corner, waiting.
     {
@@ -256,39 +279,26 @@ export const BASIC_TRAINING: MapDef = {
       hold: true,
       members: [{ role: 'shotgun', position: { x: 1262, y: 1902 }, facing: -Math.PI / 4 }],
       order: { kind: 'guard' },
-      // Hits like a truck (a rifleman walking into him is done), but goes down fast (a Shield
-      // pushing in with its pistol wins).
-      skill: {
-        reactionSeconds: 0.05,
-        aimError: 0,
-        thinkSeconds: 0.05,
-        enemyDamageScale: 1.7,
-        enemyHpScale: 0.45,
-      },
     },
     // R5: five riflemen in the open, firing the moment you're through the door.
     {
       id: 'bt-r5',
       hold: true,
       members: [
-        { position: { x: 950, y: 980 }, facing: Math.PI },
-        { position: { x: 1000, y: 1060 }, facing: Math.PI },
-        { position: { x: 950, y: 1140 }, facing: Math.PI },
-        { position: { x: 1000, y: 1210 }, facing: Math.PI },
-        { position: { x: 950, y: 1270 }, facing: Math.PI },
+        { position: { x: 1300, y: 960 }, facing: Math.PI },
+        { position: { x: 1320, y: 1040 }, facing: Math.PI },
+        { position: { x: 1300, y: 1120 }, facing: Math.PI },
+        { position: { x: 1320, y: 1200 }, facing: Math.PI },
+        { position: { x: 1300, y: 1270 }, facing: Math.PI },
       ],
       order: { kind: 'guard' },
-      skill: { reactionSeconds: 0.25 },
     },
-    // R5: a grenadier behind them, slow to start: a braced MG has swept the room by the time his
-    // grenade lands; anyone slower (a rifleman, a Shield sitting behind the sandbags) hasn't.
+    // R5: a grenadier with them: a Shield walking up gets one.
     {
       id: 'bt-r5g',
       hold: true,
-      members: [{ role: 'grenadier', position: { x: 900, y: 1230 }, facing: Math.PI }],
+      members: [{ role: 'grenadier', position: { x: 1330, y: 1160 }, facing: Math.PI }],
       order: { kind: 'guard' },
-      // His grenade hits hard enough to get through a Shield's front.
-      skill: { reactionSeconds: 3, enemyDamageScale: 5 },
     },
     // R6: one rifleman behind a parapet.
     {
@@ -296,8 +306,18 @@ export const BASIC_TRAINING: MapDef = {
       hold: true,
       members: [{ position: { x: 984, y: 570 }, facing: Math.PI }],
       order: { kind: 'guard' },
-      // Slow, wild bursts: deadly to a rifleman trading shots, time for a couple of throws.
-      skill: { aimError: 0.12, burstSeconds: 0.5, burstPauseSeconds: 1.4 },
+    },
+    // R7: snipers and machine guns behind the far fence, guarding the graduation flag.
+    {
+      id: 'bt-r7',
+      hold: true,
+      members: [
+        { role: 'sniper', position: { x: 1330, y: 70 }, facing: Math.PI },
+        { role: 'gunner', position: { x: 1330, y: 120 }, facing: Math.PI },
+        { role: 'sniper', position: { x: 1330, y: 170 }, facing: Math.PI },
+        { role: 'gunner', position: { x: 1330, y: 215 }, facing: Math.PI },
+      ],
+      order: { kind: 'guard' },
     },
   ],
   triggers: [
@@ -314,18 +334,8 @@ export const BASIC_TRAINING: MapDef = {
     { id: 'bt-tr7', when: { captured: 'bt-d' }, openGate: 'bt-g7' },
     { id: 'bt-tr8', when: { squadDead: 'bt-r6' }, openGate: 'bt-g8' },
   ],
-  economy: { startMoney: 0, baseIncomePerSecond: 0 },
+  // Every class you've unlocked is affordable: training isn't about money.
+  economy: { startMoney: 9_999_999, baseIncomePerSecond: 0 },
   // Unlocked as you go (src/app/basic-training.ts sets this list).
   roles: ['rifleman'],
-};
-
-/** Basic training's rules on top of the usual tuning: no money, enemies don't heal, quick flags. */
-export const BASIC_TRAINING_TUNING: DeepPartial<Tuning> = {
-  economy: { enabled: false },
-  soldier: { regen: { enemies: false } },
-  capture: { stageSeconds: 1.25 },
-  // Mines go off as you step on them: sprinting doesn't outrun these.
-  mine: { fuseSeconds: 0.05 },
-  // A first-timer's grenade lands near, not on: a bigger blast forgives it.
-  grenade: { blastRadius: 90 },
 };

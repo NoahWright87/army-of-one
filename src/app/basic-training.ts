@@ -123,6 +123,7 @@ export class BasicTraining {
       if (me.roleId === 'shield') out.push(...this.once(['bt.r4.shield']));
       if (me.roleId === 'gunner') out.push(...this.once(['bt.r5.mg']));
       if (me.roleId === 'grenadier') out.push(...this.once(['bt.r6.nade']));
+      if (me.roleId === 'sniper') out.push(...this.once(['bt.r7.sniper']));
     }
     this.save();
     return out;
@@ -166,6 +167,7 @@ export class BasicTraining {
         case 'soldierDied':
           if (e.id === this.liveId) out.push(...this.died(me, e.cause, nowMs));
           else if (nestCleared(view)) out.push(...this.once(['bt.r4.cleared']));
+          else if (rangeCleared(view)) out.push(...this.once(['bt.r7.clear']));
           break;
         case 'gateChanged':
           if (!e.open) break;
@@ -271,6 +273,7 @@ export class BasicTraining {
     if (r === 'r4' && me && me.x > BT_CORRIDOR_X) return this.once(['bt.r4.surprise']);
     if (r === 'r5') this.unlock('gunner');
     if (r === 'r6') this.unlock('grenadier');
+    if (r === 'r7') this.unlock('sniper');
     return [];
   }
 
@@ -326,6 +329,12 @@ function nestCleared(view: WorldView): boolean {
     (s) => s.role === 'enemy' && s.x > 1006 && s.y > 2120 && s.y < 2860,
   );
   return nest.length > 0 && nest.every((s) => !s.alive);
+}
+
+/** The far guns in R7 (east of its fence) are all down. */
+function rangeCleared(view: WorldView): boolean {
+  const far = view.soldiers.filter((s) => s.role === 'enemy' && s.x > 1250 && s.y < 400);
+  return far.length > 0 && far.every((s) => !s.alive);
 }
 
 /** Does a shot's line pass within `r` of `p`? */

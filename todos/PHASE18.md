@@ -57,3 +57,15 @@ doesn't feel like one. Built in a lab first so the owner can tune the look by ey
   floor chevrons (`BT_CHEVRONS`, drawn by the overlay), always-on respawn hint to the newest flag.
   `src/sim/__tests__/basic-training.test.ts` plays a naive player through every station (incl.
   the mine save); a browser "cold player" bot that only follows the screen was run end to end.
+- Real stats only ([D157]): `BASIC_TRAINING_TUNING` and the squads' `skill` boosts are gone; the
+  naive-player tests now run on `DEFAULT_TUNING`. Grenades skid less (`groundFriction` 0.25,
+  `rollDeceleration` 1800): they used to land on the target and roll out of their own blast.
+- Look reach and scope zoom ([D158]): `src/content/camera.ts` (per class), `lookView` /
+  `lookReach` / `phoneFitZoom` in `src/render/camera-look-ahead.ts`. Every gun braces
+  (`tuning.brace`, `SoldierView.braced`); `SoldierState.steady` slows a mounted MG / raised
+  Sniper rifle instead of dropping it. `mg.coverRangeMultiplier` in `gunRange`.
+- Touch reticle drag: `TouchControls.reticle` (set in `makeControls` from the input source's
+  `pointerWorld()`, mapped to client px); `tap` is now the dragged reticle (auto-aim yields
+  while it's held), other fingers fire (`fireHeld`). `__aoo.touch` exposes the controls.
+- Map rev 3: R5's riflemen moved east past auto-aim (MG mounts and aims by hand; a gap in the
+  bags), R7 is a sniper range (door at its west end, bags inside, far guns behind a fence).

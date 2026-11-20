@@ -109,6 +109,10 @@ export interface Tuning {
     /** Fire counts as "across the cover" if the aim ray enters a braced piece this close. */
     braceReach: number;
     mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
+    /** (PHASE18) Mounted, it can shuffle along its cover at this × walking speed and stay mounted. */
+    mountedMoveMultiplier: number;
+    /** (PHASE18) Firing across cover (mounted), range × this ([D158]), like the Sniper's. */
+    coverRangeMultiplier: number;
   } & GunSpread;
   /** (PHASE12-a) The Shield's sidearm, and the Sniper's while moving or setting up ([D59], [D60]). */
   pistol: {
@@ -126,6 +130,8 @@ export interface Tuning {
     range: number;
     cooldownSeconds: number;
     setupSeconds: number;
+    /** (PHASE18) Rifle up, it walks at this × walking speed and keeps it up (sprinting drops it). */
+    scopedMoveMultiplier: number;
     /** Braced on cover, firing across it: spread × this, range × `coverRangeMultiplier`. */
     coverSpreadMultiplier: number;
     coverRangeMultiplier: number;
@@ -226,6 +232,18 @@ export interface Tuning {
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
+  /**
+   * (PHASE18) Bracing ([D158]): any soldier with a gun standing still right by cover for
+   * `seconds` steadies its aim when firing across it (the Machine Gunner's mount and the Sniper's
+   * cover bonus are their own, stronger versions).
+   */
+  brace: {
+    seconds: number;
+    /** Base spread and kick × this. */
+    spreadMultiplier: number;
+    /** Fire counts as "across the cover" if the aim ray enters the piece this close. */
+    reach: number;
+  };
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
     /**
@@ -673,6 +691,8 @@ export const DEFAULT_TUNING: Tuning = {
     maxRecoil: 0.32, // TUNE
     recoveryPerSecond: 0.4, // TUNE
     mountSeconds: 0.6, // TUNE
+    mountedMoveMultiplier: 0.3, // TUNE (PHASE18)
+    coverRangeMultiplier: 1.15, // TUNE (PHASE18): mounted, it outranges a rifleman's eyes
     braceReach: 60, // TUNE
     mounted: {
       baseSpread: 0.005, // TUNE
@@ -695,6 +715,7 @@ export const DEFAULT_TUNING: Tuning = {
     range: 900, // TUNE: well past the rifle's 520
     cooldownSeconds: 1.2, // TUNE
     setupSeconds: 0.8, // TUNE
+    scopedMoveMultiplier: 0.35, // TUNE (PHASE18)
     baseSpread: 0.006, // TUNE
     movingSpread: 0, // TUNE: it's only up while standing still
     kick: 0.06, // TUNE
@@ -822,6 +843,11 @@ export const DEFAULT_TUNING: Tuning = {
     truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
     tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
   },
+  brace: {
+    seconds: 0.4, // TUNE (PHASE18)
+    spreadMultiplier: 0.6, // TUNE
+    reach: 60, // TUNE
+  },
   cover: {
     materials: {
       fence: { bullet: 0.1, lobbed: 0.5, hp: 120, armor: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
@@ -840,21 +866,21 @@ export const DEFAULT_TUNING: Tuning = {
     minRange: 60, // TUNE
     maxRange: 420, // TUNE: a bit under the rifle's range
     windupBaseSeconds: 0.2, // TUNE
-    windupSecondsPerUnit: 0.0022, // TUNE: max range ≈ 1.1 s
+    windupSecondsPerUnit: 0.0015, // TUNE: max range ≈ 0.8 s (PHASE18: quicker throws)
     cooldownSeconds: 0.6, // TUNE
     fuseSeconds: 2.2, // TUNE
-    throwSpeed: 480, // TUNE
+    throwSpeed: 640, // TUNE (PHASE18: was 480; grenades felt weak)
     gravity: 900, // TUNE
     groundRestitution: 0.3, // TUNE
-    groundFriction: 0.45, // TUNE
+    groundFriction: 0.25, // TUNE (PHASE18: was 0.45; grenades skidded well past the cursor)
     minBounceSpeed: 70, // TUNE
-    rollDeceleration: 520, // TUNE
+    rollDeceleration: 1800, // TUNE (PHASE18: was 520; grenades rolled well past what you threw at)
     wallRestitution: 0.5, // TUNE
     wallSlide: 0.7, // TUNE
     groundedHeight: 3, // TUNE
-    movingSpread: 0.15, // TUNE: about ±9°
-    movingDistanceSpread: 0.2, // TUNE
-    blastRadius: 40, // TUNE [D71]: small area, decent damage, 50 % pierce
+    movingSpread: 0.08, // TUNE: about ±5° (PHASE18: was ±9°)
+    movingDistanceSpread: 0.1, // TUNE (PHASE18: was 0.2)
+    blastRadius: 60, // TUNE [D71]: small area, decent damage, 50 % pierce (PHASE18: was 40)
     blastDamage: 90, // TUNE
     hazardDamage: 120, // TUNE
     fragments: 20, // TUNE [D71]: many …
@@ -965,7 +991,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 3.25, // TUNE [D128]: one soldier takes 6.5 s for both stages
+    stageSeconds: 2.45, // TUNE [D128]: one soldier takes ~4.9 s for both stages (PHASE18: 25 % quicker)
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE

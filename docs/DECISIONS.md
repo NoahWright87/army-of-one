@@ -743,8 +743,30 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   big red ones where to sprint; the MG chute is a walled lane with no way round, its gate opens
   a few seconds after Alpha is taken (time for the next soldier to get there and shoot the
   mines, saving the first); ambushes are close and deadly; the respawn screen always walks you
-  back in at your newest flag. Basic training's own tuning makes the lessons land (instant
-  mines, a stronger Shield, a bigger grenade blast, quick flags).
+  back in at your newest flag. ~~Basic training's own tuning makes the lessons land (instant
+  mines, a stronger Shield, a bigger grenade blast, quick flags).~~ Superseded by [D157].
+- **[D157] Basic training uses the real game's stats** (owner, 2026-11): "I do NOT want bespoke
+  stats for the tutorial." No tutorial tuning, no per-squad boosts. If a station doesn't work,
+  either the real stat needs a tweak (then it changes everywhere) or the station is badly
+  designed. Real tweaks made for it: grenades blast bigger (radius 60), throw faster and
+  straighter and stop near where they land; flags take ~25 % less time. The minefield is
+  simply dense: staggered rows from halfway up the chute to the wall past its exit, no gaps.
+  Money: the map just starts you with $9,999,999 and no income.
+- **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
+  next to it: a tighter cone and a little more reach); standing still looks a bit further;
+  the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across
+  cover, like the Sniper's); the Sniper much further, most of all braced. Looking far out zooms
+  in, per class (`src/content/camera.ts`: Sniper a lot, MG a little, the rest barely). A mounted
+  MG can shuffle along its cover and stay mounted; a set-up Sniper can walk slowly and keep the
+  rifle up (sprinting drops both). Phones zoom out so a rifleman's range fits on screen toward
+  the aim. Touch (tap mode, the default): touch on or near the reticle grabs it and drags the
+  aim; a touch anywhere else is the move stick; another finger fires while held (hold = full
+  auto). No fire button. In basic training this is taught by distance: R5's riflemen stand
+  past auto-aim (and past their own sight) from the sandbags, so you mount the MG and aim it
+  yourself; the gap in the bags lets a Shield walk up, into too many of them. The last room is
+  a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,
+  guarding the graduation flag; sandbags by the door to brace on. Dying there unlocks the
+  Sniper.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
   they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
 

@@ -6,11 +6,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BASIC_TRAINING,
-  BASIC_TRAINING_TUNING,
   BT,
   BT_CHUTE_DELAY_S,
   BT_MINES,
   BT_TARGETS,
+  btRoomAt,
 } from '../../content/maps/basic-training';
 import { secondsToTicks } from '../core/time';
 import type { SoldierInput } from '../entities/soldier';
@@ -20,7 +20,8 @@ import { validateMap } from '../world/map';
 import { idle, run, soldierAt, world } from './helpers';
 
 type P = { x: number; y: number };
-const bt = () => world(BASIC_TRAINING, BASIC_TRAINING_TUNING);
+// Real stats ([D157]): basic training is level design, not special rules.
+const bt = () => world(BASIC_TRAINING);
 const gateOpen = (w: World, id: string) => w.state.gates.find((g) => g.id === id)!.open;
 const enemiesOf = (w: World, ...squads: string[]) =>
   w.state.soldiers.filter((s) => s.team === 'enemy' && squads.includes(s.spawnPointId));
@@ -84,6 +85,11 @@ describe('basic training (PHASE18): on rails', () => {
     expect(() => validateMap(BASIC_TRAINING)).not.toThrow();
   });
 
+  it('the minefield counts as the chute, even its rows past the exit (for the mine hints)', () => {
+    for (const m of BASIC_TRAINING.mines!) expect(btRoomAt(m.position.x, m.position.y)).toBe('r3');
+    expect(btRoomAt(720, 1990)).toBe('r4'); // round the baffle: Bravo
+  });
+
   it('R1: from the sandbags, the targets go down and the gate opens', () => {
     const w = bt();
     const me = soldierAt(w, { x: 860, y: 3620 });
@@ -124,9 +130,11 @@ describe('basic training (PHASE18): on rails', () => {
     for (let i = 0; i < 60 * 10 && !gateOpen(w, 'bt-g2'); i++) run(w, 1, { [me]: idle() });
     return { w, me };
   }
+  // Up the chute, out through its exit, round the baffle: what a player heading for the flag does.
   const chute = [
     { x: 860, y: 2800 },
-    { x: 860, y: 2100 },
+    { x: 860, y: 2060 },
+    { x: 720, y: 1990 },
   ];
 
   it('R3: walking up the chute, you die (the MG or the mines)', () => {
@@ -195,6 +203,7 @@ describe('basic training (PHASE18): on rails', () => {
       { x: 1100, y: 1760 },
       { x: 1320, y: 1800 },
       { x: 1320, y: 2000 },
+      { x: 1300, y: 2250 }, // on toward the gun and the lever
     ];
     expect(walkPath(w, me, path)).toBe(-1);
     const sg = enemiesOf(w, 'bt-ambush')[0]!;
@@ -234,44 +243,52 @@ describe('basic training (PHASE18): on rails', () => {
     expect(alive(w, me)).toBe(true);
   });
 
-  it('R5: walking in as a rifleman, the ambush kills you quickly', () => {
+  /** Into R5 through its door, up to the sandbags. */
+  function intoR5(roleId: RoleId) {
     const w = bt();
-    const me = spawnAt(w, 'bt-sp-c');
+    const me = spawnAt(w, 'bt-sp-c', roleId);
     capture(w, me, 'bt-c');
-    const t = walkPath(w, me, [
+    walkPath(w, me, [
       { x: 600, y: 1260 },
-      { x: 670, y: 1200 },
+      { x: 672, y: 1100 },
     ]);
-    if (t >= 0) {
-      // Behind the sandbags, trading shots: still loses.
-      const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
-      shootAt(
-        w,
-        me,
-        () => foes.find((f) => f.alive) ?? foes[0]!,
-        () => !alive(w, me),
-        60 * 8,
-      );
+    return { w, me, foes: enemiesOf(w, 'bt-r5', 'bt-r5g') };
+  }
+  const nearest = (w: World, me: string, foes: { x: number; y: number; alive: boolean }[]) => {
+    const s = getSoldier(w, me)!;
+    return foes
+      .filter((f) => f.alive)
+      .sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y))[0];
+  };
+
+  it("R5: from the sandbags, every one of them is past auto-aim (and they can't see you)", () => {
+    const { w, me, foes } = intoR5('gunner');
+    const s = getSoldier(w, me)!;
+    for (const f of foes) {
+      const d = Math.hypot(f.x - s.x, f.y - s.y);
+      expect(d).toBeGreaterThan(w.tuning.mg.range); // auto-aim's reach for the MG
+      expect(d).toBeGreaterThan(w.tuning.ai.sightRange);
+    }
+  });
+
+  it('R5: a rifleman who goes at them dies', () => {
+    const { w, me, foes } = intoR5('rifleman');
+    for (let i = 0; i < 60 * 20 && alive(w, me) && foes.some((f) => f.alive); i++) {
+      const s = getSoldier(w, me)!;
+      const f = nearest(w, me, foes)!;
+      run(w, 1, { [me]: { ...toward(s, f, { aim: f }), fire: i % 6 < 4 } });
     }
     expect(alive(w, me)).toBe(false);
   });
 
-  it("R5: the Shield can't sit it out behind the sandbags either", () => {
-    const w = bt();
-    const me = spawnAt(w, 'bt-sp-c', 'shield');
-    capture(w, me, 'bt-c');
-    walkPath(w, me, [
-      { x: 600, y: 1260 },
-      { x: 670, y: 1200 },
-    ]);
-    const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
-    shootAt(
-      w,
-      me,
-      () => foes.find((f) => f.alive) ?? foes[0]!,
-      () => !alive(w, me),
-      60 * 20,
-    );
+  it('R5: the Shield through the gap in the sandbags: too many of them', () => {
+    const { w, me, foes } = intoR5('shield');
+    walkPath(w, me, [{ x: 670, y: 1160 }]);
+    for (let i = 0; i < 60 * 25 && alive(w, me) && foes.some((f) => f.alive); i++) {
+      const s = getSoldier(w, me)!;
+      const f = nearest(w, me, foes)!;
+      run(w, 1, { [me]: { ...toward(s, f, { aim: f }), fire: i % 6 < 4 } });
+    }
     expect(alive(w, me)).toBe(false);
   });
 
@@ -279,28 +296,20 @@ describe('basic training (PHASE18): on rails', () => {
     const w = bt();
     const me = spawnAt(w, 'bt-sp-b');
     // Through the chute's exit, round the baffle, onto the flag.
-    getSoldier(w, me)!.x = 860;
-    getSoldier(w, me)!.y = 2060;
-    walkPath(w, me, [
-      { x: 700, y: 1990 },
-      { x: 650, y: 1830 },
-    ]);
+    getSoldier(w, me)!.x = 720;
+    getSoldier(w, me)!.y = 1990;
+    walkPath(w, me, [{ x: 650, y: 1830 }]);
     capture(w, me, 'bt-b');
     expect(getSoldier(w, me)!.hp).toBe(100);
   });
 
-  it('R5: the Machine Gunner braced on the sandbags wins', () => {
-    const w = bt();
-    const me = spawnAt(w, 'bt-sp-c', 'gunner');
-    capture(w, me, 'bt-c');
-    walkPath(w, me, [
-      { x: 600, y: 1260 },
-      { x: 670, y: 1200 },
-    ]);
-    const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
-    for (let i = 0; i < 60 * 15 && alive(w, me) && foes.some((f) => f.alive); i++) {
+  it('R5: the Machine Gunner mounted on the sandbags, aiming by hand, wins', () => {
+    const { w, me, foes } = intoR5('gunner');
+    walkPath(w, me, [{ x: 672, y: 1230 }]); // behind the bags, not in the gap
+    run(w, secondsToTicks(w.tuning.mg.mountSeconds) + 2, { [me]: idle() });
+    for (let i = 0; i < 60 * 25 && alive(w, me) && foes.some((f) => f.alive); i++) {
       const s = getSoldier(w, me)!;
-      const f = foes.find((x) => x.alive)!;
+      const f = nearest(w, me, foes)!;
       run(w, 1, { [me]: { ...toward(s, s, { aim: f }), fire: true } });
     }
     expect(foes.every((f) => !f.alive)).toBe(true);
@@ -327,10 +336,50 @@ describe('basic training (PHASE18): on rails', () => {
     walkPath(w, nade, [{ x: 640, y: 650 }]);
     for (let i = 0; i < 60 * 12 && enemy.alive && alive(w, nade); i++) {
       const s = getSoldier(w, nade)!;
-      run(w, 1, { [nade]: { ...toward(s, s, { aim: enemy }), fire: i % 90 < 70 } });
+      // Hold to wind up, let go to throw (what auto-aim does too).
+      run(w, 1, { [nade]: { ...toward(s, s, { aim: enemy }), fire: i % 60 < 46 } });
     }
     expect(enemy.alive).toBe(false);
     run(w, 1);
     expect(gateOpen(w, 'bt-g8')).toBe(true);
+  });
+
+  /** In R7 (its gate open), a soldier at its door. */
+  function intoR7(roleId: RoleId) {
+    const w = bt();
+    w.state.gates.find((g) => g.id === 'bt-g8')!.open = true;
+    const me = soldierAt(w, { x: 342, y: 440 }, { roleId, facing: -Math.PI / 2 });
+    return { w, me, foes: enemiesOf(w, 'bt-r7') };
+  }
+
+  it('R7: running for the graduation flag, the far guns get you', () => {
+    const { w, me } = intoR7('rifleman');
+    walkPath(w, me, [{ x: 342, y: 380 }]);
+    capture(w, me, 'bt-grad');
+    expect(alive(w, me)).toBe(false);
+    expect(w.state.missionComplete).toBeNull();
+  });
+
+  it('R7: the Sniper braced on the sandbags by the door picks them off, then graduates', () => {
+    const { w, me, foes } = intoR7('sniper');
+    walkPath(w, me, [
+      { x: 342, y: 380 },
+      { x: 416, y: 360 },
+    ]);
+    for (const f of foes) {
+      const s = getSoldier(w, me)!;
+      expect(Math.hypot(f.x - s.x, f.y - s.y)).toBeGreaterThan(w.tuning.sniper.range); // no auto-aim
+    }
+    run(w, secondsToTicks(w.tuning.sniper.setupSeconds) + 2, { [me]: idle() });
+    for (let i = 0; i < 60 * 40 && alive(w, me) && foes.some((f) => f.alive); i++) {
+      const s = getSoldier(w, me)!;
+      const f = nearest(w, me, foes)!;
+      run(w, 1, { [me]: { ...toward(s, s, { aim: f }), fire: i % 20 < 10 } });
+    }
+    expect(foes.every((f) => !f.alive)).toBe(true);
+    expect(alive(w, me)).toBe(true);
+    capture(w, me, 'bt-grad');
+    run(w, 2);
+    expect(w.state.missionComplete).not.toBeNull();
   });
 });

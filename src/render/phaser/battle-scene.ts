@@ -7,7 +7,9 @@ import { getView, step, type World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import { entityCounts, ema } from '../../ui/hud/debug-model';
 import { buildHudModel } from '../../ui/hud/hud-model';
-import { capLookAhead, lookAheadOffset } from '../camera-look-ahead';
+import { capLookAhead, lookAheadOffset, lookView, phoneFitZoom } from '../camera-look-ahead';
+import { CAMERA, CLASS_LOOK } from '../../content/camera';
+import { roleDef } from '../../content/roles';
 import type { Cue } from '../event-cues';
 import type { InputSource } from '../input/input-source';
 import { lerpAngle, smoothFollow } from '../interp';
@@ -39,6 +41,10 @@ export class BattleScene extends Phaser.Scene {
   private worldRenderer!: WorldRenderer;
   private sounds!: SoundBank;
   private cam = { x: 0, y: 0 };
+  /** (PHASE18) Zoom before any scope zoom, the zoom wanted now, and the eased zoom in use. */
+  private baseZoom = 1;
+  private zoomGoal = 1;
+  private zoomNow = 0;
   /** The last look-ahead offset (held while the session asks, PHASE18). */
   private ahead = { x: 0, y: 0 };
   /** (06-a) Facing used for the look-ahead before the live soldier appears. */
@@ -208,8 +214,9 @@ export class BattleScene extends Phaser.Scene {
     const cam = this.cameras.main;
     // (06-c) A lower render scale draws a smaller canvas the browser stretches: zoom by the same
     // factor so the framing stays the same.
-    const zoom = display.cameraZoom * (this.services.renderScale?.() ?? 1);
-    if (cam.zoom !== zoom) cam.setZoom(zoom);
+    // (PHASE18) Phones zoom out so a rifleman sees his range toward his aim ([D158]).
+    const rs = this.services.renderScale?.() ?? 1;
+    this.baseZoom = display.cameraZoom * rs * phoneFitZoom(cam.width / rs, cam.height / rs);
     // Camera first (so the reticle's world position uses this frame's camera), then draw.
     // (06-a) During the frozen pre-battle hold there's no soldier yet: look ahead from home.
     this.updateRunners(driver, alpha);
@@ -240,7 +247,14 @@ export class BattleScene extends Phaser.Scene {
         counting ? undefined : this.lastInput.aimDistance,
       );
       this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
+    } else {
+      this.zoomGoal = this.baseZoom;
     }
+    // (PHASE18) Scope zoom eases in and out.
+    const ease = 1 - Math.exp((-deltaMs / 1000) * CAMERA.zoomEase);
+    this.zoomNow =
+      this.zoomNow <= 0 ? this.zoomGoal : this.zoomNow + (this.zoomGoal - this.zoomNow) * ease;
+    if (Math.abs(cam.zoom - this.zoomNow) > 1e-4) cam.setZoom(this.zoomNow);
     cam.centerOn(this.cam.x, this.cam.y);
     this.simFrameMs = ema(this.simFrameMs, simThisFrame, 0.05);
     const frozen = driver?.ended ?? false;
@@ -345,9 +359,35 @@ export class BattleScene extends Phaser.Scene {
     }
     const { display } = this.services;
     const cam = this.cameras.main;
-    const zoom = display.cameraZoom || 1;
-    // (PHASE12-a) A Sniper with its rifle up looks further ahead ([D59]).
     const live = this.view.soldiers.find((s) => s.id === this.liveId);
+    // (PHASE18) 'aim' (the default): look as far as this soldier can, zooming like a scope at
+    // the far end ([D158]).
+    if (display.cameraLookAhead === 'aim' && live) {
+      const t = this.world.tuning as unknown as Record<string, { range?: number } | undefined>;
+      const weapon = roleDef(live.roleId).weapon;
+      const range =
+        (live.gun ? t[live.gun]?.range : undefined) ??
+        (weapon === 'grenade' ? this.world.tuning.grenade.maxRange : CAMERA.minReach);
+      const move = this.lastInput.move;
+      const v = lookView({
+        range,
+        look: CLASS_LOOK[live.roleId ?? 'rifleman'],
+        still: move.x === 0 && move.y === 0,
+        braced: !!live.braced,
+        setUp: !!live.mounted || live.gun === 'sniper',
+        aim,
+        ...(aimDistance !== undefined ? { aimDistance } : {}),
+        viewW: cam.width,
+        viewH: cam.height,
+        baseZoom: this.baseZoom,
+      });
+      this.zoomGoal = v.zoom;
+      this.ahead = v.offset;
+      return { x: pos.x + v.offset.x, y: pos.y + v.offset.y };
+    }
+    this.zoomGoal = this.baseZoom;
+    const zoom = this.baseZoom || 1;
+    // (PHASE12-a) A Sniper with its rifle up looks further ahead ([D59]).
     const far = live?.gun === 'sniper' ? this.world.tuning.sniper.lookAheadMultiplier : 1;
     const ahead = capLookAhead(
       lookAheadOffset(

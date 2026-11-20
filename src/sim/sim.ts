@@ -526,7 +526,13 @@ export function getView(world: World): WorldView {
 function aimView(
   world: World,
   s: SoldierState,
-): { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } {
+): {
+  aimSpread?: number;
+  mount?: number;
+  mounted?: boolean;
+  braced?: boolean;
+  gun?: SoldierView['gun'];
+} {
   const live =
     s.alive &&
     s.team === undefined &&
@@ -534,7 +540,7 @@ function aimView(
   if (!live) return {};
   const weapon = roleDef(s.roleId).weapon;
   const gun = gunOf(s, world.tuning);
-  const out: { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } = {
+  const out: ReturnType<typeof aimView> = {
     aimSpread: currentSpread(world, s, s.facing),
     ...(gun ? { gun } : weapon === 'rocket' ? { gun: 'rocket' as const } : {}),
   };
@@ -550,6 +556,10 @@ function aimView(
   } else if (s.braceId !== null && s.mountTicks > 0) {
     out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
     out.mounted = mountBonus(world, s, s.facing);
+  }
+  // (PHASE18) Braced on cover, any class ([D158]): the camera looks further.
+  if (s.braceId !== null && s.mountTicks >= mountTicksNeeded(world.tuning, s.roleId)) {
+    out.braced = true;
   }
   return out;
 }

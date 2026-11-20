@@ -22,7 +22,7 @@ import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
 import { BasicTraining, BT_DONE_KEY, BT_SENT_KEY, type BtHint } from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
-import { BASIC_TRAINING_ID, BASIC_TRAINING_TUNING } from '../content/maps/basic-training';
+import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
 import { roleDef } from '../content/roles';
 import { HUB_MAP } from '../content/hub';
@@ -301,8 +301,7 @@ function gameTuning() {
   const base = campaignBattle
     ? withTuning(DEFAULT_TUNING, DIFFICULTY[campaignBattle.difficulty].tuning)
     : DEFAULT_TUNING;
-  // (PHASE18) Basic training: no money, enemies don't heal.
-  const t = effectiveTuning(settings, training ? withTuning(base, BASIC_TRAINING_TUNING) : base);
+  const t = effectiveTuning(settings, base);
   const flag = params.get('enemies');
   const off = flag === '0' || (params.has('autoplay') && flag !== '1');
   return off ? withTuning(t, { ai: { enabled: false } }) : t;
@@ -418,7 +417,26 @@ function makeControls(
     ? new TouchInput(touchControls, { tuning, toWorld })
     : new KeyboardMouseInput(scene);
   // (PHASE18) The HQ: no auto-aim/auto-fire (it would keep closing the signs you read).
-  if (!sc.autoAim || opts.autoAim === false) return base;
+  const source =
+    !sc.autoAim || opts.autoAim === false ? base : autoAimed(base, map, tuning, liveId);
+  // (PHASE18) Tap mode grabs the reticle where it's drawn ([D158]).
+  touchControls.reticle = () => {
+    const w = source.pointerWorld();
+    if (!w) return null;
+    const cam = scene.cameras.main;
+    const r = scene.game.canvas.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    const gx = (w.x - cam.worldView.x) * cam.zoom;
+    const gy = (w.y - cam.worldView.y) * cam.zoom;
+    return {
+      x: r.left + (gx * r.width) / scene.scale.width,
+      y: r.top + (gy * r.height) / scene.scale.height,
+    };
+  };
+  return source;
+}
+
+function autoAimed(base: InputSource, map: MapDef, tuning: Tuning, liveId: string): InputSource {
   return new AutoAimInput(base, {
     map,
     tuning,
@@ -589,7 +607,7 @@ installHotkeys(window, {
   toggleSettings: () => panel.toggle(),
 });
 
-const aoo: Record<string, unknown> = { game, settings, mode, services };
+const aoo: Record<string, unknown> = { game, settings, mode, services, touch: touchControls };
 /** Debug/e2e hook (screenshots, browser tests). Not part of any gameplay contract. */
 (window as unknown as { __aoo?: unknown }).__aoo = aoo;
 

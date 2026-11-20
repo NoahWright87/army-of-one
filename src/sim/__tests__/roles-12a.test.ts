@@ -20,7 +20,7 @@ const bags: CoverDef = {
 };
 
 describe('Sniper ([D59])', () => {
-  it('fires a pistol on the move, sets up the rifle by standing still, swaps back when moving', () => {
+  it('fires a pistol on the move, sets up the rifle by standing still, keeps it at a slow walk, drops it sprinting', () => {
     const w = world(arena());
     const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'sniper' });
     const moving = ofKind(run(w, 10, { [id]: { ...walk(0, 1), fire: true } }), 'shotFired');
@@ -33,7 +33,12 @@ describe('Sniper ([D59])', () => {
     expect(gunOf(s, T)).toBe('sniper');
     const shots = ofKind(run(w, 1, { [id]: fire() }), 'shotFired');
     expect(shots[0]!.weapon).toBe('sniper');
-    run(w, 2, { [id]: walk(0, 1) });
+    // (PHASE18) Walking keeps the rifle up, slowly ([D158]); sprinting drops it.
+    const y0 = getSoldier(w, id)!.y;
+    run(w, 30, { [id]: walk(0, 1) });
+    expect(gunOf(getSoldier(w, id)!, T)).toBe('sniper');
+    expect(getSoldier(w, id)!.y - y0).toBeLessThan(T.soldier.speed * 0.5 * 0.5);
+    run(w, 2, { [id]: { ...walk(0, 1), sprint: true } });
     expect(gunOf(getSoldier(w, id)!, T)).toBe('pistol');
   });
 

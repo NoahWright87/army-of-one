@@ -48,6 +48,8 @@ export interface SoldierView {
   mount?: number;
   /** (07-c) Live Machine Gunner: mounted and aiming across the cover (the bonus applies). */
   mounted?: boolean;
+  /** (PHASE18) Live soldier, any class: braced on cover (aim bonus, looks further, [D158]). */
+  braced?: boolean;
 }
 
 /** (07-c) A grenade in flight ([D37]). */

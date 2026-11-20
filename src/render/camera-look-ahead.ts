@@ -9,6 +9,7 @@
  * - 'aim': shifted toward where the soldier aims.
  * - 'upAim': forward, leaning half as far toward the aim (still forward when aiming back).
  */
+import { CAMERA, type ClassLook } from '../content/camera';
 import type { Vec2 } from '../sim/core/vec';
 
 export type LookAheadMode = 'off' | 'up' | 'aim' | 'upAim';
@@ -58,4 +59,61 @@ export function capLookAhead(offset: Vec2, halfViewW: number, halfViewH: number,
     x: Math.max(-mx, Math.min(mx, offset.x)),
     y: Math.max(-my, Math.min(my, offset.y)),
   };
+}
+
+// ---- (PHASE18) Look reach and scope zoom ([D158]) -------------------------------------------
+
+export interface LookState {
+  /** The weapon's range (world units). */
+  range: number;
+  look: ClassLook;
+  still: boolean;
+  braced: boolean;
+  /** Mounted / set up (Machine Gunner on cover, Sniper rifle up). */
+  setUp: boolean;
+  /** Aim direction (radians) and how far out the cursor is (absent: touch / auto-aim). */
+  aim: number;
+  aimDistance?: number;
+  /** The view in screen px, and the zoom before any scope zoom. */
+  viewW: number;
+  viewH: number;
+  baseZoom: number;
+}
+
+/** How far this soldier can look right now (world units). */
+export function lookReach(
+  s: Pick<LookState, 'range' | 'look' | 'still' | 'braced' | 'setUp'>,
+): number {
+  let r = Math.max(CAMERA.minReach, s.range * s.look.reach);
+  if (s.still) r *= 1 + CAMERA.stillBonus;
+  if (s.braced) r *= 1 + CAMERA.braceBonus;
+  if (s.setUp) r *= s.look.setUp;
+  return r;
+}
+
+/**
+ * Where the camera looks from the soldier (world units) and its zoom. Aiming further out pans
+ * toward the aim until the screen's edge reaches the look reach; the last stretch zooms in up to
+ * the class's `maxZoom`. Driven by the cursor's distance, it settles where you point: the cursor
+ * at the screen's edge looks as far as you can.
+ */
+export function lookView(s: LookState): { offset: Vec2; zoom: number; reach: number } {
+  const reach = lookReach(s);
+  const out =
+    s.aimDistance === undefined
+      ? CAMERA.defaultAim
+      : Math.max(0, Math.min(1, s.aimDistance / reach));
+  const z = Math.max(0, Math.min(1, (out - CAMERA.zoomFrom) / (1 - CAMERA.zoomFrom)));
+  const zoom = s.baseZoom * (1 + (s.look.maxZoom - 1) * z * z * (3 - 2 * z));
+  // Half the view along the aim (world units at this zoom).
+  const c = Math.abs(Math.cos(s.aim));
+  const sn = Math.abs(Math.sin(s.aim));
+  const half = (c * s.viewW + sn * s.viewH) / 2 / zoom;
+  const pan = Math.min(out * Math.max(0, reach - half), half * s.look.maxPan);
+  return { offset: { x: Math.cos(s.aim) * pan, y: Math.sin(s.aim) * pan }, zoom, reach };
+}
+
+/** Phones: the zoom that keeps at least `CAMERA.minHalfView` world units on the short half-screen. */
+export function phoneFitZoom(cssW: number, cssH: number): number {
+  return Math.min(1, Math.min(cssW, cssH) / 2 / CAMERA.minHalfView);
 }

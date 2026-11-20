@@ -31,6 +31,7 @@ export const BT_SIGNS: readonly SignDef[] = [
   { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
   { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
   { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
+  { id: 'bt-s-sniper', x: 520, y: 450, kind: 'plate', textKey: 'bt.sign.sniper', size: 44 },
 ];
 
 /** The drill sergeant stays between lives (he's the same man): one per page. */

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { AIM_PAN, capLookAhead, lookAheadOffset } from './camera-look-ahead';
+import { CAMERA, CLASS_LOOK } from '../content/camera';
+import {
+  AIM_PAN,
+  capLookAhead,
+  lookAheadOffset,
+  lookReach,
+  lookView,
+  phoneFitZoom,
+} from './camera-look-ahead';
 
 describe('camera look-ahead (06-a)', () => {
   it('off centres, up looks up the map, aim looks along the aim, upAim blends both', () => {
@@ -26,5 +34,46 @@ describe('camera look-ahead (06-a)', () => {
     expect(lookAheadOffset('aim', 200, Math.PI / 2, 10_000).y).toBeCloseTo(200);
     // South is as visible as north.
     expect(lookAheadOffset('aim', 200, -Math.PI / 2, 10_000).y).toBeCloseTo(-200);
+  });
+
+  it('look reach: weapon range, never under a rifle, more still / braced / set up', () => {
+    const base = { range: 340, look: CLASS_LOOK.shield, still: false, braced: false, setUp: false };
+    expect(lookReach(base)).toBe(CAMERA.minReach);
+    const sn = { ...base, range: 900, look: CLASS_LOOK.sniper };
+    expect(lookReach({ ...sn, still: true, braced: true, setUp: true })).toBeGreaterThan(
+      lookReach(sn) * 1.3,
+    );
+  });
+
+  it('look view: pans toward the aim to the reach, zooms in only at the far end, per class', () => {
+    const v = {
+      range: 520,
+      look: CLASS_LOOK.rifleman,
+      still: false,
+      braced: false,
+      setUp: false,
+      aim: -Math.PI / 2,
+      viewW: 390,
+      viewH: 700,
+      baseZoom: phoneFitZoom(390, 700),
+    };
+    const near = lookView({ ...v, aimDistance: 50 });
+    const far = lookView({ ...v, aimDistance: 5000 });
+    expect(near.zoom).toBeCloseTo(v.baseZoom);
+    expect(far.offset.y).toBeLessThan(near.offset.y);
+    // At full aim the screen's top edge reaches the rifle's range.
+    const half = 700 / 2 / far.zoom;
+    expect(-far.offset.y + half).toBeGreaterThanOrEqual(519);
+    // A sniper zooms much more than a rifleman, an MG a little.
+    const zs = (look: typeof v.look) =>
+      lookView({ ...v, look, aimDistance: 1e5 }).zoom / v.baseZoom;
+    expect(zs(CLASS_LOOK.sniper)).toBeGreaterThan(2);
+    expect(zs(CLASS_LOOK.gunner)).toBeGreaterThan(1.1);
+    expect(zs(CLASS_LOOK.rifleman)).toBeLessThan(1.1);
+  });
+
+  it('phones zoom out so a rifleman sees his range; big screens stay at 1', () => {
+    expect(phoneFitZoom(390, 844)).toBeLessThan(0.7);
+    expect(phoneFitZoom(1280, 760)).toBe(1);
   });
 });

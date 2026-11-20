@@ -1,7 +1,9 @@
 /**
  * (07-b) On-screen touch controls ([D41]): a floating movement stick on the left half, a floating
- * aim stick on the right half (when auto-aim is off), a fire button, an interact button (only near
- * a lever), and a settings button. DOM only; `TouchInput` (src/render/input) turns its state into
+ * aim stick on the right half (when auto-aim is off), an interact button (only near a lever), and
+ * a settings button. (PHASE18, [D158]) Tap mode, the default: touching on or near the reticle
+ * grabs it (drag to aim); a touch anywhere else is the move stick; another finger fires while
+ * held. No fire button. DOM only; `TouchInput` (src/render/input) turns its state into
  * a `SoldierInput` per tick.
  */
 import { str } from '../../content/strings';
@@ -13,6 +15,8 @@ import { knobOffset, sprintRingReached, stickVector, type StickConfig } from './
 const STICK: StickConfig = { radius: 56, deadZone: 0.15 };
 /** (PHASE17) Pushing the move stick past this × its radius sprints ([D144]). */
 const SPRINT_RING = 1.45;
+/** (PHASE18) A touch this close to the reticle (client px) grabs it. */
+const GRAB_RADIUS = 64; // TUNE
 
 const CSS = `
 .aoo-touch { position: fixed; inset: 0; z-index: 20; pointer-events: none; user-select: none;
@@ -41,12 +45,13 @@ const CSS = `
   background: rgba(120,190,255,0.12); }
 .aoo-touch .tapmark { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px;
   border-radius: 50%; border: 3px solid rgba(255,211,77,0.85); pointer-events: none; }
+.aoo-touch .firemark { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+  border-radius: 50%; background: rgba(255,90,60,0.35); border: 2px solid rgba(255,120,90,0.9);
+  pointer-events: none; }
 .aoo-touch button { position: absolute; z-index: 2; pointer-events: auto; touch-action: none; border: 0;
   border-radius: 50%; font: 700 15px system-ui, sans-serif; color: #111; }
-.aoo-touch .fire { right: 22px; bottom: 26px; width: 84px; height: 84px; background: rgba(255,90,60,0.8); }
-.aoo-touch .fire.held { background: rgba(255,140,100,0.95); }
-.aoo-touch .interact { right: 120px; bottom: 44px; width: 64px; height: 64px; background: rgba(120,220,140,0.85); }
-/* Touch mode: the minimap moves up out of the fire button's way. */
+.aoo-touch .interact { right: 32px; bottom: 44px; width: 64px; height: 64px; background: rgba(120,220,140,0.85); }
+/* Touch mode: the minimap moves up out of the buttons' way. */
 body.aoo-touch-mode .aoo-minimap { bottom: auto; top: 64px; }
 .aoo-touch .sprint { right: 32px; bottom: 124px; width: 64px; height: 64px; background: rgba(120,190,255,0.8); }
 .aoo-touch .sprint.held { background: rgba(170,215,255,0.95); }
@@ -67,12 +72,23 @@ export class TouchControls {
   move: Vec2 = { x: 0, y: 0 };
   /** Aim stick output while touched, else null. */
   aim: Vec2 | null = null;
-  /** (PHASE12-d) Tap-to-aim: the touched screen point (client px) while held, else null. */
+  /**
+   * (PHASE18) Tap mode: where the dragged reticle is (client px) while a finger holds it, else
+   * null.
+   */
   tap: Vec2 | null = null;
+  /** (PHASE18) Where the reticle is on screen (client px), for grabbing it. Set by the app. */
+  reticle: (() => Vec2 | null) | null = null;
   private tapEl: HTMLDivElement | null = null;
   private tapPointer: number | null = null;
+  /** Finger minus reticle when grabbed, so the reticle doesn't jump to the finger. */
+  private grabOffset: Vec2 = { x: 0, y: 0 };
   private tapAimOn = false;
-  fireHeld = false;
+  /** (PHASE18) Fingers that fire while held (tap mode). */
+  private readonly firing = new Map<number, HTMLDivElement>();
+  get fireHeld(): boolean {
+    return this.firing.size > 0;
+  }
   /** (07-e) Sprint button held ([D49]). */
   private sprintBtnHeld = false;
   /** (PHASE17) The move stick pushed out to its outer ring ([D144]). */
@@ -84,7 +100,6 @@ export class TouchControls {
   readonly interactLatch = new PressLatch();
   private left: Active | null = null;
   private right: Active | null = null;
-  private readonly fireBtn = el('button', 'fire', str('touch.fire'));
   private readonly interactBtn = el('button', 'interact', str('touch.interact'));
   private readonly sprintBtn = el('button', 'sprint', str('touch.sprint'));
   private aimStickOn = true;
@@ -99,18 +114,6 @@ export class TouchControls {
       e.preventDefault();
       onSettings();
     });
-    this.fireBtn.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.fireHeld = true;
-      this.fireBtn.classList.add('held');
-      this.fireBtn.setPointerCapture?.(e.pointerId);
-    });
-    const release = () => {
-      this.fireHeld = false;
-      this.fireBtn.classList.remove('held');
-    };
-    this.fireBtn.addEventListener('pointerup', release);
-    this.fireBtn.addEventListener('pointercancel', release);
     this.interactBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.interactLatch.press();
@@ -130,7 +133,7 @@ export class TouchControls {
     this.sprintBtn.addEventListener('pointercancel', stopSprint);
     this.bindStick(leftZone, 'left');
     this.bindStick(rightZone, 'right');
-    this.root.append(leftZone, rightZone, this.interactBtn, this.fireBtn, this.sprintBtn, gear);
+    this.root.append(leftZone, rightZone, this.interactBtn, this.sprintBtn, gear);
     this.root.hidden = true;
     // No scrolling, pinch-zoom or pull-to-refresh while the controls are up.
     this.root.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
@@ -147,10 +150,7 @@ export class TouchControls {
     return !this.root.hidden;
   }
 
-  /**
-   * (PHASE12-d) Tap-to-aim instead of the aim stick: touching the field (anywhere but the move
-   * corner and the buttons) aims there and fires while held.
-   */
+  /** (PHASE12-d, PHASE18) Tap mode (grab the reticle) instead of the aim stick. */
   setTapAim(on: boolean): void {
     this.tapAimOn = on;
     this.root.classList.toggle('tap', on);
@@ -181,28 +181,50 @@ export class TouchControls {
   private reset(): void {
     this.endStick('left');
     this.endStick('right');
-    this.fireHeld = false;
-    this.fireBtn.classList.remove('held');
     this.sprintBtnHeld = false;
     this.ringSprint = false;
     this.sprintBtn.classList.remove('held');
     this.endTap();
+    for (const id of [...this.firing.keys()]) this.endFire(id);
+  }
+
+  private endFire(id: number): void {
+    this.firing.get(id)?.remove();
+    this.firing.delete(id);
+  }
+
+  /** (PHASE18) Is this touch on or near the reticle? */
+  private nearReticle(x: number, y: number): Vec2 | null {
+    const r = this.reticle?.() ?? null;
+    if (!r) return null;
+    return Math.hypot(x - r.x, y - r.y) <= GRAB_RADIUS ? r : null;
   }
 
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {
     zone.addEventListener('pointerdown', (e) => {
-      // (PHASE17) Tap mode: one zone; the first finger moves, a second one aims ([D144]).
-      const aimTap = this.tapAimOn && (side === 'right' || (side === 'left' && this.left !== null));
-      if (aimTap) {
-        if (this.tapPointer !== null) return;
+      // (PHASE18) Tap mode, one zone ([D158]): on the reticle grabs it; elsewhere the first
+      // finger is the move stick; any other finger fires while held.
+      if (this.tapAimOn) {
         e.preventDefault();
         zone.setPointerCapture?.(e.pointerId);
-        this.tapPointer = e.pointerId;
-        this.tap = { x: e.clientX, y: e.clientY };
-        this.tapEl = el('div', 'tapmark');
-        this.root.append(this.tapEl);
-        this.placeTap();
-        return;
+        const r = this.tapPointer === null ? this.nearReticle(e.clientX, e.clientY) : null;
+        if (r) {
+          this.tapPointer = e.pointerId;
+          this.grabOffset = { x: e.clientX - r.x, y: e.clientY - r.y };
+          this.tap = { x: r.x, y: r.y };
+          this.tapEl = el('div', 'tapmark');
+          this.root.append(this.tapEl);
+          this.placeTap();
+          return;
+        }
+        if (this.left || this.tapPointer !== null) {
+          const mark = el('div', 'firemark');
+          mark.style.left = `${e.clientX}px`;
+          mark.style.top = `${e.clientY}px`;
+          this.root.append(mark);
+          this.firing.set(e.pointerId, mark);
+          return;
+        }
       }
       if (side === 'right' && !this.aimStickOn) return;
       if (this[side]) return;
@@ -220,7 +242,7 @@ export class TouchControls {
     });
     zone.addEventListener('pointermove', (e) => {
       if (this.tapPointer === e.pointerId) {
-        this.tap = { x: e.clientX, y: e.clientY };
+        this.tap = { x: e.clientX - this.grabOffset.x, y: e.clientY - this.grabOffset.y };
         this.placeTap();
         return;
       }
@@ -232,6 +254,10 @@ export class TouchControls {
     const end = (e: PointerEvent) => {
       if (this.tapPointer === e.pointerId) {
         this.endTap();
+        return;
+      }
+      if (this.firing.has(e.pointerId)) {
+        this.endFire(e.pointerId);
         return;
       }
       const a = this[side];

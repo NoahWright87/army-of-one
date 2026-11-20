@@ -1,3 +1,4 @@
+import { roleDef } from '../../content/roles';
 import type { Tuning, VehicleDrive } from '../../content/tuning';
 import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
@@ -78,6 +79,11 @@ export interface SoldierState {
   moveFrac: number;
   /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
   sprinting?: boolean;
+  /**
+   * (PHASE18) Mounted MG or a Sniper with the rifle up ([D158]): walking is slow and keeps it
+   * (set by the gun's step; read by next tick's movement).
+   */
+  steady?: boolean;
   /** (PHASE16) Last tick this soldier took damage ([D133]: regeneration waits after it). */
   hurtTick?: Tick;
   /**
@@ -241,7 +247,12 @@ export function stepSoldierMovement(
   const dir = clampLength(input.move, 1);
   const walk = soldierSpeed(tuning, s.roleId) * DT;
   const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
-  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk;
+  const steadyMul = s.steady
+    ? roleDef(s.roleId).weapon === 'sniper'
+      ? tuning.sniper.scopedMoveMultiplier
+      : tuning.mg.mountedMoveMultiplier
+    : 1;
+  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk * steadyMul;
   const next = moveCircle(
     { x: s.x, y: s.y },
     { x: dir.x * step, y: dir.y * step },
