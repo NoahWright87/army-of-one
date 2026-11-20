@@ -10,6 +10,7 @@
  *   while a lever is in reach.
  * Usually wrapped in `AutoAimInput`, which overrides the aim when it has a target.
  */
+import { CAMERA } from '../../content/camera';
 import type { Tuning } from '../../content/tuning';
 import type { Vec2 } from '../../sim/core/vec';
 import type { SoldierInput } from '../../sim/entities/soldier';
@@ -27,6 +28,8 @@ export class TouchInput implements InputSource {
   private aimDistance = DEFAULT_AIM_DISTANCE;
   private lastPos: Vec2 | null = null;
   private view: WorldView | null = null;
+  /** The drag being turned into aim: its id, its reach, and the aim it started from (share). */
+  private drag: { id: number; reach: number; f0: Vec2 } | null = null;
 
   constructor(
     private readonly controls: TouchControls,
@@ -34,6 +37,11 @@ export class TouchInput implements InputSource {
       tuning: Tuning;
       /** (PHASE12-d) Screen (client px) → world, for tap-to-aim. */
       toWorld?: (clientX: number, clientY: number) => Vec2 | null;
+      /**
+       * (PHASE18) How far this soldier can look (world units): dragging half the screen, either
+       * way, moves the aim this far.
+       */
+      aimReach?: () => number;
     },
   ) {}
 
@@ -47,11 +55,34 @@ export class TouchInput implements InputSource {
     this.lastPos = soldierPos;
     const a = c.aim;
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
-    // (PHASE18) The dragged reticle: aim there. Firing is a separate finger.
-    const tapped = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
-    if (tapped) {
-      this.aim = Math.atan2(tapped.y - soldierPos.y, tapped.x - soldierPos.x);
-      this.aimDistance = Math.max(30, Math.hypot(tapped.x - soldierPos.x, tapped.y - soldierPos.y));
+    // (PHASE18) Aiming by finger ([D158]): it starts where the reticle was (or where the finger
+    // came down), then moves by share of the screen: half the screen either way is the full look
+    // reach, so a narrow phone aims as far sideways as up and down.
+    const g = c.drag;
+    if (!g) this.drag = null;
+    if (g) {
+      if (this.drag?.id !== g.id) {
+        const reach = Math.max(1, this.opts.aimReach?.() ?? this.opts.tuning.rifle.range);
+        const at = this.opts.toWorld?.(g.start.x, g.start.y) ?? null;
+        const f0 = at
+          ? { x: (at.x - soldierPos.x) / reach, y: (at.y - soldierPos.y) / reach }
+          : {
+              x: (Math.cos(this.aim) * this.aimDistance) / reach,
+              y: (Math.sin(this.aim) * this.aimDistance) / reach,
+            };
+        this.drag = { id: g.id, reach, f0 };
+      }
+      const d = this.drag!;
+      const half = c.screenHalf();
+      let fx = d.f0.x + (g.finger.x - g.fingerStart.x) / half.x;
+      let fy = d.f0.y + (g.finger.y - g.fingerStart.y) / half.y;
+      const len = Math.hypot(fx, fy);
+      if (len > CAMERA.maxAimShare) {
+        fx *= CAMERA.maxAimShare / len;
+        fy *= CAMERA.maxAimShare / len;
+      }
+      if (len > 1e-6) this.aim = Math.atan2(fy, fx);
+      this.aimDistance = Math.max(30, Math.hypot(fx, fy) * d.reach);
     } else if (aLen > 0.2 && a) {
       this.aim = Math.atan2(a.y, a.x);
       this.aimDistance = Math.max(60, aLen * this.opts.tuning.grenade.maxRange);

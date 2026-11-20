@@ -17,6 +17,11 @@ export interface ClassLook {
   reach: number; // TUNE
   /** Extra × when mounted / set up (Machine Gunner on cover, Sniper rifle up). */
   setUp: number; // TUNE
+  /**
+   * Keep the soldier on screen too, zooming out if the aim point and the soldier don't both fit
+   * (a phone's narrow side). false: a scope, which may leave the shooter behind.
+   */
+  keepInView: boolean;
   /** Most it zooms in when looking as far as it can (1 = never). */
   maxZoom: number; // TUNE
   /** The camera may go this far from the soldier, in half-screens (> 1: off screen). */
@@ -38,11 +43,18 @@ export const CAMERA = {
   minHalfView: 290, // TUNE
   /** Without a cursor (touch, auto-aim): look this far out (share of the reach). */
   defaultAim: 0.6, // TUNE
+  /** The camera pans at least far enough to keep the aim point this far out (share of half
+   * the view), so it never leaves the screen. */
+  aimOnScreen: 0.75, // TUNE
+  /** …and the soldier stays within this share of half the view (zooming out if need be). */
+  meOnScreen: 0.85, // TUNE
+  /** Aiming (and the camera) goes at most this × the look reach. */
+  maxAimShare: 1.1, // TUNE
   /** How quickly the zoom follows (per second, 0..1 of the way). */
   zoomEase: 6, // TUNE
 } as const;
 
-const plain: ClassLook = { reach: 1, setUp: 1, maxZoom: 1.05, maxPan: 0.85 };
+const plain: ClassLook = { reach: 1, setUp: 1, maxZoom: 1.05, maxPan: 0.85, keepInView: true };
 
 export const CLASS_LOOK: Record<RoleId, ClassLook> = {
   rifleman: plain,
@@ -50,8 +62,8 @@ export const CLASS_LOOK: Record<RoleId, ClassLook> = {
   shield: plain,
   shotgun: plain,
   bazooka: { ...plain, maxZoom: 1.1 },
-  gunner: { reach: 1.05, setUp: 1.2, maxZoom: 1.25, maxPan: 1.1 }, // a small zoom
-  sniper: { reach: 1, setUp: 1.15, maxZoom: 2.4, maxPan: 3 }, // a scope: zooms a lot
+  gunner: { reach: 1.05, setUp: 1.2, maxZoom: 1.25, maxPan: 1.1, keepInView: true }, // a small zoom
+  sniper: { reach: 1, setUp: 1.15, maxZoom: 2.4, maxPan: 3, keepInView: false }, // a scope: zooms a lot
   truck: plain,
   tank: { ...plain, maxZoom: 1.1 },
 };

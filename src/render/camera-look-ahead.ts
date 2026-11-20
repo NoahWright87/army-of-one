@@ -110,7 +110,36 @@ export function lookView(s: LookState): { offset: Vec2; zoom: number; reach: num
   const sn = Math.abs(Math.sin(s.aim));
   const half = (c * s.viewW + sn * s.viewH) / 2 / zoom;
   const pan = Math.min(out * Math.max(0, reach - half), half * s.look.maxPan);
-  return { offset: { x: Math.cos(s.aim) * pan, y: Math.sin(s.aim) * pan }, zoom, reach };
+  const offset = { x: Math.cos(s.aim) * pan, y: Math.sin(s.aim) * pan };
+  // Both the aim point and the soldier stay on screen, on each axis: the aim within
+  // `aimOnScreen` of the half-view, the soldier within `meOnScreen`. Where they can't both fit
+  // (aiming far across a phone's narrow side), zoom out just enough.
+  const aimAt = Math.min(s.aimDistance ?? out * reach, reach * CAMERA.maxAimShare);
+  // A scope (the Sniper) may leave the shooter behind; everyone else keeps themselves in view.
+  if (!s.look.keepInView) {
+    const hx = (s.viewW / 2 / zoom) * CAMERA.aimOnScreen;
+    const hy = (s.viewH / 2 / zoom) * CAMERA.aimOnScreen;
+    const ax0 = Math.cos(s.aim) * aimAt;
+    const ay0 = Math.sin(s.aim) * aimAt;
+    offset.x = Math.min(Math.max(offset.x, ax0 - hx), ax0 + hx);
+    offset.y = Math.min(Math.max(offset.y, ay0 - hy), ay0 + hy);
+    return { offset, zoom, reach };
+  }
+  const ax = Math.cos(s.aim) * aimAt;
+  const ay = Math.sin(s.aim) * aimAt;
+  const span = CAMERA.aimOnScreen + CAMERA.meOnScreen;
+  const fit = (view: number, a: number) =>
+    Math.abs(a) > 1 ? (view / 2) * (span / Math.abs(a)) : Infinity;
+  const z2 = Math.min(zoom, fit(s.viewW, ax), fit(s.viewH, ay));
+  const win = (view: number, a: number, o: number) => {
+    const half2 = view / 2 / z2;
+    const lo = Math.max(a - half2 * CAMERA.aimOnScreen, -half2 * CAMERA.meOnScreen);
+    const hi = Math.min(a + half2 * CAMERA.aimOnScreen, half2 * CAMERA.meOnScreen);
+    return Math.min(Math.max(o, lo), Math.max(lo, hi));
+  };
+  offset.x = win(s.viewW, ax, offset.x);
+  offset.y = win(s.viewH, ay, offset.y);
+  return { offset, zoom: z2, reach };
 }
 
 /** Phones: the zoom that keeps at least `CAMERA.minHalfView` world units on the short half-screen. */

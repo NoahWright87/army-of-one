@@ -72,6 +72,25 @@ describe('camera look-ahead (06-a)', () => {
     expect(zs(CLASS_LOOK.rifleman)).toBeLessThan(1.1);
   });
 
+  it('aiming across a portrait phone, the camera keeps the aim point on screen', () => {
+    const v = {
+      range: 560,
+      look: CLASS_LOOK.gunner,
+      still: true,
+      braced: true,
+      setUp: true,
+      aim: 0, // east: the narrow way
+      aimDistance: 640,
+      viewW: 390,
+      viewH: 700,
+      baseZoom: phoneFitZoom(390, 700),
+    };
+    const r = lookView(v);
+    const half = 390 / 2 / r.zoom;
+    expect(640 - r.offset.x).toBeLessThan(half); // the reticle is inside the screen
+    expect(r.offset.x).toBeLessThan(half); // and so is the soldier (zoomed out to fit)
+  });
+
   it('phones zoom out so a rifleman sees his range; big screens stay at 1', () => {
     expect(phoneFitZoom(390, 844)).toBeLessThan(0.7);
     expect(phoneFitZoom(1280, 760)).toBe(1);

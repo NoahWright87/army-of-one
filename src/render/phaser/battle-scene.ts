@@ -352,6 +352,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** (06-a) Camera goal for a soldier at `pos` aiming at `aim`: look-ahead, capped on screen. */
+  /** (PHASE18) The live soldier's look reach right now (touch aiming scales to it). */
+  lookReachNow: number = CAMERA.minReach;
+
   private lookAhead(
     pos: { x: number; y: number },
     aim: number,
@@ -387,6 +390,7 @@ export class BattleScene extends Phaser.Scene {
       });
       this.zoomGoal = v.zoom;
       this.ahead = v.offset;
+      this.lookReachNow = v.reach;
       return { x: pos.x + v.offset.x, y: pos.y + v.offset.y };
     }
     this.zoomGoal = this.baseZoom;

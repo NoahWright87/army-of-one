@@ -762,7 +762,11 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   the aim. Touch (tap mode, the default): touch on or near the reticle grabs it and drags the
   aim; a touch anywhere else is the move stick. While moving, a second finger aims where it
   touches and fires while held (hold = full auto), as before; standing still with the reticle
-  grabbed, another finger fires. No fire button. In basic training this is taught by distance: R5's riflemen stand
+  grabbed, another finger fires. No fire button. Touch aim moves by share of the screen, not
+  pixels (owner): dragging half the screen either way moves the aim the full look reach, so a
+  portrait phone aims as far sideways as up and down. The camera keeps the aim point on screen,
+  and (except the Sniper's scope) the soldier too, zooming out when both don't fit; on phones
+  the minimap is smaller and faded. In basic training this is taught by distance: R5's riflemen stand
   past auto-aim (and past their own sight) from the sandbags, so you mount the MG and aim it
   yourself; the gap in the bags lets a Shield walk up, into too many of them. The last room is
   a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,

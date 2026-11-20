@@ -51,8 +51,10 @@ const CSS = `
 .aoo-touch button { position: absolute; z-index: 2; pointer-events: auto; touch-action: none; border: 0;
   border-radius: 50%; font: 700 15px system-ui, sans-serif; color: #111; }
 .aoo-touch .interact { right: 32px; bottom: 44px; width: 64px; height: 64px; background: rgba(120,220,140,0.85); }
-/* Touch mode: the minimap moves up out of the buttons' way. */
-body.aoo-touch-mode .aoo-minimap { bottom: auto; top: 64px; }
+/* Touch mode: the minimap moves up out of the buttons' way, and (PHASE18) shrinks and fades:
+   on a phone it sits right where you aim to the side. */
+body.aoo-touch-mode .aoo-minimap { bottom: auto; top: 64px; transform: scale(0.55);
+  transform-origin: top right; opacity: 0.7; }
 .aoo-touch .sprint { right: 32px; bottom: 124px; width: 64px; height: 64px; background: rgba(120,190,255,0.8); }
 .aoo-touch .sprint.held { background: rgba(170,215,255,0.95); }
 .aoo-touch .gear { left: 10px; top: 64px; width: 40px; height: 40px; background: rgba(255,255,255,0.25);
@@ -72,17 +74,19 @@ export class TouchControls {
   move: Vec2 = { x: 0, y: 0 };
   /** Aim stick output while touched, else null. */
   aim: Vec2 | null = null;
-  /**
-   * (PHASE18) Tap mode: where the dragged reticle is (client px) while a finger holds it, else
-   * null.
-   */
+  /** (PHASE18) Tap mode: the aiming finger (client px) while it's down, else null. */
   tap: Vec2 | null = null;
+  /**
+   * (PHASE18) The aiming drag: where aiming started (`start`: the reticle when it was grabbed,
+   * else the finger), where the finger started and where it is now (client px). `id` changes
+   * with each new drag. `TouchInput` turns it into an aim by share of the screen.
+   */
+  drag: { id: number; start: Vec2; fingerStart: Vec2; finger: Vec2 } | null = null;
+  private dragIds = 0;
   /** (PHASE18) Where the reticle is on screen (client px), for grabbing it. Set by the app. */
   reticle: (() => Vec2 | null) | null = null;
   private tapEl: HTMLDivElement | null = null;
   private tapPointer: number | null = null;
-  /** Finger minus reticle when grabbed, so the reticle doesn't jump to the finger. */
-  private grabOffset: Vec2 = { x: 0, y: 0 };
   private tapAimOn = false;
   /** (PHASE18) Fingers that fire while held (tap mode). */
   private readonly firing = new Map<number, HTMLDivElement>();
@@ -163,6 +167,7 @@ export class TouchControls {
     this.tapEl?.remove();
     this.tapEl = null;
     this.tap = null;
+    this.drag = null;
     this.tapPointer = null;
     this.tapFires = false;
   }
@@ -217,9 +222,9 @@ export class TouchControls {
         if (r || (free && moving)) {
           this.tapPointer = e.pointerId;
           this.tapFires = moving;
-          const at = r ?? { x: e.clientX, y: e.clientY };
-          this.grabOffset = { x: e.clientX - at.x, y: e.clientY - at.y };
-          this.tap = { x: at.x, y: at.y };
+          const finger = { x: e.clientX, y: e.clientY };
+          this.tap = finger;
+          this.drag = { id: ++this.dragIds, start: r ?? finger, fingerStart: finger, finger };
           this.tapEl = el('div', 'tapmark');
           this.root.append(this.tapEl);
           this.placeTap();
@@ -250,7 +255,8 @@ export class TouchControls {
     });
     zone.addEventListener('pointermove', (e) => {
       if (this.tapPointer === e.pointerId) {
-        this.tap = { x: e.clientX - this.grabOffset.x, y: e.clientY - this.grabOffset.y };
+        this.tap = { x: e.clientX, y: e.clientY };
+        if (this.drag) this.drag = { ...this.drag, finger: this.tap };
         this.placeTap();
         return;
       }
@@ -273,6 +279,12 @@ export class TouchControls {
     };
     zone.addEventListener('pointerup', end);
     zone.addEventListener('pointercancel', end);
+  }
+
+  /** Half the screen (client px): aiming moves by share of it, the same both ways. */
+  screenHalf(): Vec2 {
+    const r = this.root.getBoundingClientRect();
+    return { x: Math.max(1, r.width / 2), y: Math.max(1, r.height / 2) };
   }
 
   private placeTap(): void {

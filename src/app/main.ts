@@ -416,7 +416,11 @@ function makeControls(
     return { x: p.x, y: p.y };
   };
   const base: InputSource = sc.touch
-    ? new TouchInput(touchControls, { tuning, toWorld })
+    ? new TouchInput(touchControls, {
+        tuning,
+        toWorld,
+        aimReach: () => (scene as unknown as { lookReachNow?: number }).lookReachNow ?? 520,
+      })
     : new KeyboardMouseInput(scene);
   // (PHASE18) The HQ: no auto-aim/auto-fire (it would keep closing the signs you read).
   const source =
