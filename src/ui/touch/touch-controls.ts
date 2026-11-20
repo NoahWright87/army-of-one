@@ -74,15 +74,11 @@ export class TouchControls {
   move: Vec2 = { x: 0, y: 0 };
   /** Aim stick output while touched, else null. */
   aim: Vec2 | null = null;
-  /** (PHASE18) Tap mode: the aiming finger (client px) while it's down, else null. */
-  tap: Vec2 | null = null;
   /**
-   * (PHASE18) The aiming drag: where aiming started (`start`: the reticle when it was grabbed,
-   * else the finger), where the finger started and where it is now (client px). `id` changes
-   * with each new drag. `TouchInput` turns it into an aim by share of the screen.
+   * (PHASE18) Tap mode: the aiming finger (client px) while it's down, else null. The reticle
+   * goes right under it.
    */
-  drag: { id: number; start: Vec2; fingerStart: Vec2; finger: Vec2 } | null = null;
-  private dragIds = 0;
+  tap: Vec2 | null = null;
   /** (PHASE18) Where the reticle is on screen (client px), for grabbing it. Set by the app. */
   reticle: (() => Vec2 | null) | null = null;
   private tapEl: HTMLDivElement | null = null;
@@ -167,7 +163,6 @@ export class TouchControls {
     this.tapEl?.remove();
     this.tapEl = null;
     this.tap = null;
-    this.drag = null;
     this.tapPointer = null;
     this.tapFires = false;
   }
@@ -222,9 +217,7 @@ export class TouchControls {
         if (r || (free && moving)) {
           this.tapPointer = e.pointerId;
           this.tapFires = moving;
-          const finger = { x: e.clientX, y: e.clientY };
-          this.tap = finger;
-          this.drag = { id: ++this.dragIds, start: r ?? finger, fingerStart: finger, finger };
+          this.tap = { x: e.clientX, y: e.clientY };
           this.tapEl = el('div', 'tapmark');
           this.root.append(this.tapEl);
           this.placeTap();
@@ -256,7 +249,6 @@ export class TouchControls {
     zone.addEventListener('pointermove', (e) => {
       if (this.tapPointer === e.pointerId) {
         this.tap = { x: e.clientX, y: e.clientY };
-        if (this.drag) this.drag = { ...this.drag, finger: this.tap };
         this.placeTap();
         return;
       }
@@ -279,12 +271,6 @@ export class TouchControls {
     };
     zone.addEventListener('pointerup', end);
     zone.addEventListener('pointercancel', end);
-  }
-
-  /** Half the screen (client px): aiming moves by share of it, the same both ways. */
-  screenHalf(): Vec2 {
-    const r = this.root.getBoundingClientRect();
-    return { x: Math.max(1, r.width / 2), y: Math.max(1, r.height / 2) };
   }
 
   private placeTap(): void {
