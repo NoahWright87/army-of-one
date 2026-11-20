@@ -172,7 +172,7 @@ export class BasicTraining {
             out.push(...this.once(['bt.r5.done']));
             if (me && me.hp < me.maxHp) out.push(...this.once(['bt.r5.walk']));
           }
-          if (e.id === 'bt-g7') out.push(...this.once(['bt.r6.done']));
+          if (e.id === 'bt-g8') out.push(...this.once(['bt.r6.done']));
           break;
         case 'shotFired':
           if (e.by === this.liveId && passesNear(e, sarge, 40)) {
