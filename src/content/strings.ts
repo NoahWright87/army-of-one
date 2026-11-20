@@ -803,7 +803,7 @@ export const STRINGS = {
   'bt.r4.shield': 'Shield up front! [p=200]Push!',
   'bt.r4.cleared': 'Clear! [p=200]Flip that [gold]switch[/]!',
   'bt.r4.open': "Gate's open! [p=200][shake]NORTH!",
-  'bt.r5.enter': 'Ambush! [shake]GET DOWN!',
+  'bt.r5.enter': "Six of 'em! [p=200][shake]GO GET 'EM!",
   'bt.r5.mg': 'Sandbags. [p=200]Stand [gold]still[/]. [p=200]Aim it [gold]yourself[/]!',
   'bt.r5.done': 'Outstanding!',
   'bt.r5.walk': 'Hurt? [shake]Walk it off![/] [p]You heal out of the fire.',
