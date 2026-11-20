@@ -137,6 +137,27 @@ export const BT_MINEFIELD: { id: string; position: Vec2 }[] = (() => {
   return out;
 })();
 export const BT_MINES = BT_MINEFIELD.map((m) => m.id);
+/**
+ * R7: mines between the graduation flag and the far fence, staggered, no gaps: a Grenadier
+ * can't walk into throwing range of the guns. Snipe them from the door.
+ */
+export const BT_R7_MINEFIELD: { id: string; position: Vec2 }[] = (() => {
+  const out: { id: string; position: Vec2 }[] = [];
+  let n = 0;
+  for (let col = 0, x = 900; x <= 1220; col++, x += 52) {
+    for (let y = 70 + (col % 2) * 32; y <= 380; y += 64) {
+      out.push({ id: `bt-r7m${++n}`, position: { x, y } });
+    }
+  }
+  return out;
+})();
+/** R7's far guns (snipers and machine gunners), spread so one grenade can't get two. */
+export const BT_R7_GUNS = [
+  { role: 'sniper', position: { x: 1330, y: 70 } },
+  { role: 'gunner', position: { x: 1325, y: 170 } },
+  { role: 'sniper', position: { x: 1330, y: 270 } },
+  { role: 'gunner', position: { x: 1325, y: 370 } },
+] as const;
 /** Seconds after Alpha is taken before the chute's gate opens (time to get to it). */
 export const BT_CHUTE_DELAY_S = 6; // TUNE
 
@@ -151,14 +172,15 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
   { from: { x: 600, y: 1440 }, to: { x: 600, y: 1320 } },
   { from: { x: 600, y: 840 }, to: { x: 600, y: 720 } },
   { from: { x: 560, y: 520 }, to: { x: 380, y: 430 } },
-  { from: { x: 380, y: 290 }, to: { x: 780, y: 280 } }, // over the sniper's bags, not through
+  { from: { x: 380, y: 290 }, to: { x: 700, y: 270 } }, // over the sniper's bags, not through
 ];
 
 export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
-  // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]).
-  rev: 3,
+  // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]);
+  // 4: R7's guns spread out behind a minefield.
+  rev: 4,
   width: BT_W,
   height: BT_H,
   walls: [
@@ -207,9 +229,14 @@ export const BASIC_TRAINING: MapDef = {
       { bullet: 0.98, lobbed: 0 },
     ),
     // R7: sandbags just inside the door, for the sniper to brace on.
-    cover('bt-r7-bags', 'sandbags', { x: R7_DOOR + DOOR_W + 8, y: 320, w: 24, h: 70 }),
+    cover(
+      'bt-r7-bags',
+      'sandbags',
+      { x: R7_DOOR + DOOR_W + 8, y: 320, w: 24, h: 70 },
+      { bullet: 0.9 }, // heavy: they fire back at where the shots come from
+    ),
     // R7: their fence, far east. Past auto-aim, past their sight, inside a braced sniper's reach.
-    cover('bt-r7-fence', 'fence', { x: 1250, y: 40, w: 12, h: 240 }),
+    cover('bt-r7-fence', 'fence', { x: 1250, y: 40, w: 12, h: 340 }),
   ],
   gates: [
     gateAt('bt-g1', BT.r1),
@@ -228,7 +255,7 @@ export const BASIC_TRAINING: MapDef = {
     { id: 'bt-t3', position: { x: 1150, y: 3700 }, radius: 18, maxHp: 50, target: true },
     { id: 'bt-t4', position: { x: 1270, y: 3800 }, radius: 18, maxHp: 50, target: true },
   ],
-  mines: BT_MINEFIELD,
+  mines: [...BT_MINEFIELD, ...BT_R7_MINEFIELD],
   capturePoints: [
     { id: 'bt-a', nameKey: 'spawn.basic.a', position: { x: 860, y: 3030 } },
     { id: 'bt-b', nameKey: 'spawn.basic.b', position: { x: 650, y: 1830 } },
@@ -237,7 +264,8 @@ export const BASIC_TRAINING: MapDef = {
     {
       id: 'bt-grad',
       nameKey: 'spawn.basic.grad',
-      position: { x: 920, y: 260 },
+      position: { x: 780, y: 260 },
+      radius: 70,
       objective: true,
     },
   ],
@@ -311,12 +339,7 @@ export const BASIC_TRAINING: MapDef = {
     {
       id: 'bt-r7',
       hold: true,
-      members: [
-        { role: 'sniper', position: { x: 1330, y: 70 }, facing: Math.PI },
-        { role: 'gunner', position: { x: 1330, y: 120 }, facing: Math.PI },
-        { role: 'sniper', position: { x: 1330, y: 170 }, facing: Math.PI },
-        { role: 'gunner', position: { x: 1330, y: 215 }, facing: Math.PI },
-      ],
+      members: BT_R7_GUNS.map((g) => ({ ...g, facing: Math.PI })),
       order: { kind: 'guard' },
     },
   ],

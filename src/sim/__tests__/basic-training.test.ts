@@ -9,6 +9,8 @@ import {
   BT,
   BT_CHUTE_DELAY_S,
   BT_MINES,
+  BT_MINEFIELD,
+  BT_R7_GUNS,
   BT_TARGETS,
   btRoomAt,
 } from '../../content/maps/basic-training';
@@ -26,6 +28,7 @@ const gateOpen = (w: World, id: string) => w.state.gates.find((g) => g.id === id
 const enemiesOf = (w: World, ...squads: string[]) =>
   w.state.soldiers.filter((s) => s.team === 'enemy' && squads.includes(s.spawnPointId));
 const alive = (w: World, id: string) => getSoldier(w, id)!.alive;
+const r3Mines = (w: World) => w.state.mines.filter((m) => BT_MINES.includes(m.id));
 
 /** Toward `to` (sprinting or not), aiming at `aim` (default: where it's going). */
 function toward(from: P, to: P, opts: { sprint?: boolean; aim?: P; fire?: boolean } = {}) {
@@ -86,7 +89,7 @@ describe('basic training (PHASE18): on rails', () => {
   });
 
   it('the minefield counts as the chute, even its rows past the exit (for the mine hints)', () => {
-    for (const m of BASIC_TRAINING.mines!) expect(btRoomAt(m.position.x, m.position.y)).toBe('r3');
+    for (const m of BT_MINEFIELD) expect(btRoomAt(m.position.x, m.position.y)).toBe('r3');
     expect(btRoomAt(720, 1990)).toBe('r4'); // round the baffle: Bravo
   });
 
@@ -155,9 +158,9 @@ describe('basic training (PHASE18): on rails', () => {
       w,
       me,
       () => mines.find((m) => m.id === BT_MINES[2])!.position,
-      () => w.state.mines.every((m) => m.state === 'detonated'),
+      () => r3Mines(w).every((m) => m.state === 'detonated'),
     );
-    expect(w.state.mines.every((m) => m.state === 'detonated')).toBe(true);
+    expect(r3Mines(w).every((m) => m.state === 'detonated')).toBe(true);
     run(w, 30, { [me]: idle() });
     expect(walkPath(w, me, chute, { sprint: true })).toBeGreaterThan(0);
   });
@@ -381,5 +384,56 @@ describe('basic training (PHASE18): on rails', () => {
     capture(w, me, 'bt-grad');
     run(w, 2);
     expect(w.state.missionComplete).not.toBeNull();
+  });
+
+  it("R7: the far guns are spread out: one grenade can't get two", () => {
+    const r = BASIC_TRAINING.squads!.find((q) => q.id === 'bt-r7')!;
+    expect(r.members).toHaveLength(BT_R7_GUNS.length);
+    const T = bt().tuning;
+    for (const a of BT_R7_GUNS) {
+      for (const b of BT_R7_GUNS) {
+        if (a === b) continue;
+        const d = Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y);
+        expect(d).toBeGreaterThan(T.grenade.blastRadius * 1.5);
+      }
+    }
+  });
+
+  it('R7: a Grenadier walking at them, throwing at whatever is in reach, dies first', () => {
+    const { w, me, foes } = intoR7('grenadier');
+    const T = w.tuning;
+    walkPath(w, me, [{ x: 342, y: 380 }]);
+    for (let i = 0; i < 60 * 30 && alive(w, me); i++) {
+      const s = getSoldier(w, me)!;
+      const f = nearest(w, me, foes);
+      if (!f) break;
+      const d = Math.hypot(f.x - s.x, f.y - s.y);
+      // Round the sandbags by the door, then straight at them.
+      const goal = s.x < 470 ? { x: 480, y: 280 } : { x: f.x, y: f.y };
+      // Auto-aim throws at whatever is in reach; otherwise keep walking at them.
+      run(w, 1, {
+        [me]: { ...toward(s, goal, { aim: f }), fire: d <= T.grenade.maxRange },
+      });
+    }
+    expect(alive(w, me)).toBe(false);
+    expect(foes.filter((f) => f.alive).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('R7: on the way to the flag the sniper opens up long before you reach it', () => {
+    const { w, me, foes } = intoR7('rifleman');
+    const flag = w.map.capturePoints!.find((c) => c.id === 'bt-grad')!.position;
+    let firstShotX: number | null = null;
+    const path = [{ x: 342, y: 380 }, { x: 420, y: 280 }, flag];
+    let i = 0;
+    for (let t = 0; t < 60 * 20 && alive(w, me) && firstShotX === null; t++) {
+      const s = getSoldier(w, me)!;
+      while (i < path.length && Math.hypot(path[i]!.x - s.x, path[i]!.y - s.y) < 14) i++;
+      const evs = run(w, 1, { [me]: toward(s, path[Math.min(i, path.length - 1)]!) });
+      for (const e of evs) {
+        if (e.kind === 'shotFired' && foes.some((f) => f.id === e.by)) firstShotX = s.x;
+      }
+    }
+    expect(firstShotX).not.toBeNull();
+    expect(firstShotX!).toBeLessThan(flag.x - 100);
   });
 });

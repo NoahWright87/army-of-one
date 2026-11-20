@@ -771,7 +771,11 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   yourself; the gap in the bags lets a Shield walk up, into too many of them. The last room is
   a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,
   guarding the graduation flag; sandbags by the door to brace on. Dying there unlocks the
-  Sniper.
+  Sniper. (Owner, after a Grenadier walked up and grenaded them on auto-aim:) the guns are
+  spread out so one grenade can't get two, a staggered minefield runs from the flag to their
+  fence so nobody walks into throwing range, the flag sits inside the MG's reach, and enemy
+  Snipers see further everywhere (`sight` 1.42 × `ai.sightRange`, ~850) so they open up well
+  before you reach the flag. The sandbags by the door are heavy (they fire back at your shots).
 - **[D159] No wind-ups: fire, then reload** (owner, 2026-11): "The wind up should be the reload
   *after* the weapon fires." Grenades, rockets and tank shells go the moment you press fire (a
   grenade to where you aim); the old wind-up time moved into the reload, and the ring fills while

@@ -290,7 +290,8 @@ function perceive(
 ): Perception {
   const t = skillOf(world, s);
   const tick = world.state.tick;
-  const sight2 = t.sightRange * t.sightRange;
+  const sightRange = t.sightRange * (profileOf(s.roleId).sight ?? 1);
+  const sight2 = sightRange * sightRange;
   // Nearest few candidates in range, then line of sight (cover cuts sight, walls block).
   const cands = ours
     .filter((o) => distanceSq(o, s) <= sight2)
@@ -298,7 +299,7 @@ function perceive(
     .slice(0, Math.max(1, t.maxCandidates));
   const visible: SoldierState[] = [];
   for (const o of cands) {
-    if (!seesThroughCover(standingCover(world), s, o, t.sightRange, world.tuning)) continue;
+    if (!seesThroughCover(standingCover(world), s, o, sightRange, world.tuning)) continue;
     if (!hasLineOfSight(world, s, o, 'enemy', s.id)) continue;
     visible.push(o);
   }
