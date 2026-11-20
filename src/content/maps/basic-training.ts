@@ -151,7 +151,7 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
   { from: { x: 600, y: 1440 }, to: { x: 600, y: 1320 } },
   { from: { x: 600, y: 840 }, to: { x: 600, y: 720 } },
   { from: { x: 560, y: 520 }, to: { x: 380, y: 430 } },
-  { from: { x: 420, y: 370 }, to: { x: 760, y: 300 } },
+  { from: { x: 380, y: 290 }, to: { x: 780, y: 280 } }, // over the sniper's bags, not through
 ];
 
 export const BASIC_TRAINING: MapDef = {
