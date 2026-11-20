@@ -86,8 +86,10 @@ export class TouchControls {
   private tapAimOn = false;
   /** (PHASE18) Fingers that fire while held (tap mode). */
   private readonly firing = new Map<number, HTMLDivElement>();
+  /** The aiming finger also fires (it came down while moving, like the old tap-to-aim). */
+  private tapFires = false;
   get fireHeld(): boolean {
-    return this.firing.size > 0;
+    return this.firing.size > 0 || (this.tap !== null && this.tapFires);
   }
   /** (07-e) Sprint button held ([D49]). */
   private sprintBtnHeld = false;
@@ -162,6 +164,7 @@ export class TouchControls {
     this.tapEl = null;
     this.tap = null;
     this.tapPointer = null;
+    this.tapFires = false;
   }
 
   /** The right-hand aim stick (off while auto-aim aims for you). */
@@ -203,15 +206,20 @@ export class TouchControls {
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {
     zone.addEventListener('pointerdown', (e) => {
       // (PHASE18) Tap mode, one zone ([D158]): on the reticle grabs it; elsewhere the first
-      // finger is the move stick; any other finger fires while held.
+      // finger is the move stick. While moving, a second finger aims there and fires while held
+      // (on the reticle: drags it, firing); any other finger fires while held.
       if (this.tapAimOn) {
         e.preventDefault();
         zone.setPointerCapture?.(e.pointerId);
-        const r = this.tapPointer === null ? this.nearReticle(e.clientX, e.clientY) : null;
-        if (r) {
+        const free = this.tapPointer === null;
+        const r = free ? this.nearReticle(e.clientX, e.clientY) : null;
+        const moving = this.left !== null;
+        if (r || (free && moving)) {
           this.tapPointer = e.pointerId;
-          this.grabOffset = { x: e.clientX - r.x, y: e.clientY - r.y };
-          this.tap = { x: r.x, y: r.y };
+          this.tapFires = moving;
+          const at = r ?? { x: e.clientX, y: e.clientY };
+          this.grabOffset = { x: e.clientX - at.x, y: e.clientY - at.y };
+          this.tap = { x: at.x, y: at.y };
           this.tapEl = el('div', 'tapmark');
           this.root.append(this.tapEl);
           this.placeTap();

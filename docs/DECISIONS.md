@@ -760,8 +760,9 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   MG can shuffle along its cover and stay mounted; a set-up Sniper can walk slowly and keep the
   rifle up (sprinting drops both). Phones zoom out so a rifleman's range fits on screen toward
   the aim. Touch (tap mode, the default): touch on or near the reticle grabs it and drags the
-  aim; a touch anywhere else is the move stick; another finger fires while held (hold = full
-  auto). No fire button. In basic training this is taught by distance: R5's riflemen stand
+  aim; a touch anywhere else is the move stick. While moving, a second finger aims where it
+  touches and fires while held (hold = full auto), as before; standing still with the reticle
+  grabbed, another finger fires. No fire button. In basic training this is taught by distance: R5's riflemen stand
   past auto-aim (and past their own sight) from the sandbags, so you mount the MG and aim it
   yourself; the gap in the bags lets a Shield walk up, into too many of them. The last room is
   a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,
