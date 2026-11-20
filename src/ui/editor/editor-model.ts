@@ -363,6 +363,9 @@ export function defaultItem(
         rect: [snap(x - 1.25), snap(y - 0.25), 2.5, 0.5],
         material: 'sandbags',
       };
+    case 'bush':
+    case 'trench':
+      return { ...base, priority: 0, kind, rect: [snap(x - 1.5), snap(y - 0.75), 3, 1.5] };
     case 'gate':
       return { ...base, priority: 0, kind, rect: [snap(x - 1.5), snap(y - 0.25), 3, 0.5] };
     case 'lever': {

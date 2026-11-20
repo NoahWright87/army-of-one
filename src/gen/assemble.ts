@@ -16,6 +16,7 @@ import {
   borderWalls,
   type CapturePointDef,
   type CoverDef,
+  type ConcealmentArea,
   type GateDef,
   type LeverDef,
   type MapDef,
@@ -74,6 +75,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     ...solidRects(groundRows, cs),
   ];
   const cover: CoverDef[] = [];
+  const concealment: ConcealmentArea[] = [];
   const gates: GateDef[] = [];
   const levers: LeverDef[] = [];
   const turrets: TurretDef[] = [];
@@ -91,6 +93,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
   const acc: Content = {
     walls,
     cover,
+    concealment,
     gates,
     levers,
     turrets,
@@ -116,6 +119,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     walls,
     water: waterRects(groundRows, cs),
     cover,
+    concealment,
     gates,
     levers,
     turrets,
@@ -130,6 +134,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
 export interface Content {
   walls: Rect[];
   cover: CoverDef[];
+  concealment: ConcealmentArea[];
   gates: GateDef[];
   levers: LeverDef[];
   turrets: TurretDef[];
@@ -147,7 +152,18 @@ export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Co
   const cs = BLOCK_TUNING.cellSize;
   const n = BLOCK_CELLS;
   const rad = (deg: number) => (deg * Math.PI) / 180;
-  const { walls, cover, gates, levers, turrets, mines, squads, capturePoints, spawnPoints } = acc;
+  const {
+    walls,
+    cover,
+    concealment,
+    gates,
+    levers,
+    turrets,
+    mines,
+    squads,
+    capturePoints,
+    spawnPoints,
+  } = acc;
   {
     const pt = ([x, y]: CellPoint): Vec2 => ({ x: (ox + x) * cs, y: (oy + y) * cs });
     const rect = ([x, y, w, h]: CellRect): Rect => ({
@@ -165,6 +181,10 @@ export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Co
           break;
         case 'cover':
           cover.push({ id: id(it.id), rect: rect(it.rect), material: it.material });
+          break;
+        case 'bush':
+        case 'trench':
+          concealment.push({ id: id(it.id), rect: rect(it.rect), kind: it.kind });
           break;
         case 'gate':
           gates.push({ id: id(it.id), rect: rect(it.rect), initiallyOpen: !!it.open });

@@ -226,6 +226,16 @@ export interface Tuning {
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
+  concealment: {
+    minVisibility: number;
+    sprintBonus: number;
+    firingBonus: number;
+    firingSeconds: number;
+    aimError: number;
+    bush: { visibility: number; bullet: number; entryDepth: number; entrySpeed: number };
+    trench: { visibility: number; dodge: number; rimDepth: number; climbSpeed: number };
+    smoke: { visibility: number; seconds: number; radiusMultiplier: number };
+  };
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
     /**
@@ -821,6 +831,30 @@ export const DEFAULT_TUNING: Tuning = {
     bazooka: { hp: 1, speed: 0.8 }, // TUNE [D62]: bazookas are heavy
     truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
     tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
+  },
+  concealment: {
+    minVisibility: 0.1, // TUNE
+    sprintBonus: 0.3, // TUNE: added to the terrain-adjusted visibility
+    firingBonus: 0.65, // TUNE
+    firingSeconds: 0.8, // TUNE
+    aimError: 0.22, // TUNE: radians of error scaled by how well the target is concealed
+    bush: {
+      visibility: 0.28, // TUNE
+      bullet: 0.08, // TUNE
+      entryDepth: 26, // TUNE: world units
+      entrySpeed: 0.45, // TUNE
+    },
+    trench: {
+      visibility: 0.55, // TUNE
+      dodge: 0.55, // TUNE: incoming bullets pass overhead
+      rimDepth: 58, // TUNE: roughly 1.2 seconds at rifleman walking speed × climbSpeed
+      climbSpeed: 0.25, // TUNE
+    },
+    smoke: {
+      visibility: 0.15, // TUNE: fresh smoke
+      seconds: 3.5, // TUNE
+      radiusMultiplier: 1.15, // TUNE: relative to blast radius
+    },
   },
   cover: {
     materials: {

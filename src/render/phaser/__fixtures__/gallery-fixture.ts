@@ -486,6 +486,9 @@ export function galleryView(tick: Tick): WorldView {
       },
     ],
     // (07-c) Cover arcs around the live soldier: a faint fence east, solid wall north-west.
+    smoke: [
+      { id: 'gallery-smoke', x: 1080, y: 620, radius: 52, density: 0.65, transmission: 0.45 },
+    ],
     coverArcs: [
       { angle: 0, halfWidth: 0.6, value: 0.1 },
       { angle: -Math.PI / 2, halfWidth: 0.5, value: 0.5 },

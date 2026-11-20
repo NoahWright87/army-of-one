@@ -7,6 +7,7 @@
  * It reads a source the app provides; it never touches the sim.
  */
 import { str } from '../../content/strings';
+import { visibilityFrom } from '../../sim/world/concealment';
 import type { MapDef } from '../../sim/world/map';
 import type { WorldView } from '../../sim/view';
 import { revealedRuns, type RevealedMap, type RevealGrid } from '../../timeline/reveal';
@@ -170,6 +171,10 @@ export class Minimap {
     for (const { rect: r } of map.cover ?? []) {
       ctx.fillRect(r.x, r.y, Math.max(r.w, u), Math.max(r.h, u));
     }
+    for (const { kind, rect } of map.concealment ?? []) {
+      ctx.fillStyle = kind === 'bush' ? '#526e3b' : '#76553c';
+      ctx.fillRect(rect.x, rect.y, Math.max(rect.w, u), Math.max(rect.h, u));
+    }
     ctx.restore();
 
     const k = src.known();
@@ -219,18 +224,20 @@ export class Minimap {
       ctx.fillStyle = t.state === 'destroyed' ? '#59626c' : '#ff4d5e';
       ctx.fillRect(t.x - 2.5 * u, t.y - 2.5 * u, 5 * u, 5 * u);
     }
-    let live: { x: number; y: number } | null = null;
+    const live = view.soldiers.find((s) => s.alive && s.id === src.liveId);
     for (const s of view.soldiers) {
       const kind = dotKind(s, src.liveId);
       if (!kind) continue;
-      if (kind === 'live') {
-        live = s;
-        continue;
-      }
+      if (kind === 'live') continue;
       const st = DOT_STYLE[kind];
+      ctx.globalAlpha = Math.min(
+        1,
+        visibilityFrom(live, s, s.visibility, src.map.concealment, view.smoke, view.sight),
+      );
       ctx.fillStyle = st.fill;
       ctx.fillRect(s.x - st.r * u, s.y - st.r * u, 2 * st.r * u, 2 * st.r * u);
     }
+    ctx.globalAlpha = 1;
     if (cam) {
       ctx.strokeStyle = 'rgba(255, 255, 255, .8)';
       ctx.lineWidth = 1 * u;

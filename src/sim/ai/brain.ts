@@ -46,6 +46,7 @@ import {
 } from '../entities/soldier';
 import type { World } from '../state';
 import { seesThroughCover, standingCover } from '../world/cover';
+import { concealmentAimError, perceivedVisibility, trenchAt } from '../world/concealment';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
 import type { SimEvent } from '../events';
@@ -291,15 +292,19 @@ function perceive(
 ): Perception {
   const t = skillOf(world, s);
   const tick = world.state.tick;
-  const sight2 = t.sightRange * t.sightRange;
-  // Nearest few candidates in range, then line of sight (cover cuts sight, walls block).
+  const { sprintBonus, firingBonus } = world.tuning.concealment;
+  const maxSight2 = (t.sightRange * (1 + sprintBonus + firingBonus)) ** 2;
+  // Concealed targets out of sight range don't use up a candidate slot.
   const cands = ours
-    .filter((o) => distanceSq(o, s) <= sight2)
-    .sort((a, b) => distanceSq(a, s) - distanceSq(b, s) || compareIds(a.id, b.id))
+    .map((o) => ({ o, d2: distanceSq(o, s) }))
+    .filter(({ d2 }) => d2 <= maxSight2)
+    .map(({ o, d2 }) => ({ o, d2, reach: t.sightRange * perceivedVisibility(world, s, o) }))
+    .filter(({ d2, reach }) => d2 <= reach * reach)
+    .sort((a, b) => a.d2 - b.d2 || compareIds(a.o.id, b.o.id))
     .slice(0, Math.max(1, t.maxCandidates));
   const visible: SoldierState[] = [];
-  for (const o of cands) {
-    if (!seesThroughCover(standingCover(world), s, o, t.sightRange, world.tuning)) continue;
+  for (const { o, reach } of cands) {
+    if (!seesThroughCover(standingCover(world), s, o, reach, world.tuning)) continue;
     if (!hasLineOfSight(world, s, o, 'enemy', s.id)) continue;
     visible.push(o);
   }
@@ -751,6 +756,17 @@ export function findCoverSpot(
   const off = t.soldier.wallRadius + 6;
   let best: Vec2 | null = null;
   let bestD = Infinity;
+  if (!s.drive) {
+    for (const { kind, rect } of world.map.concealment ?? []) {
+      if (kind !== 'trench') continue;
+      const spot = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+      const d = distance(s, spot);
+      if (d > R || d >= bestD || !isWalkable(world, spot)) continue;
+      if (distance(spot, threat) < distance(s, threat) - t.ai.coverAdvance) continue;
+      best = spot;
+      bestD = d;
+    }
+  }
   for (const c of standingCover(world)) {
     const r = c.rect;
     const cx = r.x + r.w / 2;
@@ -1233,7 +1249,12 @@ export function pickSpot(world: World, s: SoldierState, p: Vec2): Vec2 {
 }
 
 /** Is there standing cover close in front of `p` toward `threat` (within ~70 units)? */
-export function coveredFrom(world: World, p: Vec2, threat: Vec2): boolean {
+export function coveredFrom(
+  world: World,
+  p: Vec2 & { drive?: SoldierState['drive'] },
+  threat: Vec2,
+): boolean {
+  if (!p.drive && trenchAt(world.map.concealment, p)) return true;
   const dx = threat.x - p.x;
   const dy = threat.y - p.y;
   const len = Math.hypot(dx, dy);
@@ -1290,7 +1311,12 @@ function alliesNear(world: World, s: SoldierState, r: number): number {
 function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const tick = world.state.tick;
   const target = ai.targetId ? soldierIndex(world.state.soldiers).get(ai.targetId) : undefined;
-  const live = target && isEligible(target) && target.team !== s.team ? target : undefined;
+  const candidate = target && isEligible(target) && target.team !== s.team ? target : undefined;
+  const visibility = candidate ? perceivedVisibility(world, s, candidate) : 1;
+  const live =
+    candidate && distance(s, candidate) <= skillOf(world, s).sightRange * visibility
+      ? candidate
+      : undefined;
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;
   let move = { x: 0, y: 0 };
   if (ai.path && ai.pathIdx < ai.path.length) {
@@ -1323,6 +1349,12 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       );
     }
     aim = Math.atan2(at.y - s.y, at.x - s.x) + ai.aimErr;
+    if (live)
+      aim += concealmentAimError(
+        world.tuning,
+        visibility,
+        `${salt(world)}${s.id}@${tick}:concealment`,
+      );
     // (07-e) Moving targets are harder to hit ([D50]): jitter that grows with their speed.
     if (live && live.moveFrac > 0) {
       const jitter = hash01(`${salt(world)}${s.id}@${tick}:moving`) * 2 - 1;

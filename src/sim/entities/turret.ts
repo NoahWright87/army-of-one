@@ -9,6 +9,7 @@ import { isOurEligible, type SoldierState } from './soldier';
 import { simPerf } from '../perf';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { seesThroughCover, standingCover } from '../world/cover';
+import { concealmentAimError, perceivedVisibility } from '../world/concealment';
 import { recoverRecoil, spreadOf, spreadOffset } from '../combat/guns';
 
 export type TurretMode = 'idle' | 'tracking' | 'windup' | 'destroyed';
@@ -48,7 +49,7 @@ function canEngage(
   blockers?: readonly Blocker[],
 ): boolean {
   if (!isOurEligible(s)) return false; // (07-d) turrets are on the enemy side
-  const r = world.tuning.turret.range;
+  const r = world.tuning.turret.range * Math.min(1, perceivedVisibility(world, def.position, s));
   if (distanceSq(def.position, s) > r * r) return false;
   // (07-c) Partial cover cuts how far the turret sees past it ([D33]).
   if (!seesThroughCover(standingCover(world), def.position, s, r, world.tuning)) return false;
@@ -115,7 +116,12 @@ export function stepTurrets(world: World): void {
           t.aim = aimed;
           // (07-c) Turrets have spread and recoil too ([D39]).
           const spread = spreadOf(tt, 0, t.recoil ?? 0);
-          const angle = aimed + spreadOffset(`${t.id}@${world.state.tick}:aim`, spread);
+          const key = `${t.id}@${world.state.tick}:aim`;
+          const visibility = perceivedVisibility(world, def.position, target);
+          const angle =
+            aimed +
+            spreadOffset(key, spread) +
+            concealmentAimError(world.tuning, visibility, `${key}:concealment`);
           t.recoil = Math.min(tt.maxRecoil, (t.recoil ?? 0) + tt.kick);
           fireShot(world, {
             by: t.id,

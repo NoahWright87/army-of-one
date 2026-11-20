@@ -1,5 +1,5 @@
 import type { Tuning } from '../content/tuning';
-import { quantizeFacing, quantizePosition } from '../contracts/quantize';
+import { POSITION_QUANTUM, quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
 import type { Vec2 } from './core/vec';
@@ -50,6 +50,7 @@ import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/gun
 import { simPerf } from './perf';
 import type { SoldierView, WorldView } from './view';
 import { roleDef } from '../content/roles';
+import { sightSettings, smokeView, soldierVisibility, trenchAt } from './world/concealment';
 
 export type { World, WorldState } from './state';
 
@@ -213,6 +214,9 @@ export function step(
   const t = world.tuning;
   world.stepping = true;
   st.tick += 1;
+  if (st.smoke?.some((cloud) => cloud.end <= st.tick)) {
+    st.smoke = st.smoke.filter((cloud) => cloud.end > st.tick);
+  }
   // (PHASE13) The AI hears about last tick's hits (who shot whom) before they're cleared.
   const lastEvents = st.events;
   st.events = st.queuedEvents;
@@ -237,7 +241,7 @@ export function step(
   }
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
-    stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t);
+    stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t, world.map.concealment);
   }
   hooks.moveUncontrolled?.(world, solids);
   for (let i = 0; i < n; i++) {
@@ -246,6 +250,10 @@ export function step(
     const walk = soldierSpeed(t, s.roleId) / 60;
     const moved = Math.hypot(s.x - prevX[i]!, s.y - prevY[i]!);
     s.moveFrac = Math.min(t.soldier.sprintMultiplier, moved / walk);
+    // Only sprint-sized recorded steps count. A fall from a trench rim can be much longer.
+    const slop = POSITION_QUANTUM * 2;
+    s.sprinting =
+      !s.drive && moved > walk + slop && moved <= walk * t.soldier.sprintMultiplier + slop;
   }
   separateSoldiers(st.soldiers, solids, t);
   for (const s of st.soldiers) if (s.alive) quantizeSoldier(s);
@@ -305,6 +313,8 @@ export function getView(world: World): WorldView {
   const grenadeFuseTotal = Math.max(1, secondsToTicks(tuning.grenade.fuseSeconds));
   return {
     tick: st.tick,
+    smoke: smokeView(world),
+    sight: sightSettings(tuning.concealment),
     soldiers: st.soldiers.map((s) => ({
       kind: 'soldier',
       id: s.id,
@@ -315,6 +325,7 @@ export function getView(world: World): WorldView {
       hp: s.hp,
       maxHp: soldierMaxHp(tuning, s.roleId, s.team),
       alive: s.alive,
+      visibility: soldierVisibility(world, s),
       role:
         s.team === 'enemy'
           ? 'enemy'
@@ -524,7 +535,11 @@ function liveCoverArcs(world: World): CoverArc[] {
       .filter((b) => b.blocksShots)
       .map((b) => ({ rect: b.rect, value: 1 })),
   ];
-  return coverArcs(live, pieces, r);
+  const arcs = coverArcs(live, pieces, r);
+  if (!live.drive && trenchAt(world.map.concealment, live)) {
+    arcs.push({ angle: 0, halfWidth: Math.PI, value: world.tuning.concealment.trench.dodge });
+  }
+  return arcs;
 }
 
 export type { SoldierFlags, SoldierId, SoldierInput, SoldierState } from './entities/soldier';

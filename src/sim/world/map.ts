@@ -154,6 +154,12 @@ export interface CoverDef {
 
 export type CoverMaterial = 'fence' | 'sandbags' | 'halfWall' | 'window' | 'bunkerWindow' | 'crate';
 
+export interface ConcealmentArea {
+  id: string;
+  kind: 'bush' | 'trench';
+  rect: Rect;
+}
+
 /**
  * (07-d) A squad of enemy soldiers ([D44]): same roles and stats as ours, AI-driven. No
  * respawns. `order` is what it does when it isn't fighting; it chases within each member's
@@ -199,6 +205,8 @@ export interface MapDef {
   haze?: Rect[];
   /** (07-c) Partial cover ([D32]): blocks movement, stops a share of shots. */
   cover?: CoverDef[];
+  /** Walkable cover. Infantry can stand inside these areas. */
+  concealment?: ConcealmentArea[];
   spawnPoints: SpawnPointDef[];
   // Entities (PHASE02-a). Optional so small test maps can leave them out.
   turrets?: TurretDef[];
@@ -254,6 +262,7 @@ export function validateMap(map: MapDef): void {
     ...(map.objectives ?? []),
     ...(map.capturePoints ?? []),
     ...(map.cover ?? []),
+    ...(map.concealment ?? []),
     ...(map.squads ?? []),
   ];
   for (const e of all) {

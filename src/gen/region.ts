@@ -213,6 +213,7 @@ export function worldLevelMap(
   const content: Content = {
     walls,
     cover: [],
+    concealment: [],
     gates: [],
     levers: [],
     turrets: [],
@@ -465,6 +466,7 @@ export function worldLevelMap(
     bounds,
     haze,
     cover: content.cover,
+    concealment: content.concealment,
     gates: content.gates,
     levers: content.levers,
     turrets: content.turrets,

@@ -25,6 +25,7 @@ import {
 } from '../combat/damage';
 import { fireShot } from '../combat/shots';
 import { emit, type World } from '../state';
+import { addSmoke, markFired } from '../world/concealment';
 import { dynamicBlockers } from '../world/blockers';
 import { circleOverlapsRect } from '../world/collision';
 import { blastCover, canFireOver, coverStops, standingCover } from '../world/cover';
@@ -95,6 +96,7 @@ export function throwGrenade(
   const list = liveGrenades(world);
   list.push(g);
   list.sort((a, b) => compareIds(a.id, b.id));
+  markFired(world, by);
   emit(world, {
     kind: 'grenadeThrown',
     tick: st.tick,
@@ -265,6 +267,7 @@ function explode(world: World, g: GrenadeEntity): void {
     });
     fragments.push({ angle, hitX: res.hitX, hitY: res.hitY });
   }
+  addSmoke(world, g.id, c, gt.blastRadius);
   emit(world, {
     kind: 'grenadeExploded',
     tick: st.tick,

@@ -152,6 +152,14 @@ export const MISSION_04: MapDef = {
     // Bunker: the armored slit.
     cover('m4-slit', 'bunkerWindow', SLIT[0], M4.bunkerFrontY, SLIT[1] - SLIT[0], T),
   ],
+  concealment: [
+    { id: 'm4-bush-yard-w', kind: 'bush', rect: { x: 130, y: 2250, w: 135, h: 85 } },
+    {
+      id: 'm4-trench-yard',
+      kind: 'trench',
+      rect: { x: CX - 260, y: M4.bagsY + 26, w: 150, h: 100 },
+    },
+  ],
   spawnPoints: [
     {
       id: 'west',

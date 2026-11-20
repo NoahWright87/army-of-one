@@ -16,6 +16,7 @@
  *   winding up on you.
  */
 import type { Tuning } from '../../content/tuning';
+import { visibilityFrom, concealmentAimError } from '../../sim/world/concealment';
 import { roleDef } from '../../content/roles';
 import { hash01 } from '../../sim/core/hash';
 import { damageShare, WORTH_SHOOTING } from '../../sim/combat/armor';
@@ -118,18 +119,24 @@ export function rankTargets(
 ): Candidate[] {
   const blockers = solidBlockers(map, view);
   const out: Candidate[] = [];
-  const consider = (id: string, x: number, y: number, tier: number) => {
+  const consider = (t: AimTarget, tier: number, visibility?: number) => {
+    const { id, x, y } = t;
     const d = Math.hypot(x - me.x, y - me.y);
-    if (d > range || !clearLine(me, { x, y }, blockers)) return;
+    if (
+      d > range ||
+      d > range * visibilityFrom(me, t, visibility, map.concealment, view.smoke, view.sight) ||
+      !clearLine(me, t, blockers)
+    )
+      return;
     out.push({ id, x, y, tier, d });
   };
   for (const t of view.turrets) {
     if (t.state === 'destroyed') continue;
     const onMe = t.targetId === me.id;
-    consider(t.id, t.x, t.y, onMe && t.state === 'windup' ? 0 : onMe ? 1 : 2);
+    consider(t, onMe && t.state === 'windup' ? 0 : onMe ? 1 : 2);
   }
   if (preferVehicles) {
-    for (const v of view.vehicles) if (v.state !== 'wreck') consider(v.id, v.x, v.y, -1);
+    for (const v of view.vehicles) if (v.state !== 'wreck') consider(v, -1);
   }
   // (07-d) Enemy soldiers are threats like turrets ([D44]).
   // (PHASE12-b) Units the weapon can barely hurt (a tank vs a rifle) come last, and (PHASE12-a)
@@ -138,9 +145,9 @@ export function rankTargets(
     if (!s.alive || s.role !== 'enemy') continue;
     const armored = share(s.roleId) < WORTH_SHOOTING;
     const vehicle = s.roleId === 'truck' || s.roleId === 'tank';
-    consider(s.id, s.x, s.y, preferVehicles && vehicle ? -1 : armored ? 4 : 2);
+    consider(s, preferVehicles && vehicle ? -1 : armored ? 4 : 2, s.visibility);
   }
-  for (const o of view.objectives) if (!o.destroyed) consider(o.id, o.x, o.y, 3);
+  for (const o of view.objectives) if (!o.destroyed) consider(o, 3);
   out.sort((a, b) => a.tier - b.tier || a.d - b.d || (a.id < b.id ? -1 : 1));
   return out;
 }
@@ -267,7 +274,20 @@ export class AutoAimInput implements InputSource {
       { id: tgt.id, soldier: !!sv && !isVehicle, speedFrac },
       view.tick,
     );
-    const aim = Math.atan2(aimAt.y - me.y, aimAt.x - me.x) + err;
+    const visibility = visibilityFrom(
+      me,
+      tgt,
+      sv?.visibility,
+      this.opts.map.concealment,
+      view.smoke,
+      view.sight,
+    );
+    const concealmentError = concealmentAimError(
+      tuning,
+      visibility,
+      `autoaim@${view.tick}:${tgt.id}:concealment`,
+    );
+    const aim = Math.atan2(aimAt.y - me.y, aimAt.x - me.x) + err + concealmentError;
     const aimDistance = Math.hypot(aimAt.x - me.x, aimAt.y - me.y);
     let fire = this.opts.fireMode() === 'auto' ? true : input.fire;
     // (PHASE12-d) Never set off an explosive on our own soldiers (or ourselves).

@@ -17,6 +17,7 @@ import type { EventLog } from './event-log';
 import type { MapDef, Rect } from './world/map';
 import type { NavGrid } from './world/nav';
 import type { CoverPiece } from './world/cover';
+import type { SmokeCloud } from './world/concealment';
 
 /**
  * Everything that changes during a battle, as plain structured-clone-safe data. Snapshots are
@@ -51,6 +52,7 @@ export interface WorldState {
   rockets?: RocketEntity[];
   /** (PHASE17) Bullets in flight ([D145]), in firing order (ids rise). Optional. */
   bullets?: BulletEntity[];
+  smoke?: SmokeCloud[];
   /** (05-a) Parallel to `map.capturePoints`. */
   capturePoints: CapturePointEntity[];
   /** Events emitted during the most recent tick. */

@@ -62,6 +62,7 @@ export interface BlockGroup {
 export type BlockItem =
   | (ItemBase & { kind: 'wall'; rect: CellRect })
   | (ItemBase & { kind: 'cover'; rect: CellRect; material: CoverMaterial })
+  | (ItemBase & { kind: 'bush' | 'trench'; rect: CellRect })
   | (ItemBase & { kind: 'gate'; rect: CellRect; open?: boolean })
   | (ItemBase & { kind: 'lever'; at: CellPoint; target: string })
   | (ItemBase & { kind: 'turret'; at: CellPoint; facing: number })
@@ -80,6 +81,8 @@ export type PointItem = Extract<BlockItem, { at: CellPoint }>;
 export const ITEM_KINDS: readonly { kind: ItemKind; shape: 'rect' | 'point' }[] = [
   { kind: 'wall', shape: 'rect' },
   { kind: 'cover', shape: 'rect' },
+  { kind: 'bush', shape: 'rect' },
+  { kind: 'trench', shape: 'rect' },
   { kind: 'gate', shape: 'rect' },
   { kind: 'lever', shape: 'point' },
   { kind: 'turret', shape: 'point' },
