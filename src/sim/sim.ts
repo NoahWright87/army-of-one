@@ -321,6 +321,7 @@ export function getView(world: World): WorldView {
           : (s.viewRole ?? (s.controllable ? 'live' : s.interactive ? 'echo' : 'static')),
       leadIn: s.minHp > 0,
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
+      ...(s.deathDirection !== undefined ? { deathDirection: s.deathDirection } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
       ...(s.drive ? { turret: s.drive.turret } : {}),
       ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'
@@ -335,6 +336,8 @@ export function getView(world: World): WorldView {
       y: b.y,
       angle: b.shot.angle,
       hostile: b.shot.team === 'enemy',
+      by: b.shot.by,
+      weapon: b.shot.weapon,
     })),
     rockets: (st.rockets ?? []).map((r) => ({
       kind: 'rocket' as const,
@@ -342,6 +345,9 @@ export function getView(world: World): WorldView {
       x: r.x,
       y: r.y,
       angle: r.angle,
+      by: r.by,
+      hostile: r.team === 'enemy',
+      ...(r.kind === 'shell' ? { shell: true } : {}),
     })),
     grenades: (st.grenades ?? []).map((g) => ({
       kind: 'grenade',

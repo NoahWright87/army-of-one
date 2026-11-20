@@ -1,0 +1,92 @@
+[
+  {
+    "key": "mine_scorch",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/mine_scorch.png",
+    "prompt": "Use case: stylized-concept. One FLAT BLACK SCORCH STAIN decal on a genuine transparent background for a 2D overhead game. Black charcoal soot smudges form a broken irregular ring, with a largely TRANSPARENT center and softly fading irregular outer edge. Think flat black ink brushed onto clear acetate, not smoke. Colors ONLY near-black #14171a to #2b2a24; no white, cream, light grey, dust, cloud, flame, smoke volume, crater rim, rocks or scenery. Very subtle sparse 2D stain, no perspective, no cast shadow, no text. The entire surrounding canvas and middle of the ring are genuinely transparent."
+  },
+  {
+    "key": "objective",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/objective.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One enemy command bunker/HQ target model, square footprint with chamfered corners: flat slate-grey armored roof, a small vent and round roof hatch, a few broad raised reinforcement ribs and two restrained dark-red painted corner plates. Clear chunky tabletop model. No antenna extending out of footprint, no guns, no people or flags, no target symbols or text. Directly overhead roof view, centered and square."
+  },
+  {
+    "key": "objective_destroyed",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/objective_destroyed.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One destroyed enemy command bunker/HQ target model with a square chamfered footprint: torn open grey concrete/steel roof, blackened broken support ribs, broad roof chunks around a dark empty central cavity and two chipped muted-red corner plates. No fire, smoke or glowing lights, no scenic ground patch. Entire rubble model contained inside the same square footprint. Strict overhead."
+  },
+  {
+    "key": "gate_closed",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/gate_closed.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One CLOSED heavy steel sliding gate section, long horizontal rectangle approximately 4:1. Gunmetal ribbed crossbar with chunky steel end clamps, a clear central mechanical latch, restrained faded ochre diagonal hazard markings on a few ribs. Top-down cross-section like the cover style, no upright facade, not a whole building. Uniform metal thickness and clean horizontal alignment, read clearly at 20 game pixels thick."
+  },
+  {
+    "key": "gate_open",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/gate_open.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One OPEN heavy steel sliding gate mechanism, approximately 4:1 horizontal rectangle: empty transparent center passage, two compact end clamps and very thin inset ground rails along the long edges. Steel gate bars have fully retracted into the end clamps. No metal crossbar across the center, no text, people or building. Same gunmetal/ochre paint as a heavy closed gate, flat overhead view."
+  },
+  {
+    "key": "lever_a",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/lever_a.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One squat square metal control switch box, directly overhead: dark grey rectangular baseplate with four corner bolts, chunky lever handle visibly thrown to the LEFT, small muted red circular indicator. Short thick switch geometry readable at 28 game pixels. No labels, text, wiring beyond the box or scenery."
+  },
+  {
+    "key": "lever_b",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/lever_b.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One squat square metal control switch box, directly overhead: dark grey rectangular baseplate with four corner bolts, chunky lever handle visibly thrown to the RIGHT, small bright muted green circular indicator. Short thick switch geometry readable at 28 game pixels. No labels, text, wiring beyond the box or scenery."
+  },
+  {
+    "key": "bridge_down",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/bridge_down.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One square overhead drawbridge DECK MATERIAL tile: a close-packed square area of broad weathered brown wooden planks with two thin dark steel reinforcing strips, small bolts and understated worn edges. Aligned square to canvas, planks horizontal. This is an uninterrupted repeating surface filling the central square, not an isolated whole bridge: no outer framing, no banks, ropes, water, hinges or scenic ground. Even texture must join cleanly on opposite sides. Entire square surface opaque; transparent only outside its square silhouette."
+  },
+  {
+    "key": "bridge_up",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/bridge_up.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One square overhead RAISED drawbridge mechanical overlay: two compact steel hinge/abutment blocks along opposite TOP and BOTTOM edges with a folded narrow plank panel resting against each hinge, restrained ochre hazard-painted strip on the metal. Most of the square middle is EMPTY TRANSPARENT GAP showing the water below. No upright facade, no bridge deck spanning the gap, no water, banks, scene or text. Orthographic overhead, square footprint."
+  },
+  {
+    "key": "bridge_destroyed",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/bridge_destroyed.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One square overhead DESTROYED wooden bridge section: jagged broken brown plank stubs and bent dark steel strips along TOP and BOTTOM edges, sparse loose splinters attached at the sides. A large EMPTY TRANSPARENT gap occupies the middle, at least half the square area. No water, banks, fire, smoke or background. Flat square footprint, direct overhead."
+  },
+  {
+    "key": "capture_base",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/capture_base.png",
+    "prompt": "Use case: stylized-concept. Asset type: one transparent 2D game sprite for Army of One. Attached images are STYLE REFERENCES ONLY, not edit targets. Match their hand-painted resin tabletop miniature look, chunky readable forms, crisp warm-black outline, satin paint, recess wash, restrained evenly distributed edge highlights. Strict 90-degree orthographic straight-down overhead view; NO isometric view or visible side/facade faces. Even shadowless overhead lighting; no cast/drop shadow, no scenic ground/base outside the object, no text, letters, numbers, insignia, flags, badges, labels or watermark. Genuine transparent RGBA background, generous empty margins, one centered isolated object. Subject: One round low concrete capture-point pad seen exactly overhead: neutral grey disc with a broad subtle beveled ring, small central steel flagpole socket, four small simple inset directional chevrons molded into the concrete. No faction colors, flag, text, letters or numbers. Satin painted tabletop resin, symmetrical and readable with units standing on it. Transparent outside the circular pad."
+  },
+  {
+    "key": "ui_title_background",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/ui_title_background.png",
+    "prompt": "Use case: stylized-concept. Asset type: landscape game title-screen backdrop, 3:2 composition. Existing attached miniatures are STYLE REFERENCES only. Paint a charming dark overhead tabletop wargame battlefield: deep olive felt on a charcoal wooden war-room table, a few small painted olive and field-grey soldier miniatures and a single small grey tank near the OUTER EDGES, short sandbag sections and a quiet dirt road at the far edges. All miniatures seen straight down, matching hand-painted resin figures on small gold/silver bases. The middle half of the image must be empty dark subdued felt with extremely low detail and no objects, reserved for the real HTML menu. Muted olive/charcoal/brown with restrained warm brass highlights. Soft overhead even lighting, no dramatic cinematic beams or perspective. No text, lettering, game logo, labels, emblems, national flags, people outside the tiny models, explosions or UI. Opaque complete background illustration, not transparent."
+  },
+  {
+    "key": "ui_panel",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/ui_panel.png",
+    "prompt": "Use case: stylized-concept. Asset type: reusable square game interface panel for a tabletop military game, designed for nine-slice scaling. One flat front-facing 1:1 square panel that nearly fills the canvas: a thick dark gunmetal perimeter rim of UNIFORM 10-percent width, FOUR small restrained antique-brass corner plates with simple round rivets, and a large plain very dark charcoal felt inset center filling 75 percent of image width/height. Matte hand-painted resin/metal texture, subtle small edge highlights, almost black quiet center so white text is readable. Every outer edge straight and aligned to the canvas; symmetric border thickness on all four sides, small rounded corners. No text, icons, logos, symbols, labels, buttons, dividers, lights, shiny reflections, cast shadows, perspective or background scene. The rim reaches every canvas edge, opaque full square output. Colors/materials match the attached miniature bases without copying any weapons."
+  },
+  {
+    "key": "ui_campaign_background",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/ui_campaign_background.png",
+    "prompt": "Use case: stylized-concept. Asset type: landscape background illustration surrounding the REAL generated campaign map in a tabletop military strategy game, 3:2 composition. Strict straight-down view of a dark war-room gaming table: broad deep charcoal-olive felt center, worn dark wood and subtle brass edge trim, a small folded blank parchment map and plain brass compass rose ONLY near extreme upper-left edge, a few small unmarked map cards and a pencil near extreme lower-right edge. Hand-painted tactile resin/tabletop art, soft even overhead lighting. The central TWO THIRDS and full central vertical column must be empty dark felt, low contrast, with no drawing, grid, roads, islands or fake geography because the game draws its actual map there. No words, letters, numbers, military/national insignia, marked territories, flags, UI widgets or people. Opaque background."
+  },
+  {
+    "key": "muzzle_flash",
+    "generator": "built-in imagegen",
+    "master": "art-source/finished/muzzle_flash.png",
+    "prompt": "Use case: stylized-concept. Asset type: tiny transparent 2D top-down shooter muzzle flare. One compact directional ivory-white hot flash facing RIGHT (+x), with a short pale golden flame tongue extending to the right and two tiny shorter side spikes. Warm bright white center, faint amber outer flame edge, clean stylized painted effect matching tabletop miniatures. Pivot at image center. No gun, person, smoke cloud, sparks scattered far away, scenery, text or shadows. Genuine transparent RGBA background with empty margins; effect must remain readable at 24 game pixels."
+  }
+]

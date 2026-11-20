@@ -1,0 +1,80 @@
+[
+  {
+    "key": "cover_sandbags",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_sandbags.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, near-black outlines, tiny restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional gradient, no cast/drop shadow, no ground patch, no base/plinth, no text, symbols or insignia. Genuine transparent RGBA background, generous empty margins. One isolated subject, centered, no sheet or labels. Subject: One long horizontal low sandbag barricade. Two tightly staggered rows of thick khaki burlap sandbags, seams/ties and muted olive-brown recesses. Approximately 4:1 footprint, horizontally aligned, irregular bag edges, flat overhead bag crowns. No men or weapons. Make the bags large and few, readable when the bar is only 22 game pixels thick."
+  },
+  {
+    "key": "cover_crate",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_crate.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, near-black outlines, tiny restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional gradient, no cast/drop shadow, no ground patch, no base/plinth, no text, symbols or insignia. Genuine transparent RGBA background, generous empty margins. One isolated subject, centered, no sheet or labels. Subject: One square wooden military supply crate seen ONLY from straight above: square lid of broad dark walnut planks with two chunky timber braces and gunmetal corner straps. Warm worn brown resin paint, clear lid silhouette, square proportions. No markings or labels. Readable at 44 game pixels wide."
+  },
+  {
+    "key": "cover_fence",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_fence.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One long horizontal CHAIN LINK FENCE strip for a top-down game, approximately 6:1 footprint. A thin, narrow dark gunmetal mesh/lattice band with three square steel post tops spaced along it. The perforated lattice must have actual transparent holes. Show a narrow overhead strip, never a front elevation or standing upright facade. Dark steel with subtle rust and a few light edges, thin and passable-looking, no barbed wire."
+  },
+  {
+    "key": "cover_halfWall",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_halfWall.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One long horizontal low concrete/masonry barrier, approximately 4:1 footprint. Thick flat top of a weathered grey concrete wall with broad block joints, restrained chips, slightly rounded irregular edges. Neutral pale stone-grey with darker mortar. Show the TOP cross-section, never a vertical wall facade. Readable at 18 game pixels thick."
+  },
+  {
+    "key": "cover_window",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_window.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One long horizontal window opening section seen straight down, approximately 4:1 footprint: two narrow pale concrete sill strips above and below a narrow empty dark slot with two steel mullions and small blue-grey glass shards along the frame. The glass should mostly be transparent; the slot should reveal the ground below. This is the TOP cross-section of a window frame for a building wall gap, not a front view of a window, and not an entire building."
+  },
+  {
+    "key": "cover_bunkerWindow",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/cover_bunkerWindow.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One long horizontal reinforced bunker firing slit cross-section seen straight down, about 4:1 footprint. Two thick charcoal concrete sill strips above and below a narrow open firing slot, steel reinforcing braces at the sides, restrained concrete chips and gunmetal details. Slot is empty/transparent so ground below can show. Heavy dark concrete outer rim distinguishable from pale ordinary window. No weapon, no crew, no whole bunker, no facade."
+  },
+  {
+    "key": "turret_base",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/turret_base.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, near-black outlines, tiny restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional gradient, no cast/drop shadow, no ground patch, no base/plinth, no text, symbols or insignia. Genuine transparent RGBA background, generous empty margins. One isolated subject, centered, no sheet or labels. Subject: One stationary enemy gun emplacement BASE ONLY, no weapon, no crew. A squat octagonal grey armored steel mounting platform with broad chamfered corners, thick dark edge band, evenly highlighted rim, a circular empty turret socket exactly at image center, a few large bolt heads and subtle dark-red painted accent plates. Square canvas and symmetric balanced geometry. Strictly overhead; no side faces. Whole octagonal platform occupies about 75 percent of square canvas."
+  },
+  {
+    "key": "turret_gun",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/turret_gun.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One rotating fixed-emplacement gun/head ONLY, no stationary base or crew. Chunky grey armored circular breech chamber at exact center of square image; a thick long gunmetal barrel extends horizontally to the RIGHT (+x), ending in a short dark muzzle brake near the right margin. Rear counterweight projects a little to the left. A tiny restrained dark-red accent on the breech. CRITICAL pivot: circular breech/socket center exactly at the canvas center; do not center the bounding box including the barrel. Nothing points left. Clean readable shape at 64 game pixels."
+  },
+  {
+    "key": "turret_wreck",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/turret_wreck.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One destroyed stationary enemy gun turret emplacement, square footprint, formerly an octagonal grey steel base with red accent plates. Now a charred buckled octagonal mounting platform with a torn central ring, a few attached bent armor plates and the broken stub of a gun, small restrained rust and soot painted ON the metal. All wreckage remains within the footprint; no smoke, fire, large ground stain, intact separate turret or additional objects. Strict straight overhead."
+  },
+  {
+    "key": "rubble_sandbags",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/rubble_sandbags.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: A compact low horizontal strip of destroyed sandbag cover debris, about 4:1 footprint. A few torn khaki burlap bags, short collapsed fabric folds, small muted tan sand clumps between them; irregular broken silhouette with many transparent gaps. Ruined flattened sandbags, not neat intact bags. Sparse bold shapes, no ground patch, no smoke, no cast shadow. Readable at 20 game pixels thick."
+  },
+  {
+    "key": "rubble_wood",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/rubble_wood.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One compact square scatter of destroyed military crate debris. A few large broken brown wooden planks and splintered brace pieces, two bent dark metal corner straps, irregular open arrangement with transparent gaps. Clearly broken, no intact crate or ground patch. Chunky readable tabletop resin debris viewed straight down."
+  },
+  {
+    "key": "rubble_concrete",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/rubble_concrete.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One compact horizontal strip of destroyed concrete barrier debris, about 4:1 footprint: a handful of large irregular pale grey concrete chunks, dark fractured faces painted within each rock, small bent reinforcing wire and a few pebbles, loose broken arrangement with many transparent gaps. No intact wall, no ground patch or cast shadow."
+  },
+  {
+    "key": "rubble_metal",
+    "generator": "built-in imagegen",
+    "master": "art-source/battlefield/rubble_metal.png",
+    "prompt": "Use case: stylized-concept. Asset type: transparent 2D game sprite for Army of One. The attached images are STYLE REFERENCES ONLY, not edit targets. Match their painted resin tabletop miniature style, chunky readable geometry, satin paint, dark outlines and restrained edge highlights. Strict 90-degree orthographic straight-down view with absolutely NO visible front or side faces, NO isometric perspective. Even overhead diffuse light; no directional lighting, cast/drop shadows, ground patch, scenic base/plinth, text, symbols, insignia or labels. Genuine transparent RGBA background, empty margins. One isolated subject, centered, no sheet. Subject: One compact horizontal strip of collapsed chain-link fence debris, about 5:1 footprint: two bent dark steel rails, a small crumpled piece of mesh with transparent holes, a broken square post cap and a few rusty fragments. Sparse irregular flattened heap viewed only from directly overhead. No upright standing fence, no ground patch or cast shadow."
+  }
+]

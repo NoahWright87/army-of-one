@@ -27,6 +27,15 @@ import type { CoverMaterial } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import type { EditorModel } from './editor-model';
 import { snap, type Tool } from './editor-model';
+import { assetUrl } from '../../render/assets/asset-urls';
+import { TERRAIN_ART } from '../../content/terrain-art';
+import {
+  buildTerrainAtlas,
+  drawTerrainCanvas,
+  loadTerrainImages,
+  type TerrainAtlas,
+  type TerrainImages,
+} from '../../render/terrain/transition-atlas';
 
 /** (PHASE13) Where the open draft stands against My blocks. */
 export type SaveState = 'saved' | 'dirty' | 'new' | 'official';
@@ -166,6 +175,9 @@ export class EditorView {
   private hover: { x: number; y: number } | null = null;
   private drag: { id: string; dx: number; dy: number } | null = null;
   private painting = false;
+  private terrainImages: TerrainImages | null = null;
+  private terrainAtlas: TerrainAtlas | null = null;
+  private terrainCache: { rows: string; canvas: HTMLCanvasElement } | null = null;
 
   constructor(
     host: HTMLElement,
@@ -194,6 +206,17 @@ export class EditorView {
     window.addEventListener('keydown', (e) => this.onKey(e));
     model.onChange(() => this.refresh());
     this.refresh();
+    void loadTerrainImages(assetUrl)
+      .then((images) => {
+        const atlas = buildTerrainAtlas(images);
+        this.terrainImages = images;
+        this.terrainAtlas = atlas;
+        this.renderLeft();
+        this.draw();
+      })
+      .catch(() => {
+        /* The existing colour preview remains available if image decoding fails. */
+      });
   }
 
   private fitCache: { block: BlockDef; fits: Record<Side, number> } | null = null;
@@ -318,6 +341,10 @@ export class EditorView {
       const b = el('button', `swatch ${m.tool === 'paint' && m.paintKind === k ? 'on' : ''}`);
       const i = el('i');
       i.style.background = hex(GROUND[k].color);
+      if (this.terrainImages) {
+        i.style.backgroundImage = `url("${assetUrl(TERRAIN_ART[k])}")`;
+        i.style.backgroundSize = 'cover';
+      }
       b.append(i, document.createTextNode(strDynamic(GROUND[k].nameKey)));
       b.onclick = () => {
         m.tool = 'paint';
@@ -868,12 +895,32 @@ export class EditorView {
     const cp = this.cellPx;
     const block = this.model.block;
 
-    // Ground.
+    // Same neighbour-aware terrain edges as the game; cache while hovering/placing items.
+    if (this.terrainImages && this.terrainAtlas) {
+      const key = block.ground.join('\n');
+      if (this.terrainCache?.rows !== key) {
+        const canvas = document.createElement('canvas');
+        canvas.width = n * 64;
+        canvas.height = n * 64;
+        drawTerrainCanvas(
+          canvas.getContext('2d')!,
+          block.ground,
+          64,
+          this.terrainImages,
+          this.terrainAtlas,
+        );
+        this.terrainCache = { rows: key, canvas };
+      }
+      ctx.drawImage(this.terrainCache.canvas, 0, 0, size, size);
+    }
+    // Ground fallback and editor edge markings.
     for (let r = 0; r < n; r++) {
       for (let col = 0; col < n; col++) {
         const k = block.ground[r]?.[col] ?? 'G';
-        ctx.fillStyle = hex(GROUND[k as keyof typeof GROUND]?.color ?? 0x000000);
-        ctx.fillRect(col * cp, r * cp, cp, cp);
+        if (!this.terrainImages) {
+          ctx.fillStyle = hex(GROUND[k as keyof typeof GROUND]?.color ?? 0x000000);
+          ctx.fillRect(col * cp, r * cp, cp, cp);
+        }
         if (onEdge(col, r)) {
           // Edge tiles (what neighbours match against): light stripes.
           ctx.save();

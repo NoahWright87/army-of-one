@@ -6,5 +6,6 @@ army-of-one-product-design.html
 tools/fixtures
 *.md
 .claude
+art-source
 # Block JSON keeps the editor's download format (one item per line, diff-friendly)
 src/content/blocks/*.json

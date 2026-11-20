@@ -677,6 +677,84 @@ buy. The echo loop only matters when one soldier can't win alone.
   owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
   Grenadier and Machine Gunner need cover to shine).
 
+## Art direction: collectible miniatures (owner session 2026-11)
+
+Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniatures.ts`.
+
+- **[A116] Pieces are collectible wargame miniatures, seen from straight above.** Soldiers and
+  vehicles are painted miniature figures standing on gold or silver display bases, like pieces on a
+  model war-room table. They slide; there is no walking animation. This replaces the placeholder
+  "icon in a circle" look once the art lands. (WW2-ish, generic: no real insignia.)
+- **[A117] Pieces are layers.** A soft shadow, a **base** that slides along and does not turn with
+  the aim, and a **figure** that rotates on top of it to aim and shoot. Vehicles: the long base and
+  hull turn with the heading and a separate **turret** turns to aim. Every layer shares one pivot (the
+  image center) and faces +x. Layers make later animation easy (recoil, turn lag, tip-over, being
+  "placed" at deploy), no frame animation needed.
+- **[A118] Strictly top-down, and it must survive any rotation.** All art is an orthographic
+  overhead view, with no baked directional light or cast shadow, so figures can aim at any angle and the
+  camera itself can rotate. `npm run check:art` enforces what a script can.
+- **[A119] The base's finish says whose piece it is.** Polished **gold** = the soldier you control;
+  **tarnished gold** = your echoes; **silver** = enemies; **tarnished silver** = reserved for
+  multiplayer / other players. The one thing that must always work: you can find your own soldier in a
+  swarm of echoes. Soldier numbers (S1, S2) are **not** drawn on the pieces.
+- **[A120] A handful of base shapes show the unit class at a glance.** Round for light infantry,
+  angular for armored units (Shield, Shotgunner), long plinths for vehicles. The role-to-shape
+  mapping is confirmed in [A122].
+- **[A121] One sculpt per role, two paint schemes (ally, enemy).** The enemy is the same figure
+  repainted. Art is delivered in tiers (pilot first, then the owner reviews the style before the rest
+  is drawn).
+
+- **[A122] Base shapes confirmed (owner, 2026-11-17).** Round = Rifleman, Grenadier, Sniper;
+  octagon = Shield, Shotgunner; square = Machine Gunner, Bazooka; long plinths = Gun truck, Tank.
+  Resolves AQ59.
+- **[A123] Miniature states confirmed (owner, 2026-11-17).** Exhausted echoes use tarnished
+  gold plus static/flicker. Dead soldiers use a fallen miniature on a dimmed base. X/O marks stay
+  on the timeline; existing lead-in shield/live marker rings remain until restyled, and echo
+  opacity stays a setting. Resolves AQ60.
+
+- **[A124] Foot-sized bases and distinctive silhouettes (owner, 2026-11-17).** Infantry bases
+  are small foot supports, mostly obscured by the figure; bodies can overhang. The pilot draws
+  bases at 55% of their previous scale, with figures enlarged independently for legibility. Snipers wear shaggy ghillie
+  suits; Shield units have noticeably heavier armor and shoulders. Roles must read by silhouette
+  at gameplay size, not just by color or weapon length.
+- **[A125] Soldiers fall off their bases on death (owner, 2026-11-17).** The base disappears
+  (broken bases are an alternative for a later art pass). The unarmed, sprawled body is placed
+  beside its former position, in the direction the lethal hit travels: a shot from north makes
+  it fall south. Bodies may have restrained blood marks. This supersedes the dead-on-dimmed-base
+  portion of A123 and the original no-blood art brief. This is presentation only: collision,
+  damage, movement and timeline outcomes are unchanged. Directionless deaths use last facing.
+
+- **[A126] Complete the distinctive infantry set (owner, 2026-11-17).** The pilot is approved
+  to proceed with the other soldiers. Grenadier uses a classic toy-army-man throwing stance;
+  Machine Gunner is visually a two-person crew with an ammo belt and bipod. Shotgunner has
+  blocky armor and a short chunky weapon; Bazooka carries a tube projecting front and back.
+  The crew remains one game unit, sharing the existing role's health and behavior. Infantry
+  base scale is now 0.70× (up from A124's 0.55×); figure scale stays 1.6× for readability.
+
+- **[A127] Animate explosion effects, keep character art static (owner, 2026-11-17).** Deliver
+  separate small (grenade) and large (mine/rocket) explosion sheets. Rows are different variations;
+  columns are successive frames. Strict overhead projection applies to every frame. Initial
+  delivery: three variations × eight frames per size, native Phaser sprite-sheet playback.
+
+- **[A128] Painted terrains choose their own transitions (owner, 2026-11-17).** The terrain
+  editor should work like Warcraft II's: paint terrain types, and choose connecting edges,
+  inner/outer corners and junctions automatically. The editor preview and game use the same
+  transition rules. A broad colour gradient between flat tiles is not the intended result.
+  This is a visual rule; tile passability, collision and the stored ground-letter format stay
+  unchanged. Reusable masks may composite the existing textures; richer shore/cliff edge art
+  can be supplied later without changing how maps are painted.
+
+- **[A129] Projectile readability (owner, 2026-11-18).** Short fading trails and high-contrast
+  cores make flying rounds readable. Enemy trails use a distinct colour; the current player and
+  echoes share a colour family, with echoes subdued. Grenades retain ground shadows, strengthened
+  to make their height/arc clear. Presentation only: projectile speed, collision and damage stay
+  unchanged. First-pass colours/widths/durations are adjustable visual tuning.
+
+- **[A130] Finish the remaining image content (owner, 2026-11-18).** Complete the remaining
+  battlefield props/states, status/effect images and decorative title/UI/campaign artwork in one
+  pass. Keep existing gameplay and interactions. Campaign art surrounds the real generated map;
+  title text and controls remain native UI.
+
 ## Platform & process
 
 - **[D19] Stack:** Phaser 4 + TypeScript + Vite, Vitest, npm. Deployed by **Netlify** (owner configures
@@ -972,3 +1050,6 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q60] Enemy funds curve (PHASE14, [D119]).** Built as proposed (14-a): a level's budget = its own budget +
   (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
   multiplier, capped at full. Battle minutes count only levels taken.
+
+- **[AQ59] Resolved** by [A122]: the owner accepted the proposed role-to-base mapping.
+- **[AQ60] Resolved** by [A123]: the owner accepted the proposed miniature states.

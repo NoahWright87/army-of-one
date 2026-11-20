@@ -26,6 +26,7 @@ describe('economy in the flow (PHASE11)', () => {
     const h = await deployAs(100);
     const run = h.runs[0]!.run;
     expect(run.attempt.live).toMatchObject({ mode: 'new', roleId: 'gunner' });
+    expect(run.previewRoleId).toBe('gunner');
     expect(run.money!()).toEqual({ balance: 50, rate: 1 });
   });
 
@@ -33,6 +34,7 @@ describe('economy in the flow (PHASE11)', () => {
     const h = await deployAs(40);
     const run = h.runs[0]!.run;
     expect(run.attempt.live?.mode).toBe('new');
+    expect(run.previewRoleId).toBe('rifleman');
     expect(run.attempt.live && 'roleId' in run.attempt.live && run.attempt.live.roleId).toBeFalsy();
     expect(run.money!()).toEqual({ balance: 40, rate: 1 });
   });

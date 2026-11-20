@@ -3,7 +3,10 @@
  * panel). Readability rules: X (red) and O (glowing green) dominate; event markers stay subtle;
  * "no longer happens" is dashed grey; interruption is dotted orange; unknown is hatched.
  */
+import { paintedPanelCss } from '../art-theme';
+
 export const RESPAWN_CSS = `
+${paintedPanelCss('.aoo-respawn .rs-tl, .aoo-respawn .rs-map')}
 .aoo-respawn { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column;
   gap: 10px; padding: 12px 16px; box-sizing: border-box; overflow: hidden; background: #0d1116;
   color: #e6e9ec; font: 14px/1.3 system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }

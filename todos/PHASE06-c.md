@@ -120,3 +120,21 @@ Frame time in this environment is dominated by software-GL readback (`GLES2::Rea
   factories to keep that.
 - The sim is untouched (no file under `src/sim/` changed), so the determinism and 05-b
   equivalence tests apply unchanged.
+
+### Loading reliability follow-up (2026-11-20)
+
+- [x] Reproduce the mobile black screen with delayed image requests. The idle timer slept the
+  loader with 62 files still queued; Deploy waited for assets before waking it.
+- [x] Keep the loop awake during required image loading and wake before awaiting deployment.
+  Extract the idle-loop lifecycle for regression tests; retain sleep after loading.
+- [x] Reject missing/undecodable required images, bound requests/timeouts, and load audio outside
+  the visual readiness gate. Show progress while a deployment waits.
+- [x] Install an entry-point error boundary and visible mobile recovery screen, including module
+  load failures, uncaught errors/rejections, stalled startup and lost graphics contexts. Preserve
+  saves; include copyable diagnostics without save contents or replay hashes.
+- [x] Verify production mobile loading/recovery by fault injection and add idle-loop, inactivity
+  deadline and required-image regression tests. See `docs/perf.md` for reproduction/evidence.
+
+The changes touch shared `boot.ts`, `main.ts`, `strings.ts` and the preload scene. Audio is
+optional during startup; a sleeping menu may defer remaining audio requests until deployment.
+No gameplay, simulation, persistence format or image files changed.

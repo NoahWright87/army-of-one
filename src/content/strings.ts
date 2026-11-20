@@ -9,6 +9,20 @@
  * Plain data only (imported by Node tools and tests).
  */
 export const STRINGS = {
+  // Startup / recovery (available before the renderer loads).
+  'loading.opening': 'Opening Army of One…',
+  'loading.images': 'Loading images… {done}/{total}',
+  'loading.level': 'Opening level…',
+  'error.title': 'The game couldn’t start or continue',
+  'error.description':
+    'Reload to try again, or return to the menu. Saved progress has not been cleared. If this keeps happening, copy the error details and send them with your report.',
+  'error.reload': 'Reload',
+  'error.menu': 'Main menu',
+  'error.campaign': 'Campaign map',
+  'error.copy': 'Copy error details',
+  'error.copied': 'Copied',
+  'error.details': 'Error details',
+
   // HUD
   'hud.hp': 'HP',
   'hud.soldier': 'Soldier {n}',

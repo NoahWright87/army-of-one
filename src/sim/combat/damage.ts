@@ -56,6 +56,9 @@ export function damageSoldier(
     s.alive = false;
     s.deathTick = tick;
     s.deathCause = cause;
+    const dx = from ? s.x - from.x : 0;
+    const dy = from ? s.y - from.y : 0;
+    s.deathDirection = dx !== 0 || dy !== 0 ? Math.atan2(dy, dx) : s.facing;
     emit(world, { kind: 'soldierDied', tick, id: s.id, cause, ...(by ? { by } : {}) });
     // (PHASE17) Killing every enemy soldier also wins ([D139]).
     const st = world.state;

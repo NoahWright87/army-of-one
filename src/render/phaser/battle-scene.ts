@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { RoleId } from '../../contracts/mission';
 import { advance, catchUpCap, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
 import { hashState } from '../../sim/core/hash';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
@@ -17,6 +18,9 @@ import { WorldRenderer } from './world-renderer';
 import { alongPath, approachFor, spawnAt } from '../run-in';
 import { DEPTH } from '../depth';
 import type { Vec2 } from '../../sim/core/vec';
+import { fitPx, type ImageKey } from '../../content/assets';
+import { pilotMiniature } from '../pilot-miniatures';
+import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
 const DEMO_COUNTDOWN_TICKS = 5 * TICKS_PER_SECOND;
@@ -348,16 +352,49 @@ export class BattleScene extends Phaser.Scene {
    */
   private updateRunners(driver: BattleSession['driver'], alpha: number): void {
     const seen = new Set<string>();
-    const place = (key: string, texture: string, at: { pos: Vec2; facing: number }) => {
-      seen.add(key);
-      let img = this.runners.get(key);
-      if (!img) {
-        img = this.add.image(0, 0, texture).setDepth(key === 'live' ? DEPTH.live : DEPTH.echoes);
-        const src = this.textures.get(texture).getSourceImage() as { width: number };
-        img.setScale((this.world.tuning.soldier.spriteRadius * 2) / Math.max(1, src.width));
-        this.runners.set(key, img);
+    const place = (
+      key: string,
+      texture: 'soldier_live' | 'soldier_echo',
+      at: { pos: Vec2; facing: number },
+      roleId: RoleId = 'rifleman',
+    ) => {
+      const mini = pilotMiniature(roleId, texture === 'soldier_live' ? 'live' : 'echo');
+      const depth = key === 'live' ? DEPTH.live : DEPTH.echoes;
+      const layer = (suffix: string, asset: ImageKey, rotation: number, z: number) => {
+        const id = `${key}:${suffix}`;
+        seen.add(id);
+        let img = this.runners.get(id);
+        if (!img) {
+          img = this.add.image(0, 0, asset);
+          this.runners.set(id, img);
+        }
+        img
+          .setTexture(asset)
+          .setDepth(z)
+          .setScale((this.world.tuning.soldier.spriteRadius * 2) / fitPx(asset))
+          .setPosition(at.pos.x, at.pos.y)
+          .setRotation(rotation)
+          .setVisible(true);
+      };
+      if (!mini) {
+        layer('figure', texture, at.facing, depth);
+        return;
       }
-      img.setPosition(at.pos.x, at.pos.y).setRotation(at.facing).setVisible(true);
+      if (mini.base) {
+        layer('base', mini.base, 0, depth - 0.1);
+        this.runners
+          .get(`${key}:base`)!
+          .setScale(
+            ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.base)) * INFANTRY_BASE_SCALE,
+          );
+      }
+      layer('figure', mini.figure, at.facing, depth);
+      this.runners
+        .get(`${key}:figure`)!
+        .setScale(
+          ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.figure)) *
+            INFANTRY_FIGURE_SCALE,
+        );
     };
     // The live soldier, until it exists.
     this.runnerPos = null;
@@ -366,7 +403,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.runPath && !exists && left !== null && left > 0) {
       const at = alongPath(this.runPath, 1 - left / this.runTotal);
       this.runnerPos = at.pos;
-      place('live', 'soldier_live', at);
+      place('live', 'soldier_live', at, driver?.previewRoleId);
     } else if (exists) {
       this.runPath = null;
     }
@@ -378,7 +415,12 @@ export class BattleScene extends Phaser.Scene {
       if (ahead <= 0 || ahead > lead) continue;
       const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
       if (!sp) continue;
-      place(a.id, 'soldier_echo', alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead));
+      place(
+        a.id,
+        'soldier_echo',
+        alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead),
+        a.roleId,
+      );
     }
     for (const [key, img] of this.runners) {
       if (!seen.has(key)) {

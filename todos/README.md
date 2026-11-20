@@ -89,6 +89,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | 13-d | Random campaign, terrain carving, crossings, run-in ([D106]–[D115], notes in [13-c](PHASE13-c.md)) | 13-c | — | Built |
 | [14](PHASE14.md) | **Campaign**: carry-over, world map story, reports ([D116]–[D126]) | 13-d | — | Planned |
 | [15](PHASE15.md) | Sharing: weekly seed, leaderboards, replays, async co-op | 13, 14 | — | Sketch |
+| [16 art](PHASE16-miniatures.md) | **Miniature pieces**: layered gold/silver-base soldiers and vehicles ([A116]–[A127]); art brief in `docs/art/` | 12-b | art delivery | All 49 files delivered; layers integrated; combat/terrain/UI continuation in docs/art/COMBAT-ENVIRONMENT.md |
 | [16](PHASE16.md) | **Pacing & difficulty**: shorter levels, weaker AI, regen, Easy/Normal/Hard, pacing benchmark ([D127]–[D135]) | 14-a | 14-b, 14-c | Planned |
 | [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | Built |
 

@@ -4,3 +4,7 @@ dist
 .DS_Store
 coverage
 .claude/worktrees
+
+# Generated review sheets for the miniature art (npm run check:art -- --sheets)
+assets/miniatures/_review
+art-source/

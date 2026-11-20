@@ -90,6 +90,8 @@ export interface SoldierState {
   deathTick: Tick | null;
   /** e.g. 'turret', 'mine', 'vehicle', 'bridgeCollapse'. */
   deathCause: string | null;
+  /** Presentation only: direction away from the lethal damage source. */
+  deathDirection?: number;
   /**
    * (03-a) Presentation override for `WorldView.role`. Absent: derived from the flags
    * (controllable → live, interactive → echo, else static). 'live' marks the player's soldier

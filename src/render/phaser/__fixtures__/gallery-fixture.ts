@@ -71,6 +71,19 @@ export interface Caption {
 }
 
 export const GALLERY_CAPTIONS: Caption[] = [
+  ...['north hit → south fall', 'east hit → west fall', 'west hit → east fall'].map((text, i) => ({
+    x: 200 + i * 300,
+    y: 652,
+    text,
+  })),
+  ...(['rifleman', 'sniper', 'shield'] as const).flatMap((role, ri) =>
+    (['live', 'echo', 'enemy'] as const).map((state, si) => ({
+      x: 110 + (ri * 3 + si) * 150,
+      y: 254,
+      text: `${role}: ${state}`,
+    })),
+  ),
+
   ...[
     'live',
     'live + lead-in shield',
@@ -146,6 +159,31 @@ function soldiers(tick: Tick): SoldierView[] {
     soldier('S8', 8, col(6), r0, 'echo', { alive: false, hp: 0, facing: 0.7 }),
     soldier('S9', 9, col(7), r0, 'echo', { leadIn: true }),
   ];
+  // Pilot silhouettes, factions and finishes through the actual layered renderer.
+  for (const [ri, roleId] of (['rifleman', 'sniper', 'shield'] as const).entries()) {
+    for (const [si, role] of (['live', 'echo', 'enemy'] as const).entries()) {
+      list.push(
+        soldier(
+          `pilot-${roleId}-${role}`,
+          100 + ri * 3 + si,
+          110 + (ri * 3 + si) * 150,
+          225,
+          role,
+          { roleId, facing: spin },
+        ),
+      );
+    }
+  }
+  for (const [i, direction] of [Math.PI / 2, Math.PI, 0].entries()) {
+    list.push(
+      soldier(`fallen-direction-${i}`, 200 + i, 200 + i * 300, 620, 'echo', {
+        roleId: 'rifleman',
+        alive: false,
+        hp: 0,
+        deathDirection: direction,
+      }),
+    );
+  }
   // Crowd: live soldier among echoes and statics.
   const cx = col(5);
   const cy = ROW[4];

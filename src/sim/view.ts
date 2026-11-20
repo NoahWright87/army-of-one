@@ -29,6 +29,8 @@ export interface SoldierView {
   leadIn: boolean;
   /** (02-a) Dead soldiers only: what killed them ('turret', 'mine', 'vehicle', 'bridgeCollapse'). */
   deathCause?: string;
+  /** Presentation only: corpse falls along this direction, away from the lethal hit. */
+  deathDirection?: number;
   /** (07-c) Role ([D36]); absent = 'rifleman'. */
   roleId?: RoleId;
   /** (07-c) Grenadier winding up a throw: 0..1 of the ring ([D37]). */
@@ -58,6 +60,11 @@ export interface RocketView {
   x: number;
   y: number;
   angle: number;
+  /** Presentation only: owner and allegiance for projectile readability. */
+  by?: string;
+  hostile?: boolean;
+  /** Presentation metadata for the tank shell that shares the rocket simulation. */
+  shell?: boolean;
 }
 
 export interface GrenadeView {
@@ -214,7 +221,16 @@ export interface WorldView {
   /** (PHASE12-a) Optional so older fixtures still type-check. */
   rockets?: RocketView[];
   /** (PHASE17) Bullets in flight ([D145]). */
-  bullets?: { id: string; x: number; y: number; angle: number; hostile: boolean }[];
+  bullets?: {
+    id: string;
+    x: number;
+    y: number;
+    angle: number;
+    hostile: boolean;
+    /** Presentation only: distinguish the current soldier's fire from echoes. */
+    by?: string;
+    weapon?: string;
+  }[];
   /** (PHASE12-b) Ids of destroyed cover pieces ([Q40]). */
   coverDestroyed?: string[];
   /**

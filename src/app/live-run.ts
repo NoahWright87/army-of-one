@@ -7,7 +7,7 @@
  * Countdown: `hold + attempt.leadInTicksLeft()` ticks; it reaches 0 exactly when the next step
  * applies input, so the input held at that moment acts on that very tick.
  */
-import type { SoldierId, SpawnOption } from '../contracts/mission';
+import type { SoldierId, SpawnOption, RoleId } from '../contracts/mission';
 import type { Attempt } from '../sim/attempt';
 import { damageSoldier } from '../sim/combat/damage';
 import { TICKS_PER_SECOND, type Tick } from '../sim/core/time';
@@ -39,8 +39,17 @@ export class LiveRun {
   money?: () => { balance: number; rate: number } | null;
 
   /** (PHASE13-d) Echoes still to spawn, for their run-ins ([D112]). */
-  arrivals(): readonly { id: string; spawnPointId: string; spawnTick: number }[] {
+  arrivals(): readonly { id: string; spawnPointId: string; spawnTick: number; roleId?: RoleId }[] {
     return this.attempt.echoes.pendingArrivals();
+  }
+
+  /** Selected sculpt for the pre-spawn run-in; no simulation behavior changes. */
+  get previewRoleId(): RoleId {
+    const live = this.attempt.live;
+    if (live?.mode === 'new') return live.roleId ?? 'rifleman';
+    return (
+      this.attempt.world.state.soldiers.find((s) => s.id === this.liveId)?.roleId ?? 'rifleman'
+    );
   }
 
   constructor(

@@ -17,6 +17,7 @@
     "lint:purity": "node tools/check-purity-lint.mjs",
     "format": "prettier --write .",
     "gen:placeholders": "tsx tools/gen-placeholders.ts",
+    "check:art": "tsx tools/check-miniatures.ts",
     "sim": "tsx tools/sim-cli.ts",
     "bench": "tsx tools/bench.ts",
     "gen": "tsx tools/gen-cli.ts"
