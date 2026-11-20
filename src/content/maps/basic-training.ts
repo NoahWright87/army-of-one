@@ -123,6 +123,7 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
   { from: { x: 600, y: 4170 }, to: { x: 600, y: 3930 } },
   { from: { x: 860, y: 3040 }, to: { x: 860, y: 2890 } },
   { from: { x: 860, y: 2820 }, to: { x: 860, y: 2150 }, sprint: true },
+  { from: { x: 860, y: 2090 }, to: { x: 720, y: 1990 } },
   { from: { x: 700, y: 1800 }, to: { x: 970, y: 1760 } },
   { from: { x: 1060, y: 1760 }, to: { x: 1300, y: 1800 } },
   { from: { x: 600, y: 1440 }, to: { x: 600, y: 1320 } },
@@ -151,6 +152,8 @@ export const BASIC_TRAINING: MapDef = {
     { x: 1000, y: BT.r4 + 300, w: 12, h: BT.r3 - BT.r4 - 300 },
     // In the corridor: a wall the shotgunner waits behind; round its east end, he's right there.
     { x: 1012, y: 1850, w: 268, h: 20 },
+    // A baffle just past the chute's exit: the MG can't see through the doorway into R4.
+    { x: 760, y: 2010, w: 220, h: 20 },
     ...crossWall(BT.r4), // gate g5 (the lever)
     ...crossWall(BT.r5f), // gate g5b (the C flag)
     ...crossWall(BT.r5), // gate g6 (the riflemen down)
@@ -251,7 +254,15 @@ export const BASIC_TRAINING: MapDef = {
       hold: true,
       members: [{ role: 'shotgun', position: { x: 1262, y: 1902 }, facing: -Math.PI / 4 }],
       order: { kind: 'guard' },
-      skill: { reactionSeconds: 0.05, aimError: 0, thinkSeconds: 0.05 },
+      // Hits like a truck (a rifleman walking into him is done), but goes down fast (a Shield
+      // pushing in with its pistol wins).
+      skill: {
+        reactionSeconds: 0.05,
+        aimError: 0,
+        thinkSeconds: 0.05,
+        enemyDamageScale: 1.7,
+        enemyHpScale: 0.45,
+      },
     },
     // R5: five riflemen in the open, firing the moment you're through the door.
     {
@@ -266,6 +277,16 @@ export const BASIC_TRAINING: MapDef = {
       ],
       order: { kind: 'guard' },
       skill: { reactionSeconds: 0.25 },
+    },
+    // R5: a grenadier behind them, slow to start: a braced MG has swept the room by the time his
+    // grenade lands; anyone slower (a rifleman, a Shield sitting behind the sandbags) hasn't.
+    {
+      id: 'bt-r5g',
+      hold: true,
+      members: [{ role: 'grenadier', position: { x: 900, y: 1230 }, facing: Math.PI }],
+      order: { kind: 'guard' },
+      // His grenade hits hard enough to get through a Shield's front.
+      skill: { reactionSeconds: 3, enemyDamageScale: 5 },
     },
     // R6: one rifleman behind a parapet.
     {
@@ -287,7 +308,7 @@ export const BASIC_TRAINING: MapDef = {
     },
     { id: 'bt-tr4', when: { captured: 'bt-b' }, openGate: 'bt-g4' },
     { id: 'bt-tr5', when: { captured: 'bt-c' }, openGate: 'bt-g5b' },
-    { id: 'bt-tr6', when: { squadDead: 'bt-r5' }, openGate: 'bt-g6' },
+    { id: 'bt-tr6', when: { squadDead: ['bt-r5', 'bt-r5g'] }, openGate: 'bt-g6' },
     { id: 'bt-tr7', when: { captured: 'bt-d' }, openGate: 'bt-g7' },
     { id: 'bt-tr8', when: { squadDead: 'bt-r6' }, openGate: 'bt-g8' },
   ],
@@ -303,10 +324,6 @@ export const BASIC_TRAINING_TUNING: DeepPartial<Tuning> = {
   capture: { stageSeconds: 1.25 },
   // Mines go off as you step on them: sprinting doesn't outrun these.
   mine: { fuseSeconds: 0.05 },
-  // The corridor shotgunner: two blasts round the corner and you're down.
-  shotgun: { pelletDamage: 24 },
   // A first-timer's grenade lands near, not on: a bigger blast forgives it.
   grenade: { blastRadius: 90 },
-  // "Shield up front": a strong shield, so the lesson lands.
-  armor: { roles: { shield: { front: 0.95, frontArc: 160 } } },
 };

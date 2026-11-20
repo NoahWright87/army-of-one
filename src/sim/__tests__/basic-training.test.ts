@@ -22,8 +22,8 @@ import { idle, run, soldierAt, world } from './helpers';
 type P = { x: number; y: number };
 const bt = () => world(BASIC_TRAINING, BASIC_TRAINING_TUNING);
 const gateOpen = (w: World, id: string) => w.state.gates.find((g) => g.id === id)!.open;
-const enemiesOf = (w: World, squad: string) =>
-  w.state.soldiers.filter((s) => s.team === 'enemy' && s.spawnPointId === squad);
+const enemiesOf = (w: World, ...squads: string[]) =>
+  w.state.soldiers.filter((s) => s.team === 'enemy' && squads.includes(s.spawnPointId));
 const alive = (w: World, id: string) => getSoldier(w, id)!.alive;
 
 /** Toward `to` (sprinting or not), aiming at `aim` (default: where it's going). */
@@ -244,7 +244,7 @@ describe('basic training (PHASE18): on rails', () => {
     ]);
     if (t >= 0) {
       // Behind the sandbags, trading shots: still loses.
-      const foes = enemiesOf(w, 'bt-r5');
+      const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
       shootAt(
         w,
         me,
@@ -256,6 +256,39 @@ describe('basic training (PHASE18): on rails', () => {
     expect(alive(w, me)).toBe(false);
   });
 
+  it("R5: the Shield can't sit it out behind the sandbags either", () => {
+    const w = bt();
+    const me = spawnAt(w, 'bt-sp-c', 'shield');
+    capture(w, me, 'bt-c');
+    walkPath(w, me, [
+      { x: 600, y: 1260 },
+      { x: 670, y: 1200 },
+    ]);
+    const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
+    shootAt(
+      w,
+      me,
+      () => foes.find((f) => f.alive) ?? foes[0]!,
+      () => !alive(w, me),
+      60 * 20,
+    );
+    expect(alive(w, me)).toBe(false);
+  });
+
+  it('R2/R4: nothing shoots you while you take the Bravo flag', () => {
+    const w = bt();
+    const me = spawnAt(w, 'bt-sp-b');
+    // Through the chute's exit, round the baffle, onto the flag.
+    getSoldier(w, me)!.x = 860;
+    getSoldier(w, me)!.y = 2060;
+    walkPath(w, me, [
+      { x: 700, y: 1990 },
+      { x: 650, y: 1830 },
+    ]);
+    capture(w, me, 'bt-b');
+    expect(getSoldier(w, me)!.hp).toBe(100);
+  });
+
   it('R5: the Machine Gunner braced on the sandbags wins', () => {
     const w = bt();
     const me = spawnAt(w, 'bt-sp-c', 'gunner');
@@ -264,7 +297,7 @@ describe('basic training (PHASE18): on rails', () => {
       { x: 600, y: 1260 },
       { x: 670, y: 1200 },
     ]);
-    const foes = enemiesOf(w, 'bt-r5');
+    const foes = enemiesOf(w, 'bt-r5', 'bt-r5g');
     for (let i = 0; i < 60 * 15 && alive(w, me) && foes.some((f) => f.alive); i++) {
       const s = getSoldier(w, me)!;
       const f = foes.find((x) => x.alive)!;

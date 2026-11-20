@@ -92,6 +92,11 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       // (PHASE17) Arena squads can be ours ([D142]).
       ...(squad.team === 'player' ? {} : { team: 'enemy' as const }),
     });
+    // (PHASE18) A squad's own `skill.enemyHpScale` (basic training: a fragile ambusher).
+    const hpScale = squad.skill?.enemyHpScale;
+    if (hpScale !== undefined && squad.team !== 'player') {
+      s.hp = Math.max(1, Math.round((s.hp / tuning.ai.enemyHpScale) * hpScale));
+    }
     quantizeSoldier(s);
     world.state.soldiers.push(s);
     return s;

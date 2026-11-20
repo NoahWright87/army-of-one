@@ -257,7 +257,11 @@ export interface MapDef {
 /** (PHASE18) "When this happens, open that gate." */
 export interface MapTrigger {
   id: string;
-  when: { captured: string } | { destroyed: readonly string[] } | { squadDead: string };
+  when:
+    | { captured: string }
+    | { destroyed: readonly string[] }
+    /** Every soldier of the squad (or of all these squads) is dead. */
+    | { squadDead: string | readonly string[] };
   openGate: string;
   /** Opens this many seconds after the condition is first met (default at once). */
   delaySeconds?: number;

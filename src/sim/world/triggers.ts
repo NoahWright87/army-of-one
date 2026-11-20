@@ -20,7 +20,8 @@ function met(world: World, t: MapTrigger): boolean {
       return i >= 0 && !!st.objectives[i]?.destroyed;
     });
   }
-  const squad = st.soldiers.filter((s) => s.team === 'enemy' && s.spawnPointId === w.squadDead);
+  const ids: readonly string[] = typeof w.squadDead === 'string' ? [w.squadDead] : w.squadDead;
+  const squad = st.soldiers.filter((s) => s.team === 'enemy' && ids.includes(s.spawnPointId));
   return squad.length > 0 && squad.every((s) => !s.alive);
 }
 
