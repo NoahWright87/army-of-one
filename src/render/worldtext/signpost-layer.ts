@@ -82,7 +82,7 @@ export class SignpostLayer {
   private readonly onKey: (e: KeyboardEvent) => void;
   private lastMs = -1;
   /** The pointer is over a sign button, or a press that started on one is still held. */
-  private hovering = 0;
+  private readonly hovering = new Set<HTMLElement>();
   private pressing = false;
   private readonly onUp = () => (this.pressing = false);
 
@@ -119,8 +119,9 @@ export class SignpostLayer {
     }
     this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
-    window.addEventListener('pointerup', this.onUp);
-    window.addEventListener('pointercancel', this.onUp);
+    // Capture phase: nothing on the page can stop the release reaching us.
+    window.addEventListener('pointerup', this.onUp, true);
+    window.addEventListener('pointercancel', this.onUp, true);
     scene.events.once('shutdown', () => this.destroy());
   }
 
@@ -251,7 +252,14 @@ export class SignpostLayer {
    * anywhere on the page): the input source drops `fire` while this is true.
    */
   blocksFire(): boolean {
-    return this.hovering > 0 || this.pressing;
+    // Only while a sign is up: a press or hover that never saw its release (phones drop
+    // pointerleave when a button goes away under the finger) can't block fire for good.
+    if (!this.anyOpen()) {
+      this.hovering.clear();
+      this.pressing = false;
+      return false;
+    }
+    return this.hovering.size > 0 || this.pressing;
   }
 
   private drop(s: Sign): void {
@@ -259,7 +267,9 @@ export class SignpostLayer {
     s.frame = null;
     s.glyphs = [];
     // A button removed under the pointer never sends pointerleave.
-    if (s.buttons.some((b) => b.el.matches(':hover'))) this.hovering = 0;
+    // (A touch's pointerleave never comes when its button is removed under the finger: that
+    // left fire blocked for good on phones, after a class rack press.)
+    for (const b of s.buttons) this.hovering.delete(b.el);
     for (const b of s.buttons) b.el.remove();
     s.buttons = [];
   }
@@ -367,8 +377,11 @@ export class SignpostLayer {
         e.stopPropagation();
         if (e.detail === 0) b.run();
       });
-      el.addEventListener('pointerenter', () => this.hovering++);
-      el.addEventListener('pointerleave', () => (this.hovering = Math.max(0, this.hovering - 1)));
+      // Hover only means something for a mouse (touch is covered by `pressing`).
+      el.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') this.hovering.add(el);
+      });
+      el.addEventListener('pointerleave', () => this.hovering.delete(el));
       this.btnRoot.appendChild(el);
       // Column-major: 1–5 down the left, 6–9 down the right.
       const col = Math.floor(i / rows);
@@ -386,8 +399,8 @@ export class SignpostLayer {
 
   destroy(): void {
     window.removeEventListener('keydown', this.onKey);
-    window.removeEventListener('pointerup', this.onUp);
-    window.removeEventListener('pointercancel', this.onUp);
+    window.removeEventListener('pointerup', this.onUp, true);
+    window.removeEventListener('pointercancel', this.onUp, true);
     for (const s of this.signs) {
       this.drop(s);
       s.post.destroy();
