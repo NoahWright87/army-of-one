@@ -768,6 +768,11 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,
   guarding the graduation flag; sandbags by the door to brace on. Dying there unlocks the
   Sniper.
+- **[D159] No wind-ups: fire, then reload** (owner, 2026-11): "The wind up should be the reload
+  *after* the weapon fires." Grenades, rockets and tank shells go the moment you press fire (a
+  grenade to where you aim); the old wind-up time moved into the reload, and the ring fills while
+  it reloads. Holding fire fires again each time it's ready. Gun users no longer get their
+  shots off first just because they don't wind up.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
   they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
 
