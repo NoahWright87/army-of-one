@@ -8,7 +8,12 @@ import type { CaptionVoiceProfile } from '../../content/caption-voices';
 import type { WorldTextTuning } from '../../content/world-text';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
-import { captionVoice, CaptionVoicePlayer, type VoiceCue } from './caption-voice';
+import {
+  captionVoice,
+  CaptionVoicePlayer,
+  type PlayingVoice,
+  type VoiceCue,
+} from './caption-voice';
 import { defaultEnter, getEffect, hash01, type GlyphPose } from './effects';
 import { fontStack, loadWorldTextFonts } from './fonts';
 import { layoutGlyphs, parseLine, type ParsedLine, type Placed } from './markup';
@@ -39,7 +44,8 @@ interface LiveLine {
   seed: number;
   cuesFired: number;
   voice: VoiceCue[];
-  voiceIndex: number;
+  playingVoice?: PlayingVoice;
+  voiceAttempted: boolean;
   x: number;
   y: number;
   /** Text bounds around the anchor (screen px; y up is negative, from the head gap). */
@@ -68,9 +74,14 @@ export class SpeechLayer {
     // Widths measured with a fallback font are wrong once the real one arrives.
     const reset = () => this.widths.clear();
     document.fonts?.addEventListener('loadingdone', reset);
+    const silence = () => this.voicePlayer.clear();
+    scene.events.on(Phaser.Scenes.Events.PAUSE, silence);
+    scene.events.on(Phaser.Scenes.Events.SLEEP, silence);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       document.fonts?.removeEventListener('loadingdone', reset);
-      this.voicePlayer.clear();
+      scene.events.off(Phaser.Scenes.Events.PAUSE, silence);
+      scene.events.off(Phaser.Scenes.Events.SLEEP, silence);
+      silence();
     });
   }
 
@@ -87,7 +98,10 @@ export class SpeechLayer {
     const t = this.tuning.speech;
     // A soldier says one thing at a time: the old line hurries off.
     for (const l of this.lines) {
-      if (l.speakerId === speakerId) l.endMs = Math.min(l.endMs, this.now);
+      if (l.speakerId === speakerId) {
+        l.endMs = Math.min(l.endMs, this.now);
+        l.playingVoice?.stop();
+      }
     }
     const parsed = parseLine(markup, t);
     const voice = captionVoice(speakerId, parsed, opts.voice);
@@ -161,7 +175,7 @@ export class SpeechLayer {
       seed: ++this.seq * 977,
       cuesFired: 0,
       voice,
-      voiceIndex: 0,
+      voiceAttempted: false,
       x: NaN,
       y: NaN,
       box: {
@@ -198,6 +212,7 @@ export class SpeechLayer {
     for (let i = this.lines.length - 1; i >= 0; i--) {
       const l = this.lines[i]!;
       if (nowMs - l.endMs >= t.fadeMs) {
+        l.playingVoice?.stop();
         for (const c of l.layers) c.destroy();
         this.lines.splice(i, 1);
         continue;
@@ -231,32 +246,22 @@ export class SpeechLayer {
         l.cuesFired++;
         this.onQuake();
       }
-      // If a frame was delayed, play only the most recent cue instead of dumping a backlog.
-      let voiceCue: VoiceCue | undefined;
-      while (l.voiceIndex < l.voice.length && l.voice[l.voiceIndex]!.atMs <= lt) {
-        voiceCue = l.voice[l.voiceIndex++];
-      }
-      if (
-        audioManager &&
-        voiceBank &&
-        this.audio &&
-        voiceCue &&
-        lt - voiceCue.atMs < 75 &&
-        nowMs < l.endMs
-      ) {
+      if (audioManager && voiceBank && this.audio && nowMs < l.endMs) {
+        const volume = this.audio.volume * this.audio.voiceVolume;
+        if (!l.voiceAttempted && volume > 0 && !this.audio.muted) {
+          l.playingVoice = this.voicePlayer.play(
+            audioManager.context,
+            audioManager.destination,
+            voiceBank,
+            l.voice,
+          );
+        }
         const distance = l.keepOnScreen
           ? 0
           : Math.hypot(l.x - camera.midPoint.x, l.y - camera.midPoint.y);
-        this.voicePlayer.play(
-          audioManager.context,
-          audioManager.destination,
-          voiceBank,
-          voiceCue,
-          distance,
-          this.audio.volume * this.audio.voiceVolume,
-          this.audio.muted,
-        );
+        l.playingVoice?.mix(distance, volume, this.audio.muted);
       }
+      l.voiceAttempted = true;
       const rise = -t.fadeRisePx * fade;
       const alpha = l.alpha * (1 - fade);
       for (let g = 0; g < l.parsed.glyphs.length; g++) {

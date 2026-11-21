@@ -85,49 +85,75 @@ export function captionVoice(
   return cues;
 }
 
-/** Plays short speech samples through Phaser's unlocked audio context and mixer. */
+export interface PlayingVoice {
+  mix(distance: number, volume: number, muted: boolean): void;
+  stop(): void;
+}
+
+/** Schedule the whole phrase on the audio clock so slow render frames can't drop syllables. */
 export class CaptionVoicePlayer {
-  private readonly active = new Set<AudioBufferSourceNode>();
+  private readonly active = new Set<PlayingVoice>();
 
   play(
     context: AudioContext,
     destination: AudioNode,
     bank: AudioBuffer,
-    cue: VoiceCue,
-    distance: number,
-    volume: number,
-    muted: boolean,
-  ): void {
-    if (context.state !== 'running' || this.active.size >= 12) return;
-    const level = effectiveVolume(volume, muted, 0.5 * cue.emphasis * distanceGain(distance));
-    if (level < 0.005) return;
+    cues: readonly VoiceCue[],
+  ): PlayingVoice | undefined {
+    if (context.state !== 'running' || this.active.size >= 4 || !cues.length) return undefined;
 
-    const slot =
-      CAPTION_VOICE_BANKS.indexOf(cue.bank) * CAPTION_SOUNDS.length +
-      CAPTION_SOUNDS.indexOf(cue.sound);
-    const source = context.createBufferSource();
-    source.buffer = bank;
-    const rate = 1.55 * cue.speed ** 0.45 * 2 ** (cue.pitch / 12);
-    source.playbackRate.value = rate;
-    const start = context.currentTime;
-    const end = start + CAPTION_SOUND_SECONDS / rate;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(level, start + 0.004);
-    gain.gain.setValueAtTime(level, end - 0.012);
-    gain.gain.linearRampToValueAtTime(0, end);
-    source.connect(gain).connect(destination);
-    this.active.add(source);
-    source.onended = () => {
-      this.active.delete(source);
-      source.disconnect();
-      gain.disconnect();
+    const mix = context.createGain();
+    mix.gain.value = 0;
+    mix.connect(destination);
+    const sources = new Set<AudioBufferSourceNode>();
+    const start = context.currentTime + 0.015;
+    const line: PlayingVoice = {
+      mix: (distance, volume, muted) => {
+        if (!this.active.has(line)) return;
+        mix.gain.cancelScheduledValues(context.currentTime);
+        mix.gain.setTargetAtTime(
+          effectiveVolume(volume, muted, 0.45 * distanceGain(distance)),
+          context.currentTime,
+          0.006,
+        );
+      },
+      stop: () => {
+        if (!this.active.delete(line)) return;
+        for (const source of sources) source.stop();
+        sources.clear();
+        mix.disconnect();
+      },
     };
-    source.start(start, slot * CAPTION_SOUND_SECONDS, CAPTION_SOUND_SECONDS);
+    this.active.add(line);
+
+    for (const cue of cues) {
+      const slot =
+        CAPTION_VOICE_BANKS.indexOf(cue.bank) * CAPTION_SOUNDS.length +
+        CAPTION_SOUNDS.indexOf(cue.sound);
+      const source = context.createBufferSource();
+      source.buffer = bank;
+      const rate = 1.55 * cue.speed ** 0.45 * 2 ** (cue.pitch / 12);
+      source.playbackRate.value = rate;
+      const at = start + cue.atMs / 1000;
+      const end = at + CAPTION_SOUND_SECONDS / rate;
+      const envelope = context.createGain();
+      envelope.gain.setValueAtTime(0, at);
+      envelope.gain.linearRampToValueAtTime(cue.emphasis, at + 0.004);
+      envelope.gain.setValueAtTime(cue.emphasis, end - 0.012);
+      envelope.gain.linearRampToValueAtTime(0, end);
+      source.connect(envelope).connect(mix);
+      sources.add(source);
+      source.onended = () => {
+        source.disconnect();
+        envelope.disconnect();
+        if (sources.delete(source) && !sources.size) line.stop();
+      };
+      source.start(at, slot * CAPTION_SOUND_SECONDS, CAPTION_SOUND_SECONDS);
+    }
+    return line;
   }
 
   clear(): void {
-    for (const sound of this.active) sound.stop();
-    this.active.clear();
+    for (const line of this.active) line.stop();
   }
 }
