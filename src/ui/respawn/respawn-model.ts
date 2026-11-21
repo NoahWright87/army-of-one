@@ -33,6 +33,7 @@ import {
   type Ledger,
 } from '../../timeline/economy';
 import type { RevealOptions } from '../../timeline/reveal';
+import type { Tuning } from '../../content/tuning';
 import { MIN_DOMAIN_TICKS, type TimeDomain } from './time-scale';
 
 /** Everything the screen renders. PHASE04 builds this from MissionState + the latest fold. */
@@ -75,6 +76,8 @@ export interface RespawnProps {
   preferred?: SpawnOption | null;
   /** (PHASE11) Money on the timeline ([D51]); absent = no money shown (fixtures, economy off). */
   economy?: Ledger;
+  /** (POC in-world respawn) The mission's tuning, to replay the battle behind the picker. */
+  tuning?: Tuning;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */
