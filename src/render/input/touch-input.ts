@@ -26,6 +26,8 @@ export class TouchInput implements InputSource {
   private aim = -Math.PI / 2;
   private aimDistance = DEFAULT_AIM_DISTANCE;
   private lastPos: Vec2 | null = null;
+  /** A finger was aiming last read. */
+  private aiming = false;
   private view: WorldView | null = null;
 
   constructor(
@@ -50,6 +52,10 @@ export class TouchInput implements InputSource {
     // (PHASE18) Aiming by finger ([D158]): the reticle is wherever the finger is, like a mouse
     // cursor. The camera pans and zooms toward the aim, so holding near the edge looks further.
     const under = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
+    // (PHASE18) Letting go: the reticle comes back to its walking distance (same direction), so
+    // the camera comes back to you.
+    if (this.aiming && !c.tap) this.aimDistance = DEFAULT_AIM_DISTANCE;
+    this.aiming = c.tap !== null;
     if (under) {
       this.aim = Math.atan2(under.y - soldierPos.y, under.x - soldierPos.x);
       this.aimDistance = Math.max(30, Math.hypot(under.x - soldierPos.x, under.y - soldierPos.y));
