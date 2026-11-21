@@ -2,7 +2,18 @@
 import { isGroundKind, type GroundKind } from '../../content/ground';
 
 /** Water under land; built surfaces and obstacles over natural ground. */
-export const TERRAIN_LAYERS: readonly GroundKind[] = ['W', 'S', 'D', 'G', 'R', 'C', 'K', 'X', 'B'];
+export const TERRAIN_LAYERS: readonly GroundKind[] = [
+  'W',
+  'S',
+  'D',
+  'G',
+  'R',
+  'C',
+  'K',
+  'X',
+  'B',
+  'T',
+];
 const rank = (kind: GroundKind) => TERRAIN_LAYERS.indexOf(kind);
 export const NEIGHBOURS = [
   [0, -1],

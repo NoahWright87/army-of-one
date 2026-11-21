@@ -232,7 +232,10 @@ export class Minimap {
       const st = DOT_STYLE[kind];
       ctx.globalAlpha = Math.min(
         1,
-        visibilityFrom(live, s, s.visibility, src.map.concealment, view.smoke, view.sight),
+        visibilityFrom(live, s, s.visibility, src.map.concealment, view.smoke, view.sight, {
+          map: src.map,
+          tick: view.tick,
+        }),
       );
       ctx.fillStyle = st.fill;
       ctx.fillRect(s.x - st.r * u, s.y - st.r * u, 2 * st.r * u, 2 * st.r * u);

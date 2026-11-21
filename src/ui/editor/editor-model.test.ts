@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newBlock, parseBlock, blockToJson } from '../../gen/block';
 import { blockToPreviewMap } from '../../gen/preview';
 import { rotateMap } from '../../gen/rotate-map';
+import { orientBlock } from '../../gen/transform';
 import { EditorModel } from './editor-model';
 
 describe('EditorModel', () => {
@@ -59,6 +60,37 @@ describe('EditorModel', () => {
     const rotated = rotateMap(preview, 1).concealment![1]!.rect;
     expect(rotated.w).toBe(original.h);
     expect(rotated.h).toBe(original.w);
+  });
+
+  it('paints trenches as ground and stacks mist once per stroke', () => {
+    const m = new EditorModel(newBlock());
+    m.paintKind = 'T';
+    m.paint(4, 6);
+    m.paint(5, 6);
+    m.paintKind = 'mist';
+    m.beginGesture();
+    m.paint(4, 6);
+    m.paint(5, 6);
+    m.paint(4, 6);
+    m.endGesture();
+    m.paint(4, 6);
+    expect(m.block.ground[6]?.slice(4, 6)).toBe('TT');
+    expect(m.block.mist?.[6]?.slice(4, 6)).toBe('21');
+    m.undo();
+    expect(m.block.mist?.[6]?.slice(4, 6)).toBe('11');
+    m.redo();
+    const parsed = parseBlock(blockToJson(m.block));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const oriented = orientBlock(parsed.block, 1);
+    expect(oriented.mist?.[4]?.[8]).toBe('2');
+    const preview = blockToPreviewMap(oriented, { id: 'preview', nameKey: 'preview', budget: 0 });
+    expect(preview.concealment).toMatchObject([{ kind: 'trench', painted: true }]);
+    expect(preview.mist).toHaveLength(2);
+    m.paintKind = 'eraseMist';
+    m.paint(4, 6);
+    expect(m.block.mist?.[6]?.slice(4, 6)).toBe('01');
+    expect(m.block.ground[6]?.slice(4, 6)).toBe('TT');
   });
 
   it('a drag is one undo step; undo/redo walk history', () => {

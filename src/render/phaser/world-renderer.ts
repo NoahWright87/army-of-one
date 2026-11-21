@@ -39,6 +39,7 @@ import { WorldSpeech } from '../worldtext/world-speech';
 import type { Vec2 } from '../../sim/core/vec';
 import { rectContains, type MapDef } from '../../sim/world/map';
 import { visibilityFrom } from '../../sim/world/concealment';
+import { fogBanksAt } from '../../sim/world/atmosphere';
 import { hash01 } from '../../sim/core/hash';
 import type { VehicleView, WorldView } from '../../sim/view';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
@@ -129,6 +130,7 @@ type MutableVec2 = { x: number; y: number };
 
 export class WorldRenderer {
   /** (07-c) Cover arcs, grenades and the throw ring, redrawn each frame. */
+  private readonly fogSprites: Phaser.GameObjects.Image[] = [];
   private coverGfx!: Phaser.GameObjects.Graphics;
   /** Static cover quads are reused when destruction/replay switches their texture. */
   private readonly coverPieces = new Map<string, { sprite: Tile; shadow: Tile }>();
@@ -313,6 +315,7 @@ export class WorldRenderer {
     this.speech.layer.onQuake = () =>
       this.pendingCues.push({ type: 'shake', intensity: 0.008, durationMs: 220 });
     this.drawStatic();
+    this.createAtmosphere();
   }
 
   /** Ground, water, walls, spawn markers: drawn once. */
@@ -378,8 +381,11 @@ export class WorldRenderer {
         id,
         rect: { x, y, w, h },
         kind,
+        painted,
       } of map.concealment) {
-        if (kind === 'trench') {
+        if (painted) {
+          g.fillStyle(0x3f3028, 0.9).fillRect(x, y, w, h);
+        } else if (kind === 'trench') {
           g.fillStyle(0x7c6348).fillRoundedRect(x - 3, y - 3, w + 6, h + 6, 6);
           g.fillStyle(0x3f3028).fillRoundedRect(x, y, w, h, 4);
           g.lineStyle(2, 0x9b7652).strokeRoundedRect(x + 5, y + 5, w - 10, h - 10, 4);
@@ -395,6 +401,8 @@ export class WorldRenderer {
         }
       }
     }
+    this.drawPaintedTrenchRims();
+
     // Tiled sections retain material proportions at every authored length/orientation.
     for (const c of map.cover ?? []) {
       const l = coverArtLayout(c, false);
@@ -511,6 +519,7 @@ export class WorldRenderer {
     this.drawCapturePoints(f.nowMs);
     this.drawVehicles(a);
     this.drawTurrets(a, f);
+    this.drawFog(a);
     this.drawSmoke(a);
     this.drawSoldiers(a, f);
     this.drawCoverAndThrows(f);
@@ -933,6 +942,76 @@ export class WorldRenderer {
     g.fillStyle(color, opacity).fillRect(x - width / 2, y, width * frac, h);
   }
 
+  /** Draw the perimeter of the painted cells so internal joins have no visible lip. */
+  private drawPaintedTrenchRims(): void {
+    const ground = this.map.ground;
+    if (!ground || !ground.rows.some((row) => row.includes('T'))) return;
+    const g = this.scene.add.graphics().setDepth(DEPTH.walls - 0.55);
+    const { rows, cellSize: size } = ground;
+    const edge = (ax: number, ay: number, bx: number, by: number) => {
+      g.lineStyle(7, 0x7c6348).lineBetween(ax, ay, bx, by);
+      g.lineStyle(2, 0x9b7652).lineBetween(ax, ay, bx, by);
+    };
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        if (row[x] !== 'T') continue;
+        const left = x * size;
+        const top = y * size;
+        const right = left + size;
+        const bottom = top + size;
+        if (row[x - 1] !== 'T') edge(left, top, left, bottom);
+        if (row[x + 1] !== 'T') edge(right, top, right, bottom);
+        if (rows[y - 1]?.[x] !== 'T') edge(left, top, right, top);
+        if (rows[y + 1]?.[x] !== 'T') edge(left, bottom, right, bottom);
+      }
+    });
+  }
+
+  private createAtmosphere(): void {
+    const { map, scene } = this;
+    if (!map.mist?.length && !map.weather) return;
+    const key = 'aoo-mist-bank';
+    if (!scene.textures.exists(key)) {
+      const texture = scene.textures.createCanvas(key, 128, 128);
+      if (!texture) return;
+      const ctx = texture.context;
+      const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grad.addColorStop(0, 'rgba(226,235,231,0.96)');
+      grad.addColorStop(0.5, 'rgba(211,224,219,0.78)');
+      grad.addColorStop(0.83, 'rgba(203,217,214,0.4)');
+      grad.addColorStop(1, 'rgba(203,217,214,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+      texture.refresh();
+    }
+    const depth = DEPTH.overlays - 2;
+    for (const r of map.mist ?? []) {
+      scene.add
+        .image(r.x + r.w / 2, r.y + r.h / 2, key)
+        .setDepth(depth)
+        .setDisplaySize(r.w * 1.22, r.h * 1.22)
+        .setAlpha(0.32);
+    }
+    for (const bank of fogBanksAt(map.weather, this.cur.tick)) {
+      this.fogSprites.push(
+        scene.add
+          .image(bank.x, bank.y, key)
+          .setDepth(depth)
+          .setDisplaySize(2 * bank.radius, 2 * bank.radius)
+          .setAlpha(0.43),
+      );
+    }
+  }
+
+  private drawFog(a: number): void {
+    if (!this.fogSprites.length) return;
+    const prev = fogBanksAt(this.map.weather, this.prev.tick);
+    const current = fogBanksAt(this.map.weather, this.cur.tick);
+    current.forEach((bank, i) =>
+      this.fogSprites[i]!.setPosition(lerp(prev[i]!.x, bank.x, a), lerp(prev[i]!.y, bank.y, a)),
+    );
+  }
+
   private drawSmoke(a: number): void {
     const g = this.smokeGfx;
     g.clear();
@@ -1017,6 +1096,7 @@ export class WorldRenderer {
               this.map.concealment,
               this.cur.smoke,
               this.cur.sight,
+              { map: this.map, tick: this.cur.tick },
             ),
           )
         : 1;

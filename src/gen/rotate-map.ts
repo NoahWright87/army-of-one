@@ -52,6 +52,13 @@ export function rotateMap(map: MapDef, q: number): MapDef {
   if (map.cover) out.cover = map.cover.map((c) => ({ ...c, rect: rect(c.rect) }));
   if (map.concealment) out.concealment = map.concealment.map((c) => ({ ...c, rect: rect(c.rect) }));
   if (map.groundMist) out.groundMist = map.groundMist.map(rect);
+  if (map.mist) out.mist = map.mist.map(rect);
+  if (map.weather?.kind === 'fog') {
+    out.weather = {
+      kind: 'fog',
+      banks: map.weather.banks.map((bank) => ({ ...bank, ...pt(bank) })),
+    };
+  }
   if (map.turrets) {
     out.turrets = map.turrets.map((t) => ({
       ...t,
