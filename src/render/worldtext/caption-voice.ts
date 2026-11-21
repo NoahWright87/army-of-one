@@ -14,6 +14,7 @@ export interface VoiceCue {
   pitch: number;
   speed: number;
   bank: CaptionVoiceProfile['bank'];
+  grit?: number;
 }
 
 function hash(id: string): number {
@@ -79,6 +80,7 @@ export function captionVoice(
       pitch: profile.pitch + contour * profile.expression + (emphasis - 1) * 2,
       speed: profile.speed,
       bank: profile.bank,
+      grit: profile.grit,
     });
     if (glyph.pacing !== 'letters') nextMs += (vowel ? 56 : 46) / profile.speed;
   }
@@ -102,6 +104,15 @@ export class CaptionVoicePlayer {
   ): PlayingVoice | undefined {
     if (context.state !== 'running' || this.active.size >= 4 || !cues.length) return undefined;
 
+    const grit = cues[0]?.grit;
+    const saturator = grit ? context.createWaveShaper() : undefined;
+    if (saturator && grit) {
+      saturator.curve = Float32Array.from(
+        { length: 257 },
+        (_, i) => Math.tanh((i / 128 - 1) * grit) / Math.tanh(grit),
+      );
+      saturator.oversample = '2x';
+    }
     const mix = context.createGain();
     mix.gain.value = 0;
     mix.connect(destination);
@@ -121,10 +132,12 @@ export class CaptionVoicePlayer {
         if (!this.active.delete(line)) return;
         for (const source of sources) source.stop();
         sources.clear();
+        saturator?.disconnect();
         mix.disconnect();
       },
     };
     this.active.add(line);
+    saturator?.connect(mix);
 
     for (const cue of cues) {
       const slot =
@@ -141,7 +154,7 @@ export class CaptionVoicePlayer {
       envelope.gain.linearRampToValueAtTime(cue.emphasis, at + 0.004);
       envelope.gain.setValueAtTime(cue.emphasis, end - 0.012);
       envelope.gain.linearRampToValueAtTime(0, end);
-      source.connect(envelope).connect(mix);
+      source.connect(envelope).connect(saturator ?? mix);
       sources.add(source);
       source.onended = () => {
         source.disconnect();

@@ -10,4 +10,15 @@ export interface CaptionVoiceProfile {
   pitch: number;
   speed: number;
   expression: number;
+  /** Soft saturation drive, in addition to the normal sample playback. */
+  grit?: number;
 }
+
+/** Basic training's drill sergeant. Low register, clipped cadence, little pitch movement. */
+export const DRILL_SERGEANT_VOICE: CaptionVoiceProfile = {
+  bank: 'low',
+  pitch: -15,
+  speed: 1.15,
+  expression: 0.35,
+  grit: 3,
+};
