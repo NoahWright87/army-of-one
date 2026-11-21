@@ -359,6 +359,7 @@ export const STRINGS = {
   'settings.cameraLookAheadDistance': 'Look-ahead distance',
   'settings.screenShake': 'Screen shake',
   'settings.volume': 'Volume',
+  'settings.voiceVolume': 'Soldier voices',
   'settings.muted': 'Mute',
   'settings.debugOverlay': 'Debug overlay (`)',
   'settings.interpolation': 'Interpolate between ticks',

@@ -16,6 +16,7 @@ import type { SoldierView, WorldView } from '../../sim/view';
 import { DEPTH } from '../depth';
 import { BarkDirector } from '../worldtext/barks';
 import { SignpostLayer } from '../worldtext/signpost-layer';
+import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { SpeechLayer } from '../worldtext/speech-layer';
 import { ENEMY_SPEECH_COLOR, identityOf } from '../worldtext/world-speech';
 
@@ -111,7 +112,7 @@ export class TextLabScene extends Phaser.Scene {
   private stickGfx!: Phaser.GameObjects.Graphics;
   private touchAim: { x: number; y: number; until: number } | null = null;
 
-  constructor() {
+  constructor(private readonly display: DisplaySettings) {
     super('textlab');
   }
 
@@ -129,7 +130,7 @@ export class TextLabScene extends Phaser.Scene {
       g.fillRoundedRect(x, y, w, 18, 6);
     }
     this.fx = this.add.graphics().setDepth(DEPTH.effects);
-    this.speech = new SpeechLayer(this, this.tuning);
+    this.speech = new SpeechLayer(this, this.tuning, this.display);
     this.speech.onQuake = () => this.cameras.main.shake(220, 0.008);
     this.signs = new SignpostLayer(this, LAB_SIGNS, this.tuning);
     this.director = new BarkDirector(this.tuning.barks);

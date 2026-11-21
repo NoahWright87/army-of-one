@@ -507,7 +507,7 @@ const assetsReady = new Promise<void>((resolve, reject) => {
 void assetsReady.catch(reportFatalError);
 
 const arenaScene = new ArenaScene(services);
-const textLabScene = new TextLabScene();
+const textLabScene = new TextLabScene(display);
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',

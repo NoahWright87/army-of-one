@@ -52,14 +52,14 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let livePos: { x: number; y: number } | null = null;
 
   return {
-    create(s, id) {
+    create(s, id, display) {
       scene = s;
       liveId = id;
       started = false;
       queue.length = 0;
       lastFrame = -1;
       const look = cloneWorldText();
-      speech = new SpeechLayer(scene, look);
+      speech = new SpeechLayer(scene, look, display);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
       floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
       body = scene.add

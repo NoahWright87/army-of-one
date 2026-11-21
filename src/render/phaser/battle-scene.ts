@@ -145,7 +145,7 @@ export class BattleScene extends Phaser.Scene {
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
-    this.session.overlay?.create(this, this.liveId);
+    this.session.overlay?.create(this, this.liveId, this.services.display);
 
     const startCountdown = () => {
       this.countdownTicks = DEMO_COUNTDOWN_TICKS;

@@ -5,7 +5,9 @@
  */
 import Phaser from 'phaser';
 import type { WorldTextTuning } from '../../content/world-text';
+import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
+import { captionVoice, CaptionVoicePlayer, type VoiceCue } from './caption-voice';
 import { defaultEnter, getEffect, hash01, type GlyphPose } from './effects';
 import { fontStack, loadWorldTextFonts } from './fonts';
 import { layoutGlyphs, parseLine, type ParsedLine, type Placed } from './markup';
@@ -34,6 +36,8 @@ interface LiveLine {
   alpha: number;
   seed: number;
   cuesFired: number;
+  voice: VoiceCue[];
+  voiceIndex: number;
   x: number;
   y: number;
   /** Text bounds around the anchor (screen px; y up is negative, from the head gap). */
@@ -49,20 +53,23 @@ export class SpeechLayer {
   private readonly lines: LiveLine[] = [];
   private readonly widths = new Map<string, number>();
   private measurer: Phaser.GameObjects.Text | null = null;
+  private readonly voicePlayer = new CaptionVoicePlayer();
   private now = 0;
   private seq = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
     public tuning: WorldTextTuning,
+    public audio?: Pick<DisplaySettings, 'volume' | 'muted' | 'voiceVolume'>,
   ) {
     loadWorldTextFonts();
     // Widths measured with a fallback font are wrong once the real one arrives.
     const reset = () => this.widths.clear();
     document.fonts?.addEventListener('loadingdone', reset);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
-      document.fonts?.removeEventListener('loadingdone', reset),
-    );
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      document.fonts?.removeEventListener('loadingdone', reset);
+      this.voicePlayer.clear();
+    });
   }
 
   get activeCount(): number {
@@ -150,6 +157,8 @@ export class SpeechLayer {
       alpha: opts.echo ? t.echoAlpha : 1,
       seed: ++this.seq * 977,
       cuesFired: 0,
+      voice: captionVoice(speakerId, parsed),
+      voiceIndex: 0,
       x: NaN,
       y: NaN,
       box: {
@@ -176,7 +185,10 @@ export class SpeechLayer {
   update(nowMs: number, posOf: (id: string) => { x: number; y: number } | null): void {
     this.now = nowMs;
     const t = this.tuning.speech;
-    const zoom = this.scene.cameras.main.zoom || 1;
+    const camera = this.scene.cameras.main;
+    const zoom = camera.zoom || 1;
+    const sound = this.scene.sound;
+    const audioManager = sound instanceof Phaser.Sound.WebAudioSoundManager ? sound : null;
     for (let i = this.lines.length - 1; i >= 0; i--) {
       const l = this.lines[i]!;
       if (nowMs - l.endMs >= t.fadeMs) {
@@ -212,6 +224,24 @@ export class SpeechLayer {
       while (l.cuesFired < l.parsed.cues.length && l.parsed.cues[l.cuesFired]!.atMs <= lt) {
         l.cuesFired++;
         this.onQuake();
+      }
+      // If a frame was delayed, play only the most recent cue instead of dumping a backlog.
+      let voiceCue: VoiceCue | undefined;
+      while (l.voiceIndex < l.voice.length && l.voice[l.voiceIndex]!.atMs <= lt) {
+        voiceCue = l.voice[l.voiceIndex++];
+      }
+      if (audioManager && this.audio && voiceCue && lt - voiceCue.atMs < 75 && nowMs < l.endMs) {
+        const distance = l.keepOnScreen
+          ? 0
+          : Math.hypot(l.x - camera.midPoint.x, l.y - camera.midPoint.y);
+        this.voicePlayer.play(
+          audioManager.context,
+          audioManager.destination,
+          voiceCue,
+          distance,
+          this.audio.volume * this.audio.voiceVolume,
+          this.audio.muted,
+        );
       }
       const rise = -t.fadeRisePx * fade;
       const alpha = l.alpha * (1 - fade);
@@ -282,6 +312,7 @@ export class SpeechLayer {
   }
 
   clear(): void {
+    this.voicePlayer.clear();
     for (const l of this.lines) for (const c of l.layers) c.destroy();
     this.lines.length = 0;
   }
