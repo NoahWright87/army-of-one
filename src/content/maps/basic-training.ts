@@ -179,8 +179,8 @@ export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
   // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]);
-  // 4: R7's guns spread out behind a minefield.
-  rev: 4,
+  // 4: R7's guns spread out behind a minefield; 5: concealment in R3, R4 and R7.
+  rev: 5,
   width: BT_W,
   height: BT_H,
   walls: [
@@ -209,6 +209,11 @@ export const BASIC_TRAINING: MapDef = {
     ...crossWall(BT.r6, L, R, R7_DOOR), // gate g8 (the parapet rifleman down)
   ],
   water: [],
+  concealment: [
+    { id: 'bt-ambush-bush', kind: 'bush', rect: { x: 1210, y: 1870, w: 100, h: 84 } },
+    { id: 'bt-r7-trench', kind: 'trench', rect: { x: 1305, y: 43, w: 53, h: 349 } },
+  ],
+  groundMist: [{ x: CHUTE_X, y: 2030, w: 300, h: 515 }],
   cover: [
     // The sergeant's fence: you can see him, you can't get to him.
     cover('bt-fence', 'fence', { x: BT_FENCE_X, y: 40, w: 12, h: BT_H - 80 }),
@@ -255,7 +260,7 @@ export const BASIC_TRAINING: MapDef = {
     { id: 'bt-t3', position: { x: 1150, y: 3700 }, radius: 18, maxHp: 50, target: true },
     { id: 'bt-t4', position: { x: 1270, y: 3800 }, radius: 18, maxHp: 50, target: true },
   ],
-  mines: [...BT_MINEFIELD, ...BT_R7_MINEFIELD],
+  mines: [...BT_MINEFIELD.map((mine) => ({ ...mine, smoke: true })), ...BT_R7_MINEFIELD],
   capturePoints: [
     { id: 'bt-a', nameKey: 'spawn.basic.a', position: { x: 860, y: 3030 } },
     { id: 'bt-b', nameKey: 'spawn.basic.b', position: { x: 650, y: 1830 } },
@@ -335,7 +340,7 @@ export const BASIC_TRAINING: MapDef = {
       members: [{ position: { x: 984, y: 570 }, facing: Math.PI }],
       order: { kind: 'guard' },
     },
-    // R7: snipers and machine guns behind the far fence, guarding the graduation flag.
+    // R7: snipers and machine gunners brace on the trench lip and guard the graduation flag.
     {
       id: 'bt-r7',
       hold: true,

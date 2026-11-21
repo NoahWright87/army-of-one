@@ -1255,6 +1255,12 @@ export const BLOCK_TUNING = {
 } as const;
 
 /** Render-only readability; never changes ballistics, collision or saved recordings. */
+export const GROUND_MIST_VISUAL_TUNING = {
+  mineFarOpacity: 0.16, // TUNE: idle mines are faint before entering the chute
+  mineVisibleAt: 230, // TUNE: fully visible well before trigger range
+  mineFaintAt: 480, // TUNE: start to emerge as the player reaches the gate
+} as const;
+
 export const PROJECTILE_VISUAL_TUNING = {
   trailMs: 40, // TUNE
   trailMaxLength: 48, // TUNE world units

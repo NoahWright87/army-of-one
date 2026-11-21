@@ -1,3 +1,4 @@
+import { addSmoke } from '../world/concealment';
 import { secondsToTicks } from '../core/time';
 import { distanceSq, type Vec2 } from '../core/vec';
 import { pushSoldiersOffBridge, soldiersOnBridge } from '../entities/bridge';
@@ -153,7 +154,9 @@ export function detonateMine(world: World, index: number, by: string): void {
   if (m.state === 'detonated') return;
   m.state = 'detonated';
   m.fuseTicks = 0;
-  const c = map.mines![index]!.position;
+  const def = map.mines![index]!;
+  const c = def.position;
+  if (def.smoke) addSmoke(world, m.id, c, mt.blastRadius);
   emit(world, {
     kind: 'mineDetonated',
     tick: st.tick,

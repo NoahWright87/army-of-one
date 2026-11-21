@@ -15,6 +15,8 @@ import {
   btRoomAt,
 } from '../../content/maps/basic-training';
 import { secondsToTicks } from '../core/time';
+import { gunRange, mountBonus } from '../combat/guns';
+import { soldierVisibility, trenchAt } from '../world/concealment';
 import type { SoldierInput } from '../entities/soldier';
 import { getSoldier, type World } from '../sim';
 import type { RoleId } from '../../contracts/mission';
@@ -161,8 +163,17 @@ describe('basic training (PHASE18): on rails', () => {
       () => r3Mines(w).every((m) => m.state === 'detonated'),
     );
     expect(r3Mines(w).every((m) => m.state === 'detonated')).toBe(true);
+    expect(w.state.smoke?.some((cloud) => cloud.id === BT_MINES[2])).toBe(true);
     run(w, 30, { [me]: idle() });
-    expect(walkPath(w, me, chute, { sprint: true })).toBeGreaterThan(0);
+    const runner = getSoldier(w, me)!;
+    let concealment = 1;
+    for (let tick = 0; tick < 60 * 6 && runner.y > chute[1]!.y && runner.alive; tick++) {
+      run(w, 1, { [me]: toward(runner, chute[1]!, { sprint: true }) });
+      if (runner.sprinting) concealment = Math.min(concealment, soldierVisibility(w, runner));
+      if (runner.y < chute[1]!.y + 5) break;
+    }
+    expect(concealment).toBeLessThan(1);
+    expect(walkPath(w, me, [chute[2]!], { sprint: true })).toBeGreaterThan(0);
   });
 
   it('R3: the save: guy 2 from Alpha shoots the mines as the gate opens; guy 1 sprinting lives', () => {
@@ -201,6 +212,8 @@ describe('basic training (PHASE18): on rails', () => {
     const w = bt();
     const me = spawnAt(w, 'bt-sp-b');
     capture(w, me, 'bt-b');
+    const sg = enemiesOf(w, 'bt-ambush')[0]!;
+    expect(soldierVisibility(w, sg)).toBe(w.tuning.concealment.bush.visibility);
     const path = [
       { x: 970, y: 1760 },
       { x: 1100, y: 1760 },
@@ -209,7 +222,6 @@ describe('basic training (PHASE18): on rails', () => {
       { x: 1300, y: 2250 }, // on toward the gun and the lever
     ];
     expect(walkPath(w, me, path)).toBe(-1);
-    const sg = enemiesOf(w, 'bt-ambush')[0]!;
     expect(sg.alive).toBe(true);
   });
 
@@ -354,6 +366,18 @@ describe('basic training (PHASE18): on rails', () => {
     const me = soldierAt(w, { x: 342, y: 440 }, { roleId, facing: -Math.PI / 2 });
     return { w, me, foes: enemiesOf(w, 'bt-r7') };
   }
+
+  it('R7: both roles use the trench lip for their cover bonuses', () => {
+    const { w, foes } = intoR7('rifleman');
+    run(w, secondsToTicks(Math.max(w.tuning.sniper.setupSeconds, w.tuning.mg.mountSeconds)) + 2);
+    for (const f of foes) {
+      expect(trenchAt(w.map.concealment, f)?.id).toBe('bt-r7-trench');
+      expect(f.braceId).toBe('bt-r7-trench');
+      expect(mountBonus(w, f, Math.PI)).toBe(true);
+      const gun = f.roleId === 'sniper' ? 'sniper' : 'mg';
+      expect(gunRange(w, gun, f, Math.PI)).toBeGreaterThan(w.tuning[gun].range);
+    }
+  });
 
   it('R7: running for the graduation flag, the far guns get you', () => {
     const { w, me } = intoR7('rifleman');

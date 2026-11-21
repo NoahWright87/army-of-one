@@ -51,6 +51,7 @@ export function rotateMap(map: MapDef, q: number): MapDef {
   if (map.haze) out.haze = rects(map.haze);
   if (map.cover) out.cover = map.cover.map((c) => ({ ...c, rect: rect(c.rect) }));
   if (map.concealment) out.concealment = map.concealment.map((c) => ({ ...c, rect: rect(c.rect) }));
+  if (map.groundMist) out.groundMist = map.groundMist.map(rect);
   if (map.turrets) {
     out.turrets = map.turrets.map((t) => ({
       ...t,

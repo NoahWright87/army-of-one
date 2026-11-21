@@ -78,6 +78,8 @@ export interface TurretDef {
 export interface MineDef {
   id: string;
   position: Vec2;
+  /** This detonation leaves a temporary smoke cloud. */
+  smoke?: boolean;
 }
 
 /**
@@ -214,6 +216,8 @@ export interface MapDef {
   cover?: CoverDef[];
   /** Walkable cover. Infantry can stand inside these areas. */
   concealment?: ConcealmentArea[];
+  /** Low visual mist that makes idle mines harder to pick out from a distance. */
+  groundMist?: Rect[];
   spawnPoints: SpawnPointDef[];
   // Entities (PHASE02-a). Optional so small test maps can leave them out.
   turrets?: TurretDef[];

@@ -5,7 +5,11 @@
  * Per sim step:   renderer.onStep(prevView, curView)   → effects/sounds from that tick's events
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
-import { DEFAULT_TUNING, PROJECTILE_VISUAL_TUNING } from '../../content/tuning';
+import {
+  DEFAULT_TUNING,
+  GROUND_MIST_VISUAL_TUNING,
+  PROJECTILE_VISUAL_TUNING,
+} from '../../content/tuning';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
 import { ProjectileTrails, projectileStyle } from '../projectile-trails';
 import { coverArtLayout } from '../cover-art';
@@ -33,7 +37,7 @@ import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
 import { WorldSpeech } from '../worldtext/world-speech';
 import type { Vec2 } from '../../sim/core/vec';
-import type { MapDef } from '../../sim/world/map';
+import { rectContains, type MapDef } from '../../sim/world/map';
 import { visibilityFrom } from '../../sim/world/concealment';
 import { hash01 } from '../../sim/core/hash';
 import type { VehicleView, WorldView } from '../../sim/view';
@@ -335,6 +339,17 @@ export class WorldRenderer {
       hz.fillStyle(0x0a0d12, 0.22);
       for (const b of map.haze) hz.fillRect(b.x, b.y, b.w, b.h);
     }
+    if (map.groundMist?.length) {
+      const mist = scene.add.graphics().setDepth(DEPTH.decals + 0.1);
+      for (const { x, y, w, h } of map.groundMist) {
+        for (let i = 0; i < 6; i++) {
+          const cy = y + h * (0.14 + 0.144 * i);
+          const cx = x + w * (i % 2 === 0 ? 0.47 : 0.53);
+          mist.fillStyle(0xc0c9bb, 0.07).fillEllipse(cx, cy, w * 0.94, h * 0.28);
+          mist.fillStyle(0xd3d9cf, 0.06).fillEllipse(cx, cy, w * 0.74, h * 0.22);
+        }
+      }
+    }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls)
@@ -487,7 +502,11 @@ export class WorldRenderer {
     this.drawBridges(a);
     this.drawGates();
     this.drawLevers(f);
-    this.drawMines(f.nowMs);
+    const mistViewer =
+      this.map.groundMist?.length && f.liveId
+        ? this.cur.soldiers.find((s) => s.id === f.liveId)
+        : undefined;
+    this.drawMines(f.nowMs, mistViewer);
     this.drawObjectives();
     this.drawCapturePoints(f.nowMs);
     this.drawVehicles(a);
@@ -1209,7 +1228,7 @@ export class WorldRenderer {
     }
   }
 
-  private drawMines(nowMs: number): void {
+  private drawMines(nowMs: number, viewer?: Vec2): void {
     const g = this.overlayGfx;
     const mode = this.settings.mineRadii;
     for (const m of this.cur.mines) {
@@ -1217,6 +1236,7 @@ export class WorldRenderer {
       if (m.state === 'detonated') {
         spr
           .setTexture('mine_scorch')
+          .setAlpha(1)
           .setPosition(m.x, m.y)
           .setScale((m.blastRadius * 1.3) / fitPx('mine_scorch'))
           .setDepth(DEPTH.decals);
@@ -1224,7 +1244,15 @@ export class WorldRenderer {
       }
       const armed = m.state === 'armed';
       const blink = armed && Math.floor(nowMs / 110) % 2 === 0;
+      let opacity = 1;
+      if (!armed && viewer && this.map.groundMist?.some((r) => rectContains(r, m))) {
+        const { mineFarOpacity, mineVisibleAt, mineFaintAt } = GROUND_MIST_VISUAL_TUNING;
+        const d = Math.hypot(m.x - viewer.x, m.y - viewer.y);
+        const reveal = Math.max(0, Math.min(1, (mineFaintAt - d) / (mineFaintAt - mineVisibleAt)));
+        opacity = lerp(mineFarOpacity, 1, reveal);
+      }
       spr
+        .setAlpha(opacity)
         .setTexture(blink ? 'mine_armed' : 'mine')
         .setPosition(m.x, m.y)
         .setScale((32 / fitPx('mine')) * (armed ? 1.1 : 0.9))

@@ -32,7 +32,9 @@ import {
 } from '../entities/soldier';
 import type { World } from '../state';
 import { rayRect } from '../world/collision';
-import { canFireOver, distanceToRect, standingCover, type CoverPiece } from '../world/cover';
+import { canFireOver, distanceToRect, standingCover } from '../world/cover';
+import { depthInRect, trenchAt } from '../world/concealment';
+import type { Rect } from '../world/map';
 import { fireShot, type ShotResult } from './shots';
 
 export type GunKind = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun';
@@ -104,6 +106,22 @@ export function isSetUp(t: Tuning, s: SoldierState): boolean {
   return roleDef(s.roleId).weapon === 'sniper' && s.mountTicks >= mountTicksNeeded(t, s.roleId);
 }
 
+interface BraceSurface {
+  id: string;
+  rect: Rect;
+  rim?: true;
+}
+
+function distanceAlongAim(from: Vec2, aim: number, surface: BraceSurface): number | null {
+  const dir = fromAngle(aim);
+  const r = surface.rect;
+  if (!surface.rim) return rayRect(from, dir, r);
+  // The ray starts inside a trench. Bracing requires aiming across a nearby exit lip.
+  const x = dir.x === 0 ? Infinity : ((dir.x > 0 ? r.x + r.w : r.x) - from.x) / dir.x;
+  const y = dir.y === 0 ? Infinity : ((dir.y > 0 ? r.y + r.h : r.y) - from.y) / dir.y;
+  return Math.min(x, y);
+}
+
 /**
  * (PHASE12-a) Firing from `from` at `angle` across non-solid cover right next to it (within
  * `reach` along the ray)? Position-based, so live shots and echoes agree.
@@ -111,14 +129,19 @@ export function isSetUp(t: Tuning, s: SoldierState): boolean {
 export function firesAcrossCover(world: World, from: Vec2, angle: number, reach: number): boolean {
   const piece = braceCover(world, from);
   if (!piece) return false;
-  const t = rayRect(from, fromAngle(angle), piece.rect);
+  const t = distanceAlongAim(from, angle, piece);
   return t !== null && t <= reach;
 }
 
-/** The cover piece a soldier at `p` could brace on: the nearest it can fire over (ties by id). */
-export function braceCover(world: World, p: Vec2): CoverPiece | null {
-  let best: CoverPiece | null = null;
-  let bestD = Infinity;
+/** The nearest cover the soldier can fire over, including a trench lip from inside it. */
+export function braceCover(world: World, p: Vec2): BraceSurface | null {
+  const trench = trenchAt(world.map.concealment, p);
+  const depth = trench ? depthInRect(p, trench.rect) : Infinity;
+  let best: BraceSurface | null =
+    trench && depth <= world.tuning.cover.fireOverDistance
+      ? { id: trench.id, rect: trench.rect, rim: true }
+      : null;
+  let bestD = best ? depth : Infinity;
   for (const c of standingCover(world)) {
     if (!canFireOver(p, c, c.bullet, world.tuning)) continue;
     const d = distanceToRect(p, c.rect);
@@ -141,7 +164,11 @@ export function isMounted(world: World, s: SoldierState): boolean {
  */
 export function mountBonus(world: World, s: SoldierState, aim: number): boolean {
   if (!isMounted(world, s)) return false;
-  const piece = standingCover(world).find((c) => c.id === s.braceId);
+  const trench = trenchAt(world.map.concealment, s);
+  const piece: BraceSurface | undefined =
+    trench?.id === s.braceId
+      ? { id: trench.id, rect: trench.rect, rim: true }
+      : standingCover(world).find((c) => c.id === s.braceId);
   if (!piece) return false;
   const w = roleDef(s.roleId).weapon;
   const reach =
@@ -150,7 +177,7 @@ export function mountBonus(world: World, s: SoldierState, aim: number): boolean 
       : w === 'mg'
         ? world.tuning.mg.braceReach
         : world.tuning.brace.reach;
-  const t = rayRect(s, fromAngle(aim), piece.rect);
+  const t = distanceAlongAim(s, aim, piece);
   return t !== null && t <= reach;
 }
 
