@@ -882,6 +882,7 @@ export class GameController {
         // (PHASE12-c) Opens on the quick-redeploy choice: DEPLOY is one tap back in.
         preferred: quickRedeployOption(options, this.lastSpawnPointId),
         economy: this.ledger(), // (PHASE11) money
+        tuning: this.tuning, // (POC) in-world respawn replays the battle
         onRole: (r) => {
           this.roleId = r;
         },

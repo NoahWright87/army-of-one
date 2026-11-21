@@ -161,6 +161,9 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   mission-01/02 were removed; `?mission=` with any other id (or an old remembered pick) falls
   back to Breach, and old saves for removed missions are ignored. The title-screen picker only
   shows with more than one mission.
+- In-world respawn (POC, `todos/POC-inworld-respawn.md`): F2 → Game → `flow.inWorldRespawn` (on)
+  replaces the respawn screen with the battle replay (`src/ui/inworld/`): spawn circles, jump
+  buttons `|◀ ▶|` between spawns and deaths, money at the scrub time. Off = the old screen.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
   Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier throws at the cursor;

@@ -53,6 +53,9 @@ import {
   readMinimapSettings,
 } from '../ui/minimap/minimap-settings';
 import { RespawnScreen } from '../ui/respawn/respawn-screen';
+import type { RespawnProps } from '../ui/respawn/respawn-model';
+import { InWorldRespawn } from '../ui/inworld/inworld-respawn';
+import { optionTick, replayEnd } from '../ui/inworld/inworld-model';
 import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
@@ -725,6 +728,13 @@ async function startGame(): Promise<void> {
     },
     showRespawn: (props, onDeploy, n): RespawnHandle => {
       respawn?.destroy();
+      // (POC) Pick the spawn on the battlefield itself, over a replay of the current truth.
+      // Basic training keeps the respawn screen its coach points at.
+      if (settings.getBool(GAME_SETTING_IDS.inWorldRespawn) && !training && props.tuning) {
+        quickHint.set(null);
+        notice.show(n === 'historyShifted' ? str('notice.historyShifted') : null);
+        return showInWorldRespawn(props, onDeploy);
+      }
       const screen = RespawnScreen.mount(uiRoot, props, {
         onDeploy,
         settings: readRespawnSettings(settings),
@@ -925,6 +935,55 @@ async function startGame(): Promise<void> {
         });
       })
       .catch(reportFatalError);
+  };
+
+  // ---------- (POC) In-world respawn ----------
+
+  const showInWorldRespawn = (
+    props: RespawnProps,
+    onDeploy: (o: SpawnOption) => void,
+  ): RespawnHandle => {
+    const startTick = props.reachedTick ?? 0;
+    const latestOption = props.options.reduce((t, o) => Math.max(t, optionTick(o)), 0);
+    const endTick = replayEnd(props.lanes, Math.max(startTick, latestOption)) + 2 * 60;
+    const player = new ReplayPlayer(props.map, props.tuning!, {
+      version: REPLAY_VERSION,
+      missionId: MISSION.id,
+      soldiers: props.soldiers,
+      endTick,
+    });
+    const overlay = new InWorldRespawn(uiRoot, props, {
+      onDeploy,
+      ...(backTo ? { back: backTo } : {}),
+    });
+    let live = true;
+    void assetsReady
+      .then(() => {
+        if (!live) return;
+        wakeLoop();
+        game.scene.start('replay', {
+          player,
+          objectives: [],
+          startTick,
+          pannable: true,
+          onReady: (c: ReplayControls) => {
+            if (live) overlay.attach(c, endTick);
+          },
+        });
+      })
+      .catch(reportFatalError);
+    return {
+      update: (u) => overlay.update(u),
+      destroy: () => {
+        live = false;
+        overlay.destroy();
+        notice.show(null);
+        if (game.scene.isActive('replay') || game.scene.isPaused('replay')) {
+          game.scene.stop('replay');
+        }
+        sleepLoopSoon();
+      },
+    };
   };
 
   // ---------- (PHASE12-e) Shareable replays and the replay library ([D79]) ----------

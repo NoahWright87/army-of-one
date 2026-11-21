@@ -41,6 +41,16 @@ export interface ReplayControls {
   skipToEnd(): void;
   restart(): void;
   setSkipQuiet(on: boolean): void;
+  /** (POC in-world respawn) Play / pause outright. */
+  setPlaying(on: boolean): void;
+  /** (POC) Hand the camera over: ease to this world point (and zoom) and stay there. */
+  focus(x: number, y: number, zoom?: number): void;
+  /** (POC) Give the camera back to the director (frame every alive soldier). */
+  follow(): void;
+  /** (POC) A world point in CSS px of the page (for DOM markers over the battlefield). */
+  worldToScreen(x: number, y: number): { x: number; y: number };
+  /** (POC) The replayed world as of the current tick. */
+  readonly currentView: WorldView;
 }
 
 export interface ReplaySessionData {
@@ -51,7 +61,14 @@ export interface ReplaySessionData {
   onReady(controls: ReplayControls): void;
   /** Screen px the overlays cover on each side (the camera frames what's left). */
   insets?(): { top: number; right: number; bottom: number; left: number };
+  /** (POC in-world respawn) Start paused at this tick instead of playing from 0. */
+  startTick?: Tick;
+  /** (POC) Drag pans and the wheel zooms (the camera stops following the action). */
+  pannable?: boolean;
 }
+
+/** (POC) Zoom of a `focus()` without one: close enough to read the fight. */
+const FOCUS_ZOOM = 1;
 
 function scaleInsets(
   i: { top: number; right: number; bottom: number; left: number },
@@ -80,6 +97,8 @@ export class ReplayScene extends Phaser.Scene implements ReplayControls {
   private _playing = true;
   private _speed = 1;
   private skipQuiet = true;
+  /** (POC) Set: the camera holds here (focus / panning) instead of following the director. */
+  private manual: { x: number; y: number; zoom: number } | null = null;
 
   constructor(private readonly services: SceneServices) {
     super('replay');
@@ -111,6 +130,12 @@ export class ReplayScene extends Phaser.Scene implements ReplayControls {
     this.input.setDefaultCursor('default');
     const f = framing(this.points(), this.config(), this.home());
     this.cam = initialCamera(f);
+    this.manual = null;
+    if (this.data0.startTick !== undefined) {
+      this._playing = false;
+      this.seek(this.data0.startTick);
+    }
+    if (this.data0.pannable) this.enablePanning();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.sounds.destroy());
     this.data0.onReady(this);
   }
@@ -150,8 +175,68 @@ export class ReplayScene extends Phaser.Scene implements ReplayControls {
     this.moments = this.moments.filter((m) => m.tick <= tick);
     this.lastAction = this.player.tick;
     // A jump in time is a cut: the camera snaps to the new framing instead of gliding there.
-    this.cam = initialCamera(framing(this.points(), this.config(), this.home()));
+    // (POC) A camera the player holds stays where it is.
+    if (!this.manual) this.cam = initialCamera(framing(this.points(), this.config(), this.home()));
   }
+  setPlaying(on: boolean): void {
+    this._playing = on;
+  }
+  get currentView(): WorldView {
+    return this.view;
+  }
+  focus(x: number, y: number, zoom?: number): void {
+    const z = zoom ?? Math.max(this.manual?.zoom ?? this.cam.zoom, FOCUS_ZOOM);
+    this.manual = this.clampToMap({ x, y, zoom: z });
+  }
+  follow(): void {
+    this.manual = null;
+  }
+  worldToScreen(x: number, y: number): { x: number; y: number } {
+    const cam = this.cameras.main;
+    const rect = this.game.canvas.getBoundingClientRect();
+    const k = rect.width / this.scale.width;
+    return {
+      x: rect.left + ((x - cam.midPoint.x) * cam.zoom + this.scale.width / 2) * k,
+      y: rect.top + ((y - cam.midPoint.y) * cam.zoom + this.scale.height / 2) * k,
+    };
+  }
+
+  private clampToMap(m: { x: number; y: number; zoom: number }) {
+    const map = this.player.world.map;
+    const zMin = Math.min(this.scale.width / map.width, this.scale.height / map.height);
+    return {
+      x: Math.max(0, Math.min(map.width, m.x)),
+      y: Math.max(0, Math.min(map.height, m.y)),
+      zoom: Math.max(zMin * 0.9, Math.min(2.5, m.zoom)),
+    };
+  }
+
+  /** Drag to pan, wheel to zoom: the camera is the player's from then on. */
+  private enablePanning(): void {
+    let last: { x: number; y: number } | null = null;
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      last = { x: p.x, y: p.y };
+    });
+    this.input.on('pointerup', () => (last = null));
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!last || !p.isDown) return;
+      const zoom = this.cameras.main.zoom;
+      const from = this.manual ?? { x: this.cam.x, y: this.cam.y, zoom: this.cam.zoom };
+      this.manual = this.clampToMap({
+        x: from.x - (p.x - last.x) / zoom,
+        y: from.y - (p.y - last.y) / zoom,
+        zoom: from.zoom,
+      });
+      // Panning moves the camera at once, no easing behind the finger.
+      this.cam = { ...this.cam, x: this.manual.x, y: this.manual.y, vx: 0, vy: 0 };
+      last = { x: p.x, y: p.y };
+    });
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      const from = this.manual ?? { x: this.cam.x, y: this.cam.y, zoom: this.cam.zoom };
+      this.manual = this.clampToMap({ ...from, zoom: from.zoom * (dy > 0 ? 0.9 : 1.1) });
+    });
+  }
+
   skipToEnd(): void {
     this.seek(this.endTick);
   }
@@ -178,7 +263,7 @@ export class ReplayScene extends Phaser.Scene implements ReplayControls {
       this.worldRenderer.onStep(this.prevView, this.view, null);
     }
     const cfg = this.config();
-    const target = framing(this.points(), cfg, this.home());
+    const target = this.manual ?? framing(this.points(), cfg, this.home());
     // The camera eases in battle time, so it keeps up at 2×/4× and in fast-forwarded stretches.
     const camDt = Math.min(0.1, delta / 1000) * (this.playing ? speed : 1);
     this.cam = stepCamera(this.cam, target, camDt, cfg.omega);
