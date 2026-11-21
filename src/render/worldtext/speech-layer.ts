@@ -4,6 +4,7 @@
  * the line follows the speaker (or stays where they fell). Sizes are screen pixels at any zoom.
  */
 import Phaser from 'phaser';
+import type { CaptionVoiceProfile } from '../../content/caption-voices';
 import type { WorldTextTuning } from '../../content/world-text';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
@@ -15,6 +16,7 @@ import { layoutGlyphs, parseLine, type ParsedLine, type Placed } from './markup'
 const OUTLINE = '#0b0d10';
 
 export interface SayOptions {
+  voice?: CaptionVoiceProfile;
   /** An echo's line: drawn fainter. */
   echo?: boolean;
   /** Default text colour (markup colours win). */
@@ -88,6 +90,7 @@ export class SpeechLayer {
       if (l.speakerId === speakerId) l.endMs = Math.min(l.endMs, this.now);
     }
     const parsed = parseLine(markup, t);
+    const voice = captionVoice(speakerId, parsed, opts.voice);
     const font = fontStack(t.font);
     const measure = (ch: string, size: number) => {
       if (ch === ' ') return t.fontPx * size * 0.32;
@@ -153,11 +156,11 @@ export class SpeechLayer {
       texts,
       layers,
       startMs: this.now,
-      endMs: this.now + parsed.revealEndMs + hold,
+      endMs: this.now + Math.max(parsed.revealEndMs + hold, (voice.at(-1)?.atMs ?? 0) + 150),
       alpha: opts.echo ? t.echoAlpha : 1,
       seed: ++this.seq * 977,
       cuesFired: 0,
-      voice: captionVoice(speakerId, parsed),
+      voice,
       voiceIndex: 0,
       x: NaN,
       y: NaN,
@@ -189,6 +192,9 @@ export class SpeechLayer {
     const zoom = camera.zoom || 1;
     const sound = this.scene.sound;
     const audioManager = sound instanceof Phaser.Sound.WebAudioSoundManager ? sound : null;
+    const voiceBank = audioManager
+      ? (this.scene.cache.audio.get('sfx_caption_voices') as AudioBuffer | undefined)
+      : undefined;
     for (let i = this.lines.length - 1; i >= 0; i--) {
       const l = this.lines[i]!;
       if (nowMs - l.endMs >= t.fadeMs) {
@@ -230,13 +236,21 @@ export class SpeechLayer {
       while (l.voiceIndex < l.voice.length && l.voice[l.voiceIndex]!.atMs <= lt) {
         voiceCue = l.voice[l.voiceIndex++];
       }
-      if (audioManager && this.audio && voiceCue && lt - voiceCue.atMs < 75 && nowMs < l.endMs) {
+      if (
+        audioManager &&
+        voiceBank &&
+        this.audio &&
+        voiceCue &&
+        lt - voiceCue.atMs < 75 &&
+        nowMs < l.endMs
+      ) {
         const distance = l.keepOnScreen
           ? 0
           : Math.hypot(l.x - camera.midPoint.x, l.y - camera.midPoint.y);
         this.voicePlayer.play(
           audioManager.context,
           audioManager.destination,
+          voiceBank,
           voiceCue,
           distance,
           this.audio.volume * this.audio.voiceVolume,

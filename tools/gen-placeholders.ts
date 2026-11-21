@@ -10,10 +10,10 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ASSET_MANIFEST, type ImageKey, type SoundKey } from '../src/content/assets';
+import { ASSET_MANIFEST, type ImageKey } from '../src/content/assets';
 import { buildAssetsMd } from './gen-assets-md';
 import { renderImage } from './gen-images';
-import { renderSound } from './gen-sounds';
+import { renderSound, type ProceduralSoundKey } from './gen-sounds';
 
 export const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../assets');
 
@@ -28,7 +28,7 @@ export function generateAll(assetsDir = ASSETS_DIR): { written: number; removed:
     const bytes =
       a.kind === 'image'
         ? renderImage(a.key as ImageKey, a.size.w, a.size.h).toPng()
-        : renderSound(a.key as SoundKey);
+        : renderSound(a.key as ProceduralSoundKey);
     writeFileSync(out, bytes);
     written++;
   }

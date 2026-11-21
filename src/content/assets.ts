@@ -699,6 +699,15 @@ export const IMAGE_ASSETS = {
 } as const satisfies Record<string, ImageAssetDef>;
 
 export const SOUND_ASSETS = {
+  sfx_caption_voices: {
+    kind: 'sound',
+    file: 'audio/soldier-voices.wav',
+    durationMs: 10000,
+    loop: false,
+    represents: 'Two synthesized speech banks for soldiers’ caption voices.',
+    replacementBrief: 'Two contrasting voices with one 125 ms clip per entry in caption-voices.ts.',
+    status: 'final',
+  } satisfies SoundAssetDef,
   sfx_rifle_shot: snd(
     'sfx_rifle_shot',
     180,

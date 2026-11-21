@@ -6,6 +6,7 @@
  */
 import Phaser from 'phaser';
 import { fitPx } from '../../content/assets';
+import type { CaptionVoiceProfile } from '../../content/caption-voices';
 import type { RoleId } from '../../contracts/mission';
 import type { SignDef } from '../../content/sign-styles';
 import { fillVars, identityVars } from '../../content/soldier-names';
@@ -82,6 +83,7 @@ const ROSTER: { id: string; role: SoldierView['role']; roleId: RoleId; x: number
 
 export class TextLabScene extends Phaser.Scene {
   tuning: WorldTextTuning = cloneWorldText();
+  playerVoice?: CaptionVoiceProfile;
   /** Called whenever the speaker list changes (deaths, reset). */
   onRoster: (list: { id: string; label: string; alive: boolean }[]) => void = () => {};
   private speech!: SpeechLayer;
@@ -213,6 +215,7 @@ export class TextLabScene extends Phaser.Scene {
     if (!p) return;
     const text = fillVars(markup, identityVars(identityOf(p), identityOf(this.pickOther(p))));
     this.speech.say(p.id, text, {
+      voice: p.id === LAB_PLAYER ? this.playerVoice : undefined,
       echo: p.role === 'echo',
       ...(p.role === 'enemy' ? { color: ENEMY_SPEECH_COLOR } : {}),
     });

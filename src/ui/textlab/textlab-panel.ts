@@ -3,15 +3,18 @@
  * situations through the real chatter rules, and tune the look live. "Copy my settings" puts the
  * changed numbers on the clipboard so they can be pasted back into a review. Dev tool: plain look.
  */
+import { CAPTION_VOICE_BANKS, type CaptionVoiceProfile } from '../../content/caption-voices';
 import { str, stringsWithPrefix, type StringKey } from '../../content/strings';
 import { DEFAULT_WORLD_TEXT, SPEECH_FONTS, type WorldTextTuning } from '../../content/world-text';
+import { soldierVoice } from '../../render/worldtext/caption-voice';
 import { effectNames, getEffect } from '../../render/worldtext/effects';
 import { COLORS } from '../../render/worldtext/markup';
-import { LAB_DEMOS, type LabSituation } from '../../render/phaser/textlab-scene';
+import { LAB_DEMOS, LAB_PLAYER, type LabSituation } from '../../render/phaser/textlab-scene';
 import { el, injectStyle } from '../dom';
 
 export interface TextLabHooks {
   say(speakerId: string, markup: string): void;
+  playerVoice(voice: CaptionVoiceProfile): void;
   situation(s: LabSituation): void;
   firefight(seconds: number): void;
   /** Soldiers talk on their own every few seconds. */
@@ -43,6 +46,9 @@ const css = `
 .aoo-lab .chips button { font-family: ui-monospace, monospace; font-size: 11px; text-align: left; }
 .aoo-lab .row { display: grid; grid-template-columns: 112px 1fr 44px; gap: 6px; align-items: center; margin: 2px 0; }
 .aoo-lab .row span { font-size: 11px; color: #c4cad0; }
+.aoo-lab .voice .row { grid-template-columns: 72px minmax(0, 1fr) 38px; min-height: 32px; }
+.aoo-lab .voice input { min-width: 0; }
+.aoo-lab .voice button { min-height: 36px; }
 .aoo-lab .row output { font-size: 11px; text-align: right; }
 .aoo-lab .state { font-size: 12px; margin: 4px 0; }
 .aoo-lab .state.hot { color: #ff8a7a; }
@@ -111,6 +117,14 @@ export class TextLabPanel {
         nav.append(a);
       }
     }
+    const voiceLink = el('a', '', str('textlab.voice'));
+    voiceLink.href = '#aoo-lab-my-voice';
+    voiceLink.onclick = (event) => {
+      event.preventDefault();
+      voice.open = true;
+      voice.scrollIntoView({ block: 'start' });
+    };
+    nav.append(voiceLink);
     r.append(nav, el('div', 'hint', str('textlab.hint')));
 
     // Say.
@@ -246,6 +260,11 @@ export class TextLabPanel {
     li('{theirName} {theirRankShort} {theirFull} …', 'who the line is about');
     sheet.append(ul);
 
+    const voice = this.section('textlab.voice', true);
+    voice.id = 'aoo-lab-my-voice';
+    voice.classList.add('voice');
+    this.addVoiceControls(voice, () => input.value);
+
     parent.append(r);
     this.loop();
   }
@@ -272,12 +291,69 @@ export class TextLabPanel {
     tick();
   }
 
-  private section(key: StringKey, open: boolean): HTMLElement {
+  private section(key: StringKey, open: boolean): HTMLDetailsElement {
     const d = el('details');
     d.open = open;
     d.append(el('summary', '', str(key)));
     this.root.append(d);
     return d;
+  }
+
+  private addVoiceControls(parent: HTMLElement, text: () => string): void {
+    const profile = soldierVoice(LAB_PLAYER);
+    const bank = el('select');
+    const bankLabel = el('label', 'row');
+    for (const id of CAPTION_VOICE_BANKS) {
+      const option = el('option', '', str(`textlab.voice.${id}`));
+      option.value = id;
+      bank.append(option);
+    }
+    bankLabel.append(el('span', '', str('textlab.voice.bank')), bank);
+    parent.append(bankLabel);
+
+    const fields = [
+      ['pitch', -12, 12, 1],
+      ['speed', 0.65, 1.65, 0.05],
+      ['expression', 0, 1.5, 0.05],
+    ] as const;
+    const refresh = () => this.hooks.playerVoice({ ...profile });
+    const resetFields = fields.map(([key, min, max, step]) => {
+      const row = el('label', 'row');
+      const slider = el('input');
+      slider.type = 'range';
+      slider.min = String(min);
+      slider.max = String(max);
+      slider.step = String(step);
+      const value = el('output');
+      const show = () => {
+        slider.value = String(profile[key]);
+        value.textContent = slider.value;
+      };
+      slider.oninput = () => {
+        profile[key] = Number(slider.value);
+        value.textContent = slider.value;
+        refresh();
+      };
+      row.append(el('span', '', str(`textlab.voice.${key}`)), slider, value);
+      parent.append(row);
+      return show;
+    });
+    bank.onchange = () => {
+      profile.bank = bank.selectedIndex === 0 ? 'low' : 'high';
+      refresh();
+    };
+    const reset = el('button', '', str('textlab.reset'));
+    reset.onclick = () => {
+      Object.assign(profile, soldierVoice(LAB_PLAYER));
+      bank.value = profile.bank;
+      resetFields.forEach((show) => show());
+      refresh();
+    };
+    bank.value = profile.bank;
+    resetFields.forEach((show) => show());
+    const preview = el('button', '', str('textlab.voice.preview'));
+    preview.onclick = () => this.hooks.say(LAB_PLAYER, text());
+    parent.append(preview, reset);
   }
 
   private fontPicker(sec: 'speech' | 'sign'): HTMLElement {

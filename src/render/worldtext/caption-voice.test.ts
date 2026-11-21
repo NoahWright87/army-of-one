@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_WORLD_TEXT } from '../../content/world-text';
-import { captionVoice } from './caption-voice';
+import { captionVoice, soldierVoice } from './caption-voice';
 import { parseLine } from './markup';
 
 const cues = (text: string, id = 'S1') =>
@@ -19,6 +19,16 @@ describe('caption voice', () => {
     expect(instant[1]?.atMs).toBeGreaterThan(instant[0]!.atMs);
     const paused = cues('[all]shout[p=350] now');
     expect(paused[4]!.atMs - instant[4]!.atMs).toBeGreaterThanOrEqual(350);
+  });
+
+  it('applies the chosen voice bank and increases cadence when speed goes up', () => {
+    const line = parseLine('[all]Hold on', DEFAULT_WORLD_TEXT.speech);
+    const original = soldierVoice('S1');
+    const slow = captionVoice('S1', line, { ...original, bank: 'low', speed: 0.65 });
+    const fast = captionVoice('S1', line, { ...original, bank: 'high', speed: 1.65 });
+    expect(slow[0]?.bank).toBe('low');
+    expect(fast[0]?.bank).toBe('high');
+    expect(fast.at(-1)!.atMs).toBeLessThan(slow.at(-1)!.atMs);
   });
 
   it('follows letter reveals and applies emphasis from visual effects', () => {

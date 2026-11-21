@@ -1495,6 +1495,7 @@ async function startTextLab(): Promise<void> {
     textLabScene.tuning,
     {
       say: (id, text) => textLabScene.say(id, text),
+      playerVoice: (voice) => (textLabScene.playerVoice = voice),
       situation: (s) => textLabScene.situation(s),
       firefight: (sec) => textLabScene.firefight(sec),
       autoDemo: (on) => (textLabScene.autoDemo = on),
