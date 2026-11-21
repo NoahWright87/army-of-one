@@ -136,7 +136,7 @@ describe('armor and wrecks', () => {
 });
 
 describe('vehicle weapons', () => {
-  it('the tank cannon aims, fires a shell, and reloads slowly ([D72])', () => {
+  it('the tank cannon fires a shell at once, then reloads slowly ([D72], [D159])', () => {
     const w = world(
       arena({ turrets: [{ id: 't1', position: { x: 800, y: 500 }, facing: Math.PI }] }),
       {
@@ -144,9 +144,11 @@ describe('vehicle weapons', () => {
       },
     );
     const id = soldierAt(w, { x: 300, y: 500 }, { roleId: 'tank', facing: 0 });
+    const first = run(w, 1, { [id]: { ...idle(0), fire: true } });
+    expect(ofKind(first, 'rocketLaunched')).toHaveLength(1); // no aiming delay
     const ev = run(w, 60 * 5, { [id]: { ...idle(0), fire: true } });
     expect(ofKind(ev, 'rocketLaunched').every((e) => e.shell)).toBe(true);
-    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(2); // 0.5 s aim, 4 s reload, 0.5 s aim
+    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(1); // one more, after the 4.5 s reload
     expect(w.state.turrets[0]!.hp).toBe(0);
   });
 

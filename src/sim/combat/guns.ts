@@ -92,7 +92,10 @@ export function spreadOffset(key: string, spread: number): number {
 
 /** Ticks to mount the MG, or (PHASE12-a) to set up a Sniper's rifle ([D59]). */
 export function mountTicksNeeded(t: Tuning, roleId?: SoldierState['roleId']): number {
-  const secs = roleDef(roleId).weapon === 'sniper' ? t.sniper.setupSeconds : t.mg.mountSeconds;
+  const w = roleDef(roleId).weapon;
+  // (PHASE18) Any other gun braces on cover ([D158]).
+  const secs =
+    w === 'sniper' ? t.sniper.setupSeconds : w === 'mg' ? t.mg.mountSeconds : t.brace.seconds;
   return Math.max(1, secondsToTicks(secs));
 }
 
@@ -140,42 +143,57 @@ export function mountBonus(world: World, s: SoldierState, aim: number): boolean 
   if (!isMounted(world, s)) return false;
   const piece = standingCover(world).find((c) => c.id === s.braceId);
   if (!piece) return false;
+  const w = roleDef(s.roleId).weapon;
   const reach =
-    roleDef(s.roleId).weapon === 'sniper'
+    w === 'sniper'
       ? world.tuning.sniper.braceReach
-      : world.tuning.mg.braceReach;
+      : w === 'mg'
+        ? world.tuning.mg.braceReach
+        : world.tuning.brace.reach;
   const t = rayRect(s, fromAngle(aim), piece.rect);
   return t !== null && t <= reach;
 }
 
 /**
- * One tick of mounting. MG: still + next to cover fills it, anything else resets. (PHASE12-a)
- * Sniper: still fills it with or without cover; `braceId` is the cover it's braced on, if any.
+ * One tick of mounting / bracing ([D40], [D59], [D158]).
+ * - Sniper: standing still sets the rifle up, cover or not (`braceId`: the cover it's braced
+ *   on). Once up it stays up at a slow walk; sprinting drops it.
+ * - Machine Gunner: still by cover mounts; once mounted it can shuffle along cover and stay
+ *   mounted. Sprinting or leaving cover unmounts.
+ * - Any other gun: still by cover braces; moving at all lets go.
+ * `steady` (mounted MG / Sniper rifle up) slows the next tick's walk.
  */
 function stepMount(world: World, s: SoldierState, input: SoldierInput): void {
-  const still = input.move.x === 0 && input.move.y === 0 && s.moveFrac === 0;
-  const sniper = roleDef(s.roleId).weapon === 'sniper';
-  const cover = still ? braceCover(world, s) : null;
-  if (sniper) {
-    if (!still) {
-      s.mountTicks = 0;
-      s.braceId = null;
-      return;
-    }
-    s.braceId = cover?.id ?? null;
-    s.mountTicks = Math.min(s.mountTicks + 1, mountTicksNeeded(world.tuning, s.roleId));
-    return;
-  }
-  if (!cover) {
+  const moving = input.move.x !== 0 || input.move.y !== 0 || s.moveFrac > 0;
+  const sprint = !!input.sprint && moving;
+  const w = roleDef(s.roleId).weapon;
+  const need = mountTicksNeeded(world.tuning, s.roleId);
+  const cover = braceCover(world, s);
+  const reset = () => {
     s.mountTicks = 0;
     s.braceId = null;
+    s.steady = false;
+  };
+  if (w === 'sniper') {
+    const up = s.mountTicks >= need;
+    if (sprint || (moving && !up)) return reset();
+    s.braceId = cover?.id ?? null;
+    if (!moving) s.mountTicks = Math.min(s.mountTicks + 1, need);
+    s.steady = s.mountTicks >= need;
     return;
   }
-  if (s.braceId !== cover.id) {
-    s.braceId = cover.id;
-    s.mountTicks = 0;
+  if (!cover || sprint) return reset();
+  const mounted = w === 'mg' && s.braceId !== null && s.mountTicks >= need;
+  if (moving) {
+    if (!mounted) return reset();
+    s.braceId = cover.id; // along the cover, still mounted
+    s.steady = true;
+    return;
   }
-  s.mountTicks = Math.min(s.mountTicks + 1, mountTicksNeeded(world.tuning, s.roleId));
+  if (s.braceId !== cover.id && !mounted) s.mountTicks = 0;
+  s.braceId = cover.id;
+  s.mountTicks = Math.min(s.mountTicks + 1, need);
+  s.steady = w === 'mg' && s.mountTicks >= need;
 }
 
 /** The spread numbers in effect for this soldier's gun, aiming at `aim`. */
@@ -189,6 +207,11 @@ export function effectiveSpread(
   if (gun === 'mg' && mountBonus(world, s, aim)) return { ...g, ...world.tuning.mg.mounted };
   if (gun === 'sniper' && mountBonus(world, s, aim)) {
     return { ...g, baseSpread: g.baseSpread * world.tuning.sniper.coverSpreadMultiplier };
+  }
+  // (PHASE18) Braced on cover ([D158]).
+  if (gun !== 'mg' && gun !== 'sniper' && mountBonus(world, s, aim)) {
+    const m = world.tuning.brace.spreadMultiplier;
+    return { ...g, baseSpread: g.baseSpread * m, kick: g.kick * m };
   }
   return g;
 }
@@ -205,11 +228,17 @@ export function currentSpread(world: World, s: SoldierState, aim: number): numbe
   return spreadOf(effectiveSpread(world, s, gun, aim), s.moveFrac, s.recoil);
 }
 
-/** (PHASE12-a) A gun's reach from `from` at `angle` (the Sniper's cover range bonus, [D59]). */
+/**
+ * (PHASE12-a) A gun's reach from `from` at `angle` (the Sniper's cover range bonus, [D59]; the
+ * Machine Gunner's, PHASE18 [D158]).
+ */
 export function gunRange(world: World, gun: GunKind, from: Vec2, angle: number): number {
   const t = world.tuning;
   if (gun === 'sniper' && firesAcrossCover(world, from, angle, t.sniper.braceReach)) {
     return t.sniper.range * t.sniper.coverRangeMultiplier;
+  }
+  if (gun === 'mg' && firesAcrossCover(world, from, angle, t.mg.braceReach)) {
+    return t.mg.range * t.mg.coverRangeMultiplier;
   }
   return gunTuning(t, gun).range;
 }
@@ -287,9 +316,8 @@ export function trySoldierFire(world: World, s: SoldierState, aim: number): Shot
 /** One live tick of a gun-carrying soldier: recoil recovery, MG mount, then fire if held. */
 export function stepGunner(world: World, s: SoldierState, input: SoldierInput, gun: GunKind): void {
   s.recoil = recoverRecoil(s.recoil, gunTuning(world.tuning, gun));
-  const w = roleDef(s.roleId).weapon;
-  // (PHASE12-b) A vehicle's turret MG doesn't mount on cover.
-  if ((w === 'mg' && !s.drive) || w === 'sniper') stepMount(world, s, input);
+  // (PHASE18) Every gun braces ([D158]); a vehicle's turret doesn't.
+  if (!s.drive) stepMount(world, s, input);
   // A Sniper that just set up fires its rifle on this very tick.
   const now = gunOf(s, world.tuning) ?? gun;
   if (now !== gun) s.recoil = recoverRecoil(s.recoil, gunTuning(world.tuning, now));

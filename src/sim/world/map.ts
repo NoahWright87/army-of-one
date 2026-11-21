@@ -137,6 +137,11 @@ export interface ObjectiveDef {
   radius?: number;
   /** Overrides `tuning.objective.maxHp`. */
   maxHp?: number;
+  /**
+   * (PHASE18) A practice target (basic training): shot down like an objective, but never part
+   * of winning the mission. Drawn as a target.
+   */
+  target?: true;
 }
 
 /**
@@ -177,6 +182,8 @@ export interface SquadDef {
   team?: 'player';
   /** (PHASE17) AI skill on top of `tuning.ai` (the arena's HUMAN / CPU presets). */
   skill?: Partial<Tuning['ai']>;
+  /** (PHASE18) Members never move from their posts: they turn, aim and fire (a gun nest). */
+  hold?: true;
   /**
    * (PHASE13) Rally points ([Q54]): idle members wander between them (each role by its
    * `roam` temperament), retreat to the best of them, and chase within their leash of any.
@@ -245,8 +252,32 @@ export interface MapDef {
    * repeated fights differ. Absent everywhere else.
    */
   aiSeed?: number;
+  /**
+   * (PHASE18) Bump when the layout changes in a way old recordings can't replay on: saves made on
+   * another revision are dropped instead of replayed ([D156]). Absent = 0.
+   */
+  rev?: number;
   /** (PHASE14) Roles open in this mission ([D120]); absent = all. Never read by the sim. */
   roles?: readonly RoleId[];
+  /**
+   * (PHASE18) Mission rules: when something happens (a point captured, targets shot down, a
+   * squad wiped out), a gate opens. Checked every tick, so a replayed life that did it does it
+   * again.
+   */
+  triggers?: MapTrigger[];
+}
+
+/** (PHASE18) "When this happens, open that gate." */
+export interface MapTrigger {
+  id: string;
+  when:
+    | { captured: string }
+    | { destroyed: readonly string[] }
+    /** Every soldier of the squad (or of all these squads) is dead. */
+    | { squadDead: string | readonly string[] };
+  openGate: string;
+  /** Opens this many seconds after the condition is first met (default at once). */
+  delaySeconds?: number;
 }
 
 /** Throws on authoring mistakes: duplicate entity ids, bad lever targets, bad lanes/bridges. */

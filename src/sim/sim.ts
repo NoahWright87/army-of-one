@@ -1,4 +1,5 @@
 import type { Tuning } from '../content/tuning';
+import type { RoleId } from '../contracts/mission';
 import { POSITION_QUANTUM, quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
@@ -15,7 +16,8 @@ import {
   createCapturePoints,
   stepCapturePoints,
 } from './entities/capture-point';
-import { createGates } from './entities/gate';
+import { createGates, toggleGate } from './entities/gate';
+import { stepTriggers } from './world/triggers';
 import { interact, isLeverOn } from './entities/lever';
 import { createMines, stepMines } from './entities/mine';
 import { createObjectives, objectiveMaxHp, objectiveRadius } from './entities/objective';
@@ -45,7 +47,7 @@ import { createNavGrid } from './world/nav';
 import { separateSoldiers } from './world/separation';
 import { coverArcs, resolveCover, standingCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
-import { windupProgress } from './combat/weapons';
+import { reloadProgress } from './combat/weapons';
 import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/guns';
 import { simPerf } from './perf';
 import type { SoldierView, WorldView } from './view';
@@ -91,6 +93,11 @@ export function createWorld(map: MapDef, tuning: Tuning): World {
       // (PHASE17) Arena squads can be ours ([D142]).
       ...(squad.team === 'player' ? {} : { team: 'enemy' as const }),
     });
+    // (PHASE18) A squad's own `skill.enemyHpScale` (basic training: a fragile ambusher).
+    const hpScale = squad.skill?.enemyHpScale;
+    if (hpScale !== undefined && squad.team !== 'player') {
+      s.hp = Math.max(1, Math.round((s.hp / tuning.ai.enemyHpScale) * hpScale));
+    }
     quantizeSoldier(s);
     world.state.soldiers.push(s);
     return s;
@@ -179,6 +186,50 @@ export function setSoldierFlags(world: World, id: SoldierId, flags: SoldierFlags
   if (flags.interactive !== undefined) s.interactive = flags.interactive;
   if (flags.minHp !== undefined) s.minHp = flags.minHp;
   if (flags.kinematic !== undefined) s.kinematic = flags.kinematic;
+}
+
+/**
+ * (PHASE18) Gives a soldier a fresh life in place: full HP, a new role if asked, at a position.
+ * Same id, so whoever drives it keeps driving it. For the HQ (role rack, range respawns); a
+ * battle never does this.
+ */
+export function resetSoldier(
+  world: World,
+  id: SoldierId,
+  opts: { roleId?: RoleId; position?: Vec2; facing?: number } = {},
+): void {
+  const st = world.state;
+  const i = st.soldiers.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`Unknown soldier ${id}`);
+  const old = st.soldiers[i]!;
+  const fresh = createSoldier(
+    old.id,
+    old.ordinal,
+    old.spawnPointId,
+    opts.position ?? { x: old.x, y: old.y },
+    opts.facing ?? old.facing,
+    world.tuning,
+    {
+      roleId: opts.roleId ?? old.roleId,
+      ...(old.team ? { team: old.team } : {}),
+      controllable: old.controllable,
+      interactive: old.interactive,
+      minHp: old.minHp,
+      kinematic: old.kinematic,
+    },
+  );
+  quantizeSoldier(fresh);
+  // In place: lookups (the soldier index) keep pointing at the same object.
+  const rec = old as unknown as Record<string, unknown>;
+  for (const k of Object.keys(rec)) delete rec[k];
+  Object.assign(old, fresh);
+  emit(world, { kind: 'soldierSpawned', tick: st.tick, id });
+}
+
+/** (PHASE18) Opens or closes a gate by id (no-op if already so). */
+export function setGateOpen(world: World, id: string, open: boolean): void {
+  const i = world.state.gates.findIndex((g) => g.id === id);
+  if (i >= 0 && world.state.gates[i]!.open !== open) toggleGate(world, i);
 }
 
 /**
@@ -295,6 +346,7 @@ export function step(
 
   // (05-a) Capture points read the final positions of the tick.
   stepCapturePoints(world);
+  stepTriggers(world); // (PHASE18) mission rules: gates that open when something is done
 
   world.stepping = false;
   appendEvents(world.eventLog, st.events);
@@ -335,8 +387,9 @@ export function getView(world: World): WorldView {
       ...(s.deathDirection !== undefined ? { deathDirection: s.deathDirection } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
       ...(s.drive ? { turret: s.drive.turret } : {}),
-      ...(s.windupTicks > 0 && roleDef(s.roleId).weapon === 'grenade'
-        ? { windup: windupProgress(world, s), windupAim: s.windupAim }
+      // (PHASE18, [D159]) The Grenadier's reload fills the ring where it's aiming.
+      ...(roleDef(s.roleId).weapon === 'grenade' && reloadProgress(world, s) !== null
+        ? { windup: reloadProgress(world, s)!, windupAim: s.windupAim }
         : {}),
       ...aimView(world, s),
     })),
@@ -461,6 +514,7 @@ export function getView(world: World): WorldView {
         hp: o.hp,
         maxHp: objectiveMaxHp(def, tuning),
         destroyed: o.destroyed,
+        ...(def.target ? { target: true as const } : {}),
       };
     }),
     capturePoints: (map.capturePoints ?? []).map((def, i) => {
@@ -490,7 +544,13 @@ export function getView(world: World): WorldView {
 function aimView(
   world: World,
   s: SoldierState,
-): { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } {
+): {
+  aimSpread?: number;
+  mount?: number;
+  mounted?: boolean;
+  braced?: boolean;
+  gun?: SoldierView['gun'];
+} {
   const live =
     s.alive &&
     s.team === undefined &&
@@ -498,7 +558,7 @@ function aimView(
   if (!live) return {};
   const weapon = roleDef(s.roleId).weapon;
   const gun = gunOf(s, world.tuning);
-  const out: { aimSpread?: number; mount?: number; mounted?: boolean; gun?: SoldierView['gun'] } = {
+  const out: ReturnType<typeof aimView> = {
     aimSpread: currentSpread(world, s, s.facing),
     ...(gun ? { gun } : weapon === 'rocket' ? { gun: 'rocket' as const } : {}),
   };
@@ -509,11 +569,16 @@ function aimView(
       out.mounted = mountBonus(world, s, s.facing);
     }
   } else if (weapon === 'rocket' || weapon === 'shell') {
-    // (PHASE12-a) The Bazooka's aim fills the same ring ([D62]); (PHASE12-b) the tank's too.
-    if (s.windupTicks > 0) out.mount = windupProgress(world, s);
+    // (PHASE18, [D159]) The Bazooka's / tank's reload fills the same ring.
+    const r = reloadProgress(world, s);
+    if (r !== null) out.mount = r;
   } else if (s.braceId !== null && s.mountTicks > 0) {
     out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
     out.mounted = mountBonus(world, s, s.facing);
+  }
+  // (PHASE18) Braced on cover, any class ([D158]): the camera looks further.
+  if (s.braceId !== null && s.mountTicks >= mountTicksNeeded(world.tuning, s.roleId)) {
+    out.braced = true;
   }
   return out;
 }

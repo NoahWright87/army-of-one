@@ -31,6 +31,7 @@ import { ICON_ROLES, roleIconDocument } from '../../content/role-icons';
 import type { RoleId } from '../../contracts/mission';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
+import { WorldSpeech } from '../worldtext/world-speech';
 import type { Vec2 } from '../../sim/core/vec';
 import type { MapDef } from '../../sim/world/map';
 import { visibilityFrom } from '../../sim/world/concealment';
@@ -194,6 +195,9 @@ export class WorldRenderer {
   private readonly reticle: Img;
   /** Hook for the scene (camera shake, HUD damage flash). */
   onCue: (cue: Cue) => void = () => {};
+  /** Soldiers' chatter (words over heads; not recorded, see worldtext/barks.ts). */
+  readonly speech: WorldSpeech;
+  private lastPointer: Vec2 | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -301,6 +305,9 @@ export class WorldRenderer {
     this.tracerGfx = scene.add.graphics().setDepth(DEPTH.tracers);
     this.hpGfx = scene.add.graphics().setDepth(DEPTH.hpBars);
     this.reticle = scene.add.image(0, 0, 'reticle').setDepth(DEPTH.reticle).setVisible(false);
+    this.speech = new WorldSpeech(scene);
+    this.speech.layer.onQuake = () =>
+      this.pendingCues.push({ type: 'shake', intensity: 0.008, durationMs: 220 });
     this.drawStatic();
   }
 
@@ -432,6 +439,8 @@ export class WorldRenderer {
       for (const c of eventCues(cur.events, cueContextFromView(cur, liveId)))
         this.pendingCues.push(c);
     }
+    this.speech.enabled = this.settings.speech !== false;
+    this.speech.onStep(cur, liveId, this.lastPointer, this.now);
   }
 
   /** Feed arbitrary cues (the gallery replays fixture events this way). */
@@ -493,6 +502,8 @@ export class WorldRenderer {
     this.drawEffects(f.nowMs);
     this.drawReticle(f.pointer, f.liveId);
     this.updateLoops();
+    this.lastPointer = f.pointer;
+    this.speech.render(f.nowMs, (id) => this.soldierRenderPos(id, a));
   }
 
   /** Texture swap only; destruction/collision still belongs entirely to the sim. */
@@ -1314,7 +1325,13 @@ export class WorldRenderer {
 
   private drawObjectives(): void {
     for (const o of this.cur.objectives) {
-      const key: ImageKey = o.destroyed ? 'objective_destroyed' : 'objective';
+      const key: ImageKey = o.target
+        ? o.destroyed
+          ? 'target_down'
+          : 'target_dummy'
+        : o.destroyed
+          ? 'objective_destroyed'
+          : 'objective';
       const spr = this.objectives.get(o.id);
       spr
         .setTexture(key)

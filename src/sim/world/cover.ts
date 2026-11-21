@@ -103,12 +103,14 @@ export function coverCrossings(
   tuning: Tuning,
   value: 'bullet' | 'lobbed',
   fireOver = true,
+  /** (PHASE18) Where the shooter stood (a flying bullet's origin): fire-over is judged there. */
+  overFrom: Vec2 = from,
 ): CoverCrossing[] {
   const out: CoverCrossing[] = [];
   for (const piece of cover) {
     const t = rayRect(from, dir, piece.rect);
     if (t === null || t > range) continue;
-    if (fireOver && canFireOver(from, piece, piece[value], tuning)) continue;
+    if (fireOver && canFireOver(overFrom, piece, piece[value], tuning)) continue;
     out.push({ piece, distance: t });
   }
   out.sort((a, b) => a.distance - b.distance || (a.piece.id < b.piece.id ? -1 : 1));

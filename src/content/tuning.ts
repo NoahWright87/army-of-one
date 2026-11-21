@@ -109,6 +109,10 @@ export interface Tuning {
     /** Fire counts as "across the cover" if the aim ray enters a braced piece this close. */
     braceReach: number;
     mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
+    /** (PHASE18) Mounted, it can shuffle along its cover at this × walking speed and stay mounted. */
+    mountedMoveMultiplier: number;
+    /** (PHASE18) Firing across cover (mounted), range × this ([D158]), like the Sniper's. */
+    coverRangeMultiplier: number;
   } & GunSpread;
   /** (PHASE12-a) The Shield's sidearm, and the Sniper's while moving or setting up ([D59], [D60]). */
   pistol: {
@@ -126,6 +130,8 @@ export interface Tuning {
     range: number;
     cooldownSeconds: number;
     setupSeconds: number;
+    /** (PHASE18) Rifle up, it walks at this × walking speed and keeps it up (sprinting drops it). */
+    scopedMoveMultiplier: number;
     /** Braced on cover, firing across it: spread × this, range × `coverRangeMultiplier`. */
     coverSpreadMultiplier: number;
     coverRangeMultiplier: number;
@@ -153,15 +159,14 @@ export interface Tuning {
     cooldownSeconds: number;
   } & GunSpread;
   /**
-   * (PHASE12-a) The Bazooka's rockets ([D62]): hold fire for `aimSeconds` to launch (releasing
-   * early cancels), then `cooldownSeconds` to reload. A rocket flies straight, explodes on what
+   * (PHASE12-a) The Bazooka's rockets ([D62]): fire launches at once (PHASE18, [D159]), then
+   * `cooldownSeconds` to reload. A rocket flies straight, explodes on what
    * it hits (passing through its own side) or at full range. The blast hurts everyone in it,
    * our own soldiers too.
    */
   rocket: {
     speed: number;
     range: number;
-    aimSeconds: number;
     cooldownSeconds: number;
     /** A direct hit on a soldier, on top of the blast. */
     directDamage: number;
@@ -190,13 +195,12 @@ export interface Tuning {
     pierce: Record<string, number>;
   };
   /**
-   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (hold to aim, then a shell),
+   * (PHASE12-b) The Tank's cannon ([D63], [D72]): like the Bazooka (fire, then reload),
    * slow to reload so there's a window to kill the tank.
    */
   shell: {
     speed: number;
     range: number;
-    aimSeconds: number;
     cooldownSeconds: number;
     directDamage: number;
     blastRadius: number;
@@ -236,6 +240,18 @@ export interface Tuning {
     trench: { visibility: number; dodge: number; rimDepth: number; climbSpeed: number };
     smoke: { visibility: number; seconds: number; radiusMultiplier: number };
   };
+  /**
+   * (PHASE18) Bracing ([D158]): any soldier with a gun standing still right by cover for
+   * `seconds` steadies its aim when firing across it (the Machine Gunner's mount and the Sniper's
+   * cover bonus are their own, stronger versions).
+   */
+  brace: {
+    seconds: number;
+    /** Base spread and kick × this. */
+    spreadMultiplier: number;
+    /** Fire counts as "across the cover" if the aim ray enters the piece this close. */
+    reach: number;
+  };
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
     /**
@@ -263,8 +279,6 @@ export interface Tuning {
     minRange: number;
     maxRange: number;
     /** Wind-up = base + perUnit × aimed distance (a longer throw takes longer to wind up). */
-    windupBaseSeconds: number;
-    windupSecondsPerUnit: number;
     /** After a throw, before the next wind-up can start. */
     cooldownSeconds: number;
     /** From the throw. */
@@ -683,6 +697,8 @@ export const DEFAULT_TUNING: Tuning = {
     maxRecoil: 0.32, // TUNE
     recoveryPerSecond: 0.4, // TUNE
     mountSeconds: 0.6, // TUNE
+    mountedMoveMultiplier: 0.3, // TUNE (PHASE18)
+    coverRangeMultiplier: 1.15, // TUNE (PHASE18): mounted, it outranges a rifleman's eyes
     braceReach: 60, // TUNE
     mounted: {
       baseSpread: 0.005, // TUNE
@@ -705,6 +721,7 @@ export const DEFAULT_TUNING: Tuning = {
     range: 900, // TUNE: well past the rifle's 520
     cooldownSeconds: 1.2, // TUNE
     setupSeconds: 0.8, // TUNE
+    scopedMoveMultiplier: 0.35, // TUNE (PHASE18)
     baseSpread: 0.006, // TUNE
     movingSpread: 0, // TUNE: it's only up while standing still
     kick: 0.06, // TUNE
@@ -732,8 +749,7 @@ export const DEFAULT_TUNING: Tuning = {
   rocket: {
     speed: 700, // TUNE: units/s
     range: 700, // TUNE
-    aimSeconds: 0.6, // TUNE [D62]: takes longer to fire
-    cooldownSeconds: 2.5, // TUNE
+    cooldownSeconds: 3, // TUNE (PHASE18, [D159]): fires at once, then a long reload
     directDamage: 60, // TUNE
     blastRadius: 70, // TUNE
     blastDamage: 60, // TUNE
@@ -773,8 +789,7 @@ export const DEFAULT_TUNING: Tuning = {
   shell: {
     speed: 900, // TUNE
     range: 800, // TUNE
-    aimSeconds: 0.5, // TUNE
-    cooldownSeconds: 4, // TUNE [D72]: fires slow, a window to kill the tank
+    cooldownSeconds: 4.5, // TUNE [D72]: fires slow, a window to kill the tank ([D159]: no aim)
     directDamage: 120, // TUNE
     blastRadius: 80, // TUNE
     blastDamage: 90, // TUNE
@@ -856,6 +871,11 @@ export const DEFAULT_TUNING: Tuning = {
       radiusMultiplier: 1.15, // TUNE: relative to blast radius
     },
   },
+  brace: {
+    seconds: 0.4, // TUNE (PHASE18)
+    spreadMultiplier: 0.6, // TUNE
+    reach: 60, // TUNE
+  },
   cover: {
     materials: {
       fence: { bullet: 0.1, lobbed: 0.5, hp: 120, armor: 0.5 }, // TUNE: chain link: bullets go through, grenades bounce
@@ -873,22 +893,20 @@ export const DEFAULT_TUNING: Tuning = {
   grenade: {
     minRange: 60, // TUNE
     maxRange: 420, // TUNE: a bit under the rifle's range
-    windupBaseSeconds: 0.2, // TUNE
-    windupSecondsPerUnit: 0.0022, // TUNE: max range ≈ 1.1 s
-    cooldownSeconds: 0.6, // TUNE
+    cooldownSeconds: 1.3, // TUNE (PHASE18, [D159]): the reload after a throw (no wind-up)
     fuseSeconds: 2.2, // TUNE
-    throwSpeed: 480, // TUNE
+    throwSpeed: 640, // TUNE (PHASE18: was 480; grenades felt weak)
     gravity: 900, // TUNE
     groundRestitution: 0.3, // TUNE
-    groundFriction: 0.45, // TUNE
+    groundFriction: 0.25, // TUNE (PHASE18: was 0.45; grenades skidded well past the cursor)
     minBounceSpeed: 70, // TUNE
-    rollDeceleration: 520, // TUNE
+    rollDeceleration: 1800, // TUNE (PHASE18: was 520; grenades rolled well past what you threw at)
     wallRestitution: 0.5, // TUNE
     wallSlide: 0.7, // TUNE
     groundedHeight: 3, // TUNE
-    movingSpread: 0.15, // TUNE: about ±9°
-    movingDistanceSpread: 0.2, // TUNE
-    blastRadius: 40, // TUNE [D71]: small area, decent damage, 50 % pierce
+    movingSpread: 0.08, // TUNE: about ±5° (PHASE18: was ±9°)
+    movingDistanceSpread: 0.1, // TUNE (PHASE18: was 0.2)
+    blastRadius: 60, // TUNE [D71]: small area, decent damage, 50 % pierce (PHASE18: was 40)
     blastDamage: 90, // TUNE
     hazardDamage: 120, // TUNE
     fragments: 20, // TUNE [D71]: many …
@@ -999,7 +1017,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   capture: {
     radius: 110, // TUNE
-    stageSeconds: 3.25, // TUNE [D128]: one soldier takes 6.5 s for both stages
+    stageSeconds: 2.45, // TUNE [D128]: one soldier takes ~4.9 s for both stages (PHASE18: 25 % quicker)
     contributorExponent: 0.6, // TUNE
     maxContributors: 6, // TUNE
     decayBasePerSecond: 0.05, // TUNE

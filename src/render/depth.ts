@@ -25,6 +25,8 @@ export const DEPTH = {
   effects: 50,
   tracers: 55,
   hpBars: 60,
+  signs: 64, // signposts' read ring and open frames
+  speech: 66, // words over soldiers' heads
   prompts: 70,
   reticle: 80,
 } as const;

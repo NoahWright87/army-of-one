@@ -35,7 +35,6 @@ import { distance, distanceSq, leadPoint, type Vec2 } from '../core/vec';
 import { hasLineOfSight } from '../combat/shots';
 import { attackKind, currentSpread, gunOf } from '../combat/guns';
 import { damageShare, WORTH_SHOOTING } from '../combat/armor';
-import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 import {
   IDLE_INPUT,
   isEligible,
@@ -292,13 +291,14 @@ function perceive(
 ): Perception {
   const t = skillOf(world, s);
   const tick = world.state.tick;
+  const sightRange = t.sightRange * (profileOf(s.roleId).sight ?? 1);
   const { sprintBonus, firingBonus } = world.tuning.concealment;
-  const maxSight2 = (t.sightRange * (1 + sprintBonus + firingBonus)) ** 2;
+  const maxSight2 = (sightRange * (1 + sprintBonus + firingBonus)) ** 2;
   // Concealed targets out of sight range don't use up a candidate slot.
   const cands = ours
     .map((o) => ({ o, d2: distanceSq(o, s) }))
     .filter(({ d2 }) => d2 <= maxSight2)
-    .map(({ o, d2 }) => ({ o, d2, reach: t.sightRange * perceivedVisibility(world, s, o) }))
+    .map(({ o, d2 }) => ({ o, d2, reach: sightRange * perceivedVisibility(world, s, o) }))
     .filter(({ d2, reach }) => d2 <= reach * reach)
     .sort((a, b) => a.d2 - b.d2 || compareIds(a.o.id, b.o.id))
     .slice(0, Math.max(1, t.maxCandidates));
@@ -1037,6 +1037,12 @@ export function skillOf(world: World, s: SoldierState): Tuning['ai'] {
   return sq?.skill ? { ...world.tuning.ai, ...sq.skill } : world.tuning.ai;
 }
 
+/** (PHASE18) Its original squad holds its post (`SquadDef.hold`). */
+function holdsPost(world: World, ai: AiState): boolean {
+  const id = ai.origSquad ?? ai.squad;
+  return !!(world.map.squads ?? []).find((q) => q.id === id)?.hold;
+}
+
 function centroid(ss: readonly SoldierState[]): Vec2 {
   let x = 0;
   let y = 0;
@@ -1314,7 +1320,9 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const candidate = target && isEligible(target) && target.team !== s.team ? target : undefined;
   const visibility = candidate ? perceivedVisibility(world, s, candidate) : 1;
   const live =
-    candidate && distance(s, candidate) <= skillOf(world, s).sightRange * visibility
+    candidate &&
+    distance(s, candidate) <=
+      skillOf(world, s).sightRange * (profileOf(s.roleId).sight ?? 1) * visibility
       ? candidate
       : undefined;
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;
@@ -1382,6 +1390,8 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   } else if (ai.behavior === 'hold' || ai.behavior === 'roam') {
     aim = ai.homeFacing;
   }
+  // (PHASE18) A squad that holds its post never moves (a gun nest in basic training).
+  if (holdsPost(world, ai)) move = { x: 0, y: 0 };
   // (PHASE13) Roaming is a walk, not a run (unless going to help).
   if (ai.behavior === 'roam' && !ai.reinforce) {
     const pace = profileOf(s.roleId).roam.walk;
@@ -1439,14 +1449,12 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
       );
       fire = !allyNear && d <= world.tuning[weapon].range;
     } else {
-      // Grenadier: don't throw onto its own squad; wind up to full, then release (throws).
+      // Grenadier: don't throw onto its own squad. Fire throws (PHASE18, [D159]).
       const allyNear = world.state.soldiers.some(
         (a) =>
           a.ai && a !== s && a.team === s.team && isEligible(a) && distanceSq(a, live) <= 110 * 110,
       );
-      const input = { move, aim, fire: true, interact: false, aimDistance: d };
-      const need = windupTicksFor(world, aimedThrowDistance(world, input));
-      fire = !allyNear && d <= world.tuning.grenade.maxRange && s.windupTicks < need;
+      fire = !allyNear && d <= world.tuning.grenade.maxRange;
     }
   }
   // (PHASE12-b) A vehicle's turret lags the aim: hold fire until it's on target.

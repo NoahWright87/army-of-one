@@ -21,6 +21,8 @@ export interface MetaV1 {
   attemptCount: number;
   soldierIds: string[];
   completed?: { attempt: number; tick: number; bySoldierId: string };
+  /** (PHASE18, additive) The map's revision when this save began (absent = 0). */
+  mapRev?: number;
 }
 
 export function isMeta(v: unknown): v is MetaV1 {
@@ -31,6 +33,7 @@ export function isMeta(v: unknown): v is MetaV1 {
     const c = v.completed;
     if (!isObj(c) || !isNum(c.attempt) || !isNum(c.tick) || !isStr(c.bySoldierId)) return false;
   }
+  if (v.mapRev !== undefined && !isNum(v.mapRev)) return false;
   return true;
 }
 

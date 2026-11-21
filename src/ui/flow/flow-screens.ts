@@ -129,6 +129,8 @@ export interface TitleProps {
   onOpenWorld?(): void;
   /** (PHASE17) The footer's Dev link: tools, including the arena ([D142]). */
   onOpenDev?(): void;
+  /** (PHASE18) The footer's Text lab link: signposts, speech, chatter ([D147]). */
+  onOpenTextLab?(): void;
   /**
    * (PHASE13-d) The random campaign ([D106]): the main button. The handmade missions move
    * below it.
@@ -261,6 +263,11 @@ export class TitleScreen {
       const dev = el('button', 'link dev', str('dev.link'));
       dev.onclick = () => p.onOpenDev?.();
       card.append(dev);
+    }
+    if (p.onOpenTextLab) {
+      const lab = el('button', 'link dev', str('title.textlab'));
+      lab.onclick = () => p.onOpenTextLab?.();
+      card.append(lab);
     }
     root.hidden = false;
     (first ?? (p.canContinue ? cont : fresh)).focus();

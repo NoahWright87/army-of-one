@@ -4,7 +4,9 @@
  * - Aim: the right stick's direction; pushed past `AIM_FIRE` it also fires (twin-stick style),
  *   and its length sets the throw distance for the Grenadier. Without the aim stick, the soldier
  *   keeps the last aim, or faces the way it moves.
- * - Fire: the fire button (or the pushed aim stick). Interact: the interact button, shown only
+ * - (PHASE18) Tap mode: dragging the reticle aims (auto-aim yields while it's held); another
+ *   finger fires.
+ * - Fire: another finger (tap mode), or the pushed aim stick. Interact: the interact button, shown only
  *   while a lever is in reach.
  * Usually wrapped in `AutoAimInput`, which overrides the aim when it has a target.
  */
@@ -24,6 +26,8 @@ export class TouchInput implements InputSource {
   private aim = -Math.PI / 2;
   private aimDistance = DEFAULT_AIM_DISTANCE;
   private lastPos: Vec2 | null = null;
+  /** A finger was aiming last read. */
+  private aiming = false;
   private view: WorldView | null = null;
 
   constructor(
@@ -45,11 +49,16 @@ export class TouchInput implements InputSource {
     this.lastPos = soldierPos;
     const a = c.aim;
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
-    // (PHASE12-d) Tap-to-aim: aim at the touched point and fire while it's held.
-    const tapped = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
-    if (tapped) {
-      this.aim = Math.atan2(tapped.y - soldierPos.y, tapped.x - soldierPos.x);
-      this.aimDistance = Math.max(30, Math.hypot(tapped.x - soldierPos.x, tapped.y - soldierPos.y));
+    // (PHASE18) Aiming by finger ([D158]): the reticle is wherever the finger is, like a mouse
+    // cursor. The camera pans and zooms toward the aim, so holding near the edge looks further.
+    const under = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
+    // (PHASE18) Letting go: the reticle comes back to its walking distance (same direction), so
+    // the camera comes back to you.
+    if (this.aiming && !c.tap) this.aimDistance = DEFAULT_AIM_DISTANCE;
+    this.aiming = c.tap !== null;
+    if (under) {
+      this.aim = Math.atan2(under.y - soldierPos.y, under.x - soldierPos.x);
+      this.aimDistance = Math.max(30, Math.hypot(under.x - soldierPos.x, under.y - soldierPos.y));
     } else if (aLen > 0.2 && a) {
       this.aim = Math.atan2(a.y, a.x);
       this.aimDistance = Math.max(60, aLen * this.opts.tuning.grenade.maxRange);
@@ -62,7 +71,7 @@ export class TouchInput implements InputSource {
       move: { x: c.move.x, y: c.move.y },
       aim: this.aim,
       aimDistance: this.aimDistance,
-      fire: c.fireHeld || aLen >= AIM_FIRE || !!tapped,
+      fire: c.fireHeld || aLen >= AIM_FIRE,
       interact: c.interactLatch.consume(),
       ...(c.sprintHeld ? { sprint: true } : {}),
     };

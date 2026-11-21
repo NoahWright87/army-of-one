@@ -55,6 +55,10 @@ export interface WorldState {
   smoke?: SmokeCloud[];
   /** (05-a) Parallel to `map.capturePoints`. */
   capturePoints: CapturePointEntity[];
+  /** (PHASE18) Ids of map triggers that have fired, sorted. Optional for older snapshots. */
+  triggered?: string[];
+  /** (PHASE18) A delayed trigger's condition was first met at this tick, by trigger id. */
+  triggerMet?: Record<string, number>;
   /** Events emitted during the most recent tick. */
   events: SimEvent[];
   /** Events emitted between ticks (e.g. spawns); they open the next tick's `events`. */

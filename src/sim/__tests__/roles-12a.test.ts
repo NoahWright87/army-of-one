@@ -20,7 +20,7 @@ const bags: CoverDef = {
 };
 
 describe('Sniper ([D59])', () => {
-  it('fires a pistol on the move, sets up the rifle by standing still, swaps back when moving', () => {
+  it('fires a pistol on the move, sets up the rifle by standing still, keeps it at a slow walk, drops it sprinting', () => {
     const w = world(arena());
     const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'sniper' });
     const moving = ofKind(run(w, 10, { [id]: { ...walk(0, 1), fire: true } }), 'shotFired');
@@ -33,7 +33,12 @@ describe('Sniper ([D59])', () => {
     expect(gunOf(s, T)).toBe('sniper');
     const shots = ofKind(run(w, 1, { [id]: fire() }), 'shotFired');
     expect(shots[0]!.weapon).toBe('sniper');
-    run(w, 2, { [id]: walk(0, 1) });
+    // (PHASE18) Walking keeps the rifle up, slowly ([D158]); sprinting drops it.
+    const y0 = getSoldier(w, id)!.y;
+    run(w, 30, { [id]: walk(0, 1) });
+    expect(gunOf(getSoldier(w, id)!, T)).toBe('sniper');
+    expect(getSoldier(w, id)!.y - y0).toBeLessThan(T.soldier.speed * 0.5 * 0.5);
+    run(w, 2, { [id]: { ...walk(0, 1), sprint: true } });
     expect(gunOf(getSoldier(w, id)!, T)).toBe('pistol');
   });
 
@@ -182,15 +187,12 @@ describe('Bazooka ([D62])', () => {
   const rocketMap = (extra: Partial<MapDef> = {}) =>
     arena({ turrets: [{ id: 't1', position: { x: 600, y: 500 }, facing: Math.PI }], ...extra });
 
-  it('aims before launching; releasing early cancels', () => {
+  it('launches the moment fire is pressed, then reloads ([D159])', () => {
     const w = world(rocketMap(), { turret: { range: 1 } });
     const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'bazooka' });
-    const aim = Math.round(T.rocket.aimSeconds * 60);
-    expect(ofKind(run(w, aim - 2, { [id]: fire() }), 'rocketLaunched')).toHaveLength(0);
-    run(w, 1, { [id]: idle() });
-    expect(getSoldier(w, id)!.windupTicks).toBe(0);
-    const ev = run(w, aim + 120, { [id]: fire() });
-    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(1);
+    expect(ofKind(run(w, 1, { [id]: fire() }), 'rocketLaunched')).toHaveLength(1);
+    const ev = run(w, 120, { [id]: fire() });
+    expect(ofKind(ev, 'rocketLaunched')).toHaveLength(0); // reloading
     expect(ofKind(ev, 'rocketExploded')).toHaveLength(1);
     expect(w.state.turrets[0]!.hp).toBe(Math.max(0, T.turret.maxHp - T.rocket.hazardDamage));
   });
