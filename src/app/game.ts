@@ -180,8 +180,15 @@ const SPINNER_TICKS = 1500;
 const FF_MS_PER_TICK_GUESS = 0.1;
 const DEFAULT_SPINNER_MS = 150;
 
-export function emptyMission(missionId: string): MissionState {
-  return { schemaVersion: 1, missionId, attemptCount: 0, soldiers: [], lanes: [] };
+export function emptyMission(missionId: string, mapRev = 0): MissionState {
+  return {
+    schemaVersion: 1,
+    missionId,
+    attemptCount: 0,
+    soldiers: [],
+    lanes: [],
+    ...(mapRev ? { mapRev } : {}),
+  };
 }
 
 export function isRescue(c: LaneChange): boolean {
@@ -223,7 +230,7 @@ export class GameController {
   private ffMsPerTick: number | null = null;
 
   constructor(private readonly a: GameAdapters) {
-    this.mission = emptyMission(a.map.id);
+    this.mission = emptyMission(a.map.id, a.map.rev);
     this.tuning = a.tuning();
     this.saver = new MissionSaver(a.store, a.map.id);
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
@@ -233,7 +240,13 @@ export class GameController {
   // ---------- Boot / title ----------
 
   async boot(): Promise<void> {
-    const res = await loadMission(this.a.store, this.a.map.id);
+    let res = await loadMission(this.a.store, this.a.map.id);
+    // (PHASE18) A save from another revision of the map can't replay on this one: drop it.
+    if (res.ok && (res.state.mapRev ?? 0) !== (this.a.map.rev ?? 0)) {
+      this.log(`Save is for another version of ${this.a.map.id}; starting fresh`);
+      await clearMission(this.a.store, this.a.map.id);
+      res = { ok: false, error: 'notFound', message: 'other map revision' };
+    }
     if (res.ok) {
       this.mission = res.state;
       await this.loadStats();
@@ -261,7 +274,7 @@ export class GameController {
     this.teardown();
     await clearMission(this.a.store, this.a.map.id);
     this.saver.reset();
-    this.mission = emptyMission(this.a.map.id);
+    this.mission = emptyMission(this.a.map.id, this.a.map.rev);
     this.tuning = this.a.tuning();
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
     this.snapshots = new SnapshotStore(snapshotThinning(this.tuning));

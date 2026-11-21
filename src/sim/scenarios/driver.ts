@@ -11,7 +11,6 @@ import type { SimEvent } from '../events';
 import { createWorld, getSoldier, spawnSoldier, step, type World } from '../sim';
 import type { MapDef, SpawnPointId } from '../world/map';
 import { findPath } from '../world/nav';
-import { aimedThrowDistance, windupTicksFor } from '../combat/weapons';
 
 export type ScriptStep =
   /** Walk to a point, routing around walls with the nav grid. */
@@ -133,14 +132,13 @@ export function createScriptDriver(steps: readonly ScriptStep[], name = 'script'
             released = false;
             break;
           }
-          const need = windupTicksFor(world, aimedThrowDistance(world, aimed));
-          const full =
-            st.holdTicks !== undefined ? stepTicks >= st.holdTicks : me.windupTicks >= need;
-          if (full && stepTicks > 0) {
-            out = aimed; // release: throws this tick
+          // (PHASE18, [D159]) Fire throws at once (once it's reloaded).
+          const ready = world.state.tick >= me.nextFireTick;
+          if (ready && (st.holdTicks === undefined || stepTicks >= st.holdTicks)) {
+            out = { ...aimed, fire: true };
             released = true;
           } else {
-            out = { ...aimed, fire: true };
+            out = aimed;
           }
           break;
         }

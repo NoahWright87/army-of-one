@@ -178,8 +178,11 @@ export function stepCapturePoints(world: World): void {
 export function allObjectivesDone(world: World): boolean {
   const st = world.state;
   const flags = (world.map.capturePoints ?? []).filter((d) => d.objective);
-  if (st.objectives.length === 0 && flags.length === 0) return false;
-  if (!st.objectives.every((o) => o.destroyed)) return false;
+  // (PHASE18) Practice targets never count.
+  const defs = world.map.objectives ?? [];
+  const real = st.objectives.filter((_, i) => !defs[i]?.target);
+  if (real.length === 0 && flags.length === 0) return false;
+  if (!real.every((o) => o.destroyed)) return false;
   const ours = (id: string) => st.capturePoints.find((c) => c.id === id)?.stage === 'ours';
   // (PHASE16) Grouped flags need only so many of the group ([D129]); the rest, every one.
   const groups = world.map.objectiveGroups ?? {};

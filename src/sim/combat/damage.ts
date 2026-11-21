@@ -27,9 +27,17 @@ export function damageSoldier(
 ): void {
   if (!isEligible(s) || amount <= 0) return;
   // (PHASE16) Enemies hit softer ([D136]).
-  const scale = world.tuning.ai.enemyDamageScale;
-  if (scale !== 1 && by !== undefined && s.team !== 'enemy') {
-    if (world.state.soldiers.find((o) => o.id === by)?.team === 'enemy') amount *= scale;
+  // (PHASE18) A squad's own `skill.enemyDamageScale` wins (basic training's ambushes).
+  if (by !== undefined && s.team !== 'enemy') {
+    const shooter = world.state.soldiers.find((o) => o.id === by);
+    if (shooter?.team === 'enemy') {
+      const squad = shooter.ai?.origSquad;
+      const own = squad
+        ? (world.map.squads ?? []).find((q) => q.id === squad)?.skill?.enemyDamageScale
+        : undefined;
+      const scale = own ?? world.tuning.ai.enemyDamageScale;
+      if (scale !== 1) amount *= scale;
+    }
   }
   // (PHASE12-b) Unified armor ([D70]).
   const armor = armorFrom(roleArmor(world.tuning, s.roleId), s, s.facing, from);

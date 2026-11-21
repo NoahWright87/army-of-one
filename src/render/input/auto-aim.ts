@@ -283,8 +283,6 @@ export class AutoAimInput implements InputSource {
     if (fire && blast > 0 && friendlyInBlast(view, aimAt, blast + tuning.soldier.hitboxRadius)) {
       fire = false;
     }
-    // Throws need a release: once the wind-up is full, let go for a tick (that throws).
-    if (fire && roleDef(me.roleId).weapon === 'grenade' && (me.windup ?? 0) >= 1) fire = false;
     return { ...input, aim, aimDistance, fire };
   }
 

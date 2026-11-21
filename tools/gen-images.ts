@@ -248,6 +248,7 @@ type PlaceholderImageKey = Exclude<
 >;
 
 export const IMAGE_RECIPES: Record<PlaceholderImageKey, (r: Raster) => Raster> = {
+  ...signRecipes(),
   soldier_live: (r) =>
     soldier(r, { body: '#ffc928', helmet: '#d98c00', gun: '#2b2b2b', outline: OUT, ow: 3.5 }),
   soldier_echo: (r) =>
@@ -538,6 +539,175 @@ export const IMAGE_RECIPES: Record<PlaceholderImageKey, (r: Raster) => Raster> =
     return r.paint(circle(16, 16, 1.2), '#ff4040');
   },
 };
+
+// ---- signposts ------------------------------------------------------------------------------
+
+/** A post seen from above: a short stub and its shadow, under the sign. */
+function post(r: Raster): Raster {
+  r.paint(ellipse(34, 50, 9, 4), hex('#000000', 0.3));
+  return r.shape(box(32, 46, 3, 8, 1), '#5a4128', OUT, 2);
+}
+
+const woodGrain = (x: number, y: number): Rgba => {
+  const plank = Math.floor(y / 9);
+  const base = mix(hex('#8a6239'), hex('#a8794a'), noise(plank, 0, 3));
+  const seam = y % 9 === 0 ? 0.5 : 0;
+  return mix(base, hex('#2a1a0c'), seam + noise(x >> 2, y, plank) * 0.15);
+};
+
+/** 9-slice frame: an outer border, an inner panel, corner studs. */
+function frame(
+  r: Raster,
+  border: Rgba | ((x: number, y: number) => Rgba),
+  panel: Rgba | ((x: number, y: number) => Rgba),
+  bw: number,
+  radius: number,
+  stud?: string,
+): Raster {
+  const outer = box(48, 48, 46, 46, radius);
+  const inner = box(48, 48, 46 - bw, 46 - bw, Math.max(1, radius - bw / 2));
+  r.paint(grow(outer, 2), OUT);
+  r.shade((x, y) => (typeof border === 'function' ? border(x, y) : border), outer);
+  r.shade((x, y) => (typeof panel === 'function' ? panel(x, y) : panel), inner);
+  if (stud) {
+    for (const [cx, cy] of [
+      [8, 8],
+      [88, 8],
+      [8, 88],
+      [88, 88],
+    ] as const) {
+      r.shape(circle(cx, cy, 2.6), stud, OUT, 1);
+    }
+  }
+  return r;
+}
+
+function signRecipes() {
+  return {
+    sign_post_plain: (r: Raster) => {
+      post(r);
+      return r.shape(box(32, 30, 20, 12, 2), '#8c949c', OUT, 2.5);
+    },
+    sign_post_wood: (r: Raster) => {
+      post(r);
+      r.paint(grow(box(32, 30, 22, 13, 1, -0.05), 2.5), OUT);
+      r.shade((x, y) => woodGrain(x, y), box(32, 30, 22, 13, 1, -0.05));
+      r.paint(circle(13, 24, 1.4), '#2a2a2a');
+      return r.paint(circle(51, 22, 1.4), '#2a2a2a');
+    },
+    sign_clipboard: (r: Raster) => {
+      r.paint(box(34, 35, 17, 22, 2, 0.12), hex('#000000', 0.3));
+      r.shape(box(32, 32, 17, 22, 3, 0.12), '#7a5232', OUT, 2.5);
+      r.paint(box(32, 34, 13, 17, 1, 0.12), '#efe6cf');
+      for (let i = 0; i < 4; i++)
+        r.paint(box(32 - i * 0.6, 28 + i * 6, 9, 0.8, 0, 0.12), hex('#5a6470', 0.8));
+      return r.shape(box(30.5, 12, 7, 3, 1.5, 0.12), '#b8bec6', OUT, 1.5);
+    },
+    sign_plate: (r: Raster) => {
+      post(r);
+      r.shape(box(32, 30, 21, 13, 2), '#4f5a34', OUT, 2.5);
+      r.paint(box(32, 30, 12, 2.2), '#e8dfbd');
+      for (const [x, y] of [
+        [14, 20],
+        [50, 20],
+        [14, 40],
+        [50, 40],
+      ] as const) {
+        r.paint(circle(x, y, 1.6), '#2a2f1e');
+      }
+      return r;
+    },
+    target_dummy: (r: Raster) => {
+      r.paint(ellipse(34, 36, 24, 22), hex('#000000', 0.3));
+      r.shape(circle(32, 32, 24), '#f4efe0', OUT, 3);
+      r.paint(ring(32, 32, 17, 5), '#c0392b');
+      r.paint(ring(32, 32, 8, 4), '#c0392b');
+      return r.paint(circle(32, 32, 3), '#c0392b');
+    },
+    target_down: (r: Raster) => {
+      r.shape(ellipse(32, 36, 26, 10, 0.2), '#a07444', OUT, 2.5);
+      return r.paint(ellipse(32, 36, 12, 4, 0.2), hex('#c0392b', 0.7));
+    },
+    npc_sarge: (r: Raster) => {
+      r.paint(ellipse(34, 36, 22, 20), hex('#000000', 0.3));
+      r.shape(circle(32, 32, 16), '#556b2f', OUT, 3);
+      r.shape(circle(32, 32, 22), '#8b6b3d', OUT, 2.5);
+      r.paint(circle(32, 32, 10), '#6b5230');
+      return r.paint(box(32, 28, 3, 10, 1), '#3d2c18');
+    },
+    sign_map_table: (r: Raster) => {
+      r.paint(box(130, 84, 124, 74, 6), hex('#000000', 0.3));
+      r.shape(box(128, 80, 124, 74, 6), '#6b4a2a', OUT, 3);
+      r.shade(
+        (x, y) => mix(hex('#c9b98a'), hex('#a8c48a'), noise(x >> 4, y >> 4, 21) * 0.9),
+        box(128, 80, 110, 62, 2),
+      );
+      r.paint(segment(40, 60, 120, 100, 2.5), hex('#c0392b', 0.9));
+      r.paint(segment(120, 100, 200, 50, 2.5), hex('#c0392b', 0.9));
+      for (const [x, y] of [
+        [40, 60],
+        [120, 100],
+        [200, 50],
+      ] as const) {
+        r.shape(circle(x, y, 5), '#e74c3c', OUT, 1.5);
+      }
+      return r;
+    },
+    sign_tv: (r: Raster) => {
+      post(r);
+      r.shape(box(32, 28, 22, 16, 3), '#2b2f36', OUT, 2.5);
+      return r.paint(box(32, 28, 17, 11, 2), '#5aa0c8');
+    },
+    sign_trophy: (r: Raster) => {
+      r.shape(box(32, 32, 24, 20, 2), '#5a3d22', OUT, 2.5);
+      r.paint(box(32, 32, 20, 16, 1), hex('#bfe3ff', 0.6));
+      r.shape(circle(22, 32, 5), '#ffd34d', OUT, 1.5);
+      r.shape(regular(36, 30, 6, 5), '#c0c6cc', OUT, 1.5);
+      return r.shape(circle(45, 34, 4), '#cd7f32', OUT, 1.5);
+    },
+    sign_gun_table: (r: Raster) => {
+      r.shape(box(48, 24, 44, 18, 3), '#7a5a3a', OUT, 2.5);
+      r.paint(segment(14, 16, 50, 16, 2), '#2a2a2a');
+      r.paint(segment(18, 26, 60, 26, 2.5), '#2a2a2a');
+      r.paint(segment(56, 14, 84, 14, 3.5), '#4f5a34');
+      r.shape(circle(76, 30, 4), '#4f5a34', OUT, 1.5);
+      return r.shape(circle(66, 32, 4), '#4f5a34', OUT, 1.5);
+    },
+    hub_banner: (r: Raster) => {
+      r.shape(box(256, 64, 248, 56, 4), '#4f5a34', OUT, 3);
+      r.paint(box(256, 64, 238, 46, 2), hex('#3d4628', 0.8));
+      for (const x of [20, 492]) r.shape(circle(x, 14, 4), '#c8c0a0', OUT, 1.5);
+      return r;
+    },
+    frame_plain: (r: Raster) => frame(r, hex('#c9d1d9', 0.95), hex('#14181d', 0.9), 3, 10),
+    frame_wood: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(woodGrain(y, x), hex('#2a1a0c'), 0.35),
+        (x, y) => woodGrain(x, y),
+        9,
+        6,
+        '#3a3a3a',
+      ),
+    frame_clipboard: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(hex('#7a5232'), hex('#5a3a20'), noise(x >> 3, y >> 3, 4) * 0.5),
+        hex('#f1ead6'),
+        8,
+        8,
+      ),
+    frame_plate: (r: Raster) =>
+      frame(
+        r,
+        (x, y) => mix(hex('#3d4628'), hex('#2a301b'), noise(x >> 1, y >> 1, 8) * 0.6),
+        (x, y) => mix(hex('#56623a'), hex('#4a5531'), noise(x >> 2, y >> 2, 6) * 0.6),
+        7,
+        4,
+        '#c8c0a0',
+      ),
+  };
+}
 
 export function renderImage(key: ImageKey, w: number, h: number): Raster {
   const recipe = IMAGE_RECIPES[key as PlaceholderImageKey];

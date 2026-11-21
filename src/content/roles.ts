@@ -59,6 +59,8 @@ export interface AiProfile {
   screen?: number;
   /** (PHASE17) How keen it is to dig in at cover facing the threat (the MG, 0..1). */
   digIn?: number;
+  /** (PHASE18) Sees this × `tuning.ai.sightRange` (default 1): the Sniper spots you far off. */
+  sight?: number;
 }
 
 /**
@@ -216,6 +218,7 @@ export const ROLES: readonly RoleDef[] = [
       }, // TUNE
       outranged: 'fallback', // TUNE
       protect: 0, // TUNE
+      sight: 1.42, // TUNE (PHASE18): ~850, it opens fire well before you're close
     },
   },
   {

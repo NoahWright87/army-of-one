@@ -677,6 +677,113 @@ buy. The echo loop only matters when one soldier can't win alone.
   owner-authored blocks, a Hospital point; then retune roles in the arena (Shotgunner,
   Grenadier and Machine Gunner need cover to shine).
 
+## Words in the world (owner session 2026-11, PHASE18)
+
+Onboarding should come from the world, not tutorial text: a tutorial mission that doesn't feel
+like one, built from in-world text. Short, glanceable, never in the way of the action.
+
+- **[D147] Signposts.** Readable objects in the world. Stand by one: a ring fills (like a
+  grenade wind-up), then its frame grows up out of the post, as if you leaned in to read it; walk
+  away or fire and it shrinks back into the post. Each kind of sign has its own frame (a wooden
+  sign → a wooden frame, a clipboard → paper on a clipboard; a plain default), and any sign can
+  name another frame. Text is a glance: a few words. Later: a hub of signs may replace the menu.
+- **[D148] Speech is text over a soldier's head, no bubble.** Contrast (outline/shadow) keeps it
+  readable on any ground; bubbles would hide the action. The words pop out of the soldier, so
+  it's obvious who's talking, and follow them.
+- **[D149] Speech markup.** Effects (shake, wave, colour, flying letters, …; easy to add more) and
+  pacing in the line itself: a short shout appears at once, a longer sentence word by word, and
+  one line can mix both ("INCOMING!!" then "Get behind something").
+- **[D150] Chatter (barks) for character, within a noise budget.** Soldiers react: grenades,
+  pinned down, low HP, a friend falling (by name), a kill, saving someone, the last enemy down,
+  spawning. In a fight only informational lines (incoming grenade) and lines away from where the
+  player is moving and aiming; when it's calm (fight over) they can be many.
+- **[D151] Chatter is not recorded.** Echoes and live soldiers react to what happens in this run,
+  so replays sound different (a different name mourned if a different soldier died). Nods to the
+  game itself: an echo shooting where an enemy no longer is ("I could've sworn I saw
+  something…"), an echo still shooting a corpse ("And stay dead!").
+- **[D152] Every soldier has a random name and a rank that suits their role.** Lines use them:
+  `{rankShort} is down!` → "Sarge is down!".
+
+- **[D153] The HQ is the front door** (owner, 2026-11). A hub you walk around like a battle
+  (Hades-style): a military headquarters. Signs show the options; signs can carry buttons. The
+  lobby has the ARMY OF ONE banner (the title screen is a poster in the world). A skirmish room:
+  a clipboard picks the mission (handmade or random), which opens a gate you walk out of to
+  start; a TV shows skirmish replays. The war room: a big campaign table (continue / new), a
+  projector with campaign replays, a trophy case with records. Out a door, the shooting range:
+  a gun table picks your class on the spot, targets at several ranges, cover of each kind; die
+  and you're straight back. Dev tools in a side room, open to all for now. Later: the first
+  visit loads a tutorial mission, re-enterable from the HQ.
+
+- **[D154] The camera centres on your soldier and pans toward your aim** (owner, 2026-11),
+  not always north: action comes from every side (being shot from behind, the range). The pan
+  grows with how far out the cursor is, up to the look-ahead distance (`display.cameraLookAhead`
+  defaults to 'aim'; `AIM_PAN` in `src/render/camera-look-ahead.ts`). Replaces the 'upAim'
+  default from 06-a.
+
+- **[D155] Basic training is the tutorial** (owner, 2026-11). The first visit loads it; after you
+  graduate the front door is the HQ (a lobby sign runs it again). Styled like early Medal of
+  Honor / Call of Duty boot camp: one long course of stations, each with a gate that opens when
+  its task is done (a mission rule any map can use: point captured / targets down / squad dead
+  → gate opens). A drill sergeant walks behind a fence beside the course yelling directions
+  (speech); signposts carry the bigger instructions; the respawn screen's coach dims everything
+  but the control that matters. You can't fail: you respawn. Money is off, classes unlock as
+  you go, enemies hold their posts and don't heal. Stations: the respawn screen (rifleman only)
+  → run north (sprint) → the range (targets; fire over cover) → capture a flag (it becomes a
+  spawn) → the MG nest and its minefield (die; respawn at the flag; shoot the mines; the Sarge
+  has words if you shoot them on the first try) → a second flag (unlocks the Shield, opens the
+  way round behind the nest) → the shotgunner surprise (respawn as the Shield; resume a saved
+  life) → the lever → riflemen behind sandbags (unlocks the Machine Gunner: brace on cover;
+  "walk it off" regen) → a rifleman behind a bullet-proof parapet (unlocks the Grenadier) →
+  graduation flag → results → HQ.
+
+- **[D156] Basic training is on rails** (owner, 2026-11). "Hand the player the winning formula
+  and let them play it out": every station leaves one obvious way through and makes the
+  intended outcome happen to a player who just does the obvious thing. A checkpoint flag right
+  before each fight (you always respawn at the door); floor chevrons (`>>>`) show where to go,
+  big red ones where to sprint; the MG chute is a walled lane with no way round, its gate opens
+  a few seconds after Alpha is taken (time for the next soldier to get there and shoot the
+  mines, saving the first); ambushes are close and deadly; the respawn screen always walks you
+  back in at your newest flag. ~~Basic training's own tuning makes the lessons land (instant
+  mines, a stronger Shield, a bigger grenade blast, quick flags).~~ Superseded by [D157].
+- **[D157] Basic training uses the real game's stats** (owner, 2026-11): "I do NOT want bespoke
+  stats for the tutorial." No tutorial tuning, no per-squad boosts. If a station doesn't work,
+  either the real stat needs a tweak (then it changes everywhere) or the station is badly
+  designed. Real tweaks made for it: grenades blast bigger (radius 60), throw faster and
+  straighter and stop near where they land; flags take ~25 % less time. The minefield is
+  simply dense: staggered rows from halfway up the chute to the wall past its exit, no gaps.
+  Money: the map just starts you with $9,999,999 and no income.
+- **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
+  next to it: a tighter cone and a little more reach); standing still looks a bit further;
+  the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across
+  cover, like the Sniper's); the Sniper much further, most of all braced. Looking far out zooms
+  in, per class (`src/content/camera.ts`: Sniper a lot, MG a little, the rest barely). A mounted
+  MG can shuffle along its cover and stay mounted; a set-up Sniper can walk slowly and keep the
+  rifle up (sprinting drops both). Phones zoom out so a rifleman's range fits on screen toward
+  the aim. Touch (tap mode, the default): touch on or near the reticle grabs it and drags the
+  aim; a touch anywhere else is the move stick. While moving, a second finger aims where it
+  touches and fires while held (hold = full auto), as before; standing still with the reticle
+  grabbed, another finger fires. No fire button. The reticle is always right under the finger
+  (owner: anything else, by share of the screen or scaled, was "VERY difficult to aim"); the
+  camera pans and zooms toward it, so holding near the edge looks further, up to the reach. The camera keeps the aim point on screen,
+  and (except the Sniper's scope) the soldier too, zooming out when both don't fit; on phones
+  the minimap is smaller and faded. In basic training this is taught by distance: R5's riflemen stand
+  past auto-aim (and past their own sight) from the sandbags, so you mount the MG and aim it
+  yourself; the gap in the bags lets a Shield walk up, into too many of them. The last room is
+  a sniper range: snipers and machine gunners behind a fence far to the east, past auto-aim,
+  guarding the graduation flag; sandbags by the door to brace on. Dying there unlocks the
+  Sniper. (Owner, after a Grenadier walked up and grenaded them on auto-aim:) the guns are
+  spread out so one grenade can't get two, a staggered minefield runs from the flag to their
+  fence so nobody walks into throwing range, the flag sits inside the MG's reach, and enemy
+  Snipers see further everywhere (`sight` 1.42 × `ai.sightRange`, ~850) so they open up well
+  before you reach the flag. The sandbags by the door are heavy (they fire back at your shots).
+- **[D159] No wind-ups: fire, then reload** (owner, 2026-11): "The wind up should be the reload
+  *after* the weapon fires." Grenades, rockets and tank shells go the moment you press fire (a
+  grenade to where you aim); the old wind-up time moved into the reload, and the ring fills while
+  it reloads. Holding fire fires again each time it's ready. Gun users no longer get their
+  shots off first just because they don't wind up.
+- **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
+  they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
+
 ## Art direction: collectible miniatures (owner session 2026-11)
 
 Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniatures.ts`.
@@ -1050,6 +1157,19 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 - **[Q60] Enemy funds curve (PHASE14, [D119]).** Built as proposed (14-a): a level's budget = its own budget +
   (full − own) × min(1, battle minutes so far / `campaign.minutesToFull`), times the Elite
   multiplier, capped at full. Battle minutes count only levels taken.
+- **[Q61] Text lab first picks (PHASE18).** The owner picks in `?scene=textlab`: speech font
+  (Bangers / Black Ops One / Russo One / Oswald / system), sizes and timings (sliders; "Copy my
+  settings" gives the numbers), whether enemies' words get a faint red tint (on), whether echoes'
+  words are fainter (on, `echoAlpha`), and whether special entrances (`[fly]`, `[slam]`, `[drop]`)
+  should still start from the speaker (now they don't; the default entrance does).
+- **[Q62] Who may talk in a fight (PHASE18).** Built: the player's own soldier only shouts
+  warnings and "I got you" (saves) during a fight; other flavour waits for calm. Limits per
+  situation are in `CATEGORY_RULES` (src/render/worldtext/barks.ts) and `world-text.ts`.
+- **[Q63] HQ details (PHASE18).** Built: picking a skirmish with a save for that mission
+  continues it (like the old Continue); "New campaign" over one in progress asks first (the old
+  menu's confirm). Touch has no auto-aim/auto-fire in the HQ (it kept closing the signs); tap to
+  fire on the range. Watching a replay opens the old replay viewer (`?scene=title`), which ends
+  on the old menu, not back in the HQ.
 
 - **[AQ59] Resolved** by [A122]: the owner accepted the proposed role-to-base mapping.
 - **[AQ60] Resolved** by [A123]: the owner accepted the proposed miniature states.

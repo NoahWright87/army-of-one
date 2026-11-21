@@ -571,6 +571,131 @@ export const IMAGE_ASSETS = {
     'The aim cursor at the mouse position.',
     'Thin crosshair reticle, 32×32, white with dark outline, readable on any ground.',
   ),
+  // Signposts: the object in the world, and the frame its text opens in (9-slice, 24 px corners).
+  sign_post_plain: img(
+    'sign_post_plain',
+    64,
+    64,
+    'A plain signpost in the world (readable: stand by it).',
+    `${TOPDOWN}. A small grey metal sign on a post, 64×64, transparent background.`,
+  ),
+  sign_post_wood: img(
+    'sign_post_wood',
+    64,
+    64,
+    'A wooden signpost in the world.',
+    `${TOPDOWN}. A rough wooden plank sign nailed to a post, 64×64, transparent background.`,
+  ),
+  sign_clipboard: img(
+    'sign_clipboard',
+    64,
+    64,
+    'A clipboard of orders hung on a wall or crate.',
+    `${TOPDOWN}. A brown clipboard with a cream sheet of paper and a metal clip, slightly ` +
+      'askew, 64×64, transparent background.',
+  ),
+  sign_plate: img(
+    'sign_plate',
+    64,
+    64,
+    'A stencilled military warning plate on a post.',
+    `${TOPDOWN}. An olive-drab riveted metal plate on a post, 64×64, transparent background.`,
+  ),
+  // (PHASE18) Basic training.
+  target_dummy: img(
+    'target_dummy',
+    64,
+    64,
+    'A practice target on the training range (shoot it down; not a real objective).',
+    `${TOPDOWN}. A round wooden shooting target on a stand: red and white rings, 64×64, ` +
+      'transparent background.',
+  ),
+  target_down: img(
+    'target_down',
+    64,
+    64,
+    'A practice target that has been shot down.',
+    `${TOPDOWN}. The same wooden target knocked flat, splintered, 64×64, transparent background.`,
+  ),
+  npc_sarge: img(
+    'npc_sarge',
+    64,
+    64,
+    'The drill sergeant who yells at you through basic training (not part of the fight).',
+    `${TOPDOWN}. A burly drill sergeant seen from above: campaign hat (wide brim), olive ` +
+      'uniform, 64×64, transparent background, readable at 30 px.',
+  ),
+  // (PHASE18) HQ signposts: things you walk up to in the hub.
+  sign_map_table: img(
+    'sign_map_table',
+    256,
+    160,
+    "The HQ's campaign table: a big map spread on a table (read it to start the campaign).",
+    `${TOPDOWN}. A large wooden planning table seen from above with a military campaign map ` +
+      'spread on it, pins and markers, 256×160, transparent background.',
+  ),
+  sign_tv: img(
+    'sign_tv',
+    64,
+    64,
+    'A TV / projector in the HQ: read it to watch replays.',
+    `${TOPDOWN}. An old field TV or slide projector on a stand, 64×64, transparent background.`,
+  ),
+  sign_trophy: img(
+    'sign_trophy',
+    64,
+    64,
+    'A trophy case in the HQ: read it to see your records.',
+    `${TOPDOWN}. A glass trophy case with medals and cups, 64×64, transparent background.`,
+  ),
+  sign_gun_table: img(
+    'sign_gun_table',
+    96,
+    48,
+    'The shooting range gun table: read it to pick a class.',
+    `${TOPDOWN}. A long table with rifles, a machine gun, a bazooka and grenades laid out, ` +
+      '96×48, transparent background.',
+  ),
+  hub_banner: img(
+    'hub_banner',
+    512,
+    128,
+    'The HQ lobby banner (the title, in the world). The game draws the words on it.',
+    'A wide olive-drab military banner/poster hanging on a wall, plain middle for a title, ' +
+      'stitched edges, 512×128, transparent background. No text.',
+  ),
+  frame_plain: img(
+    'frame_plain',
+    96,
+    96,
+    'The default frame a sign opens in.',
+    '9-slice frame, 96×96 with 24 px corners: dark translucent panel, thin light border, ' +
+      'rounded corners. The centre stretches.',
+  ),
+  frame_wood: img(
+    'frame_wood',
+    96,
+    96,
+    "A wooden sign's frame when read.",
+    '9-slice frame, 96×96 with 24 px corners: wooden planks with a darker wooden border and ' +
+      'nails in the corners. The centre stretches.',
+  ),
+  frame_clipboard: img(
+    'frame_clipboard',
+    96,
+    96,
+    "A clipboard's frame when read: paper on a clipboard.",
+    '9-slice frame, 96×96 with 24 px corners: cream paper with a brown clipboard border. The ' +
+      'centre stretches.',
+  ),
+  frame_plate: img(
+    'frame_plate',
+    96,
+    96,
+    "A metal plate's frame when read.",
+    '9-slice frame, 96×96 with 24 px corners: olive-drab painted metal with rivets in the ' +
+      'corners and a worn edge. The centre stretches.',
+  ),
 } as const satisfies Record<string, ImageAssetDef>;
 
 export const SOUND_ASSETS = {

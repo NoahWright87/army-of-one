@@ -14,6 +14,26 @@ respawn. Read these before doing anything substantial:
    DECISIONS.md wins.**
 3. `todos/README.md` and the phase doc you were assigned.
 
+## Player experience comes first
+
+The most important thing in this repo is how it feels to a real player. Design, build and test for
+**the player coming in cold**: not a perfect user, and not you.
+
+- **They won't read much.** A few words, at a glance, while something is shooting at them. If a
+  feature needs a paragraph to be understood, it isn't done.
+- **They want fun, fast.** Every app on their phone is competing for their attention. Get them to
+  the good part quickly; never make them wait, wander or guess.
+- **Hand them the winning move and let them play it out.** Teach with the game's own mechanics
+  (a station that can only be passed one way beats any tooltip). Guided ("on rails") is fine as
+  long as it feels like they're the one doing it.
+- **Playtest as that player, honestly.** Don't teleport, script around problems, or play
+  perfectly when judging a flow. Ask: how much did I have to steer vs. how much did the game lead
+  me? Where would a newcomer hesitate, miss the point, or die "by accident"? Report what you saw,
+  including what you didn't test.
+- For guided content, back it with headless "naive player" tests that do only the obvious thing
+  and assert the intended outcome (`src/sim/__tests__/basic-training.test.ts` is the pattern),
+  plus a browser run of a bot that only follows what's on screen.
+
 ## Ground rules
 
 - **Do not invent gameplay rules.** The product owner is opinionated. If a task needs a
@@ -108,7 +128,10 @@ npm run bench -- --echoes 25,50,100,200,400  # PHASE05-b army benchmark (mission
                           # (--life lo,hi bot life seconds, --naive = optimizations off, --json f)
 ```
 
-In the browser: `/` is the game (title → respawn screen → lead-in → battle → …, PHASE04).
+In the browser: `/` is the HQ (PHASE18, [D153]: a hub you walk around; signs with buttons start
+the campaign or a skirmish). `?scene=title` is the old title menu and the game flow (title →
+respawn screen → lead-in → battle → …, PHASE04); `?mission=<id>` also goes to the game
+(`&go=1`: straight in, with a "← HQ" button).
 `/?scene=gallery` renders every entity/soldier state from a fixture (visual test page),
 `/?scene=sandbox` is the old free-play battle, `/?screen=respawn&fixture=<name>` the respawn
 screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,
@@ -140,8 +163,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   shows with more than one mission.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
-  Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier holds fire to wind up and
-  releases to throw at the cursor. Guns have spread + recoil (`src/sim/combat/guns.ts`); the
+  Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier throws at the cursor;
+  grenades, rockets and shells fire at once, then reload ([D159]). Guns have spread + recoil (`src/sim/combat/guns.ts`); the
   reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
 - Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role
   personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
@@ -159,7 +182,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   off.
 - Controls (PHASE07-b): touch devices get on-screen controls + auto-aim by default; F2 → Controls
   switches scheme/auto-aim/auto-fire, touch aiming (tap-to-aim or stick, PHASE12-d) and
-  auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`.
+  auto-aim per role. Emulate a phone in Playwright with `devices['iPhone 13']`. PHASE18 [D158]:
+  in tap mode, touching the reticle drags the aim, elsewhere is the move stick; while moving, a
+  second finger aims there and fires while held (no fire button); `__aoo.touch` is the controls. Look reach / scope zoom per class:
+  `src/content/camera.ts`.
 - Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
   format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
   title screen's list. Open any `/#replay=…` link to watch it.
@@ -198,6 +224,18 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   (`buyRole`, the map's role bar); soldiers' bullets fly (`tuning.bullets`, `stepBullets`), slow
   and weaken past their range and land ([D146]); near misses alert the AI, who lay down covering
   fire (`ai.suppress*`).
+- Basic training (PHASE18, [D155], [D156]): only the very first visit to `/` goes to
+  `?mission=basic-training&go=1` (localStorage `aoo:bt:sent`; clear it to be sent again). After
+  that `/` is the HQ; "← HQ" leaves; the HQ lobby's sign runs it again. `?scene=hub` opens the HQ.
+  It uses the real game's stats ([D157]): fix a station by level design or a real stat tweak,
+  never tutorial-only tuning.
+- Map revisions: bump `MapDef.rev` when a layout change would break old recordings; saves from
+  another revision are dropped on boot instead of replayed.
+- Words in the world (PHASE18, [D147]–[D152]): `?scene=textlab` (also linked from the arena) to
+  try signposts, speech markup and soldiers' chatter, and tune the look. Code in
+  `src/render/worldtext/`, tuning in `src/content/world-text.ts`, names in
+  `src/content/soldier-names.ts`, lines in strings.ts (`bark.*`, `sign.*`). Chatter runs in every
+  battle (F2 → Display turns it off); it is not recorded.
 - Dev arena (PHASE17, [D142]): the title screen's "Dev" link, or `?scene=arena`: soldiers per
   side by role, HUMAN / CPU presets, barrier buttons (each kind off / left / right / both halves,
   at fixed mirrored spots), GO, 🔁 auto-repeat with a running tally, and 20 headless fights for

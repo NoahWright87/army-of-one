@@ -253,4 +253,9 @@ export interface MissionState {
   captureTruth?: CaptureTruth[];
   /** (PHASE11) Enemy losses and lost points; absent in older saves (= nothing known yet). */
   lossTruth?: LossTruth;
+  /**
+   * (PHASE18) The map's revision (`MapDef.rev`) when this mission began; absent = 0. A save from
+   * another revision is dropped: its recordings were made on a different layout.
+   */
+  mapRev?: number;
 }

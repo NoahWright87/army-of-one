@@ -644,6 +644,7 @@ export function knownThings(
 
   const objectives: KnownObjective[] = [];
   for (const o of map.objectives ?? []) {
+    if (o.target) continue; // (PHASE18) practice targets aren't objectives
     objectives.push({
       kind: 'destroy',
       id: o.id,

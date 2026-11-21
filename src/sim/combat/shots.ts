@@ -60,6 +60,12 @@ export interface RayOptions {
   coverKey?: string;
   /** (07-c) Default true: ignore cover the origin can fire over. Fragments pass false. */
   fireOver?: boolean;
+  /**
+   * (PHASE18) Judge fire-over from here instead of the ray's start: a flying bullet's shooter.
+   * (Before, only a bullet's first tick of flight fired over: a gunner braced on sandbags shot
+   * into them as soon as the bullet was a tick out.)
+   */
+  fireOverFrom?: Vec2;
 }
 
 /**
@@ -95,6 +101,7 @@ export function castRay(
       tuning,
       'bullet',
       opts.fireOver,
+      opts.fireOverFrom,
     )) {
       if (c.distance >= best) break;
       if (coverStops(opts.coverKey, c.piece.id, c.piece.bullet)) {
@@ -397,7 +404,7 @@ export function stepBullets(world: World): void {
     const hit = castRay(world, b, p.angle, stepLen, p.team, {
       ignoreId: p.ignoreId ?? p.by,
       coverKey: p.coverKey!,
-      ...(b.travelled === 0 && p.fireOver !== false ? {} : { fireOver: false }),
+      ...(p.fireOver === false ? { fireOver: false } : { fireOverFrom: p.from }),
     });
     const d = fromAngle(p.angle, hit.distance);
     b.x += d.x;

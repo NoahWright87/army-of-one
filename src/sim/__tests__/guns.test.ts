@@ -102,7 +102,7 @@ describe('spread and recoil ([D39])', () => {
 });
 
 describe('MG mount ([D40])', () => {
-  const N = mountTicksNeeded(T);
+  const N = mountTicksNeeded(T, 'gunner');
 
   it('standing still next to cover mounts after mountSeconds; the view shows progress', () => {
     const w = world(arena({ cover: [bags] }));
@@ -129,11 +129,11 @@ describe('MG mount ([D40])', () => {
     expect(currentSpread(w, s, 0)).toBeLessThan(currentSpread(w, s, Math.PI));
   });
 
-  it('moving unmounts at once; no cover, no mount', () => {
+  it('moving away from the cover unmounts; no cover, no mount', () => {
     const w = world(arena({ cover: [bags] }));
     const id = soldierAt(w, { x: 385, y: 500 }, { roleId: 'gunner' });
     run(w, N + 1, { [id]: idle() });
-    run(w, 1, { [id]: walk(0, 1) });
+    run(w, 60, { [id]: walk(-1, 0) });
     expect(isMounted(w, getSoldier(w, id)!)).toBe(false);
     const open = world(arena());
     const id2 = soldierAt(open, { x: 200, y: 500 }, { roleId: 'gunner' });
@@ -141,11 +141,32 @@ describe('MG mount ([D40])', () => {
     expect(isMounted(open, getSoldier(open, id2)!)).toBe(false);
   });
 
-  it('riflemen do not mount', () => {
+  it('(PHASE18) riflemen brace on cover: tighter across it; moving lets go ([D158])', () => {
     const w = world(arena({ cover: [bags] }));
     const id = soldierAt(w, { x: 385, y: 500 });
+    run(w, mountTicksNeeded(T) + 1, { [id]: idle() });
+    const s = getSoldier(w, id)!;
+    expect(isMounted(w, s)).toBe(true);
+    expect(mountBonus(w, s, 0)).toBe(true);
+    expect(getView(w).soldiers[0]!.braced).toBe(true);
+    run(w, 1, { [id]: walk(0, 1) });
+    expect(isMounted(w, getSoldier(w, id)!)).toBe(false);
+  });
+
+  it('(PHASE18) a mounted MG shuffles slowly along its cover and stays mounted ([D158])', () => {
+    const w = world(arena({ cover: [bags] }));
+    const id = soldierAt(w, { x: 385, y: 500 }, { roleId: 'gunner' });
     run(w, N + 1, { [id]: idle() });
-    expect(getSoldier(w, id)!.mountTicks).toBe(0);
+    const y0 = getSoldier(w, id)!.y;
+    run(w, 30, { [id]: walk(0, 1) });
+    const s = getSoldier(w, id)!;
+    expect(isMounted(w, s)).toBe(true);
+    // Slow: well under a half-second's walk.
+    expect(s.y - y0).toBeLessThan((T.soldier.speed * 0.5) / 2);
+    expect(s.y - y0).toBeGreaterThan(0);
+    // Sprinting unmounts.
+    run(w, 1, { [id]: { ...walk(0, 1), sprint: true } });
+    expect(isMounted(w, getSoldier(w, id)!)).toBe(false);
   });
 
   it('an MG echo replays its recorded shots exactly (same damage, same world)', () => {

@@ -50,6 +50,8 @@ export interface SoldierView {
   mount?: number;
   /** (07-c) Live Machine Gunner: mounted and aiming across the cover (the bonus applies). */
   mounted?: boolean;
+  /** (PHASE18) Live soldier, any class: braced on cover (aim bonus, looks further, [D158]). */
+  braced?: boolean;
 }
 
 /** (07-c) A grenade in flight ([D37]). */
@@ -171,6 +173,8 @@ export interface ObjectiveView {
   hp: number;
   maxHp: number;
   destroyed: boolean;
+  /** (PHASE18) A practice target: not part of the win. */
+  target?: true;
 }
 
 /** (05-a) A capture point ([D10]–[D12]); a flag objective if `objective` ([D17]). */

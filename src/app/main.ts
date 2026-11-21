@@ -18,6 +18,14 @@ import { KeyboardMouseInput } from '../render/input/keyboard-mouse-input';
 import { BattleScene } from '../render/phaser/battle-scene';
 import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
+import { TextLabScene } from '../render/phaser/textlab-scene';
+import { startHub } from './hub-main';
+import { BasicTraining, BT_DONE_KEY, BT_SENT_KEY, type BtHint } from './basic-training';
+import { basicTrainingOverlay } from './basic-training-overlay';
+import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
+import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
+import { roleDef } from '../content/roles';
+import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
 import { AudioPreloadScene, PreloadScene } from '../render/phaser/preload-scene';
 import { reportFatalError, runtimeContext, runtimePhase, showLoading } from './runtime-errors';
@@ -130,14 +138,28 @@ export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 const params = new URLSearchParams(window.location.search);
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
-const mode: 'game' | 'gallery' | 'sandbox' | 'arena' =
-  sceneParam === 'gallery'
+/**
+ * (PHASE18) The HQ ([D153]) is the front door: `/` with nothing else asked for. `?scene=title`
+ * is the old title menu; missions, autoplay, stress runs and shared replays go to the game.
+ */
+const wantsHub =
+  sceneParam === 'hub' ||
+  (sceneParam === null &&
+    !params.has('mission') &&
+    !params.has('autoplay') &&
+    !params.has('stress') &&
+    !packedFromHash(window.location.hash));
+const mode: 'game' | 'gallery' | 'sandbox' | 'arena' | 'textlab' | 'hub' = wantsHub
+  ? 'hub'
+  : sceneParam === 'gallery'
     ? 'gallery'
     : sceneParam === 'sandbox'
       ? 'sandbox'
       : sceneParam === 'arena' // (PHASE17) the dev arena ([D142])
         ? 'arena'
-        : 'game';
+        : sceneParam === 'textlab' // in-world text: signposts, speech, chatter
+          ? 'textlab'
+          : 'game';
 /** Dev tools: dev builds, or `?dev=1` on any build (for playtesting a preview/production build). */
 const DEV = import.meta.env.DEV || params.get('dev') === '1';
 const SPEED_CHOICES = ['0.25', '0.5', '1', '2', '4'];
@@ -169,6 +191,8 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
   if (preview) registerMap(preview);
 }
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
+/** (PHASE18) Basic training ([D155]): its drill sergeant and its progress (unlocks, hints). */
+const training = MISSION.id === BASIC_TRAINING_ID ? new BasicTraining(safeLocalStorage()) : null;
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
 /** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
@@ -184,8 +208,11 @@ const campaignBattle =
  * screen's top bar and an action in the settings panel (not a floating button: it covered the
  * role button).
  */
-const backTo: { label: string; run(): void } | null =
-  MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+/** (PHASE18) Started from the HQ: straight into the mission, and a way back. */
+const fromHub = params.get('go') === '1';
+const backTo: { label: string; run(): void } | null = fromHub
+  ? { label: str('hub.back'), run: () => openHub() }
+  : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
     ? {
         label: str(
           campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
@@ -197,6 +224,16 @@ const backTo: { label: string; run(): void } | null =
             : openEditor,
       }
     : null;
+
+/** (PHASE18) Back to the HQ. */
+function openHub(): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  if (dev) url.searchParams.set('dev', dev);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
 
 function readStoredMission(): string | null {
   try {
@@ -282,6 +319,54 @@ const caption = new Caption(uiRoot);
 const busy = new Busy(uiRoot);
 const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
+/** (PHASE18) Points at the one control that matters (basic training's respawn hints). */
+const coach = new Coach(uiRoot);
+
+/** (PHASE18) The coach's steps for a basic-training hint on the respawn screen. */
+function coachSteps(h: BtHint): CoachStep[] {
+  const rs = () => document.querySelector('.aoo-respawn') ?? document.body;
+  const deploy = (text: string): CoachStep => ({
+    target: () => firstVisible(rs(), '.rs-deploy'),
+    text,
+  });
+  const pick = (key: string, text: string): CoachStep => ({
+    target: () => firstVisible(rs(), `[data-select="${key}"]`),
+    text,
+    done: () => !!rs().querySelector(`.sel[data-select="${key}"]`),
+  });
+  switch (h.kind) {
+    case 'deploy':
+      return [deploy(str(h.text))];
+    case 'resume':
+      return [pick(`resume:${h.soldierId}`, str(h.text)), deploy(str('bt.coach.deployNow'))];
+    case 'spawn': {
+      const steps: CoachStep[] = [];
+      if (h.spawnPointId) {
+        steps.push(pick(`new:${h.spawnPointId}`, str(h.text, { place: strDynamic(h.place) })));
+      }
+      if (h.role) {
+        const role = h.role;
+        const name = str(roleDef(role).nameKey);
+        const picked = () => firstVisible(rs(), '.rs-role-btn')?.getAttribute('title') === name;
+        const menuOpen = () => !!firstVisible(rs(), '.rs-role-menu');
+        steps.push(
+          {
+            target: () => firstVisible(rs(), '.rs-role-btn'),
+            text: str('bt.coach.role', { role: name }),
+            done: () => menuOpen() || picked(),
+          },
+          {
+            target: () => firstVisible(rs(), `[data-role="${role}"]`),
+            text: str('bt.coach.roleItem', { role: name }),
+            done: picked,
+          },
+        );
+      }
+      steps.push(deploy(str('bt.coach.deployNow')));
+      return steps;
+    }
+  }
+}
 const complete = new CompleteScreen(uiRoot);
 const results = new ResultsScreen(uiRoot); // (07-a)
 const quickHint = new QuickRedeployHint(uiRoot);
@@ -311,6 +396,7 @@ function makeControls(
   map: MapDef,
   tuning: Tuning,
   liveId: string,
+  opts: { autoAim?: boolean } = {},
 ): InputSource {
   const sc = scheme();
   // (PHASE12-d) Touch aiming: tap-to-aim (touch the field; also overrides auto-aim while held),
@@ -332,7 +418,27 @@ function makeControls(
   const base: InputSource = sc.touch
     ? new TouchInput(touchControls, { tuning, toWorld })
     : new KeyboardMouseInput(scene);
-  if (!sc.autoAim) return base;
+  // (PHASE18) The HQ: no auto-aim/auto-fire (it would keep closing the signs you read).
+  const source =
+    !sc.autoAim || opts.autoAim === false ? base : autoAimed(base, map, tuning, liveId);
+  // (PHASE18) Tap mode grabs the reticle where it's drawn ([D158]).
+  touchControls.reticle = () => {
+    const w = source.pointerWorld();
+    if (!w) return null;
+    const cam = scene.cameras.main;
+    const r = scene.game.canvas.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    const gx = (w.x - cam.worldView.x) * cam.zoom;
+    const gy = (w.y - cam.worldView.y) * cam.zoom;
+    return {
+      x: r.left + (gx * r.width) / scene.scale.width,
+      y: r.top + (gy * r.height) / scene.scale.height,
+    };
+  };
+  return source;
+}
+
+function autoAimed(base: InputSource, map: MapDef, tuning: Tuning, liveId: string): InputSource {
   return new AutoAimInput(base, {
     map,
     tuning,
@@ -401,6 +507,7 @@ const assetsReady = new Promise<void>((resolve, reject) => {
 void assetsReady.catch(reportFatalError);
 
 const arenaScene = new ArenaScene(services);
+const textLabScene = new TextLabScene();
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -413,13 +520,15 @@ const game = new Phaser.Game({
   loader: { maxParallelDownloads: 6, timeout: 15_000, maxRetries: 2 },
   scene: [
     new PreloadScene(
-      mode === 'game'
+      mode === 'game' || mode === 'hub'
         ? null
         : mode === 'gallery'
           ? 'gallery'
           : mode === 'arena'
             ? 'arena'
-            : 'battle',
+            : mode === 'textlab'
+              ? 'textlab'
+              : 'battle',
       () => markAssetsReady(),
       (error) => failAssetsReady(error),
       (done, total) => {
@@ -431,8 +540,42 @@ const game = new Phaser.Game({
     new GalleryScene(services),
     new ReplayScene(services),
     arenaScene,
+    textLabScene,
   ],
 });
+if (mode === 'arena') void startArena();
+if (mode === 'textlab') void startTextLab();
+/**
+ * (PHASE18) The very first visit goes to basic training. After that `/` is the HQ, graduated or
+ * not: "← HQ" really leaves (the lobby's sign runs basic training again).
+ */
+function sentToTraining(): boolean {
+  try {
+    if (window.localStorage.getItem(BT_DONE_KEY) === '1') return true;
+    if (window.localStorage.getItem(BT_SENT_KEY) === '1') return true;
+    window.localStorage.setItem(BT_SENT_KEY, '1');
+    return false;
+  } catch {
+    return true;
+  }
+}
+if (mode === 'hub' && sceneParam === null && !sentToTraining()) {
+  const u = new URL(window.location.href);
+  u.searchParams.set('mission', BASIC_TRAINING_ID);
+  u.searchParams.set('go', '1');
+  window.location.replace(u.toString());
+} else if (mode === 'hub') {
+  startHub({
+    game,
+    tuning: gameTuning(),
+    uiRoot,
+    assetsReady,
+    makeInput: (scene, liveId) =>
+      makeControls(scene, HUB_MAP, gameTuning(), liveId, { autoAim: false }),
+    hideHud: () => hud.setVisible(false),
+    missionNameKey: libraryNameKey,
+  });
+}
 runtimeContext(
   () => {
     const load = game.scene.getScene('preload').load;
@@ -492,7 +635,7 @@ window.addEventListener('resize', () => {
   if (display.renderScale === 'auto') applyRenderScale();
 });
 
-if (mode !== 'game') {
+if (mode !== 'game' && mode !== 'hub') {
   panel.addAction({
     label: str('settings.action.restart'),
     run: () => {
@@ -513,7 +656,7 @@ installHotkeys(window, {
   toggleSettings: () => panel.toggle(),
 });
 
-const aoo: Record<string, unknown> = { game, settings, mode, services };
+const aoo: Record<string, unknown> = { game, settings, mode, services, touch: touchControls };
 /** Debug/e2e hook (screenshots, browser tests). Not part of any gameplay contract. */
 (window as unknown as { __aoo?: unknown }).__aoo = aoo;
 
@@ -535,7 +678,18 @@ async function startGame(): Promise<void> {
   const ui: GameUi = {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
-      if (campaignBattle) {
+      // (PHASE18) So does a skirmish picked in the HQ.
+      if (campaignBattle || fromHub || training) {
+        // (PHASE18) Basic training from the start (the HQ's "again", or nothing saved yet).
+        const restart = params.get('new') === '1' || !p.canContinue;
+        if (training && restart) {
+          training.reset();
+          const u = new URL(window.location.href);
+          u.searchParams.delete('new');
+          window.history.replaceState(null, '', u.toString());
+          p.onNew();
+          return;
+        }
         if (p.canContinue) p.onContinue();
         else p.onNew();
         return;
@@ -553,6 +707,7 @@ async function startGame(): Promise<void> {
         onPickMission: pickMission,
         onOpenEditor: openEditor,
         onOpenDev: () => openScene('arena'),
+        onOpenTextLab: () => openScene('textlab'),
         onOpenWorld: () => openWorld(),
         onRandomMission: () => pickMission(genMissionId(Math.floor(Math.random() * 1e9))),
         campaign: {
@@ -576,6 +731,9 @@ async function startGame(): Promise<void> {
         ...(backTo ? { back: backTo } : {}),
       });
       respawn = screen;
+      // (PHASE18) Basic training: the coach points at what to do on this screen.
+      const hint = training?.respawnHint(props.options) ?? null;
+      if (hint) coach.show(coachSteps(hint));
       // (PHASE12-c) DEPLOY already is the quick redeploy here (it opens on that choice), so
       // the separate hint stays hidden while the screen is up.
       quickHint.set(null);
@@ -586,10 +744,25 @@ async function startGame(): Promise<void> {
           screen.destroy();
           if (respawn === screen) respawn = null;
           notice.show(null);
+          if (hint) {
+            coach.hide();
+            training?.followed(hint);
+          }
         },
       };
     },
     showComplete: (stats, onPlayAgain, extra) => {
+      if (training) {
+        // (PHASE18) Graduated: from now on the front door is the HQ.
+        try {
+          window.localStorage.setItem(BT_DONE_KEY, '1');
+        } catch {
+          // just this visit
+        }
+        if (!extra) complete.show(stats, openHub);
+        else showResults(extra, openHub, { title: str('bt.graduated'), playLabel: str('bt.toHq') });
+        return;
+      }
       if (campaignBattle) {
         // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
         if (extra) takeCampaignLevel(extra);
@@ -618,7 +791,12 @@ async function startGame(): Promise<void> {
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
       const on =
-        option && !respawn && settings.getBool(GAME_SETTING_IDS.quickRedeploy) && !autopilot.active;
+        option &&
+        !respawn &&
+        settings.getBool(GAME_SETTING_IDS.quickRedeploy) &&
+        !autopilot.active &&
+        // (PHASE18) Basic training: back in through the respawn screen, where the coach points.
+        !training;
       quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
@@ -893,6 +1071,8 @@ async function startGame(): Promise<void> {
         makeInput: (scene: Phaser.Scene) =>
           autopilot.inputFor(run) ??
           makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
+        // (PHASE18) Basic training's drill sergeant and signs.
+        ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
       },
     });
     showLoading(null, 'battle');
@@ -970,7 +1150,7 @@ async function startGame(): Promise<void> {
       resumeOnReload: settings.getBool(GAME_SETTING_IDS.resumeOnReload),
       // Autoplay deploys its own first life from the respawn screen.
       skipEmptyRespawn: () =>
-        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active,
+        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active && !training,
       spinnerThresholdMs: () => settings.getNumber(GAME_SETTING_IDS.spinnerThresholdMs),
     },
     onEvent: (e) => {
@@ -1249,6 +1429,7 @@ async function startArena(): Promise<void> {
       { label: str('dev.editor'), href: href('editor') },
       { label: str('dev.world'), href: href('world') },
       { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.textlab'), href: href('textlab') },
       { label: str('dev.menu'), href: href(null) },
     ],
   );
@@ -1297,4 +1478,37 @@ function libraryNameKey(missionId: string): string | null {
   if (parseWorldMissionId(missionId)) return 'map.world.name';
   if (parseGenMissionId(missionId)) return 'map.generated.name';
   return null;
+}
+
+/** The text lab: signposts, speech and chatter to try out (its panel drives the scene). */
+async function startTextLab(): Promise<void> {
+  hud.setVisible(false);
+  const { TextLabPanel } = await import('../ui/textlab/textlab-panel');
+  const href = (scene: string | null) => {
+    const u = new URL(window.location.href);
+    u.search = '';
+    if (scene) u.searchParams.set('scene', scene);
+    return u.toString();
+  };
+  const panel = new TextLabPanel(
+    uiRoot,
+    textLabScene.tuning,
+    {
+      say: (id, text) => textLabScene.say(id, text),
+      situation: (s) => textLabScene.situation(s),
+      firefight: (sec) => textLabScene.firefight(sec),
+      autoDemo: (on) => (textLabScene.autoDemo = on),
+      zoom: (z) => textLabScene.setZoom(z),
+      tuningChanged: () => textLabScene.applyTuning(),
+      isHot: () => (textLabScene.sys.isActive() ? textLabScene.hot : false),
+    },
+    [
+      { label: str('dev.textlab'), href: href('textlab'), here: true },
+      { label: str('dev.arena'), href: href('arena') },
+      { label: str('dev.gallery'), href: href('gallery') },
+      { label: str('dev.menu'), href: href(null) },
+    ],
+  );
+  textLabScene.onRoster = (list) => panel.setSpeakers(list);
+  if (textLabScene.sys.isActive()) panel.setSpeakers(textLabScene.speakers());
 }

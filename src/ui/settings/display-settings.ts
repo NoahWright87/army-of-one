@@ -18,6 +18,8 @@ export interface DisplaySettings {
   leverLinks: boolean;
   incomingFire: boolean;
   tracers: boolean;
+  /** Soldiers' chatter: words over their heads (src/render/worldtext). */
+  speech: boolean;
   cameraSmoothing: number;
   cameraZoom: number;
   screenShake: boolean;
@@ -58,6 +60,7 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   leverLinks: 'display.leverLinks',
   incomingFire: 'display.incomingFire',
   tracers: 'display.tracers',
+  speech: 'display.speech',
   cameraSmoothing: 'camera.smoothing',
   cameraZoom: 'camera.zoom',
   screenShake: 'camera.shake',
@@ -157,6 +160,7 @@ export function displaySettingDefs(): SettingDef[] {
       default: true,
     },
     { id: id.tracers, group: D, label: str('settings.tracers'), type: 'boolean', default: true },
+    { id: id.speech, group: D, label: str('settings.speech'), type: 'boolean', default: true },
     {
       id: id.dimEchoes,
       group: D,
@@ -209,7 +213,7 @@ export function displaySettingDefs(): SettingDef[] {
       group: C,
       label: str('settings.cameraLookAhead'),
       type: 'choice',
-      default: 'upAim',
+      default: 'aim', // owner: centred, panning toward the aim (not always north)
       options: [
         { value: 'off', label: str('settings.cameraLookAhead.off') },
         { value: 'up', label: str('settings.cameraLookAhead.up') },

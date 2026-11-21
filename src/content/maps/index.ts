@@ -4,6 +4,7 @@ import { MISSION_03 } from './mission-03';
 import { MISSION_04 } from './mission-04';
 import { MISSION_05 } from './mission-05';
 import { TEST_RANGE } from './test-range';
+import { BASIC_TRAINING } from './basic-training';
 
 /**
  * Playable missions, in title-screen order. [D31]: Breach is the template and the default;
@@ -15,7 +16,10 @@ export const MISSIONS: readonly MapDef[] = [MISSION_03, MISSION_04, MISSION_05];
 /** (06-a) The mission a fresh game plays ([D27], [D28], [D31]). */
 export const DEFAULT_MISSION: MapDef = MISSION_03;
 
-const ALL: readonly MapDef[] = [...MISSIONS, TEST_RANGE];
+/** (PHASE18) Basic training: playable by id, not listed with the missions. */
+const HIDDEN: readonly MapDef[] = [BASIC_TRAINING];
+
+const ALL: readonly MapDef[] = [...MISSIONS, ...HIDDEN, TEST_RANGE];
 
 /**
  * (PHASE13-a) Maps made at runtime, e.g. the block editor's Play map. The app registers them
@@ -38,5 +42,10 @@ export function findMap(id: string): MapDef | undefined {
  * remembered or linked id of a removed mission (mission-01/02) falls back here too ([D31]).
  */
 export function missionOrDefault(id: string | null | undefined): MapDef {
-  return MISSIONS.find((m) => m.id === id) ?? RUNTIME.find((m) => m.id === id) ?? DEFAULT_MISSION;
+  return (
+    MISSIONS.find((m) => m.id === id) ??
+    HIDDEN.find((m) => m.id === id) ??
+    RUNTIME.find((m) => m.id === id) ??
+    DEFAULT_MISSION
+  );
 }
