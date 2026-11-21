@@ -165,7 +165,16 @@ export interface ConcealmentArea {
   id: string;
   kind: 'bush' | 'trench';
   rect: Rect;
+  /** Painted ground supplies the rim artwork for this section. */
+  painted?: true;
 }
+
+export interface FogBank extends Vec2 {
+  radius: number;
+}
+
+export type Weather = { kind: 'fog'; banks: FogBank[] };
+export type WeatherKind = Weather['kind'];
 
 /**
  * (07-d) A squad of enemy soldiers ([D44]): same roles and stats as ours, AI-driven. No
@@ -218,6 +227,9 @@ export interface MapDef {
   concealment?: ConcealmentArea[];
   /** Low visual mist that makes idle mines harder to pick out from a distance. */
   groundMist?: Rect[];
+  /** Author-painted atmospheric layers. Overlapping areas add density. */
+  mist?: Rect[];
+  weather?: Weather;
   spawnPoints: SpawnPointDef[];
   // Entities (PHASE02-a). Optional so small test maps can leave them out.
   turrets?: TurretDef[];

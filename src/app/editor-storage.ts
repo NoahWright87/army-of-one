@@ -11,6 +11,7 @@
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { newBlock, parseBlock, parseBlockObject, validateBlock, type BlockDef } from '../gen/block';
 import { generateLevel } from '../gen/level';
+import { weatherForLevel } from '../gen/weather';
 import { parseGenMissionId, parseWorldMissionId, worldMissionId } from '../gen/mission-id';
 import { generateWorld, worldLevelMap, type GeneratedWorld } from '../gen/world';
 import { mainEntrySide } from '../gen/region';
@@ -187,6 +188,7 @@ export function generatedMap(
     const map = worldLevelMap(w, wid.level, {
       id,
       nameKey: 'map.world.name',
+      weather: wid.weather,
       ...(wid.budget !== undefined ? { budget: wid.budget } : {}),
       ...(wid.held ? { held: new Set(wid.held) } : {}),
     }).map;
@@ -232,5 +234,6 @@ export function worldLevelMissionId(
   return worldMissionId(world.seed, level, budget, {
     ...(held ? { held: [...held].filter((h) => near.has(h)) } : {}),
     turns,
+    weather: weatherForLevel(world.seed, level),
   });
 }

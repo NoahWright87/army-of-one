@@ -34,17 +34,26 @@ export function orientRect([x, y, w, h]: CellRect, o: Orientation): CellRect {
 
 export function orientBlock(block: BlockDef, o: Orientation): BlockDef {
   if (o === 0) return block;
-  const ground = Array.from({ length: N }, () => new Array<string>(N).fill('G'));
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      const [x, y] = orientPoint([c + 0.5, r + 0.5], o);
-      ground[Math.floor(y)]![Math.floor(x)] = block.ground[r]![c]!;
+  const turnRows = (rows: readonly string[]) => {
+    const turned = Array.from({ length: N }, () => new Array<string>(N));
+
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        const [x, y] = orientPoint([c + 0.5, r + 0.5], o);
+        turned[Math.floor(y)]![Math.floor(x)] = rows[r]![c]!;
+      }
     }
-  }
+    return turned.map((r) => r.join(''));
+  };
   const items = block.items.map((it): BlockItem => {
     if (isRectItem(it)) return { ...it, rect: orientRect(it.rect, o) };
     const at = orientPoint(it.at, o);
     return 'facing' in it ? { ...it, at, facing: orientFacing(it.facing, o) } : { ...it, at };
   });
-  return { ...block, ground: ground.map((r) => r.join('')), items };
+  return {
+    ...block,
+    ground: turnRows(block.ground),
+    ...(block.mist ? { mist: turnRows(block.mist) } : {}),
+    items,
+  };
 }

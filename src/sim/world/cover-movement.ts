@@ -49,10 +49,14 @@ export function moveInConcealment(
     // can walk up to, and only an open lip can start a climb.
     const exit = { x: 0, y: 0 };
     exit[axis] = edge - s[axis] + sign * POSITION_QUANTUM * 2;
+    const across = { x: s.x + exit.x, y: s.y + exit.y };
+    const crossesOpenLip = Math.min(tx, ty) < 1 && !trenchAt(areas, next);
     if (
       direction[axis] * outward > 0 &&
-      (Math.min(tx, ty) < 1 ||
-        (Math.abs(edge - s[axis]) <= rim && (move(exit)[axis] - edge) * sign > POSITION_QUANTUM))
+      (crossesOpenLip ||
+        (Math.abs(edge - s[axis]) <= rim &&
+          !trenchAt(areas, across) &&
+          (move(exit)[axis] - edge) * sign > POSITION_QUANTUM))
     ) {
       climb = {
         areaId: trench.id,
