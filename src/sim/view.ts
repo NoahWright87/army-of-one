@@ -9,6 +9,7 @@ import type { Tick } from './core/time';
 import type { BridgeState, SimEvent } from './events';
 import type { CaptureStage } from './world/map';
 import type { CoverArc } from './world/cover';
+import type { SightSettings, SmokeView } from './world/concealment';
 import type { RoleId } from '../contracts/mission';
 
 /** (07-d) 'enemy': an AI-driven soldier of the other team ([D44]). */
@@ -24,6 +25,8 @@ export interface SoldierView {
   hp: number;
   maxHp: number;
   alive: boolean;
+  /** Terrain- and activity-adjusted visibility. 1 is normal. */
+  visibility?: number;
   role: SoldierRole;
   /** In a lead-in ([D5]): unkillable, shown with a shield ring. */
   leadIn: boolean;
@@ -211,6 +214,9 @@ export type EntityView =
 export interface WorldView {
   tick: Tick;
   soldiers: SoldierView[];
+  smoke?: SmokeView[];
+  /** Same sight settings used by the simulation, for views without access to tuning. */
+  sight?: SightSettings;
   turrets: TurretView[];
   mines: MineView[];
   vehicles: VehicleView[];

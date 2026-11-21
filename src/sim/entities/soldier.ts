@@ -3,9 +3,10 @@ import type { Tuning, VehicleDrive } from '../../content/tuning';
 import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
-import type { MapDef, Rect, SpawnPointId } from '../world/map';
+import type { ConcealmentArea, MapDef, Rect, SpawnPointId } from '../world/map';
 import type { RoleId } from '../../contracts/mission';
 import type { AiState } from '../ai/brain';
+import { moveInConcealment, type TrenchClimb } from '../world/cover-movement';
 
 export type SoldierId = string;
 
@@ -79,6 +80,9 @@ export interface SoldierState {
   moveFrac: number;
   /** (07-e) Sprinting this tick ([D49]): no firing or throwing. */
   sprinting?: boolean;
+  /** Actual shots, throws and launches reveal both controlled soldiers and echoes. */
+  lastFiredTick?: Tick;
+  trenchClimb?: TrenchClimb;
   /**
    * (PHASE18) Mounted MG or a Sniper with the rifle up ([D158]): walking is slow and keeps it
    * (set by the gun's step; read by next tick's movement).
@@ -239,6 +243,7 @@ export function stepSoldierMovement(
   input: SoldierInput,
   solids: readonly Rect[],
   tuning: Tuning,
+  areas?: readonly ConcealmentArea[],
 ): void {
   if (!s.alive) return;
   const drive = driveOf(tuning, s.roleId);
@@ -255,16 +260,15 @@ export function stepSoldierMovement(
       : tuning.mg.mountedMoveMultiplier
     : 1;
   const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk * steadyMul;
-  const next = moveCircle(
-    { x: s.x, y: s.y },
-    { x: dir.x * step, y: dir.y * step },
-    tuning.soldier.wallRadius,
-    solids,
-  );
+  const delta = { x: dir.x * step, y: dir.y * step };
+  const wasClimbing = !!s.trenchClimb;
+  const next = areas?.length
+    ? moveInConcealment(s, dir, delta, walk, solids, tuning, areas)
+    : moveCircle(s, delta, tuning.soldier.wallRadius, solids);
   // (07-e) Relative to a walk: a sprint is above 1 (more spread, harder to hit, [D49], [D50]).
   const moved = Math.hypot(next.x - s.x, next.y - s.y);
   s.moveFrac = walk > 0 ? Math.min(tuning.soldier.sprintMultiplier, moved / walk) : 0;
-  s.sprinting = sprinting && moved > 0;
+  s.sprinting = sprinting && moved > 0 && !wasClimbing && !s.trenchClimb;
   s.x = next.x;
   s.y = next.y;
   s.facing = input.aim;

@@ -667,6 +667,8 @@ export const STRINGS = {
     'Drag to paint or move. Del deletes, R rotates, Ctrl+Z / Ctrl+Y undo and redo, Esc deselects. The striped ring is set by the edge tags.',
   'editor.kind.wall': 'Wall',
   'editor.kind.cover': 'Cover',
+  'editor.kind.bush': 'Bush',
+  'editor.kind.trench': 'Trench',
   'editor.kind.gate': 'Gate',
   'editor.kind.lever': 'Lever',
   'editor.kind.turret': 'Turret',

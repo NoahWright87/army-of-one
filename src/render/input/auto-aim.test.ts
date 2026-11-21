@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { controlScheme } from '../../app/game-settings';
-import { arena } from '../../sim/__tests__/helpers';
-import { createWorld, getView, spawnSoldier } from '../../sim/sim';
+import { arena, idle } from '../../sim/__tests__/helpers';
+import { createWorld, getSoldier, getView, spawnSoldier } from '../../sim/sim';
+import { fireRifle } from '../../sim/combat/shots';
 import { damageShare } from '../../sim/combat/armor';
 import type { WorldView } from '../../sim/view';
 import {
@@ -53,6 +54,34 @@ describe('auto-aim picker ([D41])', () => {
     expect(ids).toEqual(['near', 'far', 'obj']);
     expect(ids).not.toContain('walled');
     expect(ids).not.toContain('out');
+  });
+
+  it('loses a hidden target, reacquires it after it fires, and leaves manual fire alone', () => {
+    const terrain = arena({
+      concealment: [{ id: 'hedge', kind: 'bush', rect: { x: 250, y: 420, w: 130, h: 160 } }],
+    });
+    const w = createWorld(terrain, T);
+    const live = spawnSoldier(w, 'a');
+    const enemy = spawnSoldier(w, 'a', { team: 'enemy', position: { x: 300, y: 500 } });
+    const me = getSoldier(w, live)!;
+    const manual = { ...idle(0.31), fire: true };
+    const base: InputSource = { read: () => manual, pointerWorld: () => null, destroy() {} };
+    const input = new AutoAimInput(base, {
+      map: terrain,
+      tuning: T,
+      liveId: live,
+      fireMode: () => 'hold',
+    });
+    const hidden = getView(w);
+    expect(pickTarget(hidden, terrain, me, T.rifle.range, enemy)).toBeNull();
+    input.observe(hidden);
+    expect(input.read(me)).toEqual(manual);
+    fireRifle(w, enemy, getSoldier(w, enemy)!, 0);
+    input.observe(getView(w));
+    const assisted = input.read(me);
+    expect(input.currentTarget?.id).toBe(enemy);
+    expect(Math.abs(assisted.aim)).toBeGreaterThan(0);
+    expect(Math.abs(assisted.aim)).toBeLessThan(Math.abs(manual.aim));
   });
 
   it('a turret winding up on you comes first', () => {

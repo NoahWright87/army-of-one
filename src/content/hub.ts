@@ -78,6 +78,11 @@ export const HUB_MAP: MapDef = {
     cover('target-fence', 'fence', { x: 520, y: 1600, w: 160, h: 10 }),
     cover('target-bags', 'sandbags', { x: 1720, y: 1600, w: 160, h: 24 }),
   ],
+  concealment: [
+    { id: 'range-firing-trench', kind: 'trench', rect: { x: 245, y: 1245, w: 190, h: 95 } },
+    { id: 'range-target-bush', kind: 'bush', rect: { x: 840, y: 1730, w: 120, h: 100 } },
+    { id: 'range-target-trench', kind: 'trench', rect: { x: 1705, y: 1624, w: 190, h: 85 } },
+  ],
   spawnPoints: [
     {
       id: 'lobby',

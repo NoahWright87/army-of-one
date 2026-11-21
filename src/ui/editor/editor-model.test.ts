@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { newBlock } from '../../gen/block';
+import { newBlock, parseBlock, blockToJson } from '../../gen/block';
+import { blockToPreviewMap } from '../../gen/preview';
+import { rotateMap } from '../../gen/rotate-map';
 import { EditorModel } from './editor-model';
 
 describe('EditorModel', () => {
@@ -33,6 +35,30 @@ describe('EditorModel', () => {
     expect(l?.kind === 'lever' && l.target).toBe('main-gate');
     m.moveItemTo(lever.id, 3.3, 9.8);
     expect(m.item(lever.id)).toMatchObject({ at: [3.5, 10] });
+  });
+
+  it('preserves bushes and trenches when saving, previewing and rotating a block', () => {
+    const m = new EditorModel(newBlock());
+    m.placeKind = 'bush';
+    const bush = m.place(5, 5);
+    m.placeKind = 'trench';
+    const trench = m.place(10, 10);
+    const parsed = parseBlock(blockToJson(m.block));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const preview = blockToPreviewMap(parsed.block, {
+      id: 'preview',
+      nameKey: 'preview',
+      budget: 0,
+    });
+    expect(preview.concealment).toMatchObject([
+      { id: bush.id, kind: 'bush' },
+      { id: trench.id, kind: 'trench' },
+    ]);
+    const original = preview.concealment![1]!.rect;
+    const rotated = rotateMap(preview, 1).concealment![1]!.rect;
+    expect(rotated.w).toBe(original.h);
+    expect(rotated.h).toBe(original.w);
   });
 
   it('a drag is one undo step; undo/redo walk history', () => {

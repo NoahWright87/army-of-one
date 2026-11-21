@@ -5,7 +5,11 @@
  * Per sim step:   renderer.onStep(prevView, curView)   → effects/sounds from that tick's events
  * Per frame:      renderer.render({ alpha, nowMs, … }) → interpolated drawing
  */
-import { DEFAULT_TUNING, PROJECTILE_VISUAL_TUNING } from '../../content/tuning';
+import {
+  DEFAULT_TUNING,
+  GROUND_MIST_VISUAL_TUNING,
+  PROJECTILE_VISUAL_TUNING,
+} from '../../content/tuning';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
 import { ProjectileTrails, projectileStyle } from '../projectile-trails';
 import { coverArtLayout } from '../cover-art';
@@ -33,7 +37,9 @@ import { fitPx, type ImageKey } from '../../content/assets';
 import { str, strDynamic } from '../../content/strings';
 import { WorldSpeech } from '../worldtext/world-speech';
 import type { Vec2 } from '../../sim/core/vec';
-import type { MapDef } from '../../sim/world/map';
+import { rectContains, type MapDef } from '../../sim/world/map';
+import { visibilityFrom } from '../../sim/world/concealment';
+import { hash01 } from '../../sim/core/hash';
 import type { VehicleView, WorldView } from '../../sim/view';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
@@ -128,6 +134,7 @@ export class WorldRenderer {
   private readonly coverPieces = new Map<string, { sprite: Tile; shadow: Tile }>();
   private rubbleKey = '';
   private grenadeGfx!: Phaser.GameObjects.Graphics;
+  private readonly smokeGfx: Phaser.GameObjects.Graphics;
   private readonly projectileTrails = new ProjectileTrails();
   private readonly projectileTrailGfx: Phaser.GameObjects.Graphics;
   private readonly projectileCoreGfx: Phaser.GameObjects.Graphics;
@@ -294,6 +301,7 @@ export class WorldRenderer {
     );
     this.overlayGfx = scene.add.graphics().setDepth(DEPTH.overlays);
     this.coverGfx = scene.add.graphics().setDepth(DEPTH.icons);
+    this.smokeGfx = scene.add.graphics().setDepth(DEPTH.overlays - 1);
     this.grenadeGfx = scene.add.graphics().setDepth(DEPTH.bridges + 0.5);
     this.projectileTrailGfx = scene.add.graphics().setDepth(DEPTH.effects - 1);
     this.projectileCoreGfx = scene.add.graphics().setDepth(DEPTH.effects - 0.25);
@@ -331,6 +339,17 @@ export class WorldRenderer {
       hz.fillStyle(0x0a0d12, 0.22);
       for (const b of map.haze) hz.fillRect(b.x, b.y, b.w, b.h);
     }
+    if (map.groundMist?.length) {
+      const mist = scene.add.graphics().setDepth(DEPTH.decals + 0.1);
+      for (const { x, y, w, h } of map.groundMist) {
+        for (let i = 0; i < 6; i++) {
+          const cy = y + h * (0.14 + 0.144 * i);
+          const cx = x + w * (i % 2 === 0 ? 0.47 : 0.53);
+          mist.fillStyle(0xc0c9bb, 0.07).fillEllipse(cx, cy, w * 0.94, h * 0.28);
+          mist.fillStyle(0xd3d9cf, 0.06).fillEllipse(cx, cy, w * 0.74, h * 0.22);
+        }
+      }
+    }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls)
@@ -353,6 +372,29 @@ export class WorldRenderer {
     outline.lineStyle(2, 0x0e2a44, 0.9);
     for (const w of map.water)
       if (!isPaintedRect(map.ground, w, ['W'])) outline.strokeRect(w.x, w.y, w.w, w.h);
+    if (map.concealment?.length) {
+      const g = scene.add.graphics().setDepth(DEPTH.walls - 0.6);
+      for (const {
+        id,
+        rect: { x, y, w, h },
+        kind,
+      } of map.concealment) {
+        if (kind === 'trench') {
+          g.fillStyle(0x7c6348).fillRoundedRect(x - 3, y - 3, w + 6, h + 6, 6);
+          g.fillStyle(0x3f3028).fillRoundedRect(x, y, w, h, 4);
+          g.lineStyle(2, 0x9b7652).strokeRoundedRect(x + 5, y + 5, w - 10, h - 10, 4);
+        } else {
+          g.fillStyle(0x293f28).fillRoundedRect(x, y, w, h, Math.min(12, w / 2, h / 2));
+          const count = Math.ceil((w * h) / 440);
+          for (let i = 0; i < count; i++) {
+            const rx = hash01(`${id}:${i}:x`);
+            const ry = hash01(`${id}:${i}:y`);
+            const color = i % 3 === 0 ? 0x779250 : i % 3 === 1 ? 0x537141 : 0x395a36;
+            g.fillStyle(color, 0.8).fillCircle(x + w * rx, y + h * ry, 7 + (i % 9));
+          }
+        }
+      }
+    }
     // Tiled sections retain material proportions at every authored length/orientation.
     for (const c of map.cover ?? []) {
       const l = coverArtLayout(c, false);
@@ -460,11 +502,16 @@ export class WorldRenderer {
     this.drawBridges(a);
     this.drawGates();
     this.drawLevers(f);
-    this.drawMines(f.nowMs);
+    const mistViewer =
+      this.map.groundMist?.length && f.liveId
+        ? this.cur.soldiers.find((s) => s.id === f.liveId)
+        : undefined;
+    this.drawMines(f.nowMs, mistViewer);
     this.drawObjectives();
     this.drawCapturePoints(f.nowMs);
     this.drawVehicles(a);
     this.drawTurrets(a, f);
+    this.drawSmoke(a);
     this.drawSoldiers(a, f);
     this.drawCoverAndThrows(f);
     this.drawRubble();
@@ -866,16 +913,43 @@ export class WorldRenderer {
     obj.setTintMode(Phaser.TintModes.MULTIPLY);
   }
 
-  private hpBar(x: number, y: number, width: number, hp: number, maxHp: number, live = false) {
+  private hpBar(
+    x: number,
+    y: number,
+    width: number,
+    hp: number,
+    maxHp: number,
+    live = false,
+    opacity = 1,
+  ) {
     const mode = this.settings.hpBars;
     if (mode === 'off' || maxHp <= 0) return;
     const frac = Math.max(0, Math.min(1, hp / maxHp));
     if (mode === 'damaged' && frac >= 1) return;
     const g = this.hpGfx;
     const h = live ? 5 : 4;
-    g.fillStyle(0x000000, 0.7).fillRect(x - width / 2 - 1, y - 1, width + 2, h + 2);
+    g.fillStyle(0x000000, 0.7 * opacity).fillRect(x - width / 2 - 1, y - 1, width + 2, h + 2);
     const color = frac > 0.5 ? 0x4cd964 : frac > 0.25 ? 0xff9f0a : 0xff3b30;
-    g.fillStyle(color, 1).fillRect(x - width / 2, y, width * frac, h);
+    g.fillStyle(color, opacity).fillRect(x - width / 2, y, width * frac, h);
+  }
+
+  private drawSmoke(a: number): void {
+    const g = this.smokeGfx;
+    g.clear();
+    for (const cloud of this.cur.smoke ?? []) {
+      const prev = this.prev.smoke?.find((p) => p.id === cloud.id);
+      const density = prev ? lerp(prev.density, cloud.density, a) : cloud.density;
+      g.fillStyle(0x9da6a5, density * 0.27).fillCircle(cloud.x, cloud.y, cloud.radius);
+      for (let i = 0; i < 9; i++) {
+        const theta = (i * Math.PI * 2) / 9;
+        const offset = cloud.radius * (0.29 + (i % 3) * 0.11);
+        g.fillStyle(i % 2 ? 0xbfc5c5 : 0x7e8989, density * 0.21).fillCircle(
+          cloud.x + Math.cos(theta) * offset,
+          cloud.y + Math.sin(theta) * offset,
+          cloud.radius * (0.42 + (i % 3) * 0.03),
+        );
+      }
+    }
   }
 
   private drawSoldiers(a: number, f: RenderFrame): void {
@@ -933,7 +1007,20 @@ export class WorldRenderer {
       const vehicle = vehicleMiniature(s.roleId, s.role, s.alive);
       const vBody = s.roleId === 'truck' || s.roleId === 'tank' ? VEHICLE_BODY[s.roleId] : 0;
       const texture = vehicle?.hull ?? mini?.figure ?? v.texture;
-      const opacity = mini && !s.alive ? Math.max(v.alpha, 0.55) : v.alpha;
+      const visibility = s.alive
+        ? Math.min(
+            1,
+            visibilityFrom(
+              live === s ? undefined : live,
+              s,
+              s.visibility,
+              this.map.concealment,
+              this.cur.smoke,
+              this.cur.sight,
+            ),
+          )
+        : 1;
+      const opacity = (mini && !s.alive ? Math.max(v.alpha, 0.55) : v.alpha) * visibility;
       const pose = mini && !s.alive ? corpsePose(px, py, s.deathDirection ?? s.facing, r) : null;
       const figureX = pose?.x ?? px;
       const figureY = pose?.y ?? py;
@@ -1055,12 +1142,20 @@ export class WorldRenderer {
       if (v.label !== null) {
         const t = this.labels.get(s.id);
         if (t.text !== v.label) t.setText(v.label);
-        t.setPosition(px + r * 0.95, py + r * 0.95).setAlpha(Math.max(0.6, opacity));
+        t.setPosition(px + r * 0.95, py + r * 0.95).setAlpha(Math.max(0.6, v.alpha) * visibility);
       }
       if (s.alive) {
         const isLive = s.role === 'live';
         if (isLive || !this.settings.dimEchoes) {
-          this.hpBar(px, py - r - 9, isLive ? 34 : 26, s.hp, s.maxHp, isLive);
+          this.hpBar(
+            px,
+            py - r - 9,
+            isLive ? 34 : 26,
+            s.hp,
+            s.maxHp,
+            isLive,
+            isLive ? 1 : visibility,
+          );
         }
       }
     }
@@ -1133,7 +1228,7 @@ export class WorldRenderer {
     }
   }
 
-  private drawMines(nowMs: number): void {
+  private drawMines(nowMs: number, viewer?: Vec2): void {
     const g = this.overlayGfx;
     const mode = this.settings.mineRadii;
     for (const m of this.cur.mines) {
@@ -1141,6 +1236,7 @@ export class WorldRenderer {
       if (m.state === 'detonated') {
         spr
           .setTexture('mine_scorch')
+          .setAlpha(1)
           .setPosition(m.x, m.y)
           .setScale((m.blastRadius * 1.3) / fitPx('mine_scorch'))
           .setDepth(DEPTH.decals);
@@ -1148,7 +1244,15 @@ export class WorldRenderer {
       }
       const armed = m.state === 'armed';
       const blink = armed && Math.floor(nowMs / 110) % 2 === 0;
+      let opacity = 1;
+      if (!armed && viewer && this.map.groundMist?.some((r) => rectContains(r, m))) {
+        const { mineFarOpacity, mineVisibleAt, mineFaintAt } = GROUND_MIST_VISUAL_TUNING;
+        const d = Math.hypot(m.x - viewer.x, m.y - viewer.y);
+        const reveal = Math.max(0, Math.min(1, (mineFaintAt - d) / (mineFaintAt - mineVisibleAt)));
+        opacity = lerp(mineFarOpacity, 1, reveal);
+      }
       spr
+        .setAlpha(opacity)
         .setTexture(blink ? 'mine_armed' : 'mine')
         .setPosition(m.x, m.y)
         .setScale((32 / fitPx('mine')) * (armed ? 1.1 : 0.9))

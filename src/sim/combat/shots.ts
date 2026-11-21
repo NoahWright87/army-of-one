@@ -6,6 +6,8 @@ import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
 import { coverCrossings, coverStops, damageCover, standingCover } from '../world/cover';
+import { markFired, trenchAt } from '../world/concealment';
+import { rectContains } from '../world/map';
 import { hash01 } from '../core/hash';
 import { allocateId } from '../core/ids';
 import type { ShotWeapon } from '../../contracts/mission';
@@ -58,6 +60,8 @@ export interface RayOptions {
    * (sight past cover is `seesThroughCover`'s job).
    */
   coverKey?: string;
+  /** Original launch position, even when casting one segment of a flying bullet. */
+  bulletOrigin?: Vec2;
   /** (07-c) Default true: ignore cover the origin can fire over. Fragments pass false. */
   fireOver?: boolean;
   /**
@@ -110,6 +114,19 @@ export function castRay(
       }
     }
   }
+  if (opts.coverKey !== undefined && opts.bulletOrigin) {
+    for (const { id, kind, rect } of map.concealment ?? []) {
+      if (kind !== 'bush' || rectContains(rect, opts.bulletOrigin)) continue;
+      const entry = rayRect(from, dir, rect);
+      if (
+        entry !== null &&
+        entry < best &&
+        coverStops(opts.coverKey, id, tuning.concealment.bush.bullet)
+      ) {
+        consider(entry, { kind: 'cover', id });
+      }
+    }
+  }
   for (const b of opts.blockers ?? dynamicBlockers(world)) {
     if (b.blocksShots && b.id !== opts.ignoreId) {
       consider(rayRect(from, dir, b.rect), { kind: 'cover', id: b.id });
@@ -154,6 +171,16 @@ export function castRay(
       if (!isEligible(s) || s.id === opts.ignoreId) return;
       if (team !== 'neutral' && teamOf(s) === team) return;
       const t = rayCircle(from, dir, s, hitRadiusOf(tuning, s));
+      if (t === null || t >= best) return;
+      if (opts.bulletOrigin && opts.coverKey !== undefined && !s.drive) {
+        const trench = trenchAt(map.concealment, s);
+        if (
+          trench &&
+          !rectContains(trench.rect, opts.bulletOrigin) &&
+          coverStops(opts.coverKey, `trench:${trench.id}:${s.id}`, tuning.concealment.trench.dodge)
+        )
+          return;
+      }
       consider(t, { kind: 'soldier', id: s.id, index });
     });
   }
@@ -241,6 +268,7 @@ export interface ShotResult {
 
 /** Resolves one hitscan shot: ray cast, `shotFired` event, then damage to an opposing target. */
 export function fireShot(world: World, p: ShotParams): ShotResult {
+  if (!p.silent) markFired(world, p.by);
   // (PHASE17) A flying bullet ([D145]): announced now, resolved when it hits.
   if (p.speed && p.speed > 0) {
     const st = world.state;
@@ -261,7 +289,11 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
     const list = (st.bullets ??= []);
     list.push({
       id: allocateId(st.ids, 'B'),
-      shot: { ...p, coverKey: p.coverKey ?? `${p.by}@${st.tick}` },
+      shot: {
+        ...p,
+        from: { x: p.from.x, y: p.from.y },
+        coverKey: p.coverKey ?? `${p.by}@${st.tick}`,
+      },
       x: p.from.x,
       y: p.from.y,
       travelled: 0,
@@ -271,6 +303,7 @@ export function fireShot(world: World, p: ShotParams): ShotResult {
   const hit = castRay(world, p.from, p.angle, p.range, p.team, {
     ignoreId: p.ignoreId ?? p.by,
     coverKey: p.coverKey ?? `${p.by}@${world.state.tick}`,
+    ...(p.damageKind !== 'fragment' ? { bulletOrigin: p.from } : {}),
     ...(p.fireOver === false ? { fireOver: false } : {}),
   });
   const end = fromAngle(p.angle, hit.distance);
@@ -404,6 +437,7 @@ export function stepBullets(world: World): void {
     const hit = castRay(world, b, p.angle, stepLen, p.team, {
       ignoreId: p.ignoreId ?? p.by,
       coverKey: p.coverKey!,
+      ...(p.damageKind !== 'fragment' ? { bulletOrigin: p.from } : {}),
       ...(p.fireOver === false ? { fireOver: false } : { fireOverFrom: p.from }),
     });
     const d = fromAngle(p.angle, hit.distance);

@@ -20,6 +20,7 @@ import {
   detonateMine,
 } from '../combat/damage';
 import { emit, type World } from '../state';
+import { addSmoke, markFired } from '../world/concealment';
 import { circleOverlapsRect } from '../world/collision';
 import { blastCover } from '../world/cover';
 import { objectiveRadius } from './objective';
@@ -67,6 +68,7 @@ export function launchRocket(
   const list = liveRockets(world);
   list.push(r);
   list.sort((a, b) => compareIds(a.id, b.id));
+  markFired(world, by);
   emit(world, {
     kind: 'rocketLaunched',
     tick: st.tick,
@@ -121,6 +123,7 @@ function explode(world: World, r: RocketEntity, c: Vec2, directId?: string): voi
   const { map, state: st, tuning } = world;
   const rt = statsOf(world, r);
   const cause = r.kind === 'shell' ? 'shell' : 'rocket';
+  addSmoke(world, r.id, c, rt.blastRadius);
   emit(world, {
     kind: 'rocketExploded',
     tick: st.tick,

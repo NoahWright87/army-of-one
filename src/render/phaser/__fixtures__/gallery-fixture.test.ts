@@ -38,9 +38,10 @@ const ENTITY_LISTS = Object.keys({
   grenades: 1,
   rockets: 1,
   bullets: 1,
+  smoke: 1,
   coverDestroyed: 1,
   coverArcs: 1,
-} satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete'>, 1>);
+} satisfies Record<Exclude<keyof WorldView, 'tick' | 'events' | 'missionComplete' | 'sight'>, 1>);
 
 describe('gallery fixture', () => {
   const v = galleryView(30);

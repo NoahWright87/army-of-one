@@ -69,3 +69,7 @@ doesn't feel like one. Built in a lab first so the owner can tune the look by ey
   while it's held), other fingers fire (`fireHeld`). `__aoo.touch` exposes the controls.
 - Map rev 3: R5's riflemen moved east past auto-aim (MG mounts and aims by hand; a gap in the
   bags), R7 is a sniper range (door at its west end, bags inside, far guns behind a fence).
+- Map rev 5 puts R4's ambusher in a bush and R7's far guns in a trench. Infantry
+  can brace on a trench lip from inside. R3's minefield has ground mist and its
+  mine detonations produce the same temporary concealment as grenade smoke.
+  The HQ range has a firing trench and targets in a bush and a trench.

@@ -230,6 +230,16 @@ export interface Tuning {
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
+  concealment: {
+    minVisibility: number;
+    sprintBonus: number;
+    firingBonus: number;
+    firingSeconds: number;
+    aimError: number;
+    bush: { visibility: number; bullet: number; entryDepth: number; entrySpeed: number };
+    trench: { visibility: number; dodge: number; rimDepth: number; climbSpeed: number };
+    smoke: { visibility: number; seconds: number; radiusMultiplier: number };
+  };
   /**
    * (PHASE18) Bracing ([D158]): any soldier with a gun standing still right by cover for
    * `seconds` steadies its aim when firing across it (the Machine Gunner's mount and the Sniper's
@@ -837,6 +847,30 @@ export const DEFAULT_TUNING: Tuning = {
     truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
     tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
   },
+  concealment: {
+    minVisibility: 0.1, // TUNE
+    sprintBonus: 0.3, // TUNE: added to the terrain-adjusted visibility
+    firingBonus: 0.65, // TUNE
+    firingSeconds: 0.8, // TUNE
+    aimError: 0.22, // TUNE: radians of error scaled by how well the target is concealed
+    bush: {
+      visibility: 0.28, // TUNE
+      bullet: 0.08, // TUNE
+      entryDepth: 26, // TUNE: world units
+      entrySpeed: 0.45, // TUNE
+    },
+    trench: {
+      visibility: 0.55, // TUNE
+      dodge: 0.55, // TUNE: incoming bullets pass overhead
+      rimDepth: 58, // TUNE: equivalent climb effort in world units, about 1.2 seconds for a rifleman
+      climbSpeed: 0.25, // TUNE
+    },
+    smoke: {
+      visibility: 0.15, // TUNE: fresh smoke
+      seconds: 3.5, // TUNE
+      radiusMultiplier: 1.15, // TUNE: relative to blast radius
+    },
+  },
   brace: {
     seconds: 0.4, // TUNE (PHASE18)
     spreadMultiplier: 0.6, // TUNE
@@ -1221,6 +1255,12 @@ export const BLOCK_TUNING = {
 } as const;
 
 /** Render-only readability; never changes ballistics, collision or saved recordings. */
+export const GROUND_MIST_VISUAL_TUNING = {
+  mineFarOpacity: 0.16, // TUNE: idle mines are faint before entering the chute
+  mineVisibleAt: 230, // TUNE: fully visible well before trigger range
+  mineFaintAt: 480, // TUNE: start to emerge as the player reaches the gate
+} as const;
+
 export const PROJECTILE_VISUAL_TUNING = {
   trailMs: 40, // TUNE
   trailMaxLength: 48, // TUNE world units

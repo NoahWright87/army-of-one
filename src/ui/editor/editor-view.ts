@@ -1032,7 +1032,9 @@ export class EditorView {
     if (isRectItem(it)) {
       const [x, y, w, h] = it.rect;
       const fill =
-        it.kind === 'wall' ? '#2b2f33' : it.kind === 'gate' ? '#d08a2a' : COVER_COLOR[it.material];
+        it.kind === 'cover'
+          ? COVER_COLOR[it.material]
+          : { wall: '#2b2f33', gate: '#d08a2a', bush: '#526e3b', trench: '#76553c' }[it.kind];
       const alpha = ctx.globalAlpha;
       if (it.kind === 'gate' && it.open) ctx.globalAlpha = alpha * 0.45;
       ctx.fillStyle = fill;
