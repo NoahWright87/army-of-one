@@ -127,30 +127,60 @@ function distanceAlongAim(from: Vec2, aim: number, surface: BraceSurface): numbe
  * `reach` along the ray)? Position-based, so live shots and echoes agree.
  */
 export function firesAcrossCover(world: World, from: Vec2, angle: number, reach: number): boolean {
-  const piece = braceCover(world, from);
-  if (!piece) return false;
-  const t = distanceAlongAim(from, angle, piece);
-  return t !== null && t <= reach;
+  const piece = braceCover(world, from, { angle, reach });
+  return piece !== null && aimsAcross(from, angle, reach, piece);
 }
 
-/** The nearest cover the soldier can fire over, including a trench lip from inside it. */
-export function braceCover(world: World, p: Vec2): BraceSurface | null {
+function aimsAcross(from: Vec2, angle: number, reach: number, piece: BraceSurface): boolean {
+  const distance = distanceAlongAim(from, angle, piece);
+  return distance !== null && distance <= reach;
+}
+
+/** Find nearby cover. From inside a trench, prefer the cover the gun is aiming over. */
+export function braceCover(
+  world: World,
+  p: Vec2,
+  aim?: { angle: number; reach: number },
+): BraceSurface | null {
   const trench = trenchAt(world.map.concealment, p);
-  const depth = trench ? depthInRect(p, trench.rect) : Infinity;
-  let best: BraceSurface | null =
-    trench && depth <= world.tuning.cover.fireOverDistance
-      ? { id: trench.id, rect: trench.rect, rim: true }
-      : null;
-  let bestD = best ? depth : Infinity;
-  for (const c of standingCover(world)) {
-    if (!canFireOver(p, c, c.bullet, world.tuning)) continue;
-    const d = distanceToRect(p, c.rect);
-    if (d < bestD || (d === bestD && best && c.id < best.id)) {
-      best = c;
-      bestD = d;
+  let best: BraceSurface | null = null;
+  let bestDistance = Infinity;
+  let bestAimed = false;
+  const consider = (surface: BraceSurface, distance: number) => {
+    const aimed = !!(trench && aim && aimsAcross(p, aim.angle, aim.reach, surface));
+    if (
+      !best ||
+      (aimed && !bestAimed) ||
+      (aimed === bestAimed &&
+        (distance < bestDistance || (distance === bestDistance && surface.id < best.id)))
+    ) {
+      best = surface;
+      bestDistance = distance;
+      bestAimed = aimed;
+    }
+  };
+  // Prefer actual cover in the line of fire even when the trench lip is closer.
+  for (const cover of standingCover(world)) {
+    if (canFireOver(p, cover, cover.bullet, world.tuning)) {
+      consider(cover, distanceToRect(p, cover.rect));
+    }
+  }
+  if (trench) {
+    const depth = depthInRect(p, trench.rect);
+    if (depth <= world.tuning.cover.fireOverDistance) {
+      const rim = { id: trench.id, rect: trench.rect, rim: true } as const;
+      // Sandbags may sit just beyond the lip. Retain them if they already give the bonus.
+      if (!bestAimed) consider(rim, depth);
     }
   }
   return best;
+}
+
+function braceReach(tuning: Tuning, role: SoldierState['roleId']): number {
+  const weapon = roleDef(role).weapon;
+  if (weapon === 'sniper') return tuning.sniper.braceReach;
+  if (weapon === 'mg') return tuning.mg.braceReach;
+  return tuning.brace.reach;
 }
 
 /** Mounted (fully set up) on cover? (PHASE12-a) A Sniper: set up and braced on cover. */
@@ -169,16 +199,7 @@ export function mountBonus(world: World, s: SoldierState, aim: number): boolean 
     trench?.id === s.braceId
       ? { id: trench.id, rect: trench.rect, rim: true }
       : standingCover(world).find((c) => c.id === s.braceId);
-  if (!piece) return false;
-  const w = roleDef(s.roleId).weapon;
-  const reach =
-    w === 'sniper'
-      ? world.tuning.sniper.braceReach
-      : w === 'mg'
-        ? world.tuning.mg.braceReach
-        : world.tuning.brace.reach;
-  const t = distanceAlongAim(s, aim, piece);
-  return t !== null && t <= reach;
+  return !!piece && aimsAcross(s, aim, braceReach(world.tuning, s.roleId), piece);
 }
 
 /**
@@ -195,12 +216,16 @@ function stepMount(world: World, s: SoldierState, input: SoldierInput): void {
   const sprint = !!input.sprint && moving;
   const w = roleDef(s.roleId).weapon;
   const need = mountTicksNeeded(world.tuning, s.roleId);
-  const cover = braceCover(world, s);
+  const cover = braceCover(world, s, {
+    angle: input.aim,
+    reach: braceReach(world.tuning, s.roleId),
+  });
   const reset = () => {
     s.mountTicks = 0;
     s.braceId = null;
     s.steady = false;
   };
+  if (s.trenchClimb) return reset();
   if (w === 'sniper') {
     const up = s.mountTicks >= need;
     if (sprint || (moving && !up)) return reset();

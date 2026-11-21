@@ -862,7 +862,7 @@ export const DEFAULT_TUNING: Tuning = {
     trench: {
       visibility: 0.55, // TUNE
       dodge: 0.55, // TUNE: incoming bullets pass overhead
-      rimDepth: 58, // TUNE: roughly 1.2 seconds at rifleman walking speed × climbSpeed
+      rimDepth: 58, // TUNE: equivalent climb effort in world units, about 1.2 seconds for a rifleman
       climbSpeed: 0.25, // TUNE
     },
     smoke: {

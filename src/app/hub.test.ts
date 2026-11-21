@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HUB_EXITS, HUB_MAP } from '../content/hub';
 import { DEFAULT_TUNING } from '../content/tuning';
+import { gunRange, mountTicksNeeded } from '../sim/combat/guns';
 import { secondsToTicks } from '../sim/core/time';
 import { IDLE_INPUT } from '../sim/entities/soldier';
 import { getSoldier } from '../sim/sim';
@@ -67,6 +68,31 @@ describe('HQ', () => {
     d.openExit('skirmish');
     for (let i = 0; i < 60 && !d.ended; i++) d.step(west);
     expect(d.ended).toBe(true);
+  });
+
+  it.each([340, 262])('walks up to the trench sandbags and mounts facing downrange (x=%i)', (x) => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    d.setRole('gunner');
+    d.step(IDLE_INPUT);
+    const s = getSoldier(d.world, d.liveId)!;
+    const aim = Math.PI / 2;
+    const startingY = 1285;
+    s.x = x;
+    s.y = startingY;
+    // Walk from the trench floor up to the bags while aiming downrange.
+    for (let i = 0; i < 55; i++) {
+      d.step({ ...IDLE_INPUT, aim, move: { x: 0, y: 1 } });
+      expect(s.trenchClimb).toBeUndefined();
+    }
+    expect(s.y).toBeCloseTo(1340 - d.world.tuning.soldier.wallRadius);
+    const atBags = s.y;
+    for (let i = 0; i <= mountTicksNeeded(d.world.tuning, 'gunner'); i++) {
+      d.step({ ...IDLE_INPUT, aim });
+    }
+    expect(s.y).toBe(atBags);
+    expect(s.braceId).toBe('range-sandbags');
+    expect(d.view().soldiers.find((soldier) => soldier.id === d.liveId)?.mounted).toBe(true);
+    expect(gunRange(d.world, 'mg', s, aim)).toBeGreaterThan(d.world.tuning.mg.range);
   });
 
   it('shooting a range target downs it', () => {

@@ -30,12 +30,12 @@ describe('walkable cover', () => {
       run(w, 4, { [id]: walk(1, 0) });
       expect(s.x).toBeCloseTo(242 + (4 * w.tuning.soldier.speed) / 60, 1);
       expect(soldierVisibility(w, s)).toBe(w.tuning.concealment.trench.visibility);
-      run(w, 37, { [id]: walk(1, 0) });
+      run(w, 49, { [id]: walk(1, 0) });
       expect(s.trenchClimb).toBeUndefined();
       run(w, 20, { [id]: walk(1, 0) });
       const climb = s.trenchClimb!;
       expect(climb).toBeDefined();
-      expect(s.x).toBeGreaterThan(climb.start + 10);
+      expect(s.x).toBeGreaterThan(climb.start + 1);
       expect(s.x).toBeLessThan(430);
       run(w, 1, { [id]: idle() });
       expect(s.x).toBe(climb.start);

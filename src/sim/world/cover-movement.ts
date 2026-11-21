@@ -43,13 +43,22 @@ export function moveInConcealment(
     const axis = tx <= ty ? 'x' : 'y';
     const edge = axis === 'x' ? x : y;
     const outward = axis === 'x' ? dx : dy;
-    const rim = Math.min(t.rimDepth, (axis === 'x' ? r.w : r.h) / 2);
-    if (direction[axis] * outward > 0 && Math.abs(edge - s[axis]) <= rim) {
+    const sign = Math.sign(outward);
+    const rim = Math.min(radius, (axis === 'x' ? r.w : r.h) / 2);
+    // Reach the lip at walking speed. A blocked lip (e.g. sandbags) is cover you
+    // can walk up to, and only an open lip can start a climb.
+    const exit = { x: 0, y: 0 };
+    exit[axis] = edge - s[axis] + sign * POSITION_QUANTUM * 2;
+    if (
+      direction[axis] * outward > 0 &&
+      (Math.min(tx, ty) < 1 ||
+        (Math.abs(edge - s[axis]) <= rim && (move(exit)[axis] - edge) * sign > POSITION_QUANTUM))
+    ) {
       climb = {
         areaId: trench.id,
         axis,
         edge,
-        sign: Math.sign(outward),
+        sign,
         start: s[axis],
         progress: 0,
       };
