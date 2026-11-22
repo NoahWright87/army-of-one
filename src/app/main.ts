@@ -809,7 +809,14 @@ async function startGame(): Promise<void> {
       stopReplay();
     },
     // The HUD already shows "Mission complete" over the field; the caption is for KIA.
-    showCaption: (kind) => caption.show(kind === 'kia' ? 'kia' : null),
+    showCaption: (kind) => {
+      // (PHASE19) In the continuous view "KIA" lingers a moment over the slow motion.
+      if (kind === null && unifiedOn()) {
+        clearer(setTimeout(() => caption.show(null), 900));
+        return;
+      }
+      caption.show(kind === 'kia' ? 'kia' : null);
+    },
     showBusy: (on) => busy.set(on),
     showQuickRedeploy: (option) => {
       const on =
@@ -1065,7 +1072,8 @@ async function startGame(): Promise<void> {
       liveId: '',
       camera: () => c.viewport(),
       onLook: (x, y) => c.focus(x, y),
-      big: true,
+      // Bigger on wide screens; a phone keeps the usual corner map.
+      big: window.innerWidth > 760,
     });
   }
 
@@ -1305,6 +1313,8 @@ async function startGame(): Promise<void> {
     options: {
       resolvePace: (span) => resolvePace(settings, span),
       resumeOnReload: settings.getBool(GAME_SETTING_IDS.resumeOnReload),
+      // (PHASE19) No freeze on the death: time slows straight into the respawn view.
+      deathBeatSeconds: () => (unifiedOn() ? 0.05 : null),
       // Autoplay deploys its own first life from the respawn screen.
       skipEmptyRespawn: () =>
         settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active && !training,

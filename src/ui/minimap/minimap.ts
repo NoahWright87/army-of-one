@@ -96,8 +96,8 @@ export class Minimap {
     this.root.style.pointerEvents = src.onLook ? 'auto' : '';
     this.root.style.cursor = src.onLook ? 'crosshair' : '';
     // (PHASE19) Above the respawn view's timeline.
-    this.root.style.bottom = src.big ? '108px' : '';
-    this.root.style.zIndex = src.big ? '25' : '';
+    this.root.style.bottom = src.onLook ? (src.big ? '108px' : '150px') : '';
+    this.root.style.zIndex = src.big ? '23' : '';
     this.drawnVersion = -1;
     this.lastKey = '';
     this.relayout();

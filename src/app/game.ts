@@ -136,6 +136,11 @@ export interface BattleHost {
 
 export interface GameOptions {
   /**
+   * (PHASE19) Death beat length override in seconds (the continuous view slows time instead of
+   * freezing on the death). Default: `tuning.deathBeatSeconds`.
+   */
+  deathBeatSeconds?: () => number | null;
+  /**
    * Scrubber pace in battle ticks per real second; null = as fast as possible. `spanTicks` is the
    * battle time the pass will sweep (06-c: the default paces it to finish in about 1 s).
    */
@@ -652,7 +657,10 @@ export class GameController {
     this.a.ui.showCaption(complete ? 'complete' : 'kia');
     // The scrubber starts at once, during the beat ([D23]).
     if (!complete) this.startResolve(res.endSnapshot);
-    this.beatTimer = this.a.clock.after(this.tuning.deathBeatSeconds * 1000, () => {
+    const beat = complete
+      ? this.tuning.deathBeatSeconds
+      : (this.a.options.deathBeatSeconds?.() ?? this.tuning.deathBeatSeconds);
+    this.beatTimer = this.a.clock.after(beat * 1000, () => {
       this.beatTimer = null;
       this.a.ui.showCaption(null);
       this.a.battle.stop();

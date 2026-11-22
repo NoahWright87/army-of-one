@@ -67,18 +67,18 @@ const CSS = `
   color: #e6e9ec; font: 700 15px system-ui, sans-serif; cursor: pointer; }
 .aoo-iw .bar button.on { border-color: #ffd34d; color: #ffd34d; }
 .aoo-iw .scrub { position: relative; flex: 1; height: 32px; cursor: pointer; touch-action: none; min-width: 120px; margin: 0 14px; }
-.aoo-iw .bar { padding-top: 34px; }
+.aoo-iw .bar { padding-top: 38px; }
 .aoo-iw .scrub .track { position: absolute; left: 0; right: 0; top: 14px; height: 4px; background: #39424c; border-radius: 2px; }
 .aoo-iw .scrub .fill { position: absolute; left: 0; top: 14px; height: 4px; background: #c8d0d8; border-radius: 2px; }
 .aoo-iw .scrub .unknown { position: absolute; top: 12px; height: 8px; right: 0;
   background: repeating-linear-gradient(135deg,#2a3038 0 4px,#14181d 4px 8px); border-radius: 2px; }
 .aoo-iw .scrub .death { position: absolute; top: 8px; width: 3px; height: 16px; margin-left: -1px; background: #ff4d4d; border-radius: 1px; pointer-events: none; }
 .aoo-iw .scrub .head { position: absolute; top: 2px; width: 2px; height: 28px; margin-left: -1px; background: #ffd34d; pointer-events: none; }
-.aoo-iw .bar .chev { position: absolute; transform: translateX(-50%); width: 26px; height: 24px; min-width: 0; min-height: 0;
+.aoo-iw .bar .chev { position: absolute; transform: translateX(-50%); width: 30px; height: 28px; min-width: 0; min-height: 0;
   pointer-events: auto; cursor: pointer; border: 0; border-radius: 0; padding: 0; background: none;
-  font: 800 12px system-ui, sans-serif; color: #0c0f13; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
+  font: 900 13px system-ui, sans-serif; color: #0c0f13; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
 .aoo-iw .chev svg { position: absolute; inset: 0; }
-.aoo-iw .chev span { position: relative; top: 2px; }
+.aoo-iw .chev span { position: relative; top: 3px; }
 .aoo-iw .chev.new svg path { fill: #5aa9ff; }
 .aoo-iw .chev.resume svg path { fill: #4dd87a; }
 .aoo-iw .chev.last svg path { fill: #ffd34d; }
@@ -114,7 +114,7 @@ const CSS = `
 `;
 
 const CHEVRON_SVG =
-  '<svg viewBox="0 0 26 24" width="26" height="24" aria-hidden="true"><path d="M1 22 L13 2 L25 22 L13 16 Z"/></svg>';
+  '<svg viewBox="0 0 30 28" width="30" height="28" aria-hidden="true"><path d="M1 27 L15 1 L29 27 L15 21 Z"/></svg>';
 
 export interface InWorldOptions {
   /** Deploy `o` (the caller glides into the lead-in first). */
@@ -468,7 +468,7 @@ export class InWorldRespawn {
       b.innerHTML = `${CHEVRON_SVG}<span>${ch.label}</span>`;
       b.title = this.optionTitle(ch.option);
       b.style.left = pct(ch.tick);
-      b.style.top = `${-22 - ch.stack * 22}px`;
+      b.style.top = `${-26 - ch.stack * 27}px`;
     }
     for (const [k, b] of this.chevEls) {
       if (!seen.has(k)) {
