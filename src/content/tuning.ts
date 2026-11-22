@@ -236,6 +236,8 @@ export interface Tuning {
     firingBonus: number;
     firingSeconds: number;
     aimError: number;
+    mistAttenuation: number;
+    fogAttenuation: number;
     bush: { visibility: number; bullet: number; entryDepth: number; entrySpeed: number };
     trench: { visibility: number; dodge: number; rimDepth: number; climbSpeed: number };
     smoke: { visibility: number; seconds: number; radiusMultiplier: number };
@@ -858,6 +860,8 @@ export const DEFAULT_TUNING: Tuning = {
     sprintBonus: 0.3, // TUNE: added to the terrain-adjusted visibility
     firingBonus: 0.65, // TUNE
     firingSeconds: 0.8, // TUNE
+    mistAttenuation: 0.0022, // TUNE: sight loss per world unit through one coat
+    fogAttenuation: 0.0019, // TUNE: sight loss per world unit through one bank
     aimError: 0.22, // TUNE: radians of error scaled by how well the target is concealed
     bush: {
       visibility: 0.28, // TUNE
@@ -1262,6 +1266,14 @@ export const BLOCK_TUNING = {
 } as const;
 
 /** Render-only readability; never changes ballistics, collision or saved recordings. */
+export const WEATHER_TUNING = {
+  fogChance: 0.32, // TUNE: share of newly launched campaign levels
+  bankSpacing: 460, // TUNE: world units
+  bankRadius: 325, // TUNE: overlapping fog banks leave some clearer gaps
+  driftRadius: 38, // TUNE: world units
+  driftSeconds: 46, // TUNE: seconds per circuit
+} as const;
+
 export const GROUND_MIST_VISUAL_TUNING = {
   mineFarOpacity: 0.16, // TUNE: idle mines are faint before entering the chute
   mineVisibleAt: 230, // TUNE: fully visible well before trigger range

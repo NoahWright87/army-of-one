@@ -341,7 +341,7 @@ export class EditorView {
       const b = el('button', `swatch ${m.tool === 'paint' && m.paintKind === k ? 'on' : ''}`);
       const i = el('i');
       i.style.background = hex(GROUND[k].color);
-      if (this.terrainImages) {
+      if (this.terrainImages && k !== 'T') {
         i.style.backgroundImage = `url("${assetUrl(TERRAIN_ART[k])}")`;
         i.style.backgroundSize = 'cover';
       }
@@ -353,7 +353,22 @@ export class EditorView {
       };
       ground.append(b);
     }
+    for (const kind of ['mist', 'eraseMist'] as const) {
+      const b = el(
+        'button',
+        m.tool === 'paint' && m.paintKind === kind ? 'on' : '',
+        str(kind === 'mist' ? 'editor.paintMist' : 'editor.eraseMist'),
+      );
+      b.onclick = () => {
+        m.tool = 'paint';
+        m.paintKind = kind;
+        m.touch();
+      };
+      ground.append(b);
+    }
     box.append(ground);
+    if (m.tool === 'paint' && m.paintKind === 'mist')
+      box.append(el('p', 'hint', str('editor.mistHelp')));
 
     box.append(el('h2', '', str('editor.place')));
     const things = el('div', 'col');
@@ -917,8 +932,13 @@ export class EditorView {
     for (let r = 0; r < n; r++) {
       for (let col = 0; col < n; col++) {
         const k = block.ground[r]?.[col] ?? 'G';
-        if (!this.terrainImages) {
+        if (!this.terrainImages || k === 'T') {
           ctx.fillStyle = hex(GROUND[k as keyof typeof GROUND]?.color ?? 0x000000);
+          ctx.fillRect(col * cp, r * cp, cp, cp);
+        }
+        const mist = Number(block.mist?.[r]?.[col] ?? 0);
+        if (mist > 0) {
+          ctx.fillStyle = `rgba(218,230,230,${mist * 0.18})`;
           ctx.fillRect(col * cp, r * cp, cp, cp);
         }
         if (onEdge(col, r)) {

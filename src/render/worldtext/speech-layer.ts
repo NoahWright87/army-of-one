@@ -4,8 +4,16 @@
  * the line follows the speaker (or stays where they fell). Sizes are screen pixels at any zoom.
  */
 import Phaser from 'phaser';
+import type { CaptionVoiceProfile } from '../../content/caption-voices';
 import type { WorldTextTuning } from '../../content/world-text';
+import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
+import {
+  captionVoice,
+  CaptionVoicePlayer,
+  type PlayingVoice,
+  type VoiceCue,
+} from './caption-voice';
 import { defaultEnter, getEffect, hash01, type GlyphPose } from './effects';
 import { fontStack, loadWorldTextFonts } from './fonts';
 import { layoutGlyphs, parseLine, type ParsedLine, type Placed } from './markup';
@@ -13,6 +21,7 @@ import { layoutGlyphs, parseLine, type ParsedLine, type Placed } from './markup'
 const OUTLINE = '#0b0d10';
 
 export interface SayOptions {
+  voice?: CaptionVoiceProfile;
   /** An echo's line: drawn fainter. */
   echo?: boolean;
   /** Default text colour (markup colours win). */
@@ -34,6 +43,9 @@ interface LiveLine {
   alpha: number;
   seed: number;
   cuesFired: number;
+  voice: VoiceCue[];
+  playingVoice?: PlayingVoice;
+  voiceAttempted: boolean;
   x: number;
   y: number;
   /** Text bounds around the anchor (screen px; y up is negative, from the head gap). */
@@ -49,20 +61,28 @@ export class SpeechLayer {
   private readonly lines: LiveLine[] = [];
   private readonly widths = new Map<string, number>();
   private measurer: Phaser.GameObjects.Text | null = null;
+  private readonly voicePlayer = new CaptionVoicePlayer();
   private now = 0;
   private seq = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
     public tuning: WorldTextTuning,
+    public audio?: Pick<DisplaySettings, 'volume' | 'muted' | 'voiceVolume'>,
   ) {
     loadWorldTextFonts();
     // Widths measured with a fallback font are wrong once the real one arrives.
     const reset = () => this.widths.clear();
     document.fonts?.addEventListener('loadingdone', reset);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
-      document.fonts?.removeEventListener('loadingdone', reset),
-    );
+    const silence = () => this.voicePlayer.clear();
+    scene.events.on(Phaser.Scenes.Events.PAUSE, silence);
+    scene.events.on(Phaser.Scenes.Events.SLEEP, silence);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      document.fonts?.removeEventListener('loadingdone', reset);
+      scene.events.off(Phaser.Scenes.Events.PAUSE, silence);
+      scene.events.off(Phaser.Scenes.Events.SLEEP, silence);
+      silence();
+    });
   }
 
   get activeCount(): number {
@@ -78,9 +98,13 @@ export class SpeechLayer {
     const t = this.tuning.speech;
     // A soldier says one thing at a time: the old line hurries off.
     for (const l of this.lines) {
-      if (l.speakerId === speakerId) l.endMs = Math.min(l.endMs, this.now);
+      if (l.speakerId === speakerId) {
+        l.endMs = Math.min(l.endMs, this.now);
+        l.playingVoice?.stop();
+      }
     }
     const parsed = parseLine(markup, t);
+    const voice = captionVoice(speakerId, parsed, opts.voice);
     const font = fontStack(t.font);
     const measure = (ch: string, size: number) => {
       if (ch === ' ') return t.fontPx * size * 0.32;
@@ -146,10 +170,12 @@ export class SpeechLayer {
       texts,
       layers,
       startMs: this.now,
-      endMs: this.now + parsed.revealEndMs + hold,
+      endMs: this.now + Math.max(parsed.revealEndMs + hold, (voice.at(-1)?.atMs ?? 0) + 150),
       alpha: opts.echo ? t.echoAlpha : 1,
       seed: ++this.seq * 977,
       cuesFired: 0,
+      voice,
+      voiceAttempted: false,
       x: NaN,
       y: NaN,
       box: {
@@ -176,10 +202,17 @@ export class SpeechLayer {
   update(nowMs: number, posOf: (id: string) => { x: number; y: number } | null): void {
     this.now = nowMs;
     const t = this.tuning.speech;
-    const zoom = this.scene.cameras.main.zoom || 1;
+    const camera = this.scene.cameras.main;
+    const zoom = camera.zoom || 1;
+    const sound = this.scene.sound;
+    const audioManager = sound instanceof Phaser.Sound.WebAudioSoundManager ? sound : null;
+    const voiceBank = audioManager
+      ? (this.scene.cache.audio.get('sfx_caption_voices') as AudioBuffer | undefined)
+      : undefined;
     for (let i = this.lines.length - 1; i >= 0; i--) {
       const l = this.lines[i]!;
       if (nowMs - l.endMs >= t.fadeMs) {
+        l.playingVoice?.stop();
         for (const c of l.layers) c.destroy();
         this.lines.splice(i, 1);
         continue;
@@ -213,6 +246,22 @@ export class SpeechLayer {
         l.cuesFired++;
         this.onQuake();
       }
+      if (audioManager && voiceBank && this.audio && nowMs < l.endMs) {
+        const volume = this.audio.volume * this.audio.voiceVolume;
+        if (!l.voiceAttempted && volume > 0 && !this.audio.muted) {
+          l.playingVoice = this.voicePlayer.play(
+            audioManager.context,
+            audioManager.destination,
+            voiceBank,
+            l.voice,
+          );
+        }
+        const distance = l.keepOnScreen
+          ? 0
+          : Math.hypot(l.x - camera.midPoint.x, l.y - camera.midPoint.y);
+        l.playingVoice?.mix(distance, volume, this.audio.muted);
+      }
+      l.voiceAttempted = true;
       const rise = -t.fadeRisePx * fade;
       const alpha = l.alpha * (1 - fade);
       for (let g = 0; g < l.parsed.glyphs.length; g++) {
@@ -282,6 +331,7 @@ export class SpeechLayer {
   }
 
   clear(): void {
+    this.voicePlayer.clear();
     for (const l of this.lines) for (const c of l.layers) c.destroy();
     this.lines.length = 0;
   }

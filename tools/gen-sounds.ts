@@ -2,7 +2,7 @@
  * Placeholder sound synthesizer: writes 16-bit mono PCM WAVs from tiny recipes. Intentionally
  * crude. Deterministic (noise comes from a seeded PRNG local to each sound).
  *
- * Every sound key in the manifest MUST have a recipe (enforced by `Record<SoundKey, …>`).
+ * Every placeholder sound key in the manifest must have a recipe.
  */
 import type { SoundKey } from '../src/content/assets';
 
@@ -36,7 +36,9 @@ interface SoundRecipe {
   loop?: boolean;
 }
 
-export const SOUND_RECIPES: Record<SoundKey, SoundRecipe> = {
+export type ProceduralSoundKey = Exclude<SoundKey, 'sfx_caption_voices'>;
+
+export const SOUND_RECIPES: Record<ProceduralSoundKey, SoundRecipe> = {
   sfx_rifle_shot: {
     durationMs: 180,
     voices: [
@@ -228,6 +230,6 @@ export function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE): Buff
   return Buffer.concat([h, data]);
 }
 
-export function renderSound(key: SoundKey): Buffer {
+export function renderSound(key: ProceduralSoundKey): Buffer {
   return encodeWav(synth(SOUND_RECIPES[key]));
 }

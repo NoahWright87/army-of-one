@@ -6,6 +6,7 @@
 import { BLOCK_CELLS, type GroundKind } from '../../content/ground';
 import {
   ALWAYS_KINDS,
+  MAX_MIST_COATS,
   isRectItem,
   newBlock,
   type BlockDef,
@@ -28,7 +29,7 @@ export const snap = (v: number) => Math.round(v / SNAP) * SNAP;
 export class EditorModel {
   block: BlockDef;
   tool: Tool = 'paint';
-  paintKind: GroundKind = 'D';
+  paintKind: GroundKind | 'mist' | 'eraseMist' = 'D';
   placeKind: ItemKind = 'rally';
   /** (PHASE13) The squad new rally points join (the last one touched). */
   activeGroup: string | null = null;
@@ -46,6 +47,7 @@ export class EditorModel {
   private undoStack: BlockDef[] = [];
   private redoStack: BlockDef[] = [];
   private gesture: BlockDef | null = null;
+  private readonly mistStroke = new Set<number>();
   private listeners: (() => void)[] = [];
 
   constructor(block: BlockDef = newBlock()) {
@@ -80,11 +82,13 @@ export class EditorModel {
 
   beginGesture(): void {
     this.gesture = this.block;
+    this.mistStroke.clear();
   }
 
   endGesture(): void {
     if (this.gesture && this.gesture !== this.block) this.pushUndo(this.gesture);
     this.gesture = null;
+    this.mistStroke.clear();
   }
 
   private pushUndo(b: BlockDef): void {
@@ -151,6 +155,19 @@ export class EditorModel {
   paint(col: number, row: number): boolean {
     const n = BLOCK_CELLS;
     if (col < 0 || row < 0 || col >= n || row >= n) return false;
+    if (this.paintKind === 'mist' || this.paintKind === 'eraseMist') {
+      const key = row * n + col;
+      if (this.gesture && this.mistStroke.has(key)) return false;
+      if (this.gesture) this.mistStroke.add(key);
+      const mist = this.block.mist ? [...this.block.mist] : Array<string>(n).fill('0'.repeat(n));
+      const line = mist[row]!;
+      const depth = Number(line[col]);
+      const next = this.paintKind === 'eraseMist' ? 0 : Math.min(MAX_MIST_COATS, depth + 1);
+      if (next === depth) return false;
+      mist[row] = line.slice(0, col) + next + line.slice(col + 1);
+      this.edit({ ...this.block, mist: mist.some((r) => /[1-3]/.test(r)) ? mist : undefined });
+      return true;
+    }
     const line = this.block.ground[row]!;
     if (line[col] === this.paintKind) return false;
     const ground = [...this.block.ground];

@@ -18,6 +18,7 @@ import type { CoverMaterial } from '../sim/world/map';
  * enemy HQ. 2 had edge tags; 1 had placed soldiers. Both still load.
  */
 export const BLOCK_VERSION = 3;
+export const MAX_MIST_COATS = 3;
 
 /** (PHASE13) What a block is for when a level is grown from both ends ([D102]). */
 export type BlockRole = 'start' | 'hq';
@@ -104,6 +105,8 @@ export interface BlockDef {
   role?: BlockRole;
   /** BLOCK_CELLS rows (north first) of BLOCK_CELLS ground letters each. */
   ground: string[];
+  /** Optional layer of mist coats, 0–3 per tile. */
+  mist?: string[];
   items: BlockItem[];
   /** (PHASE13) Squads: rosters; their rally points are `rally` items. */
   groups: BlockGroup[];
@@ -260,6 +263,14 @@ export function parseBlockObject(raw: unknown): ParseResult {
   if (!b.ground.every((r) => typeof r === 'string' && [...r].every(isGroundKind))) {
     return { ok: false, key: 'editor.load.notBlock' };
   }
+  if (
+    b.mist !== undefined &&
+    (!Array.isArray(b.mist) ||
+      b.mist.length !== BLOCK_CELLS ||
+      !b.mist.every((r) => typeof r === 'string' && r.length === BLOCK_CELLS && /^[0-3]+$/.test(r)))
+  ) {
+    return { ok: false, key: 'editor.load.notBlock' };
+  }
   // Versions 1 and 2 had edge tags; their edges were painted to match, so the paint is enough.
   const { edges: _edges, ...rest } = b as Partial<BlockDef> & { edges?: unknown };
   void _edges;
@@ -332,7 +343,9 @@ export function blockToJson(block: BlockDef): string {
     `{\n  "v": ${block.v},\n  "id": ${JSON.stringify(block.id)},\n` +
     `  "name": ${JSON.stringify(block.name)},\n` +
     (block.role ? `  "role": ${JSON.stringify(block.role)},\n` : '') +
-    `  "ground": [\n${rows}\n  ],\n  "items": [${items ? `\n${items}\n  ` : ''}],\n` +
+    `  "ground": [\n${rows}\n  ],\n` +
+    (block.mist ? `  "mist": ${JSON.stringify(block.mist)},\n` : '') +
+    `  "items": [${items ? `\n${items}\n  ` : ''}],\n` +
     `  "groups": [${groups ? `\n${groups}\n  ` : ''}]\n}\n`
   );
 }

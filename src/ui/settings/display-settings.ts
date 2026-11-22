@@ -24,6 +24,7 @@ export interface DisplaySettings {
   cameraZoom: number;
   screenShake: boolean;
   volume: number;
+  voiceVolume: number;
   muted: boolean;
   debugOverlay: boolean;
   interpolation: boolean;
@@ -65,6 +66,7 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   cameraZoom: 'camera.zoom',
   screenShake: 'camera.shake',
   volume: 'audio.volume',
+  voiceVolume: 'audio.voiceVolume',
   muted: 'audio.muted',
   debugOverlay: 'debug.overlay',
   interpolation: 'debug.interpolation',
@@ -244,6 +246,16 @@ export function displaySettingDefs(): SettingDef[] {
       label: str('settings.volume'),
       type: 'number',
       default: 0.5,
+      min: 0,
+      max: 1,
+      step: 0.05,
+    },
+    {
+      id: id.voiceVolume,
+      group: A,
+      label: str('settings.voiceVolume'),
+      type: 'number',
+      default: 0.65,
       min: 0,
       max: 1,
       step: 0.05,

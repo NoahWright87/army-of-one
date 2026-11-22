@@ -8,11 +8,10 @@ import {
   SOUND_ASSETS,
   fitPx,
   type ImageKey,
-  type SoundKey,
 } from '../src/content/assets';
 import { buildAssetsMd } from './gen-assets-md';
 import { renderImage } from './gen-images';
-import { renderSound, SOUND_RECIPES } from './gen-sounds';
+import { renderSound, SOUND_RECIPES, type ProceduralSoundKey } from './gen-sounds';
 import { ASSETS_DIR } from './gen-placeholders';
 
 const ROOT = join(ASSETS_DIR, '..');
@@ -85,13 +84,15 @@ describe('generated placeholders are up to date (rerun npm run gen:placeholders)
   it('WAVs match their recipes byte for byte', () => {
     for (const [key, def] of Object.entries(SOUND_ASSETS)) {
       const onDisk = readFileSync(join(ASSETS_DIR, def.file));
-      expect(Buffer.compare(onDisk, renderSound(key as SoundKey)), key).toBe(0);
+      if (def.status !== 'placeholder') continue;
+      expect(Buffer.compare(onDisk, renderSound(key as ProceduralSoundKey)), key).toBe(0);
     }
   });
 
   it('sound recipe durations/loops match the manifest', () => {
     for (const [key, def] of Object.entries(SOUND_ASSETS)) {
-      const r = SOUND_RECIPES[key as SoundKey];
+      if (def.status !== 'placeholder') continue;
+      const r = SOUND_RECIPES[key as ProceduralSoundKey];
       expect(r.durationMs, key).toBe(def.durationMs);
       expect(Boolean(r.loop), key).toBe(Boolean((def as { loop?: boolean }).loop));
     }

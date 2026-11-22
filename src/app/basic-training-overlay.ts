@@ -5,6 +5,7 @@
  */
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
+import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
 import { BT_CHEVRONS, BT_FENCE_X, BT_H, BT_SARGE_X } from '../content/maps/basic-training';
 import type { SignDef } from '../content/sign-styles';
 import { str, type StringKey } from '../content/strings';
@@ -52,14 +53,14 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let livePos: { x: number; y: number } | null = null;
 
   return {
-    create(s, id) {
+    create(s, id, display) {
       scene = s;
       liveId = id;
       started = false;
       queue.length = 0;
       lastFrame = -1;
       const look = cloneWorldText();
-      speech = new SpeechLayer(scene, look);
+      speech = new SpeechLayer(scene, look, display);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
       floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
       body = scene.add
@@ -111,7 +112,11 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       // One line at a time.
       while (queue.length && nowMs - queue[0]!.at > STALE_MS) queue.shift();
       if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
-        speech.say(SARGE, str(queue.shift()!.key), { keepOnScreen: true, color: '#fff3d6' });
+        speech.say(SARGE, str(queue.shift()!.key), {
+          keepOnScreen: true,
+          color: '#fff3d6',
+          voice: DRILL_SERGEANT_VOICE,
+        });
         quietUntil = nowMs + LINE_GAP_MS;
       }
       speech.update(nowMs, (id) => (id === SARGE ? sarge : null));

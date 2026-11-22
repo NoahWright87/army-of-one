@@ -33,7 +33,7 @@ import {
 import type { World } from '../state';
 import { rayRect } from '../world/collision';
 import { canFireOver, distanceToRect, standingCover } from '../world/cover';
-import { depthInRect, trenchAt } from '../world/concealment';
+import { trenchAt, trenchExitDistance } from '../world/concealment';
 import type { Rect } from '../world/map';
 import { fireShot, type ShotResult } from './shots';
 
@@ -106,20 +106,31 @@ export function isSetUp(t: Tuning, s: SoldierState): boolean {
   return roleDef(s.roleId).weapon === 'sniper' && s.mountTicks >= mountTicksNeeded(t, s.roleId);
 }
 
+const CARDINALS = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+] as const;
+
 interface BraceSurface {
   id: string;
   rect: Rect;
   rim?: true;
 }
 
-function distanceAlongAim(from: Vec2, aim: number, surface: BraceSurface): number | null {
-  const dir = fromAngle(aim);
-  const r = surface.rect;
-  if (!surface.rim) return rayRect(from, dir, r);
-  // The ray starts inside a trench. Bracing requires aiming across a nearby exit lip.
-  const x = dir.x === 0 ? Infinity : ((dir.x > 0 ? r.x + r.w : r.x) - from.x) / dir.x;
-  const y = dir.y === 0 ? Infinity : ((dir.y > 0 ? r.y + r.h : r.y) - from.y) / dir.y;
-  return Math.min(x, y);
+function aimsAcross(
+  world: World,
+  from: Vec2,
+  angle: number,
+  reach: number,
+  piece: BraceSurface,
+): boolean {
+  const dir = fromAngle(angle);
+  const distance = piece.rim
+    ? trenchExitDistance(world.map.concealment, from, dir, reach)
+    : rayRect(from, dir, piece.rect);
+  return distance !== null && distance <= reach;
 }
 
 /**
@@ -128,12 +139,7 @@ function distanceAlongAim(from: Vec2, aim: number, surface: BraceSurface): numbe
  */
 export function firesAcrossCover(world: World, from: Vec2, angle: number, reach: number): boolean {
   const piece = braceCover(world, from, { angle, reach });
-  return piece !== null && aimsAcross(from, angle, reach, piece);
-}
-
-function aimsAcross(from: Vec2, angle: number, reach: number, piece: BraceSurface): boolean {
-  const distance = distanceAlongAim(from, angle, piece);
-  return distance !== null && distance <= reach;
+  return piece !== null && aimsAcross(world, from, angle, reach, piece);
 }
 
 /** Find nearby cover. From inside a trench, prefer the cover the gun is aiming over. */
@@ -147,7 +153,7 @@ export function braceCover(
   let bestDistance = Infinity;
   let bestAimed = false;
   const consider = (surface: BraceSurface, distance: number) => {
-    const aimed = !!(trench && aim && aimsAcross(p, aim.angle, aim.reach, surface));
+    const aimed = !!(trench && aim && aimsAcross(world, p, aim.angle, aim.reach, surface));
     if (
       !best ||
       (aimed && !bestAimed) ||
@@ -166,7 +172,10 @@ export function braceCover(
     }
   }
   if (trench) {
-    const depth = depthInRect(p, trench.rect);
+    const limit = world.tuning.cover.fireOverDistance;
+    const depth = Math.min(
+      ...CARDINALS.map((dir) => trenchExitDistance(world.map.concealment, p, dir, limit)),
+    );
     if (depth <= world.tuning.cover.fireOverDistance) {
       const rim = { id: trench.id, rect: trench.rect, rim: true } as const;
       // Sandbags may sit just beyond the lip. Retain them if they already give the bonus.
@@ -199,7 +208,7 @@ export function mountBonus(world: World, s: SoldierState, aim: number): boolean 
     trench?.id === s.braceId
       ? { id: trench.id, rect: trench.rect, rim: true }
       : standingCover(world).find((c) => c.id === s.braceId);
-  return !!piece && aimsAcross(s, aim, braceReach(world.tuning, s.roleId), piece);
+  return !!piece && aimsAcross(world, s, aim, braceReach(world.tuning, s.roleId), piece);
 }
 
 /**
