@@ -437,9 +437,10 @@ export class Attempt {
         // The lead-in ends: the player takes over from the next step on.
         this.handOver();
       } else if (s?.alive) {
-        // Lead-in ([D5]): plays its recording, shown as the player's. (PHASE19, owner
-        // 2026-11-21) No invincibility: it is exactly the echo the tape recorded, so the
-        // replay and every later run agree with what played.
+        // Lead-in ([D5]): replays its own recorded life, shown as the player's. (PHASE19) The
+        // past can't change: the recording says this soldier lived through it, so the replay
+        // can't kill them (HP is floored at 1). Not gameplay invincibility: it ends at control.
+        s.minHp = 1;
         s.viewRole = 'live';
       }
     }

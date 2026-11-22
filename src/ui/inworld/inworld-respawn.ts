@@ -494,6 +494,11 @@ export class InWorldRespawn {
     return s ? { x: s.x, y: s.y } : null;
   }
 
+  private soldierAlive(id: string): { x: number; y: number } | null {
+    const s = this.controls?.currentView.soldiers.find((x) => x.id === id);
+    return s && s.alive ? { x: s.x, y: s.y } : null;
+  }
+
   private placeOf(o: SpawnOption): { x: number; y: number } | null {
     const recs = this.props.soldiers;
     return optionPlace(
@@ -532,7 +537,9 @@ export class InWorldRespawn {
         seenPoint.add(o.spawnPointId);
       }
       const key = optionKeyOf(o);
-      const at = this.placeOf(o);
+      // A saved soldier's circle is on the soldier, never parked on a spawn point (it read as
+      // that spawn point's circle): only while they're alive on screen.
+      const at = o.kind === 'resume' ? this.soldierAlive(o.soldierId) : this.placeOf(o);
       if (!at) continue;
       seen.add(key);
       let b = this.spotEls.get(key);

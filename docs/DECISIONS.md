@@ -1184,7 +1184,10 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   dropped; share links are hidden until there's a backend; 3 replays kept in total.
 - **[Q66] Invincibility only for brand-new soldiers (owner 2026-11-21, to promote).** Resumes,
   echoes and replays get none (was [D5]'s 1 HP floor in every lead-in, and [Q9]). New soldiers
-  have none today either; a safer spawn may replace it. Also: [D5]'s "5-second lead-in" text is
+  have none today either; a safer spawn may replace it. *(Implementation note: a resumed
+  soldier's lead-in still floors HP at 1. That's not invincibility: the lead-in replays their
+  own recorded life, which they survived, so the replay can't kill them. Without it a lead-in
+  re-simulated without the tape (e.g. after a reload) could "shift history" on a valid resume.)* Also: [D5]'s "5-second lead-in" text is
   outdated, it's ~2 s since [D128].
 
 - **[AQ59] Resolved** by [A122]: the owner accepted the proposed role-to-base mapping.

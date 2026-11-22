@@ -407,6 +407,8 @@ export class BattleScene extends Phaser.Scene {
     for (const img of this.runners.values()) img.destroy();
     this.runners = new Map();
     this.input.setDefaultCursor('grab');
+    // The free camera may look past the map's edge (edge spawns sit above the timeline).
+    this.cameras.main.removeBounds();
     const rs = this.rs;
     const now = () => this.time.now;
     const shown = () => this.view;
@@ -464,6 +466,7 @@ export class BattleScene extends Phaser.Scene {
     this.source.destroy();
     this.session = session;
     this.rs = null;
+    this.cameras.main.setBounds(0, 0, session.world.map.width, session.world.map.height);
     this.bindSession(true);
   }
 
