@@ -507,7 +507,7 @@ const assetsReady = new Promise<void>((resolve, reject) => {
 void assetsReady.catch(reportFatalError);
 
 const arenaScene = new ArenaScene(services);
-const textLabScene = new TextLabScene();
+const textLabScene = new TextLabScene(display);
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -1495,6 +1495,7 @@ async function startTextLab(): Promise<void> {
     textLabScene.tuning,
     {
       say: (id, text) => textLabScene.say(id, text),
+      playerVoice: (voice) => (textLabScene.playerVoice = voice),
       situation: (s) => textLabScene.situation(s),
       firefight: (sec) => textLabScene.firefight(sec),
       autoDemo: (on) => (textLabScene.autoDemo = on),

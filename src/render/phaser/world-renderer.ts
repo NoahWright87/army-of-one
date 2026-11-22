@@ -312,6 +312,7 @@ export class WorldRenderer {
     this.hpGfx = scene.add.graphics().setDepth(DEPTH.hpBars);
     this.reticle = scene.add.image(0, 0, 'reticle').setDepth(DEPTH.reticle).setVisible(false);
     this.speech = new WorldSpeech(scene);
+    this.speech.layer.audio = settings;
     this.speech.layer.onQuake = () =>
       this.pendingCues.push({ type: 'shake', intensity: 0.008, durationMs: 220 });
     this.drawStatic();

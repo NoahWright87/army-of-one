@@ -6,6 +6,7 @@
  */
 import Phaser from 'phaser';
 import { fitPx } from '../../content/assets';
+import type { CaptionVoiceProfile } from '../../content/caption-voices';
 import type { RoleId } from '../../contracts/mission';
 import type { SignDef } from '../../content/sign-styles';
 import { fillVars, identityVars } from '../../content/soldier-names';
@@ -16,6 +17,7 @@ import type { SoldierView, WorldView } from '../../sim/view';
 import { DEPTH } from '../depth';
 import { BarkDirector } from '../worldtext/barks';
 import { SignpostLayer } from '../worldtext/signpost-layer';
+import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { SpeechLayer } from '../worldtext/speech-layer';
 import { ENEMY_SPEECH_COLOR, identityOf } from '../worldtext/world-speech';
 
@@ -81,6 +83,7 @@ const ROSTER: { id: string; role: SoldierView['role']; roleId: RoleId; x: number
 
 export class TextLabScene extends Phaser.Scene {
   tuning: WorldTextTuning = cloneWorldText();
+  playerVoice?: CaptionVoiceProfile;
   /** Called whenever the speaker list changes (deaths, reset). */
   onRoster: (list: { id: string; label: string; alive: boolean }[]) => void = () => {};
   private speech!: SpeechLayer;
@@ -111,7 +114,7 @@ export class TextLabScene extends Phaser.Scene {
   private stickGfx!: Phaser.GameObjects.Graphics;
   private touchAim: { x: number; y: number; until: number } | null = null;
 
-  constructor() {
+  constructor(private readonly display: DisplaySettings) {
     super('textlab');
   }
 
@@ -129,7 +132,7 @@ export class TextLabScene extends Phaser.Scene {
       g.fillRoundedRect(x, y, w, 18, 6);
     }
     this.fx = this.add.graphics().setDepth(DEPTH.effects);
-    this.speech = new SpeechLayer(this, this.tuning);
+    this.speech = new SpeechLayer(this, this.tuning, this.display);
     this.speech.onQuake = () => this.cameras.main.shake(220, 0.008);
     this.signs = new SignpostLayer(this, LAB_SIGNS, this.tuning);
     this.director = new BarkDirector(this.tuning.barks);
@@ -212,6 +215,7 @@ export class TextLabScene extends Phaser.Scene {
     if (!p) return;
     const text = fillVars(markup, identityVars(identityOf(p), identityOf(this.pickOther(p))));
     this.speech.say(p.id, text, {
+      voice: p.id === LAB_PLAYER ? this.playerVoice : undefined,
       echo: p.role === 'echo',
       ...(p.role === 'enemy' ? { color: ENEMY_SPEECH_COLOR } : {}),
     });

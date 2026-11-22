@@ -30,6 +30,7 @@ export type Pacing = 'all' | 'words' | 'letters';
 
 export interface Glyph {
   ch: string;
+  pacing: Pacing;
   /** Index of the word it belongs to (spaces belong to no word: -1). */
   word: number;
   effects: string[];
@@ -48,6 +49,7 @@ export interface Cue {
 export interface ParsedLine {
   glyphs: Glyph[];
   cues: Cue[];
+  pauses: { glyphIndex: number; durationMs: number }[];
   /** When the last glyph has landed. */
   revealEndMs: number;
   /** Visible characters (for the hold time). */
@@ -150,6 +152,7 @@ export function parseLine(src: string, tm: Timing): ParsedLine {
   const stack: Open[] = [];
   const glyphs: Glyph[] = [];
   const cues: Cue[] = [];
+  const pauses: ParsedLine['pauses'] = [];
   let t = 0;
   let word = -1;
   let inWord = false;
@@ -187,6 +190,7 @@ export function parseLine(src: string, tm: Timing): ParsedLine {
       case 'pause':
         endWord();
         settleAll();
+        pauses.push({ glyphIndex: glyphs.length, durationMs: tok.ms ?? tm.pauseMs });
         t += tok.ms ?? tm.pauseMs;
         break;
       case 'cue':
@@ -195,13 +199,13 @@ export function parseLine(src: string, tm: Timing): ParsedLine {
         break;
       case 'newline':
         endWord();
-        glyphs.push(glyph('\n', -1, stack, t));
+        glyphs.push(glyph('\n', -1, stack, t, mode));
         break;
       case 'text':
         for (const ch of tok.s) {
           if (/\s/.test(ch)) {
             endWord();
-            glyphs.push(glyph(' ', -1, stack, t));
+            glyphs.push(glyph(' ', -1, stack, t, mode));
             continue;
           }
           if (!inWord) {
@@ -209,7 +213,7 @@ export function parseLine(src: string, tm: Timing): ParsedLine {
             word++;
           }
           wordLen++;
-          glyphs.push(glyph(ch, word, stack, t));
+          glyphs.push(glyph(ch, word, stack, t, mode));
           if (mode === 'letters') t += tm.letterMs;
           if (mode === 'all') allPending = true;
         }
@@ -218,10 +222,10 @@ export function parseLine(src: string, tm: Timing): ParsedLine {
   }
   const visible = glyphs.filter((g) => g.ch.trim());
   const last = visible.reduce((m, g) => Math.max(m, g.appearMs), 0);
-  return { glyphs, cues, revealEndMs: last + tm.popMs, chars: visible.length };
+  return { glyphs, cues, pauses, revealEndMs: last + tm.popMs, chars: visible.length };
 }
 
-function glyph(ch: string, word: number, stack: readonly Open[], t: number): Glyph {
+function glyph(ch: string, word: number, stack: readonly Open[], t: number, pacing: Pacing): Glyph {
   let color: string | null = null;
   let size = 1;
   const effects: string[] = [];
@@ -230,7 +234,7 @@ function glyph(ch: string, word: number, stack: readonly Open[], t: number): Gly
     else if (s.kind === 'size') size *= s.value as number;
     else effects.push(s.name);
   }
-  return { ch, word, effects, color, size, appearMs: t };
+  return { ch, word, effects, color, size, appearMs: t, pacing };
 }
 
 // ---- layout -----------------------------------------------------------------------------------

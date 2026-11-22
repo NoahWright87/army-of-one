@@ -35,7 +35,7 @@ export interface BattleSession {
 /** (PHASE18) Scene-side extras of a session: created with the scene, updated every frame. */
 export interface SessionOverlay {
   /** `liveId`: the soldier this session drives. */
-  create(scene: Phaser.Scene, liveId: string): void;
+  create(scene: Phaser.Scene, liveId: string, display: DisplaySettings): void;
   /** After every sim step, with the new view (its events are that step's). */
   onStep?(view: WorldView): void;
   /** After the world is drawn: the live soldier's drawn position and this frame's input. */
