@@ -269,7 +269,16 @@ export class GameController {
     if (res.ok) {
       this.mission = res.state;
       await this.loadStats();
-      await this.loadTape();
+      // (PHASE19, owner 2026-11-21) Saves from before the tape are dropped: a mission with
+      // recorded lives but no tape starts fresh.
+      if (!(await this.loadTape()) && res.state.soldiers.length > 0) {
+        this.log('Save has no battle tape (older version); starting fresh');
+        await clearMission(this.a.store, this.a.map.id);
+        this.mission = emptyMission(this.a.map.id, this.a.map.rev);
+        this.rescues = 0;
+        this.reachedTick = null;
+        res = { ok: false, error: 'notFound', message: 'no tape' };
+      }
     } else if (res.error === 'corrupt') {
       this.log(`Save unreadable (${res.message}); starting fresh`);
     }
@@ -991,17 +1000,20 @@ export class GameController {
     await this.a.store.set(this.tapeKey(), await packJson({ v: 1, frames }));
   }
 
-  private async loadTape(): Promise<void> {
+  /** Loads the saved tape; false if there is none (or it can't be read). */
+  private async loadTape(): Promise<boolean> {
     try {
       const raw = await this.a.store.get(this.tapeKey());
-      if (!raw) return;
+      if (!raw) return false;
       const t = await unpackJson<{ v: number; frames: TapeFrame[] }>(raw);
-      if (t.v !== 1 || !Array.isArray(t.frames)) return;
+      if (t.v !== 1 || !Array.isArray(t.frames) || t.frames.length === 0) return false;
       this.tape = new Tape(t.frames);
       this.keepTapeUntil = this.tape.end ?? -1;
       this.tapeSaved = `${this.tape.length}:${this.tape.start}:${this.tape.end}`;
+      return true;
     } catch (e) {
-      this.log(`Tape unreadable (${String(e)}); it will be re-simulated`);
+      this.log(`Tape unreadable (${String(e)})`);
+      return false;
     }
   }
 

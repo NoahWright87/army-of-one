@@ -24,22 +24,52 @@ Owner session 2026-11-21 (after the in-world respawn POC, `todos/POC-inworld-res
 ## Steps
 
 1. **Tape** (this phase's core)
-   - [ ] `src/sim/tape/`: frames every `tape.frameEveryTicks` (a compact view of the world) +
-         every event, a `Tape` that stitches runs (a run replaces the tape from its first new
-         tick on), `frameAt(tick)` with interpolation.
-   - [ ] Every run records: attempts and resolve passes (also in the worker).
-   - [ ] The after-action replay plays the tape (no re-simulation from 0:00).
-   - [ ] Handoff: during a lead-in the screen shows the tape; at the control tick the sim is
-         aligned to the tape's frame (positions, HP, alive), and drift is logged in dev builds.
-   - [ ] Resume lead-ins lose the 1 HP floor ([D5] → owner 2026-11-21).
-   - [ ] Save format: the tape is saved with the mission; old saves are dropped.
-   - [ ] Hide share links; keep 2–3 replays in total.
-2. **One continuous view**: a clock that eases through the tape at any rate, forward or back;
-   a death slows time and plays to the frontier; deploying rewinds into the run-in.
-3. **Respawn controls**: lettered chevrons (Alpha, Bravo…) stacked over the timeline, the
-   last-used one highlighted; the minimap (tap/drag to look); pinch/wheel zoom; tap a saved
-   soldier to slide to their time; a clear "respawn mode" look; no big redeploy button.
+   - [x] `src/sim/tape/`: frames every `attempt.tapeFrameEveryTicks` (a `WorldView`) + every
+         event, a `Tape` that stitches runs (a run replaces the tape from its control tick on),
+         `viewAt(tick)` with blending.
+   - [x] Every run records: attempts and resolve passes (also in the worker).
+   - [x] The after-action replay plays the tape (no re-simulation from 0:00).
+   - [x] Handoff: until control the run is set to the tape at every frame it has (positions,
+         facing, HP; objectives' HP); the controller logs any drift left at the control tick.
+   - [x] Resume lead-ins lose the 1 HP floor ([D5] → owner 2026-11-21).
+   - [x] Save: the tape is saved with the mission (deflated) and loaded on boot.
+   - [x] Hide share links (`?share=1` brings them back); keep 3 replays in total.
+2. **One continuous view**
+   - [x] A clock (`src/render/time-clock.ts`) that plays at a rate or glides to a time (eased,
+         ~0.3–1.3 s whatever the distance), inside what has played.
+   - [x] The battle scene's respawn mode plays the tape on it; a death slows time to ¼ and
+         plays on to the frontier; deploying glides back to the lead-in start and the run
+         continues in the same scene (`BattleScene.adopt`). No death freeze.
+3. **Respawn controls** (`src/ui/inworld/`)
+   - [x] Lettered chevrons stacked over the timeline (A, B, C… = Alpha, Bravo, Charlie…;
+         resumes by soldier number), last-used in gold; deaths as red ticks; a hatched
+         not-yet-played part.
+   - [x] Circles on spawn points and on saved soldiers whenever they're on screen; tap (or a
+         chevron) glides time and camera there and opens the card (roles + DEPLOY / RESUME).
+   - [x] Minimap: bigger on wide screens, tap/drag to look. Wheel and pinch zoom, drag to pan.
+   - [x] Respawn look: the world desaturates, a vignette, the HUD gives way; controls fade.
+   - [x] R / Space select the last spawn, again to deploy. No big redeploy button.
 
 ## Notes from implementation
 
-(filled in as it goes)
+- **Why replays didn't win** (the tutorial's stuck gate): an echo only snapped onto its
+  recording within `echo.snapDistance` (4 px), less than a tick of walking plus a crowd push
+  and far below a sprint step. A jostled or sprinting echo fell off schedule, got stuck on a
+  soldier the live run had brushed past, and its recorded shots were skipped. The snap limit is
+  now the soldier's fastest step plus the max push (`EchoController.snapLimit`).
+- **Live ≠ echo, by nature**: a live soldier and an enemy shove each other half and half while
+  an echo replays pinned to its path; an echo's "how much is it moving" (visibility) comes from
+  its motion, not input. So re-simulating a stretch someone played live drifts a little. The
+  tape fixes what matters: replays play the tape, and runs are glued to it until control
+  (`sim/tape/align.ts`). Truth folds (lanes, X/O) still come from re-simulation after control.
+- Drift tools: `sim/tape/drift.ts` (`firstDrift`, `compareViews`), `__aoo.checkDrift()` in the
+  browser, and the controller logs "Handoff at tick …" if the sim and tape disagree at control.
+  Tests: a bot army with enemies (Breach, basic training) and the real flow with resumes.
+- Tape size: ~2 MB of JSON per 9 s of battle with ~46 soldiers in memory (70 KB deflated in the
+  save). Long missions will want trimming (fewer frames for old battle time, or a compact
+  frame format) — not done.
+- `flow.inWorldRespawn` (F2 → Game, on) switches it all; off = the old respawn screen. Basic
+  training and autoplay keep the old screen.
+- Not done: reverse playback with effects (going back is silent), timeline captures/objective
+  marks, the old screen's lane-change captions ("Soldier 3 now survives"), sounds pitched with
+  time, phone pinch tested only by code (not on a device), basic training's respawn station.

@@ -1170,11 +1170,22 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   menu's confirm). Touch has no auto-aim/auto-fire in the HQ (it kept closing the signs); tap to
   fire on the range. Watching a replay opens the old replay viewer (`?scene=title`), which ends
   on the old menu, not back in the HQ.
-- **[Q64] In-world respawn (POC, `todos/POC-inworld-respawn.md`).** Built behind
-  `flow.inWorldRespawn` (on): the respawn screen is replaced by the battle replay with spawn
-  circles and jump buttons. Guesses to confirm: circles show for every new spawn point always,
-  resumes within 3 s of their O; a death jump plays from 3 s before; it opens on the death. Fog
-  of war while picking is deferred.
+- **[Q64] In-world respawn (PHASE19, owner session 2026-11-21: answers given in chat, to promote).**
+  One continuous view: no respawn screen; dying slows time and the battlefield becomes the
+  respawn view (UI fades, camera free, time glides, never jumps). Spawn options are chevrons on
+  the timeline, lettered A/B/C (Alpha, Bravo, Charlie), stacked at the same time, the last used
+  highlighted; no big redeploy button; R / Space slide to the last spawn. Deploying glides back
+  into the lead-in. The death slow motion stops at what's recorded. Fog of war while picking:
+  deferred. Built behind `flow.inWorldRespawn` (on).
+- **[Q65] The battle tape is truth (PHASE19, owner 2026-11-21, to promote).** What played is
+  recorded (every unit, human and AI) and is what replays and rewinding show; the past before
+  the player takes control can't change; the lead-in is a replay for everyone and the sim takes
+  over exactly at control (AIs may switch targets then). Saves carry the tape; old saves are
+  dropped; share links are hidden until there's a backend; 3 replays kept in total.
+- **[Q66] Invincibility only for brand-new soldiers (owner 2026-11-21, to promote).** Resumes,
+  echoes and replays get none (was [D5]'s 1 HP floor in every lead-in, and [Q9]). New soldiers
+  have none today either; a safer spawn may replace it. Also: [D5]'s "5-second lead-in" text is
+  outdated, it's ~2 s since [D128].
 
 - **[AQ59] Resolved** by [A122]: the owner accepted the proposed role-to-base mapping.
 - **[AQ60] Resolved** by [A123]: the owner accepted the proposed miniature states.

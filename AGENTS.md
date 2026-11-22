@@ -161,9 +161,13 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   mission-01/02 were removed; `?mission=` with any other id (or an old remembered pick) falls
   back to Breach, and old saves for removed missions are ignored. The title-screen picker only
   shows with more than one mission.
-- In-world respawn (POC, `todos/POC-inworld-respawn.md`): F2 → Game → `flow.inWorldRespawn` (on)
-  replaces the respawn screen with the battle replay (`src/ui/inworld/`): spawn circles, jump
-  buttons `|◀ ▶|` between spawns and deaths, money at the scrub time. Off = the old screen.
+- Battle tape + one continuous view (PHASE19, `todos/PHASE19-tape.md`): every run records the
+  whole world (`src/sim/tape/`); replays play the tape; runs are glued to it until the player
+  takes control (`sim/tape/align.ts`). F2 → Game → `flow.inWorldRespawn` (on): dying turns the
+  battle scene into the respawn view (`BattleScene.enterRespawn`, `src/render/time-clock.ts`,
+  `src/ui/inworld/`): lettered chevrons on the timeline, circles on spawns and saved soldiers,
+  time glides, deploying continues in the same scene (`adopt`). `__aoo.checkDrift()` re-simulates
+  and reports the first difference with the tape. Share links are hidden (`?share=1`).
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
   Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier throws at the cursor;

@@ -1,5 +1,7 @@
 # POC: In-world respawn
 
+**Superseded by `todos/PHASE19-tape.md`** (the battle scene's respawn mode on the battle tape).
+
 The owner's idea (2026-11-21): drop the respawn screen and pick spawns **inside the battle
 replay**. The timeline becomes something like a minimap of what you've done. You watch history play out
 (and see how soldiers died) instead of reading lanes, then tap a circle on the battlefield to
