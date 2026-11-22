@@ -37,6 +37,7 @@ const cover = (id: string, material: CoverDef['material'], rect: Rect): CoverDef
 });
 
 const rangeTower = { x: 1130, y: 1350, w: 140, h: 135 };
+const lobbyWallWalk = { x: 1330, y: 620, w: 240, h: 75 };
 const parapet = (side: string, rect: Rect): CoverDef => ({
   ...cover(`range-tower-${side}`, 'halfWall', rect),
   bullet: 0.4, // TUNE: tower walls stop 40% of crossing shots
@@ -63,6 +64,8 @@ export const HUB_MAP: MapDef = {
     { x: 1640, y: 900, w: 40, h: 260 },
     { x: 2240, y: 40, w: 40, h: 520 },
     { x: 2240, y: 680, w: 40, h: 480 },
+    // Solid face of the lobby practice wall, below its walkable top.
+    { x: 1330, y: 695, w: 240, h: 24 },
     // Lobby / range wall (door at x 1140–1260).
     { x: 40, y: 1160, w: 1100, h: 40 },
     { x: 1260, y: 1160, w: 1100, h: 40 },
@@ -72,14 +75,18 @@ export const HUB_MAP: MapDef = {
     { id: 'gate-skirmish', rect: { x: 120, y: 560, w: 40, h: 120 }, initiallyOpen: false },
     { id: 'gate-campaign', rect: { x: 2240, y: 560, w: 40, h: 120 }, initiallyOpen: false },
   ],
-  raisedGround: [rangeTower],
-  ladders: [{ id: 'range-tower-ladder', bottom: { x: 1200, y: 1334 }, top: { x: 1200, y: 1366 } }],
+  raisedGround: [rangeTower, lobbyWallWalk],
+  ladders: [
+    { id: 'range-tower-ladder', bottom: { x: 1200, y: 1334 }, top: { x: 1200, y: 1366 } },
+    { id: 'lobby-wall-ladder', bottom: { x: 1450, y: 735 }, top: { x: 1450, y: 679 } },
+  ],
   cover: [
     parapet('south', { x: 1130, y: 1473, w: 140, h: 12 }),
     parapet('west', { x: 1130, y: 1350, w: 12, h: 123 }),
     parapet('east', { x: 1258, y: 1350, w: 12, h: 123 }),
     parapet('north-west', { x: 1142, y: 1350, w: 36, h: 12 }),
     parapet('north-east', { x: 1222, y: 1350, w: 36, h: 12 }),
+    cover('lobby-wall-parapet', 'halfWall', { x: 1330, y: 620, w: 240, h: 12 }),
     // The campaign table: walk round it, read it from any side.
     cover('war-table', 'halfWall', { x: 1830, y: 340, w: 260, h: 160 }),
     // The range's firing line: one of each kind of cover.
@@ -183,6 +190,7 @@ export const HUB_LABELS: readonly { key: StringKey; x: number; y: number; big?: 
   { key: 'title.name', x: 1100, y: 565, big: true },
   { key: 'hub.label.skirmish', x: 860, y: 840 },
   { key: 'hub.label.war', x: 1540, y: 840 },
+  { key: 'hub.label.wallWalk', x: 1450, y: 765 },
   { key: 'hub.label.tower', x: 1200, y: 1305 },
   { key: 'hub.label.range', x: 1200, y: 1110 },
   { key: 'hub.label.dev', x: 1550, y: 570 },

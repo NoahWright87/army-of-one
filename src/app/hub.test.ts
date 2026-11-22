@@ -120,6 +120,24 @@ describe('HQ', () => {
     expect(soldierVisibility(d.world, s)).toBe(1);
   });
 
+  it('blocks the lobby wall face away from the ladder and allows a two-way climb', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const s = getSoldier(d.world, d.liveId)!;
+    const north = { ...IDLE_INPUT, move: { x: 0, y: -1 } };
+    const south = { ...IDLE_INPUT, move: { x: 0, y: 1 } };
+    s.x = 1400;
+    s.y = 765;
+    for (let i = 0; i < 120; i++) d.step(north);
+    expect(s.y).toBeCloseTo(729);
+
+    s.x = 1450;
+    s.y = 765;
+    for (let i = 0; i < 120; i++) d.step(north);
+    expect(s.y).toBeCloseTo(642);
+    for (let i = 0; i < 120; i++) d.step(south);
+    expect(s.y).toBeGreaterThan(735);
+  });
+
   it('shooting a range target downs it', () => {
     const d = new HubDriver(DEFAULT_TUNING, () => {});
     const t = d.targets[0]!;

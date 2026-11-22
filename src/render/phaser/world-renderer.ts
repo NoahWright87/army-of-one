@@ -354,7 +354,7 @@ export class WorldRenderer {
         }
       }
     }
-    if (map.raisedGround?.length || map.ladders?.length) {
+    if (map.raisedGround?.length) {
       const g = scene.add.graphics().setDepth(DEPTH.walls - 0.4);
       for (const { x, y, w, h } of map.raisedGround ?? []) {
         g.fillStyle(0x202024, 0.4).fillRect(x + 7, y + 9, w, h);
@@ -363,7 +363,10 @@ export class WorldRenderer {
         for (let row = y + 10; row < y + h; row += 10) g.lineBetween(x, row, x + w, row);
         g.lineStyle(3, 0x352f2b).strokeRect(x, y, w, h);
       }
-      for (const { bottom, top } of map.ladders ?? []) {
+    }
+    if (map.ladders?.length) {
+      const g = scene.add.graphics().setDepth(DEPTH.walls + 0.6);
+      for (const { bottom, top } of map.ladders) {
         const length = Math.hypot(top.x - bottom.x, top.y - bottom.y);
         if (length === 0) continue;
         const nx = ((top.y - bottom.y) / length) * 9;
