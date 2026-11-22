@@ -35,11 +35,6 @@ export function xToTick(v: TimeView, x: number): number {
   return v.startTick + x / v.pxPerTick;
 }
 
-/** Ticks visible across the plot. */
-export function visibleTicks(v: TimeView): number {
-  return v.width / v.pxPerTick;
-}
-
 /** The whole domain on screen with a little padding on both sides. */
 export function fitView(domain: TimeDomain, width: number, padPx = FIT_PAD_PX): TimeView {
   const w = Math.max(1, width);
@@ -84,11 +79,6 @@ export function zoomAt(v: TimeView, anchorX: number, factor: number, domain: Tim
 /** Pans by a pointer drag of `dx` px (dragging right shows earlier time). */
 export function panBy(v: TimeView, dx: number, domain: TimeDomain): TimeView {
   return clampView({ ...v, startTick: v.startTick - dx / v.pxPerTick }, domain);
-}
-
-/** Same view at a new plot width, keeping the left edge (or refitting if it was fitted). */
-export function resizeView(v: TimeView, width: number, domain: TimeDomain, wasFit: boolean) {
-  return wasFit ? fitView(domain, width) : clampView({ ...v, width }, domain);
 }
 
 /** True when the view is (approximately) the fitted view. */

@@ -853,7 +853,7 @@ export class RespawnScreen {
           ? this.spawnRowSvg(r, labelW, totalW, x, plotRight, sel)
           : r.compact
             ? this.compactRowSvg(r, totalW, x)
-            : this.rowSvg(r.row, i, r.y, r.h, labelW, totalW, x, sel, t),
+            : this.rowSvg(r.row, i, r.y, r.h, totalW, x, sel, t),
       ),
     );
     out.push(this.branchesSvg(rows, x));
@@ -953,7 +953,6 @@ export class RespawnScreen {
     i: number,
     y0: number,
     rowH: number,
-    labelW: number,
     totalW: number,
     x: (t: number) => number,
     sel: SpawnOption | null,

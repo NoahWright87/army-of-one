@@ -10,7 +10,7 @@
  * official blocks. Pure TS: no DOM, no Phaser.
  */
 import type { RoleId } from '../contracts/mission';
-import { BLOCK_CELLS, isGroundKind, type GroundKind } from '../content/ground';
+import { BLOCK_CELLS, isGroundKind } from '../content/ground';
 import type { CoverMaterial } from '../sim/world/map';
 
 /**
@@ -133,11 +133,6 @@ export function newBlock(id = 'block-1', name = 'New block'): BlockDef {
 export function onEdge(col: number, row: number): boolean {
   const last = BLOCK_CELLS - 1;
   return col === 0 || row === 0 || col === last || row === last;
-}
-
-export function groundAt(block: BlockDef, col: number, row: number): GroundKind {
-  const ch = block.ground[row]?.[col] ?? 'G';
-  return isGroundKind(ch) ? ch : 'G';
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -792,10 +792,6 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   ...Object.entries(SOUND_ASSETS).map(([key, def]) => ({ ...def, key: key as AssetKey })),
 ];
 
-export function imageAsset(key: ImageKey): ImageAssetDef {
-  return IMAGE_ASSETS[key];
-}
-
 /** Pixels of the image that correspond to the entity's logical size. */
 export function fitPx(key: ImageKey): number {
   const a: ImageAssetDef = IMAGE_ASSETS[key];
