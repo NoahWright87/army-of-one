@@ -37,7 +37,10 @@ export function rotateMap(map: MapDef, q: number): MapDef {
     ...map,
     width: turns % 2 ? H : W,
     height: turns % 2 ? W : H,
-    walls: rects(map.walls),
+    walls: map.walls.map((wall) => ({
+      ...rect(wall),
+      ...(wall.fireOverFrom && { fireOverFrom: rect(wall.fireOverFrom) }),
+    })),
     water: rects(map.water),
     spawnPoints: map.spawnPoints.map((s) => ({
       ...s,

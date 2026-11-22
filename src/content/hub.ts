@@ -65,7 +65,7 @@ export const HUB_MAP: MapDef = {
     { x: 2240, y: 40, w: 40, h: 520 },
     { x: 2240, y: 680, w: 40, h: 480 },
     // Solid face of the lobby practice wall, below its walkable top.
-    { x: 1330, y: 695, w: 240, h: 24 },
+    { x: 1330, y: 695, w: 240, h: 24, fireOverFrom: lobbyWallWalk },
     // Lobby / range wall (door at x 1140–1260).
     { x: 40, y: 1160, w: 1100, h: 40 },
     { x: 1260, y: 1160, w: 1100, h: 40 },

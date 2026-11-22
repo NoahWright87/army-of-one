@@ -204,6 +204,11 @@ export interface SquadDef {
   rally?: Vec2[];
 }
 
+/** A solid wall face can sit below an adjacent raised firing surface. */
+export interface WallDef extends Rect {
+  fireOverFrom?: Rect;
+}
+
 export interface LadderDef {
   id: string;
   bottom: Vec2;
@@ -219,7 +224,7 @@ export interface MapDef {
   width: number;
   height: number;
   /** Solid walls: block movement and shots. */
-  walls: Rect[];
+  walls: WallDef[];
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
   /**

@@ -4,7 +4,7 @@ import { DEFAULT_TUNING } from '../content/tuning';
 import { gunRange, mountTicksNeeded } from '../sim/combat/guns';
 import { secondsToTicks } from '../sim/core/time';
 import { IDLE_INPUT } from '../sim/entities/soldier';
-import { getSoldier } from '../sim/sim';
+import { castRay, getSoldier, hasLineOfSight } from '../sim/sim';
 import { HUB_TARGET_RESPAWN_S, HubDriver } from './hub';
 import { canFireOver, standingCover } from '../sim/world/cover';
 import { soldierVisibility } from '../sim/world/concealment';
@@ -134,6 +134,17 @@ describe('HQ', () => {
     s.y = 765;
     for (let i = 0; i < 120; i++) d.step(north);
     expect(s.y).toBeCloseTo(642);
+    const ground = { x: s.x, y: 765 };
+    expect(hasLineOfSight(d.world, s, ground, 'player')).toBe(true);
+    expect(hasLineOfSight(d.world, ground, s, 'enemy')).toBe(false);
+    // A flight segment about to enter the face still uses the wall-top launch position.
+    expect(
+      castRay(d.world, { x: s.x, y: 690 }, Math.PI / 2, 10, 'player', {
+        coverKey: 'wall-walk-test',
+        fireOverFrom: s,
+      }).target,
+    ).toBeNull();
+    expect(castRay(d.world, ground, -Math.PI / 2, 50, 'player').target?.kind).toBe('wall');
     for (let i = 0; i < 120; i++) d.step(south);
     expect(s.y).toBeGreaterThan(735);
   });
