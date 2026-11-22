@@ -212,7 +212,9 @@ export class BasicTraining {
     if (resume && resume.kind === 'resume' && !taught('resume')) {
       return { kind: 'resume', soldierId: resume.soldierId, text: 'bt.coach.resume' };
     }
-    const role = p.unlocked.find((r) => r !== 'rifleman' && !taught(`role:${r}`));
+    // The newest class first: it's the one for the room you're stuck in (the Grenadier at the
+    // parapet, not an MG lesson you skipped earlier).
+    const role = [...p.unlocked].reverse().find((r) => r !== 'rifleman' && !taught(`role:${r}`));
     const sp =
       FORWARD.find((id) => options.some((o) => o.kind === 'new' && o.spawnPointId === id)) ?? null;
     const def = sp ? BASIC_TRAINING.spawnPoints.find((x) => x.id === sp) : undefined;

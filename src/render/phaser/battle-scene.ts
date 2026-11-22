@@ -464,6 +464,8 @@ export class BattleScene extends Phaser.Scene {
    */
   adopt(session: BattleSession): void {
     this.source.destroy();
+    // The last run's extras (basic training's sergeant, his words, the signs) go with it.
+    this.session.overlay?.destroy?.();
     this.session = session;
     this.rs = null;
     this.cameras.main.setBounds(0, 0, session.world.map.width, session.world.map.height);

@@ -81,6 +81,13 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         .setResolution(2);
       scene.events.once('shutdown', () => speech.destroy());
     },
+    destroy() {
+      speech.destroy();
+      signs.destroy();
+      body.destroy();
+      tag.destroy();
+      floor.destroy();
+    },
     onStep(view: WorldView) {
       const me = view.soldiers.find((x) => x.id === liveId);
       const now = scene.time.now;

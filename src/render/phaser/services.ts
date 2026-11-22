@@ -40,6 +40,11 @@ export interface SessionOverlay {
   onStep?(view: WorldView): void;
   /** After the world is drawn: the live soldier's drawn position and this frame's input. */
   update(nowMs: number, live: Vec2 | null, input: SoldierInput): void;
+  /**
+   * (PHASE19) Removes what `create` added: the scene carries on with the next run's session
+   * (`BattleScene.adopt`) instead of shutting down.
+   */
+  destroy?(): void;
 }
 
 /** What the scene needs from a driven battle (app/live-run.ts implements it). */

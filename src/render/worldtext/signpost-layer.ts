@@ -397,7 +397,12 @@ export class SignpostLayer {
     s.frameH = h;
   }
 
+  private destroyed = false;
+
   destroy(): void {
+    // (PHASE19) Also called when a run hands the scene to the next one, then on shutdown.
+    if (this.destroyed) return;
+    this.destroyed = true;
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('pointerup', this.onUp, true);
     window.removeEventListener('pointercancel', this.onUp, true);
