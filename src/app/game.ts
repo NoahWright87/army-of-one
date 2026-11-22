@@ -42,7 +42,8 @@ import { secondsToTicks, type Tick } from '../sim/core/time';
 import type { Vec2 } from '../sim/core/vec';
 import { getSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
-import { Tape } from '../sim/tape/tape';
+import { Tape, type TapeFrame } from '../sim/tape/tape';
+import { packJson, unpackJson } from './share';
 import { compareViews } from '../sim/tape/drift';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
@@ -206,6 +207,13 @@ export class GameController {
   snapshots = new SnapshotStore();
   /** (PHASE19) The battle tape: what actually played (truth for playback and replays). */
   tape = new Tape();
+  /**
+   * (PHASE19) After a reload the tape is loaded from the save; the background re-simulation
+   * from 0:00 only rebuilds snapshots up to here and never overwrites what played.
+   */
+  private keepTapeUntil = -1;
+  /** (PHASE19) The tape as last saved (end tick and frame count): skip unchanged saves. */
+  private tapeSaved = '';
   run: LiveRun | null = null;
   rescues = 0;
   /** Last simulated tick of the latest attempt (respawn header). */
@@ -256,6 +264,7 @@ export class GameController {
     if (res.ok) {
       this.mission = res.state;
       await this.loadStats();
+      await this.loadTape();
     } else if (res.error === 'corrupt') {
       this.log(`Save unreadable (${res.message}); starting fresh`);
     }
@@ -285,6 +294,8 @@ export class GameController {
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
     this.snapshots = new SnapshotStore(snapshotThinning(this.tuning));
     this.tape = new Tape();
+    this.keepTapeUntil = -1;
+    this.tapeSaved = '';
     this.rescues = 0;
     this.reachedTick = null;
     this.lastObservation = null;
@@ -592,6 +603,7 @@ export class GameController {
     const reason = over === 'missionComplete' || over === 'historyShifted' ? over : 'death';
     const res = attempt.finish();
     this.tape.splice(attempt.tapeFromTick, attempt.drainTape());
+    this.keepTapeUntil = -1;
     const live = attempt.live!;
     this.mission.attemptCount = Math.max(this.mission.attemptCount, attempt.attemptNumber);
     if (res.liveSegment) {
@@ -720,13 +732,13 @@ export class GameController {
       {
         onProgress: (obs, snaps, frames) => {
           if (this.resolveJob !== job) return;
-          this.tape.append(frames);
+          this.appendResolved(frames);
           this.resolve!.snaps.push(...snaps);
           this.onResolved(obs, false);
         },
         onDone: (obs, snaps, frames) => {
           if (this.resolveJob !== job) return;
-          this.tape.append(frames);
+          this.appendResolved(frames);
           this.resolve!.snaps.push(...snaps);
           this.onResolved(obs, true);
           this.commitResolve(obs.toTick);
@@ -946,6 +958,7 @@ export class GameController {
       const r = await this.saver.save(state);
       if (!r.ok) this.log(`Save failed: ${r.message}`);
       await this.a.store.set(this.statsKey(), JSON.stringify(stats));
+      await this.saveTape();
       this.emit({ type: 'saved' });
     });
   }
@@ -955,6 +968,41 @@ export class GameController {
   }
 
   /** App-level extras next to the mission save: rescue count and last battle time reached. */
+  // ---------- (PHASE19) the tape in the save ----------
+
+  private tapeKey(): string {
+    return `${this.saver.keys.prefix}tape`;
+  }
+
+  /** Saves the tape (deflated) when it changed since the last save. */
+  private async saveTape(): Promise<void> {
+    const sig = `${this.tape.length}:${this.tape.start}:${this.tape.end}`;
+    if (sig === this.tapeSaved || this.tape.length === 0) return;
+    this.tapeSaved = sig;
+    const frames = this.tape.all();
+    await this.a.store.set(this.tapeKey(), await packJson({ v: 1, frames }));
+  }
+
+  private async loadTape(): Promise<void> {
+    try {
+      const raw = await this.a.store.get(this.tapeKey());
+      if (!raw) return;
+      const t = await unpackJson<{ v: number; frames: TapeFrame[] }>(raw);
+      if (t.v !== 1 || !Array.isArray(t.frames)) return;
+      this.tape = new Tape(t.frames);
+      this.keepTapeUntil = this.tape.end ?? -1;
+      this.tapeSaved = `${this.tape.length}:${this.tape.start}:${this.tape.end}`;
+    } catch (e) {
+      this.log(`Tape unreadable (${String(e)}); it will be re-simulated`);
+    }
+  }
+
+  /** A resolve pass's frames: what played stays (see `keepTapeUntil`), the rest extends it. */
+  private appendResolved(frames: TapeFrame[]): void {
+    const keep = this.keepTapeUntil;
+    this.tape.append(keep < 0 ? frames : frames.filter((f) => f.tick > keep));
+  }
+
   private async loadStats(): Promise<void> {
     try {
       const raw = await this.a.store.get(this.statsKey());

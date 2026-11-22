@@ -114,6 +114,15 @@ export async function offerLink(
 
 // ---------- bytes ----------
 
+/** (PHASE19) Any JSON value, deflated and base64url-encoded (the saved battle tape). */
+export async function packJson(value: unknown): Promise<string> {
+  return toBase64Url(await deflate(new TextEncoder().encode(JSON.stringify(value))));
+}
+
+export async function unpackJson<T>(packed: string): Promise<T> {
+  return JSON.parse(new TextDecoder().decode(await inflate(fromBase64Url(packed)))) as T;
+}
+
 async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream) {
   const out = new Response(
     new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(stream),

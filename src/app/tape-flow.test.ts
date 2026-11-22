@@ -39,4 +39,23 @@ describe('battle tape through the game flow', () => {
     // Every handoff (the tick the player took control) agreed with the tape.
     expect(h.logs.filter((m) => m.startsWith('Handoff'))).toEqual([]);
   }, 120000);
+
+  it('the tape is saved with the mission and survives a reload untouched', async () => {
+    const h = createHarness({ map: MISSION_03, tuning: DEFAULT_TUNING });
+    await h.game.boot();
+    await h.game.newMission();
+    for (const life of ['breach-slow', 'breach-naive']) {
+      await h.play(life);
+      await h.settle();
+    }
+    const before = h.game.tape.all().map((f) => JSON.stringify(f.view.soldiers));
+    expect(before.length).toBeGreaterThan(10);
+
+    const again = createHarness({ map: MISSION_03, tuning: DEFAULT_TUNING, store: h.store });
+    await again.game.boot();
+    await again.game.continueMission();
+    await again.settle();
+    const after = again.game.tape.all().map((f) => JSON.stringify(f.view.soldiers));
+    expect(after.slice(0, before.length)).toEqual(before);
+  }, 120000);
 });
