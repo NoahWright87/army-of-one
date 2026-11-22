@@ -1,18 +1,22 @@
 /**
- * (POC) In-world respawn: the respawn screen's job done on the battlefield. The battle replay
- * (`ReplayScene`) shows the current truth; this DOM layer adds the money at the scrub time, a
- * scrub bar marked with spawns and deaths, jump buttons (|◀ ◀◀ ▶ ▶▶ ▶|), and circles in the
- * world for every spawn option near the scrub time. Tapping a circle snaps to its time and
- * opens a small card: RESUME, or the roles + DEPLOY for a new soldier.
- *
- * Everything it deploys is a `SpawnOption` the game controller offered, so the rules are the
- * respawn screen's own; only the presentation changes.
+ * (PHASE19) The respawn controls over the battlefield. The battle scene is in respawn mode
+ * (`TimeControls`): it plays the tape on a smooth clock; this DOM layer adds:
+ * - the money at the shown time, big at the top;
+ * - a timeline: spawn options as lettered chevrons stacked above it (A, B, C… = Alpha, Bravo,
+ *   Charlie…; a saved soldier's number for a resume), the last-used one highlighted; deaths as
+ *   red ticks; a hatched part past what has played;
+ * - |◀ ▶| (previous / next spawn or death), ◀◀ (back 5 s), play / pause, ▶▶ (fast);
+ * - circles in the world: every spawn point, and every saved soldier while they're on screen.
+ *   Tapping one (or its chevron) glides time and the camera there and opens a small card: the
+ *   roles + DEPLOY, or RESUME. Nothing ever jumps.
+ * R / Space selects the last-used spawn (a second press deploys). Everything deployed is a
+ * `SpawnOption` the game controller offered: the rules are the controller's.
  */
 import { str } from '../../content/strings';
 import { roleIconSvg } from '../../content/role-icons';
 import { ROLES } from '../../content/roles';
 import type { RoleId, SpawnOption } from '../../contracts/mission';
-import type { ReplayControls } from '../../render/phaser/replay-scene';
+import type { TimeControls } from '../../render/time-controls';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
 import { availableAt, formatMoney } from '../../timeline/economy';
 import { el, injectStyle } from '../dom';
@@ -26,24 +30,30 @@ import {
 } from '../respawn/respawn-model';
 import {
   buildStops,
+  chevrons,
   nearbyOptions,
   optionKeyOf,
   optionPlace,
   optionTick,
+  spawnLetter,
+  spawnName,
   stepStop,
+  type Chevron,
   type Stop,
 } from './inworld-model';
 
-/** Spawn circles show this close to their time. TUNE */
+/** A resume circle shows on its soldier this long around their resume time. TUNE */
 const NEAR_TICKS = 3 * TICKS_PER_SECOND;
-/** A death jump starts this long before the death and stops this long after. TUNE */
-const DEATH_LEAD = 3 * TICKS_PER_SECOND;
-const DEATH_TAIL = Math.round(0.75 * TICKS_PER_SECOND);
+/** A death jump lands this long before the death and plays it. TUNE */
+const DEATH_LEAD = 2 * TICKS_PER_SECOND;
 const BACK_TICKS = 5 * TICKS_PER_SECOND;
 const FAST = 4;
 
 const CSS = `
-.aoo-iw { position: fixed; inset: 0; z-index: 24; pointer-events: none; font: 14px system-ui, sans-serif; color: #e6e9ec; }
+.aoo-iw { position: fixed; inset: 0; z-index: 24; pointer-events: none; font: 14px system-ui, sans-serif; color: #e6e9ec;
+  opacity: 0; transition: opacity .45s ease; }
+.aoo-iw.on { opacity: 1; }
+.aoo-iw .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(8,12,18,.55) 100%); }
 .aoo-iw .top { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); text-align: center;
   text-shadow: 0 2px 6px rgba(0,0,0,.8); }
 .aoo-iw .money { font: 800 30px system-ui, sans-serif; color: #ffd34d; }
@@ -56,23 +66,31 @@ const CSS = `
 .aoo-iw .bar button { min-width: 42px; min-height: 40px; border-radius: 6px; border: 1px solid #3c4650; background: #222a32;
   color: #e6e9ec; font: 700 15px system-ui, sans-serif; cursor: pointer; }
 .aoo-iw .bar button.on { border-color: #ffd34d; color: #ffd34d; }
-.aoo-iw .scrub { position: relative; flex: 1; height: 32px; cursor: pointer; touch-action: none; min-width: 120px; }
+.aoo-iw .scrub { position: relative; flex: 1; height: 32px; cursor: pointer; touch-action: none; min-width: 120px; margin: 0 14px; }
+.aoo-iw .bar { padding-top: 34px; }
 .aoo-iw .scrub .track { position: absolute; left: 0; right: 0; top: 14px; height: 4px; background: #39424c; border-radius: 2px; }
 .aoo-iw .scrub .fill { position: absolute; left: 0; top: 14px; height: 4px; background: #c8d0d8; border-radius: 2px; }
-.aoo-iw .scrub .known { position: absolute; top: 14px; height: 4px; background: repeating-linear-gradient(90deg,#39424c 0 4px,transparent 4px 8px); }
-.aoo-iw .scrub .mark { position: absolute; transform: translateX(-50%); pointer-events: none; }
-.aoo-iw .scrub .mark.death { top: 6px; width: 3px; height: 20px; background: #ff4d4d; border-radius: 1px; }
-.aoo-iw .scrub .mark.resume { top: 9px; width: 14px; height: 14px; border: 3px solid #4dd87a; border-radius: 50%; box-sizing: border-box; background: #0c0f13; }
-.aoo-iw .scrub .mark.new { top: 10px; width: 12px; height: 12px; background: #5aa9ff; border-radius: 50%; }
-.aoo-iw .scrub .head { position: absolute; top: 2px; width: 2px; height: 28px; margin-left: -1px; background: #ffd34d; }
-.aoo-iw .time { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; color: #c8d0d8; }
-.aoo-iw .spot { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; pointer-events: auto;
+.aoo-iw .scrub .unknown { position: absolute; top: 12px; height: 8px; right: 0;
+  background: repeating-linear-gradient(135deg,#2a3038 0 4px,#14181d 4px 8px); border-radius: 2px; }
+.aoo-iw .scrub .death { position: absolute; top: 8px; width: 3px; height: 16px; margin-left: -1px; background: #ff4d4d; border-radius: 1px; pointer-events: none; }
+.aoo-iw .scrub .head { position: absolute; top: 2px; width: 2px; height: 28px; margin-left: -1px; background: #ffd34d; pointer-events: none; }
+.aoo-iw .bar .chev { position: absolute; transform: translateX(-50%); width: 26px; height: 24px; min-width: 0; min-height: 0;
+  pointer-events: auto; cursor: pointer; border: 0; border-radius: 0; padding: 0; background: none;
+  font: 800 12px system-ui, sans-serif; color: #0c0f13; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
+.aoo-iw .chev svg { position: absolute; inset: 0; }
+.aoo-iw .chev span { position: relative; top: 2px; }
+.aoo-iw .chev.new svg path { fill: #5aa9ff; }
+.aoo-iw .chev.resume svg path { fill: #4dd87a; }
+.aoo-iw .chev.last svg path { fill: #ffd34d; }
+.aoo-iw .bar .chev.sel { filter: drop-shadow(0 0 6px #fff); }
+.aoo-iw .spot { position: absolute; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; pointer-events: auto;
   cursor: pointer; display: grid; place-items: center; background: rgba(12,15,19,.35); border: 4px solid #5aa9ff;
-  color: #5aa9ff; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 16px rgba(90,169,255,.6); animation: aoo-iw-pulse 1.2s ease-in-out infinite; }
-.aoo-iw .spot.resume { border-color: #4dd87a; color: #4dd87a; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 16px rgba(77,216,122,.6); }
-.aoo-iw .spot.far { opacity: .45; animation: none; }
-.aoo-iw .spot.sel { border-color: #ffd34d; color: #ffd34d; }
-.aoo-iw .spot svg { width: 22px; height: 22px; }
+  color: #e6e9ec; font: 900 18px system-ui, sans-serif; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 16px rgba(90,169,255,.6); }
+.aoo-iw .spot.resume { border-color: #4dd87a; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 16px rgba(77,216,122,.7);
+  animation: aoo-iw-pulse 1.2s ease-in-out infinite; }
+.aoo-iw .spot.last { border-color: #ffd34d; }
+.aoo-iw .spot.far { opacity: .55; }
+.aoo-iw .spot.sel { border-color: #fff; opacity: 1; }
 @keyframes aoo-iw-pulse { 50% { transform: scale(1.12); } }
 .aoo-iw .card { position: absolute; pointer-events: auto; transform: translate(-50%, 0); background: rgba(12,15,19,.94);
   border: 1px solid #39424c; border-radius: 10px; padding: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.6); min-width: 200px; }
@@ -88,14 +106,18 @@ const CSS = `
   font: 900 18px system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; }
 .aoo-iw .go.resume { background: #4dd87a; }
 @media (max-width: 760px) {
-  .aoo-iw .bar { left: 6px; right: 6px; bottom: 6px; flex-wrap: wrap; padding: 6px; }
+  .aoo-iw .bar { left: 6px; right: 6px; bottom: 6px; flex-wrap: wrap; padding: 6px; padding-top: 30px; }
   .aoo-iw .scrub { flex-basis: 100%; order: -1; }
   .aoo-iw .time { display: none; }
   .aoo-iw .money { font-size: 24px; }
 }
 `;
 
+const CHEVRON_SVG =
+  '<svg viewBox="0 0 26 24" width="26" height="24" aria-hidden="true"><path d="M1 22 L13 2 L25 22 L13 16 Z"/></svg>';
+
 export interface InWorldOptions {
+  /** Deploy `o` (the caller glides into the lead-in first). */
   onDeploy(o: SpawnOption): void;
   /** A way out ("← HQ", "← Campaign"…). */
   back?: { label: string; run(): void };
@@ -108,23 +130,27 @@ export class InWorldRespawn {
   private readonly spots = el('div', 'spots');
   private readonly cardLayer = el('div', 'cards');
   private readonly fill = el('div', 'fill');
-  private readonly known = el('div', 'known');
+  private readonly unknown = el('div', 'unknown');
   private readonly marks = el('div', 'marks');
+  private readonly chevs = el('div', 'chevs');
   private readonly headEl = el('div', 'head');
+  private readonly scrub = el('div', 'scrub');
   private readonly time = el('span', 'time');
   private readonly playBtn = el('button', '', '▶');
   private readonly fastBtn = el('button', '', '▶▶');
-  private controls: ReplayControls | null = null;
+  private controls: TimeControls | null = null;
   private stops: Stop[] = [];
+  private chevList: Chevron[] = [];
   private current: string | null = null;
   /** The option whose card is open. */
   private open: SpawnOption | null = null;
-  /** Stop playing here (a death jump). */
-  private pauseAt: Tick | null = null;
+  private pauseAt: number | null = null;
   private spotEls = new Map<string, HTMLButtonElement>();
+  private chevEls = new Map<string, HTMLButtonElement>();
   private raf = 0;
-  private endTick: Tick = 1;
+  private lastFrontier = -1;
   private destroyed = false;
+  private readonly names = str('inworld.nato').split(',');
 
   constructor(
     parent: HTMLElement,
@@ -134,7 +160,7 @@ export class InWorldRespawn {
     injectStyle('aoo-iw-css', CSS);
     const top = el('div', 'top');
     top.append(this.money, this.clock);
-    this.root.append(this.spots, top, this.cardLayer, this.buildBar());
+    this.root.append(el('div', 'vignette'), this.spots, top, this.cardLayer, this.buildBar());
     if (opts.back) {
       const b = el('button', 'back', opts.back.label);
       b.onclick = () => opts.back?.run();
@@ -144,14 +170,11 @@ export class InWorldRespawn {
     this.rebuild();
   }
 
-  /** Hooks up the replay once its scene is ready; `endTick` is how far it runs. */
-  attach(controls: ReplayControls, endTick: Tick): void {
+  /** Hooks up the battlefield's controls and fades in. */
+  attach(controls: TimeControls): void {
     this.controls = controls;
-    this.endTick = Math.max(1, endTick);
-    controls.setSkipQuiet(false);
-    controls.setSpeed(1);
     this.renderMarks();
-    this.openingShot();
+    requestAnimationFrame(() => this.root.classList.add('on'));
     const loop = () => {
       if (this.destroyed) return;
       this.frame();
@@ -164,12 +187,18 @@ export class InWorldRespawn {
     this.props = { ...this.props, ...(u as Partial<RespawnProps>) };
     this.rebuild();
     this.renderMarks();
-    // The open card's option may have moved or gone (history changed under it).
     if (this.open) {
       const k = optionKeyOf(this.open);
       const same = this.props.options.find((o) => optionKeyOf(o) === k) ?? null;
       if (!same) this.closeCard();
+      else this.open = same;
     }
+  }
+
+  /** Fades out (the deploy's glide plays without the controls). */
+  fadeOut(): void {
+    this.root.classList.remove('on');
+    this.root.style.pointerEvents = 'none';
   }
 
   destroy(): void {
@@ -179,10 +208,30 @@ export class InWorldRespawn {
     this.root.remove();
   }
 
+  /**
+   * R / Space: select the last-used spawn (the quick-redeploy choice): the view and time glide
+   * there. Pressed again with it selected: deploy.
+   */
+  quickSelect(): void {
+    const pref = this.props.preferred ?? this.props.options[0];
+    if (!pref) return;
+    if (this.open && optionKeyOf(this.open) === optionKeyOf(pref)) {
+      this.deploy(this.open);
+      return;
+    }
+    this.select(pref);
+  }
+
   // ---------- setup ----------
 
   private rebuild(): void {
     this.stops = buildStops(this.props.options, this.props.lanes);
+    this.chevList = chevrons(
+      this.props.options,
+      this.props.map,
+      (id) => this.props.soldiers.find((r) => r.id === id)?.ordinal ?? ordinalFromId(id),
+      this.props.preferred,
+    );
   }
 
   private buildBar(): HTMLElement {
@@ -202,32 +251,53 @@ export class InWorldRespawn {
     this.fastBtn.title = str('inworld.fast');
     this.fastBtn.onclick = () => this.toggleFast();
     const next = btn('▶|', 'inworld.next', () => this.jump(1));
-    const scrub = el('div', 'scrub');
-    scrub.append(el('div', 'track'), this.known, this.fill, this.marks, this.headEl);
-    const seekAt = (clientX: number) => {
-      const c = this.controls;
-      if (!c) return;
-      const r = scrub.getBoundingClientRect();
-      const f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-      this.pauseAt = null;
-      this.current = null;
-      c.setPlaying(false);
-      c.seek(Math.round(f * this.endTick));
+    this.scrub.append(
+      el('div', 'track'),
+      this.fill,
+      this.unknown,
+      this.marks,
+      this.headEl,
+      this.chevs,
+    );
+    const tickAt = (clientX: number) => {
+      const r = this.scrub.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * this.span();
     };
     let dragging = false;
-    scrub.addEventListener('pointerdown', (e) => {
+    let moved = false;
+    let downX = 0;
+    this.scrub.addEventListener('pointerdown', (e) => {
+      if ((e.target as HTMLElement).closest('.chev')) return;
       dragging = true;
-      scrub.setPointerCapture?.(e.pointerId);
-      seekAt(e.clientX);
+      moved = false;
+      downX = e.clientX;
+      this.scrub.setPointerCapture?.(e.pointerId);
     });
-    scrub.addEventListener('pointermove', (e) => {
-      if (dragging) seekAt(e.clientX);
+    this.scrub.addEventListener('pointermove', (e) => {
+      if (!dragging || !this.controls) return;
+      if (!moved && Math.abs(e.clientX - downX) < 6) return;
+      moved = true;
+      this.pauseAt = null;
+      this.current = null;
+      this.controls.setRate(0);
+      // Dragging: the finger is the motion.
+      this.controls.scrubTo(tickAt(e.clientX));
     });
-    const stop = () => (dragging = false);
-    scrub.addEventListener('pointerup', stop);
-    scrub.addEventListener('pointercancel', stop);
+    const up = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved && this.controls) {
+        // A tap: glide there.
+        this.pauseAt = null;
+        this.current = null;
+        this.controls.setRate(0);
+        void this.controls.travelTo(tickAt(e.clientX));
+      }
+    };
+    this.scrub.addEventListener('pointerup', up);
+    this.scrub.addEventListener('pointercancel', () => (dragging = false));
     window.addEventListener('keydown', this.onKey, true);
-    bar.append(prev, back, this.playBtn, this.fastBtn, next, scrub, this.time);
+    bar.append(prev, back, this.playBtn, this.fastBtn, next, this.scrub, this.time);
     return bar;
   }
 
@@ -240,21 +310,11 @@ export class InWorldRespawn {
     e.stopPropagation();
   };
 
-  /** Where the camera starts: on the death that just happened, or on the suggested spawn. */
-  private openingShot(): void {
+  /** The timeline's length: what has played, plus room for spawns past it. */
+  private span(): number {
     const c = this.controls;
-    if (!c) return;
-    const v = c.currentView;
-    // The newest soldier is the one who just died (or was just saved).
-    const newest = [...this.props.soldiers].sort((a, b) => b.ordinal - a.ordinal)[0];
-    const s = newest ? v.soldiers.find((x) => x.id === newest.id) : undefined;
-    if (s && this.props.reachedTick !== null) {
-      c.focus(s.x, s.y);
-      return;
-    }
-    const pref = this.props.preferred ?? this.props.options[0];
-    const at = pref ? this.placeOf(pref) : null;
-    if (at) c.focus(at.x, at.y);
+    const latest = this.props.options.reduce((t, o) => Math.max(t, optionTick(o)), 0);
+    return Math.max(60, c?.frontier ?? 0, latest, this.props.reachedTick ?? 0);
   }
 
   // ---------- controls ----------
@@ -263,15 +323,13 @@ export class InWorldRespawn {
     const c = this.controls;
     if (!c) return;
     this.pauseAt = null;
-    c.setPlaying(!c.playing);
+    c.setRate(c.rate === 0 ? 1 : 0);
   }
 
   private toggleFast(): void {
     const c = this.controls;
     if (!c) return;
-    const fast = c.speed !== FAST;
-    c.setSpeed(fast ? FAST : 1);
-    if (fast) c.setPlaying(true);
+    c.setRate(c.rate === FAST ? 1 : FAST);
   }
 
   private nudge(dt: Tick): void {
@@ -279,16 +337,16 @@ export class InWorldRespawn {
     if (!c) return;
     this.pauseAt = null;
     this.current = null;
-    c.seek(Math.max(0, c.tick + dt));
+    c.setRate(0);
+    void c.travelTo(Math.max(c.start, c.destination + dt));
   }
 
   /** |◀ / ▶|: the previous / next spawn or death. */
   private jump(dir: 1 | -1): void {
     const c = this.controls;
     if (!c) return;
-    // On a death jump the replay sits a little before the stop's own tick: step from the stop.
     const cur = this.current ? this.stops.find((s) => s.key === this.current) : undefined;
-    const from = cur ? cur.tick : c.tick;
+    const from = cur ? cur.tick : Math.round(c.tick);
     const s = stepStop(this.stops, from, dir, this.current);
     if (s) this.goTo(s);
   }
@@ -297,22 +355,44 @@ export class InWorldRespawn {
     const c = this.controls;
     if (!c) return;
     this.current = s.key;
-    this.closeCard();
-    c.setSpeed(1);
     if (s.kind === 'death') {
-      // Find where they fell, then play it from a little before.
-      c.seek(s.tick);
-      const body = s.soldierId ? c.currentView.soldiers.find((x) => x.id === s.soldierId) : null;
-      c.seek(Math.max(0, s.tick - DEATH_LEAD));
+      this.closeCard();
+      // Glide to just before the death, then watch it happen.
+      c.setRate(0);
+      this.pauseAt = s.tick + Math.round(TICKS_PER_SECOND / 2);
+      const body = this.soldierPos(s.soldierId);
       if (body) c.focus(body.x, body.y);
-      this.pauseAt = s.tick + DEATH_TAIL;
-      c.setPlaying(true);
+      void c.travelTo(Math.max(c.start, s.tick - DEATH_LEAD)).then(() => {
+        const at = this.soldierPos(s.soldierId);
+        if (at) c.focus(at.x, at.y);
+        if (this.current === s.key) c.setRate(1);
+      });
       return;
     }
+    if (s.option) this.select(s.option);
+  }
+
+  /** Glides time and the camera to an option and opens its card. */
+  private select(o: SpawnOption): void {
+    const c = this.controls;
+    if (!c) return;
     this.pauseAt = null;
-    c.setPlaying(false);
-    c.seek(s.tick);
-    if (s.option) this.openCard(s.option);
+    this.current = optionKeyOf(o);
+    c.setRate(0);
+    this.openCard(o);
+    const at = this.placeOf(o);
+    if (at) c.focus(at.x, at.y);
+    void c.travelTo(optionTick(o)).then(() => {
+      // A resume circle rides on the soldier: look at where they are at that time.
+      const there = this.placeOf(o);
+      if (there) c.focus(there.x, there.y);
+    });
+  }
+
+  private deploy(o: SpawnOption): void {
+    this.closeCard();
+    this.fadeOut();
+    this.opts.onDeploy(o);
   }
 
   // ---------- per frame ----------
@@ -321,77 +401,136 @@ export class InWorldRespawn {
     const c = this.controls;
     if (!c) return;
     if (this.pauseAt !== null && c.tick >= this.pauseAt) {
-      c.setPlaying(false);
+      c.setRate(0);
       this.pauseAt = null;
     }
-    const tick = c.tick;
-    const f = Math.min(1, tick / this.endTick);
-    this.fill.style.width = `${(f * 100).toFixed(2)}%`;
-    this.headEl.style.left = `${(f * 100).toFixed(2)}%`;
-    const t = formatBattleTime(tick);
+    const span = this.span();
+    const pct = (t: number) => `${Math.min(100, (t / span) * 100).toFixed(2)}%`;
+    this.fill.style.width = pct(c.tick);
+    this.headEl.style.left = pct(c.tick);
+    const f = c.frontier;
+    if (f !== this.lastFrontier) {
+      this.lastFrontier = f;
+      this.unknown.style.left = pct(f);
+      this.renderMarks();
+    }
+    const t = formatBattleTime(Math.round(c.tick));
     if (this.time.textContent !== t) this.time.textContent = t;
     if (this.clock.textContent !== t) this.clock.textContent = t;
-    const icon = c.playing ? '❚❚' : '▶';
+    const icon = c.rate !== 0 && !c.traveling ? '❚❚' : '▶';
     if (this.playBtn.textContent !== icon) this.playBtn.textContent = icon;
-    this.fastBtn.classList.toggle('on', c.playing && c.speed === FAST);
-    this.renderMoney(tick);
-    this.renderSpots(tick);
+    this.fastBtn.classList.toggle('on', c.rate === FAST);
+    this.renderMoney(c.tick);
+    this.renderSpots(c.tick);
     this.placeCard();
   }
 
-  private renderMoney(tick: Tick): void {
+  private renderMoney(tick: number): void {
     const l = shownEconomy(this.props);
     if (!l) {
       this.money.hidden = true;
       return;
     }
     this.money.hidden = false;
-    const v = availableAt(l, tick);
+    const v = availableAt(l, Math.round(tick));
     const text = formatMoney(v);
     if (this.money.textContent !== text) this.money.textContent = text;
     this.money.classList.toggle('debt', v < 0);
   }
 
   private renderMarks(): void {
-    const end = this.endTick;
-    const pct = (t: Tick) => `${Math.min(100, (t / end) * 100).toFixed(2)}%`;
+    const span = this.span();
+    const pct = (t: number) => `${Math.min(100, (t / span) * 100).toFixed(2)}%`;
     this.marks.replaceChildren(
-      ...this.stops.map((s) => {
-        const m = el('div', `mark ${s.kind}`);
-        m.style.left = pct(s.tick);
-        return m;
-      }),
+      ...this.stops
+        .filter((s) => s.kind === 'death')
+        .map((s) => {
+          const m = el('div', 'death');
+          m.style.left = pct(s.tick);
+          return m;
+        }),
     );
-    const r = this.props.resolvedUntil;
-    this.known.hidden = r === null || r === undefined;
-    if (!this.known.hidden) {
-      this.known.style.left = pct(r!);
-      this.known.style.right = '0';
+    const seen = new Set<string>();
+    for (const ch of this.chevList) {
+      seen.add(ch.key);
+      let b = this.chevEls.get(ch.key);
+      if (!b) {
+        b = el('button', 'chev');
+        b.onclick = (e) => {
+          e.stopPropagation();
+          const o = this.chevList.find((x) => x.key === ch.key)?.option;
+          if (o) this.select(o);
+        };
+        this.chevs.append(b);
+        this.chevEls.set(ch.key, b);
+      }
+      b.className = `chev ${ch.kind}${ch.last ? ' last' : ''}`;
+      b.innerHTML = `${CHEVRON_SVG}<span>${ch.label}</span>`;
+      b.title = this.optionTitle(ch.option);
+      b.style.left = pct(ch.tick);
+      b.style.top = `${-22 - ch.stack * 22}px`;
+    }
+    for (const [k, b] of this.chevEls) {
+      if (!seen.has(k)) {
+        b.remove();
+        this.chevEls.delete(k);
+      }
     }
   }
 
+  private optionTitle(o: SpawnOption): string {
+    const time = formatBattleTime(optionTick(o));
+    return o.kind === 'new'
+      ? str('inworld.pointAt', {
+          name: spawnName(this.props.map, o.spawnPointId, this.names),
+          time,
+        })
+      : str('inworld.resumeHere', { n: ordinalFromId(o.soldierId), time });
+  }
+
+  private soldierPos(id: string | undefined): { x: number; y: number } | null {
+    if (!id) return null;
+    const s = this.controls?.currentView.soldiers.find((x) => x.id === id);
+    return s ? { x: s.x, y: s.y } : null;
+  }
+
   private placeOf(o: SpawnOption): { x: number; y: number } | null {
-    const c = this.controls;
     const recs = this.props.soldiers;
     return optionPlace(
       o,
       this.props.map,
       (id) => {
-        const s = c?.currentView.soldiers.find((x) => x.id === id);
+        const s = this.controls?.currentView.soldiers.find((x) => x.id === id);
         return s && s.alive ? { x: s.x, y: s.y } : null;
       },
       (id) => recs.find((r) => r.id === id)?.spawnPointId ?? null,
     );
   }
 
-  private renderSpots(tick: Tick): void {
+  /**
+   * Circles: every new-soldier spawn point (lettered); a saved soldier near their resume time,
+   * riding on them; and any saved soldier visible right now (tap: glide to their resume).
+   */
+  private renderSpots(tick: number): void {
     const c = this.controls!;
     const near = nearbyOptions(this.props.options, tick, NEAR_TICKS);
+    const view = c.currentView;
+    for (const o of this.props.options) {
+      if (o.kind !== 'resume' || near.includes(o)) continue;
+      if (view.soldiers.some((s) => s.id === o.soldierId && s.alive)) near.push(o);
+    }
     if (this.open && !near.some((o) => optionKeyOf(o) === optionKeyOf(this.open!))) {
       near.push(this.open);
     }
+    // One circle per spawn point: its nearest slot in time.
+    const seenPoint = new Set<string>();
     const seen = new Set<string>();
+    const prefKey = this.props.preferred ? optionKeyOf(this.props.preferred) : null;
     for (const o of near) {
+      if (o.kind === 'new') {
+        if (seenPoint.has(o.spawnPointId)) continue;
+        seenPoint.add(o.spawnPointId);
+      }
       const key = optionKeyOf(o);
       const at = this.placeOf(o);
       if (!at) continue;
@@ -402,10 +541,11 @@ export class InWorldRespawn {
         b.innerHTML =
           o.kind === 'resume'
             ? roleIconSvg(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId, 22, '')
-            : roleIconSvg(this.props.roleId, 22, '');
+            : spawnLetter(this.props.map, o.spawnPointId);
+        b.title = this.optionTitle(o);
         b.onclick = () => {
-          const s = this.stops.find((x) => x.key === key);
-          if (s) this.goTo(s);
+          const opt = this.props.options.find((x) => optionKeyOf(x) === key);
+          if (opt) this.select(opt);
         };
         this.spots.append(b);
         this.spotEls.set(key, b);
@@ -413,7 +553,8 @@ export class InWorldRespawn {
       const p = c.worldToScreen(at.x, at.y);
       b.style.left = `${p.x.toFixed(1)}px`;
       b.style.top = `${p.y.toFixed(1)}px`;
-      b.classList.toggle('far', optionTick(o) !== tick);
+      b.classList.toggle('far', Math.abs(optionTick(o) - tick) > 1);
+      b.classList.toggle('last', key === prefKey);
       b.classList.toggle('sel', !!this.open && optionKeyOf(this.open) === key);
     }
     for (const [k, b] of this.spotEls) {
@@ -422,27 +563,18 @@ export class InWorldRespawn {
         this.spotEls.delete(k);
       }
     }
+    for (const [k, b] of this.chevEls) {
+      b.classList.toggle('sel', !!this.open && optionKeyOf(this.open) === k);
+    }
   }
 
   // ---------- the card ----------
 
   private openCard(o: SpawnOption): void {
     this.open = o;
-    const c = this.controls;
-    const at = this.placeOf(o);
-    if (c && at) c.focus(at.x, at.y);
     const card = el('div', 'card');
     const head = el('div', 'head');
-    const when = formatBattleTime(optionTick(o));
-    head.append(
-      el(
-        'span',
-        '',
-        o.kind === 'resume'
-          ? str('inworld.resumeHere', { n: ordinalFromId(o.soldierId), time: when })
-          : str('inworld.newHere', { time: when }),
-      ),
-    );
+    head.append(el('span', '', this.optionTitle(o)));
     const x = el('button', 'x', '×');
     x.setAttribute('aria-label', str('inworld.close'));
     x.onclick = () => this.closeCard();
@@ -454,11 +586,13 @@ export class InWorldRespawn {
       o.kind === 'resume' ? 'go resume' : 'go',
       str(o.kind === 'resume' ? 'inworld.resume' : 'inworld.deploy'),
     );
-    go.onclick = () => this.opts.onDeploy(o);
+    go.onclick = () => {
+      const cur = this.props.options.find((x) => optionKeyOf(x) === optionKeyOf(o)) ?? o;
+      this.deploy(cur);
+    };
     card.append(go);
     this.cardLayer.replaceChildren(card);
     this.placeCard();
-    go.focus();
   }
 
   private rolePicker(o: SpawnOption): HTMLElement {
@@ -469,8 +603,6 @@ export class InWorldRespawn {
       this.props = { ...this.props, roleId: id };
       this.props.onRole?.(id);
       for (const [rid, b] of buttons) b.classList.toggle('on', rid === id);
-      const spot = this.spotEls.get(optionKeyOf(o));
-      if (spot) spot.innerHTML = roleIconSvg(id, 22, '');
     };
     for (const r of ROLES) {
       const m = money.get(r.id);
@@ -496,8 +628,8 @@ export class InWorldRespawn {
     const w = card.offsetWidth;
     const h = card.offsetHeight;
     const x = Math.max(w / 2 + 8, Math.min(window.innerWidth - w / 2 - 8, p.x));
-    let y = p.y + 40;
-    if (y + h > window.innerHeight - 80) y = Math.max(8, p.y - 40 - h);
+    let y = p.y + 36;
+    if (y + h > window.innerHeight - 110) y = Math.max(8, p.y - 36 - h);
     card.style.left = `${x.toFixed(1)}px`;
     card.style.top = `${y.toFixed(1)}px`;
   }

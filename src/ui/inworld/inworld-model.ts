@@ -124,3 +124,65 @@ export function replayEnd(lanes: readonly LaneTruth[], min: Tick): Tick {
   for (const l of lanes) end = Math.max(end, l.recordedTo);
   return end;
 }
+
+// ---------- (PHASE19) chevrons and letters ----------
+
+/** A spawn point's letter: A, B, C… in the map's order. */
+export function spawnLetter(map: MapDef, spawnPointId: string): string {
+  const i = map.spawnPoints.findIndex((s) => s.id === spawnPointId);
+  return i < 0 ? '?' : String.fromCharCode(65 + (i % 26));
+}
+
+/** A spawn point's name from its letter: Alpha, Bravo… (`names` from strings). */
+export function spawnName(map: MapDef, spawnPointId: string, names: readonly string[]): string {
+  const i = map.spawnPoints.findIndex((s) => s.id === spawnPointId);
+  return names[i] ?? spawnLetter(map, spawnPointId);
+}
+
+/** One chevron over the timeline. */
+export interface Chevron {
+  option: SpawnOption;
+  key: string;
+  tick: Tick;
+  /** A–Z for a new soldier's spawn point; the soldier's number for a resume. */
+  label: string;
+  kind: 'new' | 'resume';
+  /** Its place in the stack at this time (0 = nearest the bar). */
+  stack: number;
+  /** The quick-redeploy choice (last spawn used). */
+  last: boolean;
+}
+
+/** Every spawn option as a chevron, stacked where several share a time (new before resume). */
+export function chevrons(
+  options: readonly SpawnOption[],
+  map: MapDef,
+  ordinalOf: (id: SoldierId) => number,
+  preferred: SpawnOption | null | undefined,
+): Chevron[] {
+  const pref = preferred ? optionKeyOf(preferred) : null;
+  const sorted = [...options].sort(
+    (a, b) =>
+      optionTick(a) - optionTick(b) ||
+      (a.kind === b.kind ? 0 : a.kind === 'new' ? -1 : 1) ||
+      (a.kind === 'new' && b.kind === 'new'
+        ? cmp(spawnLetter(map, a.spawnPointId), spawnLetter(map, b.spawnPointId))
+        : cmp(optionKeyOf(a), optionKeyOf(b))),
+  );
+  const heights = new Map<Tick, number>();
+  return sorted.map((o) => {
+    const tick = optionTick(o);
+    const stack = heights.get(tick) ?? 0;
+    heights.set(tick, stack + 1);
+    const key = optionKeyOf(o);
+    return {
+      option: o,
+      key,
+      tick,
+      label: o.kind === 'new' ? spawnLetter(map, o.spawnPointId) : String(ordinalOf(o.soldierId)),
+      kind: o.kind,
+      stack,
+      last: key === pref,
+    };
+  });
+}

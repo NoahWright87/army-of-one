@@ -317,6 +317,10 @@ export const STRINGS = {
   'inworld.newHere': 'New soldier · {time}',
   'inworld.resumeHere': 'Soldier {n} · {time}',
   'inworld.died': 'Soldier {n} died',
+  // (PHASE19) Spawn points by letter: chevrons show the letter, cards the word.
+  'inworld.nato': 'Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,Golf,Hotel,India,Juliett,Kilo,Lima',
+  'inworld.pointAt': '{name} · {time}',
+  'inworld.redeployHint': 'R / Space: again',
   'settings.game.inWorldRespawn': 'In-world respawn (POC): pick spawns on the battlefield',
   'results.radar.speed': 'Speed',
   'results.radar.economy': 'Economy',

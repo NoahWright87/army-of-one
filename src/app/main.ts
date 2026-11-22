@@ -55,7 +55,10 @@ import {
 import { RespawnScreen } from '../ui/respawn/respawn-screen';
 import type { RespawnProps } from '../ui/respawn/respawn-model';
 import { InWorldRespawn } from '../ui/inworld/inworld-respawn';
-import { optionTick, replayEnd } from '../ui/inworld/inworld-model';
+import type { TimeControls } from '../render/time-controls';
+import { createWorld } from '../sim/sim';
+import { IDLE_INPUT } from '../sim/entities/soldier';
+import { leadInStart, spawnRules } from '../timeline/spawn-options';
 import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
@@ -679,6 +682,9 @@ async function startGame(): Promise<void> {
   settings.subscribe((id) => {
     if (isRespawnSetting(id)) respawn?.setSettings(readRespawnSettings(settings));
   });
+  /** (PHASE19) Respawn in the battle scene (one continuous view) instead of the respawn screen. */
+  const unifiedOn = () =>
+    settings.getBool(GAME_SETTING_IDS.inWorldRespawn) && !training && !autopilot.active;
   const ui: GameUi = {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
@@ -729,9 +735,9 @@ async function startGame(): Promise<void> {
     },
     showRespawn: (props, onDeploy, n): RespawnHandle => {
       respawn?.destroy();
-      // (POC) Pick the spawn on the battlefield itself, over a replay of the current truth.
+      // (PHASE19) Pick the spawn on the battlefield itself: the battle scene plays the tape.
       // Basic training keeps the respawn screen its coach points at.
-      if (settings.getBool(GAME_SETTING_IDS.inWorldRespawn) && !training && props.tuning) {
+      if (unifiedOn() && props.tape) {
         quickHint.set(null);
         notice.show(n === 'historyShifted' ? str('notice.historyShifted') : null);
         return showInWorldRespawn(props, onDeploy);
@@ -763,6 +769,7 @@ async function startGame(): Promise<void> {
       };
     },
     showComplete: (stats, onPlayAgain, extra) => {
+      stopBattleScene();
       if (training) {
         // (PHASE18) Graduated: from now on the front door is the HQ.
         try {
@@ -793,6 +800,7 @@ async function startGame(): Promise<void> {
       showResults(extra, onPlayAgain);
     },
     hideScreens: () => {
+      if (!unifiedOn()) stopBattleScene();
       title.hide();
       complete.hide();
       stopReplay();
@@ -807,7 +815,9 @@ async function startGame(): Promise<void> {
         settings.getBool(GAME_SETTING_IDS.quickRedeploy) &&
         !autopilot.active &&
         // (PHASE18) Basic training: back in through the respawn screen, where the coach points.
-        !training;
+        !training &&
+        // (PHASE19) No big redeploy button: R / Space select the last spawn on the timeline.
+        !unifiedOn();
       quickHint.set(on ? quickHintText(option, scheme().touch) : null);
     },
   };
@@ -936,39 +946,88 @@ async function startGame(): Promise<void> {
       .catch(reportFatalError);
   };
 
-  // ---------- (POC) In-world respawn ----------
+  // ---------- (PHASE19) One continuous view: respawn mode in the battle scene ----------
+
+  const battleScene = () => game.scene.getScene('battle') as BattleScene;
+
+  /** The respawn overlay while it's up (R / Space go to it). */
+  let inWorld: InWorldRespawn | null = null;
+
+  /** A session with no run: the scene opens straight into respawn mode (a fresh mission). */
+  const viewerSession = (tuning: Tuning) => ({
+    world: createWorld(MISSION, tuning),
+    liveId: '',
+    makeInput: () => ({
+      read: () => IDLE_INPUT,
+      pointerWorld: () => null,
+      destroy: () => {},
+    }),
+  });
+
+  const respawnLook = (on: boolean) => {
+    const c = game.canvas;
+    c.style.transition = 'filter .5s ease';
+    c.style.filter = on ? 'saturate(.45) brightness(.92)' : '';
+  };
 
   const showInWorldRespawn = (
     props: RespawnProps,
     onDeploy: (o: SpawnOption) => void,
   ): RespawnHandle => {
-    const startTick = props.reachedTick ?? 0;
-    const latestOption = props.options.reduce((t, o) => Math.max(t, optionTick(o)), 0);
-    const endTick = replayEnd(props.lanes, Math.max(startTick, latestOption)) + 2 * 60;
-    const player = new ReplayPlayer(props.map, props.tuning!, {
-      version: REPLAY_VERSION,
-      missionId: MISSION.id,
-      soldiers: props.soldiers,
-      endTick,
-    });
+    const tape = props.tape!;
+    const tuning = props.tuning!;
+    let controls: TimeControls | null = null;
+    let live = true;
     const overlay = new InWorldRespawn(uiRoot, props, {
-      onDeploy,
+      // Deploying glides back into the lead-in, then the run takes over in the same scene.
+      onDeploy: (o) => {
+        const c = controls;
+        if (!c) return onDeploy(o);
+        c.setRate(0);
+        const from = Math.max(c.start, leadInStart(o, spawnRules(tuning)));
+        void c.travelTo(from).then(() => {
+          if (live) onDeploy(o);
+        });
+      },
       ...(backTo ? { back: backTo } : {}),
     });
-    let live = true;
+    inWorld = overlay;
+    const enter = () => {
+      if (!live) return;
+      const scene = battleScene();
+      const died = props.reachedTick;
+      const end = tape.end ?? 0;
+      controls = scene.enterRespawn({
+        tape,
+        start: died ?? 0,
+        // After a death, time slows right down and plays on to what has been resolved.
+        rate: died !== null ? 0.25 : 0,
+        frontier: () => tape.end ?? end,
+      });
+      overlay.attach(controls);
+      respawnLook(true);
+      touchControls.setVisible(false);
+      hud.setVisible(false);
+      if (died === null) {
+        const pref = props.preferred ?? props.options[0];
+        const sp =
+          pref?.kind === 'new' ? MISSION.spawnPoints.find((p) => p.id === pref.spawnPointId) : null;
+        if (sp) controls.focus(sp.position.x, sp.position.y);
+      }
+      startRespawnMinimap(controls);
+    };
     void assetsReady
       .then(() => {
         if (!live) return;
         wakeLoop();
-        game.scene.start('replay', {
-          player,
-          objectives: [],
-          startTick,
-          pannable: true,
-          onReady: (c: ReplayControls) => {
-            if (live) overlay.attach(c, endTick);
-          },
-        });
+        if (game.scene.isActive('battle')) {
+          enter();
+          return;
+        }
+        const scene = battleScene();
+        scene.events.once(Phaser.Scenes.Events.CREATE, enter);
+        game.scene.start('battle', { session: viewerSession(tuning) });
+        showLoading(null, 'battle');
       })
       .catch(reportFatalError);
     return {
@@ -976,13 +1035,36 @@ async function startGame(): Promise<void> {
       destroy: () => {
         live = false;
         overlay.destroy();
+        if (inWorld === overlay) inWorld = null;
         notice.show(null);
-        if (game.scene.isActive('replay') || game.scene.isPaused('replay')) {
-          game.scene.stop('replay');
-        }
-        sleepLoopSoon();
+        respawnLook(false);
       },
     };
+  };
+
+  function startRespawnMinimap(c: TimeControls): void {
+    const m = controller.mission;
+    const grid = new RevealGrid(MISSION, revealOptions(controller.tuning));
+    grid.update(m.soldiers, m.lanes);
+    const soldiers = m.soldiers;
+    const lanes = m.lanes;
+    const captures = m.captureTruth ?? [];
+    minimap.start({
+      map: MISSION,
+      grid,
+      known: () => knownThings(MISSION, grid, soldiers, lanes, captures),
+      view: () => c.currentView,
+      liveId: '',
+      camera: () => c.viewport(),
+      onLook: (x, y) => c.focus(x, y),
+      big: true,
+    });
+  }
+
+  /** Stops the battle scene outright (results, title: leaving the battlefield). */
+  const stopBattleScene = () => {
+    if (game.scene.isActive('battle') || game.scene.isPaused('battle')) game.scene.stop('battle');
+    respawnLook(false);
   };
 
   // ---------- (PHASE12-e) Shareable replays and the replay library ([D79]) ----------
@@ -1121,18 +1203,21 @@ async function startGame(): Promise<void> {
     runtimePhase(`starting battle: ${run.attempt.world.map.id}`);
     wakeLoop();
     hud.setVisible(true);
-    game.scene.start('battle', {
-      session: {
-        world: run.attempt.world,
-        liveId: run.liveId,
-        driver: run,
-        makeInput: (scene: Phaser.Scene) =>
-          autopilot.inputFor(run) ??
-          makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
-        // (PHASE18) Basic training's drill sergeant and signs.
-        ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
-      },
-    });
+    minimap.stop();
+    const session = {
+      world: run.attempt.world,
+      liveId: run.liveId,
+      driver: run,
+      makeInput: (scene: Phaser.Scene) =>
+        autopilot.inputFor(run) ??
+        makeControls(scene, run.attempt.world.map, run.attempt.world.tuning, run.liveId),
+      // (PHASE18) Basic training's drill sergeant and signs.
+      ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
+    };
+    // (PHASE19) Already on the battlefield (respawn mode): the run carries on in the same scene.
+    const scene = battleScene();
+    if (game.scene.isActive('battle') && scene.inRespawn) scene.adopt(session);
+    else game.scene.start('battle', { session });
     showLoading(null, 'battle');
   };
   const phaserHost: BattleHost = {
@@ -1154,7 +1239,9 @@ async function startGame(): Promise<void> {
     },
     stop: () => {
       pendingRun = null;
-      if (game.scene.isActive('battle') || game.scene.isPaused('battle')) game.scene.stop('battle');
+      // (PHASE19) In the continuous view the battlefield stays up (frozen on the death) and the
+      // respawn view takes it over; leaving it (results, title) stops it.
+      if (!unifiedOn()) stopBattleScene();
       touchControls.setVisible(false);
       hud.setVisible(false);
       countdown.update(null);
@@ -1237,6 +1324,13 @@ async function startGame(): Promise<void> {
     (e) => {
       if (e.code !== 'KeyR' && e.code !== 'Space') return;
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+      // (PHASE19) In the respawn view: select the last spawn (again: deploy there).
+      if (inWorld) {
+        e.preventDefault();
+        e.stopPropagation();
+        inWorld.quickSelect();
+        return;
+      }
       if (!quickHint.visible) return;
       e.preventDefault();
       const guard = settings.getNumber(GAME_SETTING_IDS.quickRedeployGuardMs);

@@ -34,6 +34,7 @@ import {
 } from '../../timeline/economy';
 import type { RevealOptions } from '../../timeline/reveal';
 import type { Tuning } from '../../content/tuning';
+import type { Tape } from '../../sim/tape/tape';
 import { MIN_DOMAIN_TICKS, type TimeDomain } from './time-scale';
 
 /** Everything the screen renders. PHASE04 builds this from MissionState + the latest fold. */
@@ -78,6 +79,8 @@ export interface RespawnProps {
   economy?: Ledger;
   /** (POC in-world respawn) The mission's tuning, to replay the battle behind the picker. */
   tuning?: Tuning;
+  /** (PHASE19) The battle tape: the respawn view plays it. */
+  tape?: Tape;
 }
 
 /** A progressive truth update (from the scrubber, or a fresh fold). */

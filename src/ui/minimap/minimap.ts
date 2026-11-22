@@ -25,6 +25,10 @@ export interface MinimapSource {
   liveId: string;
   /** Camera viewport in world units, or null if unknown. */
   camera(): { x: number; y: number; width: number; height: number } | null;
+  /** (PHASE19) Tap / drag on the map looks there (the respawn view). */
+  onLook?: (x: number, y: number) => void;
+  /** (PHASE19) Bigger (the respawn view, where the map matters most). */
+  big?: boolean;
 }
 
 const CSS = `
@@ -57,6 +61,27 @@ export class Minimap {
     this.root.append(this.base, this.top);
     parent.appendChild(this.root);
     window.addEventListener('resize', () => this.relayout());
+    // (PHASE19) Tap or drag to look (when the source asks for it).
+    let down = false;
+    const look = (e: PointerEvent) => {
+      const src = this.src;
+      if (!src?.onLook || !this.box) return;
+      const r = this.root.getBoundingClientRect();
+      src.onLook((e.clientX - r.left) / this.box.scale, (e.clientY - r.top) / this.box.scale);
+    };
+    this.root.addEventListener('pointerdown', (e) => {
+      if (!this.src?.onLook) return;
+      down = true;
+      this.root.setPointerCapture?.(e.pointerId);
+      look(e);
+      e.stopPropagation();
+    });
+    this.root.addEventListener('pointermove', (e) => {
+      if (down) look(e);
+    });
+    const up = () => (down = false);
+    this.root.addEventListener('pointerup', up);
+    this.root.addEventListener('pointercancel', up);
   }
 
   setSettings(s: MinimapSettings): void {
@@ -68,6 +93,11 @@ export class Minimap {
 
   start(src: MinimapSource): void {
     this.src = src;
+    this.root.style.pointerEvents = src.onLook ? 'auto' : '';
+    this.root.style.cursor = src.onLook ? 'crosshair' : '';
+    // (PHASE19) Above the respawn view's timeline.
+    this.root.style.bottom = src.big ? '108px' : '';
+    this.root.style.zIndex = src.big ? '25' : '';
     this.drawnVersion = -1;
     this.lastKey = '';
     this.relayout();
@@ -95,9 +125,9 @@ export class Minimap {
     if (!src) return;
     const box = minimapBox(
       src.map,
-      this.settings.size,
+      src.big ? 'L' : this.settings.size,
       window.innerWidth * 0.4,
-      window.innerHeight * 0.45,
+      window.innerHeight * (src.big ? 0.55 : 0.45),
     );
     this.box = box;
     this.dpr = Math.min(2, window.devicePixelRatio || 1);

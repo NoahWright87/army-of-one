@@ -55,3 +55,28 @@ describe('in-world respawn stops', () => {
     expect(replayEnd(lanes, 1200)).toBe(1200);
   });
 });
+
+import { chevrons, spawnLetter } from './inworld-model';
+import { MISSION_03 } from '../../content/maps/mission-03';
+
+describe('chevrons', () => {
+  it('letters spawn points in map order and stacks options that share a time', () => {
+    const map = MISSION_03;
+    const [a, b] = map.spawnPoints;
+    expect(spawnLetter(map, a!.id)).toBe('A');
+    expect(spawnLetter(map, b!.id)).toBe('B');
+    const opts: SpawnOption[] = [
+      { kind: 'new', spawnPointId: b!.id, entryTick: 0 },
+      { kind: 'new', spawnPointId: a!.id, entryTick: 0 },
+      { kind: 'resume', soldierId: 'S2', resumeTick: 0, leadInFromTick: 0 },
+      { kind: 'new', spawnPointId: a!.id, entryTick: 120 },
+    ];
+    const c = chevrons(opts, map, () => 2, opts[3]);
+    expect(c.map((x) => `${x.label}@${x.tick}/${x.stack}${x.last ? '*' : ''}`)).toEqual([
+      'A@0/0',
+      'B@0/1',
+      '2@0/2',
+      'A@120/0*',
+    ]);
+  });
+});

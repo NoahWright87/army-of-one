@@ -892,6 +892,7 @@ export class GameController {
         preferred: quickRedeployOption(options, this.lastSpawnPointId),
         economy: this.ledger(), // (PHASE11) money
         tuning: this.tuning, // (POC) in-world respawn replays the battle
+        tape: this.tape, // (PHASE19) the respawn view plays the tape
         onRole: (r) => {
           this.roleId = r;
         },
