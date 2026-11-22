@@ -905,6 +905,8 @@ export const STRINGS = {
   'hub.btn.oldMenu': 'Old main menu',
   'hub.label.skirmish': '← SKIRMISH',
   'hub.label.war': 'WAR ROOM →',
+  'hub.label.wallWalk': 'WALL WALK ↑',
+  'hub.label.tower': 'GUARD TOWER ↓',
   'hub.label.range': 'RANGE ↓',
   'hub.label.dev': 'DEV ↑',
   'hub.label.exit': '← EXIT',

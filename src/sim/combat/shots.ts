@@ -95,7 +95,11 @@ export function castRay(
     }
   };
 
-  for (const w of map.walls) consider(rayRect(from, dir, w), { kind: 'wall' });
+  const origin = opts.fireOverFrom ?? opts.bulletOrigin ?? from;
+  for (const w of map.walls) {
+    if (w.fireOverFrom && rectContains(w.fireOverFrom, origin)) continue;
+    consider(rayRect(from, dir, w), { kind: 'wall' });
+  }
   if (opts.coverKey !== undefined) {
     for (const c of coverCrossings(
       standingCover(world),

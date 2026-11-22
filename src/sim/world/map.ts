@@ -157,6 +157,8 @@ export interface CoverDef {
   material: CoverMaterial;
   bullet?: number;
   lobbed?: number;
+  /** Restrict firing over this cover and bracing to the protected side. */
+  fireOverFrom?: Rect;
 }
 
 export type CoverMaterial = 'fence' | 'sandbags' | 'halfWall' | 'window' | 'bunkerWindow' | 'crate';
@@ -202,13 +204,27 @@ export interface SquadDef {
   rally?: Vec2[];
 }
 
+/** A solid wall face can sit below an adjacent raised firing surface. */
+export interface WallDef extends Rect {
+  fireOverFrom?: Rect;
+}
+
+export interface LadderDef {
+  id: string;
+  bottom: Vec2;
+  top: Vec2;
+}
+
 export interface MapDef {
+  ladders?: LadderDef[];
+  /** Walkable elevated surfaces, with a movement-only barrier at their perimeter. */
+  raisedGround?: Rect[];
   id: string;
   nameKey: string;
   width: number;
   height: number;
   /** Solid walls: block movement and shots. */
-  walls: Rect[];
+  walls: WallDef[];
   /** Impassable for movement, transparent to shots. */
   water: Rect[];
   /**
@@ -309,6 +325,7 @@ export function validateMap(map: MapDef): void {
     ...(map.objectives ?? []),
     ...(map.capturePoints ?? []),
     ...(map.cover ?? []),
+    ...(map.ladders ?? []),
     ...(map.concealment ?? []),
     ...(map.squads ?? []),
   ];
@@ -318,6 +335,12 @@ export function validateMap(map: MapDef): void {
     // runtime ids.
     if (/^[SEVGR]\d+$/.test(e.id)) throw new Error(`${map.id}: entity id ${e.id} is reserved`);
     ids.add(e.id);
+  }
+  for (const { id, bottom, top } of map.ladders ?? []) {
+    const inside = (p: Vec2) => p.x > 0 && p.x < map.width && p.y > 0 && p.y < map.height;
+    if (!inside(bottom) || !inside(top) || (bottom.x === top.x && bottom.y === top.y)) {
+      throw new Error(`${map.id}: ladder ${id} needs two distinct in-bounds landings`);
+    }
   }
   for (const l of map.trafficLanes ?? []) {
     if (l.from.x !== l.to.x && l.from.y !== l.to.y) {

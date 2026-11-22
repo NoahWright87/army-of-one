@@ -234,7 +234,7 @@ function stepMount(world: World, s: SoldierState, input: SoldierInput): void {
     s.braceId = null;
     s.steady = false;
   };
-  if (s.trenchClimb) return reset();
+  if (s.trenchClimb || s.ladderClimb) return reset();
   if (w === 'sniper') {
     const up = s.mountTicks >= need;
     if (sprint || (moving && !up)) return reset();

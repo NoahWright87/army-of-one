@@ -42,6 +42,7 @@ export function reloadProgress(world: World, s: SoldierState): number | null {
 export function soldierAttack(world: World, s: SoldierState, input: SoldierInput): void {
   // (PHASE12-b) A vehicle fires where its turret points, not straight at the aim.
   if (s.drive) input = { ...input, aim: s.drive.turret };
+  if (s.ladderClimb) input = { ...input, fire: false };
   // (PHASE12-a) The Bazooka: aim, then launch ([D62]); (PHASE12-b) the tank's cannon too.
   const weapon = roleDef(s.roleId).weapon;
   if (weapon === 'rocket' || weapon === 'shell') {

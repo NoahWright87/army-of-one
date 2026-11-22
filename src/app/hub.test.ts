@@ -4,8 +4,10 @@ import { DEFAULT_TUNING } from '../content/tuning';
 import { gunRange, mountTicksNeeded } from '../sim/combat/guns';
 import { secondsToTicks } from '../sim/core/time';
 import { IDLE_INPUT } from '../sim/entities/soldier';
-import { getSoldier } from '../sim/sim';
+import { castRay, getSoldier, hasLineOfSight } from '../sim/sim';
 import { HUB_TARGET_RESPAWN_S, HubDriver } from './hub';
+import { canFireOver, standingCover } from '../sim/world/cover';
+import { soldierVisibility } from '../sim/world/concealment';
 import { validateMap } from '../sim/world/map';
 
 const idle = (d: HubDriver, n: number) => {
@@ -93,6 +95,58 @@ describe('HQ', () => {
     expect(s.braceId).toBe('range-sandbags');
     expect(d.view().soldiers.find((soldier) => soldier.id === d.liveId)?.mounted).toBe(true);
     expect(gunRange(d.world, 'mg', s, aim)).toBeGreaterThan(d.world.tuning.mg.range);
+  });
+
+  it('reaches the tower from the lobby, mounts on the parapet and climbs back down', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    d.setRole('gunner');
+    const aim = Math.PI / 2;
+    const south = { ...IDLE_INPUT, aim, move: { x: 0, y: 1 } };
+    const north = { ...south, move: { x: 0, y: -1 } };
+    for (let tick = 0; tick < 290; tick++) d.step(south);
+    const s = getSoldier(d.world, d.liveId)!;
+    expect(s.y).toBeCloseTo(1463);
+    expect(soldierVisibility(d.world, s)).toBeGreaterThan(1);
+    for (let i = 0; i <= mountTicksNeeded(d.world.tuning, 'gunner'); i++) {
+      d.step({ ...IDLE_INPUT, aim });
+    }
+    expect(s.braceId).toBe('range-tower-south');
+    const parapet = standingCover(d.world).find((c) => c.id === s.braceId)!;
+    expect(parapet.bullet).toBe(0.4);
+    expect(canFireOver(s, parapet, parapet.bullet, d.world.tuning)).toBe(true);
+    expect(canFireOver({ x: s.x, y: 1500 }, parapet, parapet.bullet, d.world.tuning)).toBe(false);
+    for (let tick = 0; tick < 150; tick++) d.step(north);
+    expect(s.y).toBeLessThan(1334);
+    expect(soldierVisibility(d.world, s)).toBe(1);
+  });
+
+  it('blocks the lobby wall face away from the ladder and allows a two-way climb', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const s = getSoldier(d.world, d.liveId)!;
+    const north = { ...IDLE_INPUT, move: { x: 0, y: -1 } };
+    const south = { ...IDLE_INPUT, move: { x: 0, y: 1 } };
+    s.x = 1400;
+    s.y = 765;
+    for (let i = 0; i < 120; i++) d.step(north);
+    expect(s.y).toBeCloseTo(729);
+
+    s.x = 1450;
+    s.y = 765;
+    for (let i = 0; i < 120; i++) d.step(north);
+    expect(s.y).toBeCloseTo(642);
+    const ground = { x: s.x, y: 765 };
+    expect(hasLineOfSight(d.world, s, ground, 'player')).toBe(true);
+    expect(hasLineOfSight(d.world, ground, s, 'enemy')).toBe(false);
+    // A flight segment about to enter the face still uses the wall-top launch position.
+    expect(
+      castRay(d.world, { x: s.x, y: 690 }, Math.PI / 2, 10, 'player', {
+        coverKey: 'wall-walk-test',
+        fireOverFrom: s,
+      }).target,
+    ).toBeNull();
+    expect(castRay(d.world, ground, -Math.PI / 2, 50, 'player').target?.kind).toBe('wall');
+    for (let i = 0; i < 120; i++) d.step(south);
+    expect(s.y).toBeGreaterThan(735);
   });
 
   it('shooting a range target downs it', () => {

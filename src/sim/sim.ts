@@ -1,5 +1,6 @@
 import type { Tuning } from '../content/tuning';
 import type { RoleId } from '../contracts/mission';
+import { ladderEffort } from './world/ladder';
 import { POSITION_QUANTUM, quantizeFacing, quantizePosition } from '../contracts/quantize';
 import { compareIds, allocateId } from './core/ids';
 import { secondsToTicks } from './core/time';
@@ -292,7 +293,14 @@ export function step(
   }
   for (const s of st.soldiers) {
     if (!s.alive || !s.controllable) continue;
-    stepSoldierMovement(s, inputs.get(s.id) ?? IDLE_INPUT, solids, t, world.map.concealment);
+    stepSoldierMovement(
+      s,
+      inputs.get(s.id) ?? IDLE_INPUT,
+      solids,
+      t,
+      world.map.concealment,
+      world.map.ladders,
+    );
   }
   hooks.moveUncontrolled?.(world, solids);
   for (let i = 0; i < n; i++) {
@@ -335,7 +343,7 @@ export function step(
   // Anything that became solid this tick (gate closed, wreck, bridge rising) pushes soldiers out.
   solids = currentSolids(world);
   for (const s of st.soldiers) {
-    if (!isEligible(s)) continue;
+    if (!isEligible(s) || s.ladderClimb) continue;
     const p = moveCircle(s, { x: 0, y: 0 }, wallRadiusOf(t, s), solids);
     s.x = p.x;
     s.y = p.y;
@@ -378,6 +386,15 @@ export function getView(world: World): WorldView {
       maxHp: soldierMaxHp(tuning, s.roleId, s.team),
       alive: s.alive,
       visibility: soldierVisibility(world, s),
+      ...(s.alive &&
+        s.ladderClimb && {
+          climb:
+            s.ladderClimb.progress /
+            ladderEffort(
+              map.ladders!.find((l) => l.id === s.ladderClimb!.id)!,
+              tuning,
+            ),
+        }),
       role:
         s.team === 'enemy'
           ? 'enemy'

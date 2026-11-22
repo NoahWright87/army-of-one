@@ -101,10 +101,14 @@ export function smokeView(world: World): SmokeView[] | undefined {
   });
 }
 
+export function onRaisedGround(world: World, p: Vec2): boolean {
+  return world.map.raisedGround?.some((r) => rectContains(r, p)) ?? false;
+}
+
 export function soldierVisibility(world: World, s: SoldierState): number {
   if (!s.alive) return 1;
   const t = world.tuning.concealment;
-  let visibility = 1;
+  let visibility = onRaisedGround(world, s) ? world.tuning.ladder.visibility : 1;
   if (!s.drive) {
     if (trenchAt(world.map.concealment, s)) visibility *= t.trench.visibility;
     for (const area of world.map.concealment ?? []) {

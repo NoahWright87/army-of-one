@@ -27,6 +27,8 @@ export interface SoldierView {
   alive: boolean;
   /** Terrain- and activity-adjusted visibility. 1 is normal. */
   visibility?: number;
+  /** Progress along the current ladder, 0..1. */
+  climb?: number;
   role: SoldierRole;
   /** In a lead-in ([D5]): unkillable, shown with a shield ring. */
   leadIn: boolean;

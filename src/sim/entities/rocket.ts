@@ -90,7 +90,9 @@ export function stepRockets(world: World): void {
   for (const r of list) {
     const rt = statsOf(world, r);
     const step = Math.min(rt.speed * DT, Math.max(0, rt.range - r.travelled));
+    const travelled = fromAngle(r.angle, r.travelled);
     const hit = castRay(world, r, r.angle, step, r.team as Team, {
+      fireOverFrom: { x: r.x - travelled.x, y: r.y - travelled.y },
       ignoreId: r.by,
       coverKey: `${r.id}@${world.state.tick}`,
       // Like a shot, the first stretch passes cover the shooter fires over; later ones don't.
