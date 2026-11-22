@@ -6,7 +6,12 @@ import { throwGrenade } from '../entities/grenade';
 import { launchRocket } from '../entities/rocket';
 import { chooseTurretTarget } from '../entities/turret';
 import { getSoldier, getView } from '../sim';
-import { addSmoke, perceivedVisibility, soldierVisibility } from '../world/concealment';
+import {
+  addSmoke,
+  perceivedVisibility,
+  soldierVisibility,
+  trenchExitDistance,
+} from '../world/concealment';
 import { type ConcealmentArea } from '../world/map';
 import { arena, idle, ofKind, run, soldierAt, walk, world } from './helpers';
 
@@ -47,6 +52,23 @@ describe('walkable cover', () => {
       return hashState(w.state);
     };
     expect(scenario()).toBe(scenario());
+  });
+
+  it('walks across a joined trench section and only braces on an exposed lip', () => {
+    const w = world(
+      arena({
+        concealment: [
+          trench,
+          { id: 'branch', kind: 'trench', painted: true, rect: { x: 430, y: 460, w: 100, h: 100 } },
+        ],
+      }),
+    );
+    const id = soldierAt(w, { x: 422, y: 500 });
+    const s = getSoldier(w, id)!;
+    expect(trenchExitDistance(w.map.concealment, s, { x: 1, y: 0 }, 60)).toBe(108);
+    run(w, 14, { [id]: walk(1, 0) });
+    expect(s.x).toBeGreaterThan(450);
+    expect(s.trenchClimb).toBeUndefined();
   });
 
   it('slows entry into a bush and lets a soldier leave at full speed', () => {

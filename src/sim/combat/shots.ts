@@ -6,7 +6,7 @@ import { emit, type World } from '../state';
 import { dynamicBlockers, type Blocker } from '../world/blockers';
 import { rayCircle, rayRect } from '../world/collision';
 import { coverCrossings, coverStops, damageCover, standingCover } from '../world/cover';
-import { markFired, trenchAt } from '../world/concealment';
+import { markFired, trenchAt, trenchExitDistance } from '../world/concealment';
 import { rectContains } from '../world/map';
 import { hash01 } from '../core/hash';
 import { allocateId } from '../core/ids';
@@ -176,7 +176,7 @@ export function castRay(
         const trench = trenchAt(map.concealment, s);
         if (
           trench &&
-          !rectContains(trench.rect, opts.bulletOrigin) &&
+          !shotInsideTrench(world, s, opts.bulletOrigin) &&
           coverStops(opts.coverKey, `trench:${trench.id}:${s.id}`, tuning.concealment.trench.dodge)
         )
           return;
@@ -185,6 +185,24 @@ export function castRay(
     });
   }
   return { distance: best, target };
+}
+
+function shotInsideTrench(world: World, target: Vec2, origin: Vec2): boolean {
+  const areas = world.map.concealment;
+  if (!trenchAt(areas, origin)) return false;
+  const d = Math.hypot(origin.x - target.x, origin.y - target.y);
+  return (
+    d === 0 ||
+    trenchExitDistance(
+      areas,
+      target,
+      {
+        x: (origin.x - target.x) / d,
+        y: (origin.y - target.y) / d,
+      },
+      d,
+    ) >= d
+  );
 }
 
 /** True if nothing but soldiers stands between `from` and `to` (for `team`'s shots). */

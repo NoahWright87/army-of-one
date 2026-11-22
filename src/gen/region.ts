@@ -13,13 +13,16 @@
  * Pure and deterministic.
  */
 import { ingressPoints } from './ingress';
+import { generateWeather } from './weather';
 import { keyPosition } from './key-position';
 import { BLOCK_CELLS, GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING, DEFAULT_TUNING } from '../content/tuning';
 import type { Vec2 } from '../sim/core/vec';
-import { borderWalls, type MapDef, type SpawnPointDef } from '../sim/world/map';
+import { borderWalls, type MapDef, type SpawnPointDef, type WeatherKind } from '../sim/world/map';
 import {
   addBlockContent,
+  addPaintedTrenches,
+  paintedMist,
   maskRects,
   solidRects,
   waterRects,
@@ -77,6 +80,7 @@ export function clipBlock(
 export interface LevelMapOptions {
   id: string;
   nameKey: string;
+  weather?: WeatherKind;
   /** Default: the level's own. */
   budget?: number;
   /**
@@ -455,12 +459,33 @@ export function worldLevelMap(
     }
   }
 
+  if (rows.some((row) => row.includes('T'))) {
+    addPaintedTrenches(
+      maskRects(w, h, cs, (x, y) => inside(x, y) && rows[y]?.[x] === 'T'),
+      content.concealment,
+    );
+  }
+  const mist = placed.some(({ pb }) => pb.block.mist)
+    ? paintedMist(w, h, cs, (x, y) => {
+        if (!inside(x, y)) return undefined;
+        const gx = x0 + x;
+        const gy = y0 + y;
+        return world.grid[Math.floor(gy / n)]?.[Math.floor(gx / n)]?.placed.mist?.[gy % n]?.[
+          gx % n
+        ];
+      })
+    : [];
+
   const map: MapDef = {
     id: opts.id,
     nameKey: opts.nameKey,
     width: w * cs,
     height: h * cs,
     ground: { cellSize: cs, rows },
+    ...(mist.length ? { mist } : {}),
+    ...(opts.weather
+      ? { weather: generateWeather(opts.weather, `${world.seed}:${index}`, w * cs, h * cs) }
+      : {}),
     walls: content.walls,
     water: waterRects(rows, cs),
     bounds,

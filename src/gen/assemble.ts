@@ -27,7 +27,14 @@ import {
   type TurretDef,
 } from '../sim/world/map';
 import { hash01 } from '../sim/core/hash';
-import { unitId, type BlockDef, type BlockItem, type CellPoint, type CellRect } from './block';
+import {
+  MAX_MIST_COATS,
+  unitId,
+  type BlockDef,
+  type BlockItem,
+  type CellPoint,
+  type CellRect,
+} from './block';
 
 export interface PlacedBlock {
   /** Already oriented. */
@@ -103,6 +110,24 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     spawnPoints,
   };
   for (const pb of opts.placed) addBlockContent(pb, pb.col * n, pb.row * n, acc);
+  addPaintedTrenches(
+    tileRects(groundRows, cs, (kind) => kind === 'T'),
+    concealment,
+  );
+  const mistBlocks = new Map(
+    opts.placed
+      .filter(({ block }) => block.mist)
+      .map(({ col, row, block }) => [row * opts.cols + col, block.mist!]),
+  );
+  const mist = mistBlocks.size
+    ? paintedMist(
+        opts.cols * n,
+        opts.rows * n,
+        cs,
+        (x, y) =>
+          mistBlocks.get(Math.floor(y / n) * opts.cols + Math.floor(x / n))?.[y % n]?.[x % n],
+      )
+    : [];
   capturePoints.push({
     id: 'blk-objective',
     nameKey: 'capture.block.objective',
@@ -116,6 +141,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     width,
     height,
     ground: { cellSize: cs, rows: groundRows },
+    ...(mist.length ? { mist } : {}),
     walls,
     water: waterRects(groundRows, cs),
     cover,
@@ -265,6 +291,28 @@ function blockSquads(
     });
   }
   return out;
+}
+
+export function addPaintedTrenches(rects: readonly Rect[], concealment: ConcealmentArea[]): void {
+  const used = new Set(concealment.map(({ id }) => id));
+  let next = 0;
+  for (const rect of rects) {
+    while (used.has(`painted-trench-${next}`)) next++;
+    concealment.push({ id: `painted-trench-${next++}`, kind: 'trench', rect, painted: true });
+  }
+}
+
+export function paintedMist(
+  w: number,
+  h: number,
+  cs: number,
+  coat: (x: number, y: number) => string | undefined,
+): Rect[] {
+  const mist: Rect[] = [];
+  for (let layer = 1; layer <= MAX_MIST_COATS; layer++) {
+    mist.push(...maskRects(w, h, cs, (x, y) => Number(coat(x, y) ?? 0) >= layer));
+  }
+  return mist;
 }
 
 /** Water tiles (impassable but not solid: shots cross) → rects. */

@@ -124,7 +124,12 @@ export function rankTargets(
     const d = Math.hypot(x - me.x, y - me.y);
     if (
       d > range ||
-      d > range * visibilityFrom(me, t, visibility, map.concealment, view.smoke, view.sight) ||
+      d >
+        range *
+          visibilityFrom(me, t, visibility, map.concealment, view.smoke, view.sight, {
+            map,
+            tick: view.tick,
+          }) ||
       !clearLine(me, t, blockers)
     )
       return;
@@ -281,6 +286,7 @@ export class AutoAimInput implements InputSource {
       this.opts.map.concealment,
       view.smoke,
       view.sight,
+      { map: this.opts.map, tick: view.tick },
     );
     const concealmentError = concealmentAimError(
       tuning,
