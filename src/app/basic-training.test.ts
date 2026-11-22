@@ -66,6 +66,24 @@ describe('basic training director', () => {
     expect(bt.respawnHint(opts)).not.toHaveProperty('role');
   });
 
+  it('teaches the newest class first: the Grenadier at the parapet, not a skipped MG lesson', () => {
+    const store = memory();
+    store.setItem(
+      'aoo:bt:v1',
+      JSON.stringify({
+        unlocked: ['rifleman', 'shield', 'gunner', 'grenadier'],
+        taught: ['role:shield', 'resume', 'spawnA'],
+        lives: 9,
+      }),
+    );
+    const bt = new BasicTraining(store);
+    const opts = [{ kind: 'new' as const, spawnPointId: 'bt-sp-d', entryTick: 0 }];
+    const first = bt.respawnHint(opts);
+    expect(first).toMatchObject({ kind: 'spawn', role: 'grenadier' });
+    bt.followed(first!);
+    expect(bt.respawnHint(opts)).toMatchObject({ kind: 'spawn', role: 'gunner' });
+  });
+
   it('a saved soldier (an O) is taught before anything else', () => {
     const bt = new BasicTraining(memory());
     bt.reset();

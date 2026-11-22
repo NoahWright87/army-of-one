@@ -12,6 +12,7 @@ import type { Tuning } from '../content/tuning';
 import type { AttemptObservation, SoldierRecord } from '../contracts/mission';
 import { SnapshotStore, startResolve, type WorldSnapshot } from '../sim/attempt';
 import type { MapDef } from '../sim/world/map';
+import type { TapeFrame } from '../sim/tape/tape';
 
 export interface ResolveRequest {
   mapId: string;
@@ -38,10 +39,13 @@ export function sliceTicks(pace: number | null | undefined, flatOut: number): nu
 }
 
 export interface ResolveCallbacks {
-  /** A partial observation (monotonic) and the snapshots made since the last call. */
-  onProgress(obs: AttemptObservation, snapshots: WorldSnapshot[]): void;
+  /**
+   * A partial observation (monotonic), the snapshots made since the last call, and (PHASE19)
+   * the tape frames recorded since the last call.
+   */
+  onProgress(obs: AttemptObservation, snapshots: WorldSnapshot[], frames: TapeFrame[]): void;
   /** Final observation; called once (not after cancel). */
-  onDone(obs: AttemptObservation, snapshots: WorldSnapshot[]): void;
+  onDone(obs: AttemptObservation, snapshots: WorldSnapshot[], frames: TapeFrame[]): void;
   onError?(message: string): void;
 }
 
@@ -91,13 +95,13 @@ export function createResolveDriver(req: ResolveRequest, cb: ResolveCallbacks) {
     snapshots: new ForwardingSnapshotStore(pending),
     onProgress: (obs) => {
       if (r?.done) return; // the final report goes through onDone
-      cb.onProgress(obs, take());
+      cb.onProgress(obs, take(), r?.drainTape() ?? []);
     },
   });
   const finish = () => {
     if (finished) return;
     finished = true;
-    cb.onDone(r!.observation(), take());
+    cb.onDone(r!.observation(), take(), r!.drainTape());
   };
   return {
     /** Returns true when the pass is complete. */
@@ -161,8 +165,8 @@ export function createInlineResolveRunner(
 
 export type ToWorker = { type: 'start'; req: ResolveRequest } | { type: 'cancel' };
 export type FromWorker =
-  | { type: 'progress'; obs: AttemptObservation; snapshots: WorldSnapshot[] }
-  | { type: 'done'; obs: AttemptObservation; snapshots: WorldSnapshot[] }
+  | { type: 'progress'; obs: AttemptObservation; snapshots: WorldSnapshot[]; frames: TapeFrame[] }
+  | { type: 'done'; obs: AttemptObservation; snapshots: WorldSnapshot[]; frames: TapeFrame[] }
   | { type: 'error'; message: string };
 
 /**
@@ -178,10 +182,10 @@ export function createWorkerResolveRunner(makeWorker: () => Worker): ResolveRunn
       w.onmessage = (ev: MessageEvent<FromWorker>) => {
         if (!live) return;
         const m = ev.data;
-        if (m.type === 'progress') cb.onProgress(m.obs, m.snapshots);
+        if (m.type === 'progress') cb.onProgress(m.obs, m.snapshots, m.frames);
         else if (m.type === 'done') {
           live = false;
-          cb.onDone(m.obs, m.snapshots);
+          cb.onDone(m.obs, m.snapshots, m.frames);
           w.terminate();
         } else {
           live = false;

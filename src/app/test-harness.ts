@@ -21,6 +21,8 @@ export interface Harness {
   ui: RecordingUi;
   store: MemoryStore;
   events: GameEvent[];
+  /** (PHASE19) What the controller logged (handoff drift, save problems…). */
+  logs: string[];
   runs: { run: LiveRun; countdownAtStart: number | null }[];
   /** Lives the host will play, in order (each `start` takes the next). */
   lives: AutoLife[];
@@ -52,6 +54,7 @@ export function createHarness(o: HarnessOptions = {}): Harness {
   const ui = new RecordingUi();
   const store = o.store ?? new MemoryStore();
   const events: GameEvent[] = [];
+  const logs: string[] = [];
   const runs: Harness['runs'] = [];
   const lives: AutoLife[] = [];
   const input = (run: LiveRun): InputSource | null => {
@@ -72,6 +75,7 @@ export function createHarness(o: HarnessOptions = {}): Harness {
       o.resolveSlice ?? 600,
     ),
     options: { resolvePace: () => null, resumeOnReload: true, ...o.options },
+    log: (m) => logs.push(m),
     onEvent: (e) => {
       events.push(e);
       if (e.type === 'runStarted') runs.push({ run: e.run, countdownAtStart: e.run.countdown() });
@@ -103,5 +107,5 @@ export function createHarness(o: HarnessOptions = {}): Harness {
     return option;
   };
 
-  return { game, clock, ui, store, events, runs, lives, settle, play };
+  return { game, clock, ui, store, events, logs, runs, lives, settle, play };
 }

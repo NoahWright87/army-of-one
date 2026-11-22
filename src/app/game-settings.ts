@@ -23,6 +23,8 @@ export const GAME_SETTING_IDS = {
   skipEmptyRespawn: 'flow.skipEmptyRespawn',
   /** (06-c) R / Space redeploys at the last spawn point's next slot (death beat, respawn). */
   quickRedeploy: 'flow.quickRedeploy',
+  /** (POC) Pick spawns inside the battle replay instead of on the respawn screen. */
+  inWorldRespawn: 'flow.inWorldRespawn',
   /** (06-c) Ignore the quick-redeploy key this long after the death (a fire tap on Space). */
   quickRedeployGuardMs: 'flow.quickRedeployGuardMs',
   /** (06-c) Show the "Preparing…" spinner only for work longer than this. */
@@ -167,6 +169,13 @@ export function gameSettingDefs(): SettingDef[] {
       type: 'boolean',
       // (PHASE13-d) Off: you choose your first soldier too (role and spawn) ([D115]).
       default: false,
+    },
+    {
+      id: GAME_SETTING_IDS.inWorldRespawn,
+      group: G,
+      label: str('settings.game.inWorldRespawn'),
+      type: 'boolean',
+      default: true,
     },
     {
       id: GAME_SETTING_IDS.quickRedeploy,

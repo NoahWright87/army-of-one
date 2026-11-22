@@ -547,7 +547,8 @@ export interface Tuning {
     /**
      * An echo snaps to its scheduled pose when that pose is within this distance and the straight
      * move there is unobstructed. Also how far it may be off before it counts as off schedule.
-     * Must exceed one tick of walking plus a separation push (≈ 2.5 + 1.2 by default).
+     * (PHASE19) A floor: the limit used is at least one tick of the soldier's fastest move
+     * (sprint or vehicle) plus a separation push, so a recording never falls off its own path.
      */
     snapDistance: number;
     /** A straight move counts as unobstructed if collision moves the end by at most this much. */
@@ -589,6 +590,11 @@ export interface Tuning {
      */
     snapshotDenseWindowTicks: number;
     snapshotSparseEveryTicks: number;
+    /**
+     * (PHASE19) The battle tape records a frame of the whole world every this many ticks
+     * (events in between ride on the next frame); playback blends between frames.
+     */
+    tapeFrameEveryTicks: number;
   };
   /** (04) New-soldier spawning and the deploy lead-in ([D7], [D5], [D25]). */
   spawn: {
@@ -1048,6 +1054,7 @@ export const DEFAULT_TUNING: Tuning = {
     resolveProgressIntervalTicks: 60, // TUNE
     snapshotDenseWindowTicks: 3600, // TUNE: last 60 s of battle time stay at 1 s density
     snapshotSparseEveryTicks: 300, // TUNE: older battle time every 5 s (0 = no thinning)
+    tapeFrameEveryTicks: 3, // TUNE (PHASE19): 20 frames per second of battle time
   },
   spawn: {
     intervalSeconds: 2, // TUNE [D7]

@@ -20,8 +20,8 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
   if (m.type !== 'start') return;
   try {
     const driver = createResolveDriver(m.req, {
-      onProgress: (obs, snapshots) => post({ type: 'progress', obs, snapshots }),
-      onDone: (obs, snapshots) => post({ type: 'done', obs, snapshots }),
+      onProgress: (obs, snapshots, frames) => post({ type: 'progress', obs, snapshots, frames }),
+      onDone: (obs, snapshots, frames) => post({ type: 'done', obs, snapshots, frames }),
     });
     // The worker has its own thread: flat out (a slice at a time so messages flush), or paced
     // so the scrubber visibly sweeps.

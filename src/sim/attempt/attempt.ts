@@ -43,6 +43,8 @@ import { ordinalOf, recordedTo } from '../recording/records';
 import { ObservationBuilder } from './observation';
 import type { WorldObservation } from '../../contracts/mission';
 import { SnapshotStore, type WorldSnapshot } from './snapshots';
+import { TapeRecorder, type Tape, type TapeFrame } from '../tape/tape';
+import { alignToFrame } from '../tape/align';
 
 export type AttemptFrom = { kind: 'start' } | { kind: 'snapshot'; snapshot: WorldSnapshot };
 
@@ -73,6 +75,11 @@ export interface AttemptParams {
   snapshots?: SnapshotStore;
   /** Internal: 'resolve' for resolve passes. */
   kind?: AttemptObservation['kind'];
+  /**
+   * (PHASE19) The battle tape. Until the live soldier takes control, the run is set to the
+   * tape at every frame it has (the lead-in is a replay); the sim takes over at control.
+   */
+  tape?: Tape;
 }
 
 export interface TickResult {
@@ -117,9 +124,15 @@ export class Attempt {
   private shifted: HistoryShift | null = null;
   private finished = false;
   private readonly hooks: StepHooks;
+  /** (PHASE19) Records this run onto the battle tape (frames + events). */
+  private readonly tape: TapeRecorder;
+  /** (PHASE19) What happened so far, played back until control (see `AttemptParams.tape`). */
+  private readonly truth: Tape | null;
+  private drift: string | null = null;
 
   constructor(p: AttemptParams) {
     this.kind = p.kind ?? 'attempt';
+    this.truth = p.tape ?? null;
     this.attemptNumber = p.attempt;
     this.live = p.live;
     this.snapshots = p.snapshots ?? new SnapshotStore();
@@ -195,6 +208,27 @@ export class Attempt {
 
     this.betweenSteps();
     this.stageSnapshot();
+    this.tape = new TapeRecorder(Math.max(1, p.tuning.attempt.tapeFrameEveryTicks));
+    this.tape.onTick(this.tick, [], () => this.view(), true);
+  }
+
+  /**
+   * (PHASE19) Where this run starts to matter on the tape: the live soldier's control tick
+   * (before it the lead-in only replays what already happened), or the first tick of a run
+   * without one.
+   */
+  get tapeFromTick(): Tick {
+    return Number.isFinite(this.controlFromTick) ? this.controlFromTick : this.fromTick;
+  }
+
+  /** (PHASE19) The first way the re-simulation had drifted from the tape before control (dev). */
+  get tapeDrift(): string | null {
+    return this.drift;
+  }
+
+  /** (PHASE19) Tape frames recorded since the last call. */
+  drainTape(): TapeFrame[] {
+    return this.tape.drain();
   }
 
   get tick(): Tick {
@@ -270,6 +304,7 @@ export class Attempt {
     this.echoes.syncDeaths(this.world);
     this.betweenSteps();
     if (this.tick % this.world.tuning.attempt.snapshotIntervalTicks === 0) this.stageSnapshot();
+    this.tape.onTick(this.tick, events, () => this.view(), this.isOver());
     return {
       tick: this.tick,
       events,
@@ -333,6 +368,7 @@ export class Attempt {
     const segReason: SegmentEndReason = reason === 'resolved' ? 'suspended' : reason;
     const liveSegment = this.recorder?.segment(segReason) ?? null;
     const endSnapshot = this.takeSnapshot();
+    this.tape.onTick(this.tick, [], () => this.view(), true);
     this.snapshots.stage(endSnapshot);
     this.snapshots.commit({
       attempt: this.attemptNumber,
@@ -364,6 +400,11 @@ export class Attempt {
     const w = this.world;
     const tick = w.state.tick;
     this.echoes.spawnDue(w);
+    // (PHASE19) Before control the past is playback: stay on the tape wherever it has a frame.
+    if (this.truth && this.live && !this.controlling && tick < this.controlFromTick) {
+      const frame = this.truth.frameAt(tick);
+      if (frame) this.drift ??= alignToFrame(w, frame.view);
+    }
 
     const live = this.live;
     if (live?.mode === 'new' && tick === live.entryTick && !getSoldier(w, live.soldierId)) {
@@ -396,7 +437,9 @@ export class Attempt {
         // The lead-in ends: the player takes over from the next step on.
         this.handOver();
       } else if (s?.alive) {
-        // Lead-in ([D5]): plays its recording, unkillable but damageable, shown as the player's.
+        // Lead-in ([D5]): replays its own recorded life, shown as the player's. (PHASE19) The
+        // past can't change: the recording says this soldier lived through it, so the replay
+        // can't kill them (HP is floored at 1). Not gameplay invincibility: it ends at control.
         s.minHp = 1;
         s.viewRole = 'live';
       }

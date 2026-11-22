@@ -298,7 +298,7 @@ export class EchoController {
     const dy = target.y - s.y;
     if (dx !== 0 || dy !== 0) {
       const d = Math.hypot(dx, dy);
-      if (d > et.snapDistance) return false;
+      if (d > this.snapLimit(s)) return false;
       const res = moveCircle(s, { x: dx, y: dy }, wallRadiusOf(this.tuning, s), solids);
       if (Math.hypot(res.x - target.x, res.y - target.y) > et.blockEpsilon) return false;
     }
@@ -306,6 +306,20 @@ export class EchoController {
     s.y = target.y;
     s.facing = target.facing;
     return true;
+  }
+
+  /**
+   * (PHASE19) How far one recorded tick can move a soldier: its fastest step (sprint, or a
+   * vehicle's top speed) plus the most a crowd can shove it. A recording that moved that far in
+   * a tick is still on schedule; a smaller limit knocked sprinting or jostled echoes off their
+   * recording, so their shots were skipped and replays disagreed with what played.
+   */
+  private snapLimit(s: SoldierState): number {
+    const t = this.tuning;
+    const step =
+      Math.max(t.soldier.speed * t.soldier.sprintMultiplier, driveOf(t, s.roleId)?.maxSpeed ?? 0) *
+      DT;
+    return Math.max(t.echo.snapDistance, step + t.separation.maxPushPerTick + 0.5);
   }
 
   private followPath(

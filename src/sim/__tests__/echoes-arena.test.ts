@@ -250,7 +250,7 @@ describe('crowd', () => {
         { kind: 'wait', ticks: 240 },
       ],
       onTick: (a) => {
-        if (a.tick === secondsToTicks(9)) for (const id of knocked) soldier(a.world, id).x -= 6;
+        if (a.tick === secondsToTicks(9)) for (const id of knocked) soldier(a.world, id).x -= 20; // past the snap limit (PHASE19)
         for (const id of knocked) if (a.echoes.echo(id)!.mode === 'offSchedule') wasOff.add(id);
       },
     });

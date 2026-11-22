@@ -22,6 +22,9 @@ import { DEPTH } from '../depth';
 import type { Vec2 } from '../../sim/core/vec';
 import { fitPx, type ImageKey } from '../../content/assets';
 import { pilotMiniature } from '../pilot-miniatures';
+import type { Tape } from '../../sim/tape/tape';
+import { TimeClock } from '../time-clock';
+import type { TimeControls } from '../time-controls';
 import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 
 /** Debug countdown length (PHASE04's lead-in is 5 s too, [D5]). */
@@ -81,6 +84,19 @@ export class BattleScene extends Phaser.Scene {
   private frameMaxWindow = 0;
   private frameMaxShown = 0;
   private updateMs: number | null = null;
+  /**
+   * (PHASE19) Respawn mode: the scene plays the battle tape on a smooth clock with a free camera
+   * while the player picks a spawn. Null while a run is being played.
+   */
+  private rs: {
+    tape: Tape;
+    clock: TimeClock;
+    pairTick: number;
+    lastEvent: number;
+    goal: { x: number; y: number; zoom: number };
+    drag: { x: number; y: number } | null;
+    pinch: number | null;
+  } | null = null;
 
   constructor(private readonly services: SceneServices) {
     super('battle');
@@ -93,59 +109,19 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     const { display } = this.services;
     this.world = this.session.world;
-    this.liveId = this.session.liveId;
-    this.stepper = createFixedStepper(TICKS_PER_SECOND);
-    this.source = this.session.makeInput(this);
-    const driver = this.session.driver;
-    this.view = driver ? driver.view() : getView(this.world);
-    this.prevView = this.view;
-    this.source.observe?.(this.view);
-    // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
-    const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
-    this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
+    const driver0 = this.session.driver;
+    this.view = driver0 ? driver0.view() : getView(this.world);
     this.sounds = new SoundBank(this, display);
     this.worldRenderer = new WorldRenderer(this, this.world.map, this.view, display, this.sounds, {
       spriteRadius: this.world.tuning.soldier.spriteRadius,
     });
     this.worldRenderer.onCue = (c) => this.onCue(c);
-
-    const map = this.world.map;
-    this.cameras.main.setBounds(0, 0, map.width, map.height);
-    const live = this.view.soldiers.find((s) => s.id === this.liveId);
-    const home = live
-      ? { x: live.x, y: live.y }
-      : driver
-        ? { ...driver.cameraHome }
-        : { x: map.width / 2, y: map.height / 2 };
-    // (06-a) Start already looking ahead (the spawn's facing; up on Breach, [D27]).
-    this.homeFacing =
-      map.spawnPoints.find((sp) => sp.position.x === home.x && sp.position.y === home.y)?.facing ??
-      -Math.PI / 2;
-    this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
-    // (PHASE13-d) A new soldier runs in to its spawn point during the countdown ([D112]).
-    this.runPath = null;
-    this.runnerPos = null;
-    this.runners = new Map();
-    const left0 = driver?.countdown() ?? null;
-    if (driver && !live && left0 !== null && left0 > 0) {
-      const sp = spawnAt(map.spawnPoints, driver.cameraHome);
-      if (sp) {
-        this.runPath = approachFor(sp, this.runDistance());
-        this.runTotal = left0;
-        this.runnerPos = this.runPath[0] ?? null;
-        this.cam = this.lookAhead(this.runnerPos ?? home, this.homeFacing);
-      }
-    }
+    this.cameras.main.setBounds(0, 0, this.world.map.width, this.world.map.height);
     this.ghost = this.add.graphics().setDepth(1000);
-    this.firstFrame = true;
-    this.lookAim = null;
-    this.hudView = null;
-    this.money = null;
-    this.moneyTick = null;
-    this.ghostDrawn = false;
-    this.input.setDefaultCursor('none');
-    this.services.hud.setVisible(true);
-    this.session.overlay?.create(this, this.liveId, this.services.display);
+    this.rs = null;
+    this.zoomNow = 0;
+    this.setupRespawnInput();
+    this.bindSession(false);
 
     const startCountdown = () => {
       this.countdownTicks = DEMO_COUNTDOWN_TICKS;
@@ -171,6 +147,63 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Takes on `this.session`: its world, live soldier, input and driver. (PHASE19) `keepCamera`:
+   * the scene was already showing this battle (respawn mode), so the camera glides on from where
+   * it is instead of cutting to the new soldier.
+   */
+  private bindSession(keepCamera: boolean): void {
+    this.world = this.session.world;
+    this.liveId = this.session.liveId;
+    this.stepper = createFixedStepper(TICKS_PER_SECOND);
+    this.source = this.session.makeInput(this);
+    const driver = this.session.driver;
+    this.view = driver ? driver.view() : getView(this.world);
+    if (!keepCamera) this.prevView = this.view;
+    this.source.observe?.(this.view);
+    // (06-a) Until the first input arrives, "aim" is the soldier's facing (up on Breach).
+    const facing = this.view.soldiers.find((s) => s.id === this.liveId)?.facing;
+    this.lastInput = { ...IDLE_INPUT, aim: facing ?? -Math.PI / 2 };
+    const map = this.world.map;
+    const live = this.view.soldiers.find((s) => s.id === this.liveId);
+    const home = live
+      ? { x: live.x, y: live.y }
+      : driver
+        ? { ...driver.cameraHome }
+        : { x: map.width / 2, y: map.height / 2 };
+    // (06-a) Start already looking ahead (the spawn's facing; up on Breach, [D27]).
+    this.homeFacing =
+      map.spawnPoints.find((sp) => sp.position.x === home.x && sp.position.y === home.y)?.facing ??
+      -Math.PI / 2;
+    const camWas = this.cam;
+    this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
+    if (keepCamera) this.cam = camWas;
+    // (PHASE13-d) A new soldier runs in to its spawn point during the countdown ([D112]).
+    this.runPath = null;
+    this.runnerPos = null;
+    for (const img of this.runners.values()) img.destroy();
+    this.runners = new Map();
+    const left0 = driver?.countdown() ?? null;
+    if (driver && !live && left0 !== null && left0 > 0) {
+      const sp = spawnAt(map.spawnPoints, driver.cameraHome);
+      if (sp) {
+        this.runPath = approachFor(sp, this.runDistance());
+        this.runTotal = left0;
+        this.runnerPos = this.runPath[0] ?? null;
+        if (!keepCamera) this.cam = this.lookAhead(this.runnerPos ?? home, this.homeFacing);
+      }
+    }
+    this.firstFrame = true;
+    this.lookAim = null;
+    this.hudView = null;
+    this.money = null;
+    this.moneyTick = null;
+    this.ghostDrawn = false;
+    this.input.setDefaultCursor('none');
+    this.services.hud.setVisible(true);
+    this.session.overlay?.create(this, this.liveId, this.services.display);
+  }
+
   override update(time: number): void {
     const u0 = performance.now();
     const { display, hud, countdown, debug } = this.services;
@@ -181,6 +214,10 @@ export class BattleScene extends Phaser.Scene {
     const deltaMs = this.firstFrame ? 0 : rawDelta;
     if (!this.firstFrame) this.trackFrame(rawDelta);
     this.firstFrame = false;
+    if (this.rs) {
+      this.updateRespawn(time, deltaMs);
+      return;
+    }
     const speed = Number(display.timeScale) || 1;
     const { steps, alpha } = advance(
       this.stepper,
@@ -337,6 +374,203 @@ export class BattleScene extends Phaser.Scene {
       };
     }
     this.updateMs = ema(this.updateMs, performance.now() - u0, 0.05);
+  }
+
+  // ---------- (PHASE19) respawn mode ----------
+
+  /**
+   * Switches to respawn mode: the scene stops playing the run and plays `tape` from `start` at
+   * `rate` (the slow motion after a death), up to `frontier()`. The camera becomes the player's
+   * (drag, wheel, pinch; `focus` glides it). Returns the controls the respawn overlay drives.
+   */
+  enterRespawn(o: {
+    tape: Tape;
+    start: number;
+    rate: number;
+    frontier: () => number;
+  }): TimeControls {
+    const tape = o.tape;
+    this.rs = {
+      tape,
+      clock: new TimeClock({ min: () => tape.start ?? 0, frontier: o.frontier }, o.start, o.rate),
+      pairTick: Number.NaN,
+      lastEvent: o.start,
+      goal: { x: this.cam.x, y: this.cam.y, zoom: this.zoomNow || this.baseZoom || 1 },
+      drag: null,
+      pinch: null,
+    };
+    this.services.hud.setVisible(false);
+    this.services.countdown.update(null);
+    this.services.leadInHint?.set(false);
+    this.ghost.clear();
+    this.ghostDrawn = false;
+    for (const img of this.runners.values()) img.destroy();
+    this.runners = new Map();
+    this.input.setDefaultCursor('grab');
+    // The free camera may look past the map's edge (edge spawns sit above the timeline).
+    this.cameras.main.removeBounds();
+    const rs = this.rs;
+    const now = () => this.time.now;
+    const shown = () => this.view;
+    const baseZoom = () => this.baseZoom || 1;
+    const camera = () => this.cameras.main;
+    const toScreen = (x: number, y: number) => this.worldToScreen(x, y);
+    return {
+      get tick() {
+        return rs.clock.tick;
+      },
+      get start() {
+        return tape.start ?? 0;
+      },
+      get frontier() {
+        return Math.max(tape.start ?? 0, o.frontier());
+      },
+      get traveling() {
+        return rs.clock.traveling;
+      },
+      get destination() {
+        return rs.clock.destination;
+      },
+      get rate() {
+        return rs.clock.rate;
+      },
+      setRate: (r) => {
+        rs.clock.rate = r;
+      },
+      travelTo: (t) => rs.clock.travelTo(t, now()),
+      scrubTo: (t) => rs.clock.set(t),
+      focus: (x, y, zoom) => {
+        rs.goal = { x, y, zoom: zoom ?? Math.max(rs.goal.zoom, baseZoom()) };
+      },
+      worldToScreen: toScreen,
+      get currentView() {
+        return shown();
+      },
+      viewport: () => {
+        const v = camera().worldView;
+        return { x: v.x, y: v.y, width: v.width, height: v.height };
+      },
+    };
+  }
+
+  /** True while the scene is in respawn mode. */
+  get inRespawn(): boolean {
+    return this.rs !== null;
+  }
+
+  /**
+   * Plays a new run in this same scene, carrying on from what is on screen (no restart, no cut):
+   * the camera glides from where it is to the new soldier.
+   */
+  adopt(session: BattleSession): void {
+    this.source.destroy();
+    // The last run's extras (basic training's sergeant, his words, the signs) go with it.
+    this.session.overlay?.destroy?.();
+    this.session = session;
+    this.rs = null;
+    this.cameras.main.setBounds(0, 0, session.world.map.width, session.world.map.height);
+    this.bindSession(true);
+  }
+
+  private worldToScreen(x: number, y: number): { x: number; y: number } {
+    const cam = this.cameras.main;
+    const rect = this.game.canvas.getBoundingClientRect();
+    const k = rect.width / this.scale.width;
+    return {
+      x: rect.left + ((x - cam.midPoint.x) * cam.zoom + this.scale.width / 2) * k,
+      y: rect.top + ((y - cam.midPoint.y) * cam.zoom + this.scale.height / 2) * k,
+    };
+  }
+
+  /** The camera's zoom limits in respawn mode: the whole map in view … close up. */
+  private zoomLimits(): { min: number; max: number } {
+    const cam = this.cameras.main;
+    const map = this.world.map;
+    const fit = Math.min(cam.width / map.width, cam.height / map.height);
+    return { min: fit * 0.95, max: Math.max(fit, (this.baseZoom || 1) * 2.2) };
+  }
+
+  private setupRespawnInput(): void {
+    this.input.addPointer(1);
+    const both = () => {
+      const a = this.input.pointer1;
+      const b = this.input.pointer2;
+      return a?.isDown && b?.isDown ? Math.hypot(a.x - b.x, a.y - b.y) : null;
+    };
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (!this.rs) return;
+      this.rs.drag = { x: p.x, y: p.y };
+      this.rs.pinch = both();
+      if (this.rs.pinch !== null) this.rs.drag = null;
+      this.input.setDefaultCursor('grabbing');
+    });
+    this.input.on('pointerup', () => {
+      if (!this.rs) return;
+      this.rs.drag = null;
+      this.rs.pinch = both();
+      this.input.setDefaultCursor('grab');
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const rs = this.rs;
+      if (!rs) return;
+      const d = both();
+      if (d !== null && rs.pinch !== null && rs.pinch > 0) {
+        this.zoomBy(d / rs.pinch);
+        rs.pinch = d;
+        return;
+      }
+      if (!rs.drag || !p.isDown) return;
+      const z = this.cameras.main.zoom || 1;
+      const dx = (p.x - rs.drag.x) / z;
+      const dy = (p.y - rs.drag.y) / z;
+      // Dragging moves the camera with the finger (no easing behind it).
+      rs.goal = { ...rs.goal, x: rs.goal.x - dx, y: rs.goal.y - dy };
+      this.cam = { x: this.cam.x - dx, y: this.cam.y - dy };
+      rs.drag = { x: p.x, y: p.y };
+    });
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      if (this.rs) this.zoomBy(dy > 0 ? 1 / 1.15 : 1.15);
+    });
+  }
+
+  private zoomBy(k: number): void {
+    const rs = this.rs;
+    if (!rs) return;
+    const { min, max } = this.zoomLimits();
+    rs.goal = { ...rs.goal, zoom: Math.max(min, Math.min(max, rs.goal.zoom * k)) };
+  }
+
+  private updateRespawn(time: number, deltaMs: number): void {
+    const rs = this.rs!;
+    rs.clock.update(time, deltaMs);
+    const t = rs.clock.tick;
+    const f = Math.floor(t);
+    if (f !== rs.pairTick) {
+      // Effects and sounds play at normal-ish speeds going forward; a fast trip is silent.
+      const quiet = rs.clock.speedNow() > 150 || !(f > rs.pairTick);
+      const a = rs.tape.viewAt(f, f) ?? this.view;
+      const b = rs.tape.viewAt(f + 1, quiet ? f + 1 : Math.max(rs.lastEvent, f)) ?? a;
+      rs.lastEvent = f + 1;
+      this.worldRenderer.onStep(a, b, null);
+      this.prevView = a;
+      this.view = b;
+      rs.pairTick = f;
+    }
+    // The free camera glides to its goal (dragging already moved it).
+    const { min, max } = this.zoomLimits();
+    rs.goal.zoom = Math.max(min, Math.min(max, rs.goal.zoom));
+    const k = 1 - Math.exp(-deltaMs / 180);
+    this.cam = {
+      x: this.cam.x + (rs.goal.x - this.cam.x) * k,
+      y: this.cam.y + (rs.goal.y - this.cam.y) * k,
+    };
+    this.zoomNow =
+      (this.zoomNow || rs.goal.zoom) + (rs.goal.zoom - (this.zoomNow || rs.goal.zoom)) * k;
+    this.zoomGoal = this.zoomNow;
+    const cam = this.cameras.main;
+    cam.setZoom(this.zoomNow);
+    cam.centerOn(this.cam.x, this.cam.y);
+    this.worldRenderer.render({ alpha: t - f, nowMs: time, liveId: null, pointer: null });
   }
 
   /** (06-c) Frame interval readout: EMA plus the worst frame of the last ~second. */
