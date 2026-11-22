@@ -232,8 +232,6 @@ export interface Tuning {
   roleStats: Record<RoleId, { hp: number; speed: number }>;
   ladder: {
     reach: number;
-    climbSpeed: number;
-    minimumEffort: number;
     visibility: number;
     sight: number;
   };
@@ -858,8 +856,6 @@ export const DEFAULT_TUNING: Tuning = {
   },
   ladder: {
     reach: 12, // TUNE: distance from either landing that accepts movement toward the ladder
-    climbSpeed: 0.35, // TUNE: fraction of walking speed
-    minimumEffort: 58, // TUNE: minimum climbing distance in world units
     visibility: 1.3, // TUNE: raised occupants are easier to spot
     sight: 1.15, // TUNE: observer range on raised ground
   },

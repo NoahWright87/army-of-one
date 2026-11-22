@@ -27,10 +27,10 @@ import { compareIds } from '../core/ids';
 import { DT, secondsToTicks, type Tick } from '../core/time';
 import { distance, type Vec2 } from '../core/vec';
 import { interact, isLeverOn } from '../entities/lever';
-import { driveOf, wallRadiusOf, type SoldierState } from '../entities/soldier';
+import { driveOf, soldierSpeed, wallRadiusOf, type SoldierState } from '../entities/soldier';
 import { emit, type World } from '../state';
 import { getSoldier, soldierIndex, spawnSoldier, type StepHooks } from '../sim';
-import { recordedLadderTransfer } from '../world/ladder';
+import { recordedLadderStep } from '../world/ladder';
 import { moveCircle } from '../world/collision';
 import type { Rect } from '../world/map';
 import { findPath, pathLength } from '../world/nav';
@@ -274,23 +274,34 @@ export class EchoController {
         continue;
       }
       const target = poseAt(sched, t);
-      const ladderTransfer =
-        !s.drive &&
-        world.map.ladders?.length &&
-        recordedLadderTransfer(
+      const previous = world.map.ladders?.length && !s.drive ? poseAt(sched, t - 1) : undefined;
+      const ladderStep =
+        previous &&
+        world.map.ladders &&
+        recordedLadderStep(
           world.map.ladders,
-          poseAt(sched, t - 1),
+          previous,
           target,
           s,
+          soldierSpeed(this.tuning, s.roleId) * DT,
           wallRadiusOf(this.tuning, s),
           solids,
+          this.tuning,
         );
-      if (ladderTransfer) {
+      const previousClimb = s.ladderClimb;
+      delete s.ladderClimb;
+      if (ladderStep) {
+        if (ladderStep.climb) {
+          s.ladderClimb =
+            previous && previous.x === target.x && previous.y === target.y
+              ? (previousClimb ?? ladderStep.climb)
+              : ladderStep.climb;
+        }
         s.x = target.x;
         s.y = target.y;
         s.facing = target.facing;
       }
-      if (ladderTransfer || this.trySnap(s, target, solids)) {
+      if (ladderStep || this.trySnap(s, target, solids)) {
         if (e.mode !== 'following') {
           e.mode = 'following';
           e.path = null;

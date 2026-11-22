@@ -14,6 +14,20 @@ export interface TrenchClimb {
   areaId: string;
 }
 
+/** Trench rims and ladders take the same effort per tick of walking input. */
+export function advanceClimbProgress(
+  progress: number,
+  effort: number,
+  walk: number,
+  push: number,
+  tuning: Tuning,
+): number {
+  return Math.max(
+    0,
+    Math.min(effort, progress + walk * tuning.concealment.trench.climbSpeed * push),
+  );
+}
+
 type Climber = Vec2 & { trenchClimb?: TrenchClimb };
 
 export function moveInConcealment(
@@ -82,7 +96,7 @@ export function moveInConcealment(
     // the soldier starts partway up the rim (e.g. just dropped in at the edge).
     const depth = Math.abs(edge - start) + POSITION_QUANTUM * 2;
     const needed = Math.max(t.rimDepth, depth);
-    climb.progress = Math.min(needed, climb.progress + walk * t.climbSpeed * push);
+    climb.progress = advanceClimbProgress(climb.progress, needed, walk, push, tuning);
     d[axis] = start + (sign * (depth * climb.progress)) / needed - s[axis];
     const p = move(d);
     if (climb.progress >= needed && (p[axis] - edge) * sign > POSITION_QUANTUM) {

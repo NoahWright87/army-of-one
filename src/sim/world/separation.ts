@@ -22,7 +22,7 @@ export function separateSoldiers(
 ): void {
   const { blockerRadius } = tuning.soldier;
   const { stiffness, maxPushPerTick } = tuning.separation;
-  const active = soldiers.filter(isEligible);
+  const active = soldiers.filter((s) => isEligible(s) && !s.ladderClimb);
   // (PHASE12-b) Vehicles have big bodies and push soldiers without being pushed by them.
   const radius = active.map((s) => driveOf(tuning, s.roleId)?.bodyRadius ?? blockerRadius);
   const heavy = active.map((s) => !!s.drive);

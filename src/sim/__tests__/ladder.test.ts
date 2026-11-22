@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { hashState } from '../core/hash';
 import { getSoldier } from '../sim';
 import { currentSolids } from '../world/blockers';
-import { recordedLadderTransfer } from '../world/ladder';
+import { recordedLadderStep } from '../world/ladder';
 import { arena, run, soldierAt, walk, world } from './helpers';
 
 const bottom = { x: 350, y: 500 };
@@ -19,32 +19,43 @@ describe('ladders', () => {
       const s = getSoldier(w, id)!;
       const east = { [id]: walk(1, 0) };
       run(w, 20, east);
-      expect(s.x).toBe(bottom.x);
+      const speed = (w.tuning.soldier.speed / 60) * w.tuning.concealment.trench.climbSpeed;
+      expect(s.x).toBeCloseTo(bottom.x + 20 * speed, 2);
+      const before = s.x;
+      run(w, 1, east);
+      expect(s.x - before).toBeCloseTo(speed, 2);
       expect(s.ladderClimb?.progress).toBeGreaterThan(0);
       run(w, 1);
-      expect(s.ladderClimb).toBeUndefined();
-      run(w, 100, east);
+      expect(s.x).toBeCloseTo(before + speed, 2);
+      run(w, 1, { [id]: walk(-1, 0) });
+      expect(s.x).toBeCloseTo(before, 2);
+      run(w, 150, east);
       expect(s.x).toBeGreaterThanOrEqual(top.x);
-      run(w, 200, { [id]: walk(-1, 0) });
+      run(w, 230, { [id]: walk(-1, 0) });
       expect(s.x).toBeLessThanOrEqual(bottom.x);
       return hashState(w.state);
     };
     expect(scenario()).toBe(scenario());
   });
 
-  it('recognizes a recorded transfer only at its landing, and rejects obstructed exits', () => {
+  it('replays gradual ladder steps inside the wall and checks collision at the landing', () => {
     const w = world(arena({ walls: [wall], raisedGround, ladders: [ladder] }));
     const solids = currentSolids(w);
     const radius = w.tuning.soldier.wallRadius;
-    expect(recordedLadderTransfer([ladder], bottom, top, bottom, radius, solids)).toBe(true);
+    const walkPerTick = w.tuning.soldier.speed / 60;
+    const previous = { x: 400, y: 500 };
+    const target = { x: 400.5, y: 500 };
+    const replay = (from: typeof bottom, to: typeof top, actual = from, blockers = solids) =>
+      recordedLadderStep([ladder], from, to, actual, walkPerTick, radius, blockers, w.tuning);
+    expect(replay(previous, target)?.climb?.id).toBe(ladder.id);
+    expect(replay(previous, target, { ...previous, y: 510 })).toBeUndefined();
+    expect(replay(bottom, top)).toBeUndefined();
+    expect(replay({ ...top, x: top.x - 0.5 }, top)).toEqual({});
     expect(
-      recordedLadderTransfer([ladder], bottom, top, { ...bottom, y: 510 }, radius, solids),
-    ).toBe(false);
-    expect(
-      recordedLadderTransfer([ladder], bottom, top, bottom, radius, [
+      replay({ ...top, x: top.x - 0.5 }, top, { ...top, x: top.x - 0.5 }, [
         ...solids,
         { x: 440, y: 490, w: 20, h: 20 },
       ]),
-    ).toBe(false);
+    ).toBeUndefined();
   });
 });

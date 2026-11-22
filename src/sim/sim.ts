@@ -343,7 +343,7 @@ export function step(
   // Anything that became solid this tick (gate closed, wreck, bridge rising) pushes soldiers out.
   solids = currentSolids(world);
   for (const s of st.soldiers) {
-    if (!isEligible(s)) continue;
+    if (!isEligible(s) || s.ladderClimb) continue;
     const p = moveCircle(s, { x: 0, y: 0 }, wallRadiusOf(t, s), solids);
     s.x = p.x;
     s.y = p.y;
