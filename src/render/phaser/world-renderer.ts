@@ -354,6 +354,37 @@ export class WorldRenderer {
         }
       }
     }
+    if (map.raisedGround?.length || map.ladders?.length) {
+      const g = scene.add.graphics().setDepth(DEPTH.walls - 0.4);
+      for (const { x, y, w, h } of map.raisedGround ?? []) {
+        g.fillStyle(0x202024, 0.4).fillRect(x + 7, y + 9, w, h);
+        g.fillStyle(0x796956).fillRect(x, y, w, h);
+        g.lineStyle(1, 0x514439, 0.6);
+        for (let row = y + 10; row < y + h; row += 10) g.lineBetween(x, row, x + w, row);
+        g.lineStyle(3, 0x352f2b).strokeRect(x, y, w, h);
+      }
+      for (const { bottom, top } of map.ladders ?? []) {
+        const length = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+        if (length === 0) continue;
+        const nx = ((top.y - bottom.y) / length) * 9;
+        const ny = ((bottom.x - top.x) / length) * 9;
+        g.lineStyle(4, 0xe2bf80);
+        for (const side of [-1, 1]) {
+          g.lineBetween(
+            bottom.x + side * nx,
+            bottom.y + side * ny,
+            top.x + side * nx,
+            top.y + side * ny,
+          );
+        }
+        g.lineStyle(3, 0xe2bf80);
+        for (let d = 2; d < length; d += 6) {
+          const x = bottom.x + ((top.x - bottom.x) * d) / length;
+          const y = bottom.y + ((top.y - bottom.y) * d) / length;
+          g.lineBetween(x - nx, y - ny, x + nx, y + ny);
+        }
+      }
+    }
     const shadow = scene.add.graphics().setDepth(DEPTH.walls - 0.5);
     shadow.fillStyle(0x000000, 0.35);
     for (const w of map.walls)
@@ -1072,6 +1103,11 @@ export class WorldRenderer {
       ) {
         culled++;
         continue;
+      }
+      if (s.climb !== undefined) {
+        const y = py - r * 1.7;
+        this.hpGfx.fillStyle(0x202024, 0.9).fillRect(px - r, y, 2 * r, 4);
+        this.hpGfx.fillStyle(0xe2bf80).fillRect(px - r, y, 2 * r * s.climb, 4);
       }
       const facing = prev ? lerpAngle(prev.facing, s.facing, a) : s.facing;
       const v = soldierVisual(s, this.settings, now, this.scratchVisual);

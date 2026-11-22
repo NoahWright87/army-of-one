@@ -45,7 +45,12 @@ import {
 } from '../entities/soldier';
 import type { World } from '../state';
 import { seesThroughCover, standingCover } from '../world/cover';
-import { concealmentAimError, perceivedVisibility, trenchAt } from '../world/concealment';
+import {
+  concealmentAimError,
+  onRaisedGround,
+  perceivedVisibility,
+  trenchAt,
+} from '../world/concealment';
 import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
 import type { SimEvent } from '../events';
@@ -283,6 +288,11 @@ function updateDormancy(
 
 // ---------- perception ----------
 
+function sightRangeOf(world: World, s: SoldierState): number {
+  const heightBonus = onRaisedGround(world, s) ? world.tuning.ladder.sight : 1;
+  return skillOf(world, s).sightRange * (profileOf(s.roleId).sight ?? 1) * heightBonus;
+}
+
 function perceive(
   world: World,
   s: SoldierState,
@@ -291,9 +301,12 @@ function perceive(
 ): Perception {
   const t = skillOf(world, s);
   const tick = world.state.tick;
-  const sightRange = t.sightRange * (profileOf(s.roleId).sight ?? 1);
+  const sightRange = sightRangeOf(world, s);
   const { sprintBonus, firingBonus } = world.tuning.concealment;
-  const maxSight2 = (sightRange * (1 + sprintBonus + firingBonus)) ** 2;
+  const maxVisibility = world.map.raisedGround?.length
+    ? Math.max(1, world.tuning.ladder.visibility)
+    : 1;
+  const maxSight2 = (sightRange * (maxVisibility + sprintBonus + firingBonus)) ** 2;
   // Concealed targets out of sight range don't use up a candidate slot.
   const cands = ours
     .map((o) => ({ o, d2: distanceSq(o, s) }))
@@ -1320,9 +1333,7 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
   const candidate = target && isEligible(target) && target.team !== s.team ? target : undefined;
   const visibility = candidate ? perceivedVisibility(world, s, candidate) : 1;
   const live =
-    candidate &&
-    distance(s, candidate) <=
-      skillOf(world, s).sightRange * (profileOf(s.roleId).sight ?? 1) * visibility
+    candidate && distance(s, candidate) <= sightRangeOf(world, s) * visibility
       ? candidate
       : undefined;
   const aimAt: Vec2 | null = live ? live : ai.lastSeen;

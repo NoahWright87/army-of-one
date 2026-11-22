@@ -30,6 +30,7 @@ import { interact, isLeverOn } from '../entities/lever';
 import { driveOf, wallRadiusOf, type SoldierState } from '../entities/soldier';
 import { emit, type World } from '../state';
 import { getSoldier, soldierIndex, spawnSoldier, type StepHooks } from '../sim';
+import { recordedLadderTransfer } from '../world/ladder';
 import { moveCircle } from '../world/collision';
 import type { Rect } from '../world/map';
 import { findPath, pathLength } from '../world/nav';
@@ -273,7 +274,23 @@ export class EchoController {
         continue;
       }
       const target = poseAt(sched, t);
-      if (this.trySnap(s, target, solids)) {
+      const ladderTransfer =
+        !s.drive &&
+        world.map.ladders?.length &&
+        recordedLadderTransfer(
+          world.map.ladders,
+          poseAt(sched, t - 1),
+          target,
+          s,
+          wallRadiusOf(this.tuning, s),
+          solids,
+        );
+      if (ladderTransfer) {
+        s.x = target.x;
+        s.y = target.y;
+        s.facing = target.facing;
+      }
+      if (ladderTransfer || this.trySnap(s, target, solids)) {
         if (e.mode !== 'following') {
           e.mode = 'following';
           e.path = null;

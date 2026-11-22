@@ -49,7 +49,15 @@ export function rotateMap(map: MapDef, q: number): MapDef {
   };
   if (map.bounds) out.bounds = rects(map.bounds);
   if (map.haze) out.haze = rects(map.haze);
-  if (map.cover) out.cover = map.cover.map((c) => ({ ...c, rect: rect(c.rect) }));
+  if (map.raisedGround) out.raisedGround = rects(map.raisedGround);
+  if (map.ladders)
+    out.ladders = map.ladders.map((l) => ({ ...l, bottom: pt(l.bottom), top: pt(l.top) }));
+  if (map.cover)
+    out.cover = map.cover.map((c) => ({
+      ...c,
+      rect: rect(c.rect),
+      ...(c.fireOverFrom && { fireOverFrom: rect(c.fireOverFrom) }),
+    }));
   if (map.concealment) out.concealment = map.concealment.map((c) => ({ ...c, rect: rect(c.rect) }));
   if (map.groundMist) out.groundMist = map.groundMist.map(rect);
   if (map.mist) out.mist = map.mist.map(rect);

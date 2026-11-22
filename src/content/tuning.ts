@@ -230,6 +230,13 @@ export interface Tuning {
   };
   /** (PHASE12-a) Per-role HP and walking-speed multipliers (sprint multiplies on top). */
   roleStats: Record<RoleId, { hp: number; speed: number }>;
+  ladder: {
+    reach: number;
+    climbSpeed: number;
+    minimumEffort: number;
+    visibility: number;
+    sight: number;
+  };
   concealment: {
     minVisibility: number;
     sprintBonus: number;
@@ -848,6 +855,13 @@ export const DEFAULT_TUNING: Tuning = {
     bazooka: { hp: 1, speed: 0.8 }, // TUNE [D62]: bazookas are heavy
     truck: { hp: 4, speed: 1 }, // TUNE (driving speed is `drive.truck`)
     tank: { hp: 10, speed: 1 }, // TUNE (driving speed is `drive.tank`)
+  },
+  ladder: {
+    reach: 12, // TUNE: distance from either landing that accepts movement toward the ladder
+    climbSpeed: 0.35, // TUNE: fraction of walking speed
+    minimumEffort: 58, // TUNE: minimum climbing distance in world units
+    visibility: 1.3, // TUNE: raised occupants are easier to spot
+    sight: 1.15, // TUNE: observer range on raised ground
   },
   concealment: {
     minVisibility: 0.1, // TUNE

@@ -17,7 +17,7 @@ import type { Tuning } from '../../content/tuning';
 import { hash01 } from '../core/hash';
 import type { Vec2 } from '../core/vec';
 import { rayRect } from './collision';
-import type { CoverDef, MapDef, Rect } from './map';
+import { rectContains, type CoverDef, type MapDef, type Rect } from './map';
 
 /** A cover piece with its material numbers resolved. */
 export interface CoverPiece {
@@ -26,6 +26,7 @@ export interface CoverPiece {
   material: string;
   /** Share of straight shots stopped, 0..1. */
   bullet: number;
+  fireOverFrom?: Rect;
   /** Share of lobbed objects stopped, 0..1. */
   lobbed: number;
   /** (PHASE12-b) Damage that destroys it; 0 = unbreakable ([Q40]). */
@@ -44,6 +45,7 @@ export function resolveCover(map: MapDef, tuning: Tuning): CoverPiece[] {
       material: c.material,
       bullet: clamp01(c.bullet ?? m.bullet),
       lobbed: clamp01(c.lobbed ?? m.lobbed),
+      ...(c.fireOverFrom && { fireOverFrom: c.fireOverFrom }),
       hp: m.hp,
       armor: m.armor,
     };
@@ -72,6 +74,7 @@ export function closestPointOnRect(p: Vec2, r: Rect): Vec2 {
 /** Can someone standing at `p` fire over this piece (for `value` = its bullet or lobbed number)? */
 export function canFireOver(p: Vec2, piece: CoverPiece, value: number, tuning: Tuning): boolean {
   return (
+    (!piece.fireOverFrom || rectContains(piece.fireOverFrom, p)) &&
     value < tuning.cover.fireOverBelow &&
     distanceToRect(p, piece.rect) <= tuning.cover.fireOverDistance
   );
