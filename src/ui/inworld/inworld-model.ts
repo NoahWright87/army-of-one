@@ -127,16 +127,44 @@ export function replayEnd(lanes: readonly LaneTruth[], min: Tick): Tick {
 
 // ---------- (PHASE19) chevrons and letters ----------
 
-/** A spawn point's letter: A, B, C… in the map's order. */
-export function spawnLetter(map: MapDef, spawnPointId: string): string {
-  const i = map.spawnPoints.findIndex((s) => s.id === spawnPointId);
-  return i < 0 ? '?' : String.fromCharCode(65 + (i % 26));
+/** A spawn point's letter and name on the timeline. */
+export interface SpawnLabel {
+  letter: string;
+  name: string;
 }
 
-/** A spawn point's name from its letter: Alpha, Bravo… (`names` from strings). */
-export function spawnName(map: MapDef, spawnPointId: string, names: readonly string[]): string {
-  const i = map.spawnPoints.findIndex((s) => s.id === spawnPointId);
-  return names[i] ?? spawnLetter(map, spawnPointId);
+/**
+ * Letters for a map's spawn points. A point whose own name starts with a NATO word ("Alpha flag")
+ * keeps that letter and name; the others take the free letters in the map's order, named by
+ * their NATO word (Breach's West, Centre, East → A Alpha, B Bravo, C Charlie).
+ * `nato`: Alpha, Bravo… (from strings); `nameOf`: a spawn point's display name.
+ */
+export function spawnLabels(
+  map: MapDef,
+  nato: readonly string[],
+  nameOf: (nameKey: string) => string,
+): Map<string, SpawnLabel> {
+  const out = new Map<string, SpawnLabel>();
+  const taken = new Set<number>();
+  for (const sp of map.spawnPoints) {
+    const name = nameOf(sp.nameKey);
+    const i = nato.findIndex((w) => name.toLowerCase().startsWith(w.toLowerCase()));
+    if (i >= 0 && !taken.has(i)) {
+      taken.add(i);
+      out.set(sp.id, { letter: String.fromCharCode(65 + i), name });
+    }
+  }
+  let next = 0;
+  for (const sp of map.spawnPoints) {
+    if (out.has(sp.id)) continue;
+    while (taken.has(next)) next++;
+    taken.add(next);
+    out.set(sp.id, {
+      letter: String.fromCharCode(65 + (next % 26)),
+      name: nato[next] ?? String.fromCharCode(65 + (next % 26)),
+    });
+  }
+  return out;
 }
 
 /** One chevron over the timeline. */
@@ -156,7 +184,7 @@ export interface Chevron {
 /** Every spawn option as a chevron, stacked where several share a time (new before resume). */
 export function chevrons(
   options: readonly SpawnOption[],
-  map: MapDef,
+  letterOf: (spawnPointId: string) => string,
   ordinalOf: (id: SoldierId) => number,
   preferred: SpawnOption | null | undefined,
 ): Chevron[] {
@@ -166,7 +194,7 @@ export function chevrons(
       optionTick(a) - optionTick(b) ||
       (a.kind === b.kind ? 0 : a.kind === 'new' ? -1 : 1) ||
       (a.kind === 'new' && b.kind === 'new'
-        ? cmp(spawnLetter(map, a.spawnPointId), spawnLetter(map, b.spawnPointId))
+        ? cmp(letterOf(a.spawnPointId), letterOf(b.spawnPointId))
         : cmp(optionKeyOf(a), optionKeyOf(b))),
   );
   const heights = new Map<Tick, number>();
@@ -179,7 +207,7 @@ export function chevrons(
       option: o,
       key,
       tick,
-      label: o.kind === 'new' ? spawnLetter(map, o.spawnPointId) : String(ordinalOf(o.soldierId)),
+      label: o.kind === 'new' ? letterOf(o.spawnPointId) : String(ordinalOf(o.soldierId)),
       kind: o.kind,
       stack,
       last: key === pref,

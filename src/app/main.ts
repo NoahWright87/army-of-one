@@ -332,6 +332,54 @@ const title = new TitleScreen(uiRoot);
 /** (PHASE18) Points at the one control that matters (basic training's respawn hints). */
 const coach = new Coach(uiRoot);
 
+/**
+ * (PHASE19) The coach's steps for a basic-training hint in the respawn view: the chevron to
+ * pick, the class on the card, then DEPLOY.
+ */
+function inWorldCoachSteps(h: BtHint, props: RespawnProps): CoachStep[] {
+  const iw = () => document.querySelector('.aoo-iw') ?? document.body;
+  const deploy = (text: string): CoachStep => ({
+    target: () => firstVisible(iw(), '.go'),
+    text,
+  });
+  const pick = (key: string, text: string): CoachStep => ({
+    target: () => firstVisible(iw(), `.chev[data-select="${key}"]`),
+    text,
+    done: () => !!iw().querySelector(`.chev.sel[data-select="${key}"]`),
+  });
+  switch (h.kind) {
+    case 'deploy':
+      return [deploy(str(h.text))];
+    case 'resume':
+      return [
+        pick(`resume:${h.soldierId}`, str('bt.coach.resumeIw')),
+        deploy(str('bt.coach.deployNow')),
+      ];
+    case 'spawn': {
+      const steps: CoachStep[] = [];
+      const pref = props.preferred;
+      const sp = h.spawnPointId ?? (pref?.kind === 'new' ? pref.spawnPointId : null);
+      if (sp) {
+        const text = h.spawnPointId
+          ? str(h.text, { place: strDynamic(h.place) })
+          : str('bt.coach.pickSpawn');
+        steps.push(pick(`new:${sp}`, text));
+      }
+      if (h.role) {
+        const role = h.role;
+        const name = str(roleDef(role).nameKey);
+        steps.push({
+          target: () => firstVisible(iw(), `.roles [data-role="${role}"]`),
+          text: str('bt.coach.role', { role: name }),
+          done: () => !!iw().querySelector(`.roles .on[data-role="${role}"]`),
+        });
+      }
+      steps.push(deploy(str('bt.coach.deployNow')));
+      return steps;
+    }
+  }
+}
+
 /** (PHASE18) The coach's steps for a basic-training hint on the respawn screen. */
 function coachSteps(h: BtHint): CoachStep[] {
   const rs = () => document.querySelector('.aoo-respawn') ?? document.body;
@@ -686,8 +734,7 @@ async function startGame(): Promise<void> {
     if (isRespawnSetting(id)) respawn?.setSettings(readRespawnSettings(settings));
   });
   /** (PHASE19) Respawn in the battle scene (one continuous view) instead of the respawn screen. */
-  const unifiedOn = () =>
-    settings.getBool(GAME_SETTING_IDS.inWorldRespawn) && !training && !autopilot.active;
+  const unifiedOn = () => settings.getBool(GAME_SETTING_IDS.inWorldRespawn) && !autopilot.active;
   const ui: GameUi = {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
@@ -1019,18 +1066,16 @@ async function startGame(): Promise<void> {
         rate: died !== null ? 0.25 : 0,
         frontier: () => tape.end ?? end,
       });
-      overlay.attach(controls);
+      // A fresh mission opens on the suggested spawn's card: the winning move is one tap away.
+      overlay.attach(controls, died === null);
       respawnLook(true);
       touchControls.setVisible(false);
       hud.setVisible(false);
-      if (died === null) {
-        const pref = props.preferred ?? props.options[0];
-        const sp =
-          pref?.kind === 'new' ? MISSION.spawnPoints.find((p) => p.id === pref.spawnPointId) : null;
-        if (sp) controls.focus(sp.position.x, sp.position.y);
-      }
       startRespawnMinimap(controls);
+      // (PHASE18) Basic training: the coach points at what to do here.
+      if (hint) coach.show(inWorldCoachSteps(hint, props));
     };
+    const hint = training?.respawnHint(props.options) ?? null;
     void assetsReady
       .then(() => {
         if (!live) return;
@@ -1053,6 +1098,10 @@ async function startGame(): Promise<void> {
         if (inWorld === overlay) inWorld = null;
         notice.show(null);
         respawnLook(false);
+        if (hint) {
+          coach.hide();
+          training?.followed(hint);
+        }
       },
     };
   };

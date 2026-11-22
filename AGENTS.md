@@ -167,7 +167,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   battle scene into the respawn view (`BattleScene.enterRespawn`, `src/render/time-clock.ts`,
   `src/ui/inworld/`): lettered chevrons on the timeline, circles on spawns and saved soldiers,
   time glides, deploying continues in the same scene (`adopt`). `__aoo.checkDrift()` re-simulates
-  and reports the first difference with the tape. Share links are hidden (`?share=1`).
+  and reports the first difference with the tape. Share links are hidden (`?share=1`). Basic
+  training uses it too (its coach points at the chevrons, the card's classes and DEPLOY).
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
   Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier throws at the cursor;

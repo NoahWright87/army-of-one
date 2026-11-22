@@ -867,6 +867,8 @@ export const STRINGS = {
   'bt.coach.spawnA': 'Deploy at Alpha, the flag you took',
   'bt.coach.spawn': 'Deploy at {place}, your newest flag',
   'bt.coach.resume': "He's alive! Pick his O to take over where he left off",
+  'bt.coach.resumeIw': "He's alive! Tap his green marker to take over where he left off",
+  'bt.coach.pickSpawn': 'Pick where to go back in',
   'bt.coach.role': 'New class: {role}. Pick it here',
   'bt.coach.roleItem': 'Pick {role}',
   'bt.graduated': 'You graduated basic training!',

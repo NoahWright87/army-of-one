@@ -56,22 +56,39 @@ describe('in-world respawn stops', () => {
   });
 });
 
-import { chevrons, spawnLetter } from './inworld-model';
+import { chevrons, spawnLabels } from './inworld-model';
 import { MISSION_03 } from '../../content/maps/mission-03';
+import { BASIC_TRAINING } from '../../content/maps/basic-training';
+import { strDynamic, str } from '../../content/strings';
+
+const NATO = str('inworld.nato').split(',');
 
 describe('chevrons', () => {
-  it('letters spawn points in map order and stacks options that share a time', () => {
+  it('letters spawn points: NATO-named ones keep their letter, the rest in map order', () => {
+    const breach = spawnLabels(MISSION_03, NATO, strDynamic);
+    expect(MISSION_03.spawnPoints.slice(0, 3).map((s) => breach.get(s.id))).toEqual([
+      { letter: 'A', name: 'Alpha' },
+      { letter: 'B', name: 'Bravo' },
+      { letter: 'C', name: 'Charlie' },
+    ]);
+    const bt = spawnLabels(BASIC_TRAINING, NATO, strDynamic);
+    expect(bt.get('bt-sp-a')).toEqual({ letter: 'A', name: 'Alpha flag' });
+    expect(bt.get('bt-sp-d')!.letter).toBe('D');
+    expect(bt.get('bt-start')).toEqual({ letter: 'E', name: 'Echo' });
+  });
+
+  it('stacks options that share a time (new by letter, then resumes)', () => {
     const map = MISSION_03;
+    const labels = spawnLabels(map, NATO, strDynamic);
+    const letter = (id: string) => labels.get(id)!.letter;
     const [a, b] = map.spawnPoints;
-    expect(spawnLetter(map, a!.id)).toBe('A');
-    expect(spawnLetter(map, b!.id)).toBe('B');
     const opts: SpawnOption[] = [
       { kind: 'new', spawnPointId: b!.id, entryTick: 0 },
       { kind: 'new', spawnPointId: a!.id, entryTick: 0 },
       { kind: 'resume', soldierId: 'S2', resumeTick: 0, leadInFromTick: 0 },
       { kind: 'new', spawnPointId: a!.id, entryTick: 120 },
     ];
-    const c = chevrons(opts, map, () => 2, opts[3]);
+    const c = chevrons(opts, letter, () => 2, opts[3]);
     expect(c.map((x) => `${x.label}@${x.tick}/${x.stack}${x.last ? '*' : ''}`)).toEqual([
       'A@0/0',
       'B@0/1',

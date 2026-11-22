@@ -12,7 +12,7 @@
  * R / Space selects the last-used spawn (a second press deploys). Everything deployed is a
  * `SpawnOption` the game controller offered: the rules are the controller's.
  */
-import { str } from '../../content/strings';
+import { str, strDynamic } from '../../content/strings';
 import { roleIconSvg } from '../../content/role-icons';
 import { ROLES } from '../../content/roles';
 import type { RoleId, SpawnOption } from '../../contracts/mission';
@@ -35,8 +35,8 @@ import {
   optionKeyOf,
   optionPlace,
   optionTick,
-  spawnLetter,
-  spawnName,
+  spawnLabels,
+  type SpawnLabel,
   stepStop,
   type Chevron,
   type Stop,
@@ -48,6 +48,8 @@ const NEAR_TICKS = 3 * TICKS_PER_SECOND;
 const DEATH_LEAD = 2 * TICKS_PER_SECOND;
 const BACK_TICKS = 5 * TICKS_PER_SECOND;
 const FAST = 4;
+/** A starting balance this big means money doesn't matter here (basic training). */
+const UNLIMITED_MONEY = 1_000_000;
 
 const CSS = `
 .aoo-iw { position: fixed; inset: 0; z-index: 24; pointer-events: none; font: 14px system-ui, sans-serif; color: #e6e9ec;
@@ -116,6 +118,14 @@ const CSS = `
 const CHEVRON_SVG =
   '<svg viewBox="0 0 30 28" width="30" height="28" aria-hidden="true"><path d="M1 27 L15 1 L29 27 L15 21 Z"/></svg>';
 
+/**
+ * A coach-friendly key for an option, like the respawn screen's (`new:<spawn point>`,
+ * `resume:<soldier>`): the chevron and circle carry it as `data-select`.
+ */
+export function selectKey(o: SpawnOption): string {
+  return o.kind === 'new' ? `new:${o.spawnPointId}` : `resume:${o.soldierId}`;
+}
+
 export interface InWorldOptions {
   /** Deploy `o` (the caller glides into the lead-in first). */
   onDeploy(o: SpawnOption): void;
@@ -150,7 +160,7 @@ export class InWorldRespawn {
   private raf = 0;
   private lastFrontier = -1;
   private destroyed = false;
-  private readonly names = str('inworld.nato').split(',');
+  private readonly labels: Map<string, SpawnLabel>;
 
   constructor(
     parent: HTMLElement,
@@ -158,6 +168,7 @@ export class InWorldRespawn {
     private readonly opts: InWorldOptions,
   ) {
     injectStyle('aoo-iw-css', CSS);
+    this.labels = spawnLabels(props.map, str('inworld.nato').split(','), strDynamic);
     const top = el('div', 'top');
     top.append(this.money, this.clock);
     this.root.append(el('div', 'vignette'), this.spots, top, this.cardLayer, this.buildBar());
@@ -170,10 +181,15 @@ export class InWorldRespawn {
     this.rebuild();
   }
 
-  /** Hooks up the battlefield's controls and fades in. */
-  attach(controls: TimeControls): void {
+  /**
+   * Hooks up the battlefield's controls and fades in. `openPreferred`: open the suggested
+   * spawn's card at once (a fresh mission: the winning move is one tap away).
+   */
+  attach(controls: TimeControls, openPreferred = false): void {
     this.controls = controls;
     this.renderMarks();
+    const pref = this.props.preferred ?? this.props.options[0];
+    if (openPreferred && pref) this.select(pref);
     requestAnimationFrame(() => this.root.classList.add('on'));
     const loop = () => {
       if (this.destroyed) return;
@@ -193,6 +209,11 @@ export class InWorldRespawn {
       if (!same) this.closeCard();
       else this.open = same;
     }
+  }
+
+  /** The option whose card is open (the coach checks it). */
+  get selected(): SpawnOption | null {
+    return this.open;
   }
 
   /** Fades out (the deploy's glide plays without the controls). */
@@ -228,7 +249,7 @@ export class InWorldRespawn {
     this.stops = buildStops(this.props.options, this.props.lanes);
     this.chevList = chevrons(
       this.props.options,
-      this.props.map,
+      (id) => this.letterOf(id),
       (id) => this.props.soldiers.find((r) => r.id === id)?.ordinal ?? ordinalFromId(id),
       this.props.preferred,
     );
@@ -425,8 +446,14 @@ export class InWorldRespawn {
     this.placeCard();
   }
 
-  private renderMoney(tick: number): void {
+  /** Money that can't run out (basic training) isn't shown: it isn't a choice. */
+  private moneyShown() {
     const l = shownEconomy(this.props);
+    return l && l.start < UNLIMITED_MONEY ? l : null;
+  }
+
+  private renderMoney(tick: number): void {
+    const l = this.moneyShown();
     if (!l) {
       this.money.hidden = true;
       return;
@@ -465,6 +492,7 @@ export class InWorldRespawn {
         this.chevEls.set(ch.key, b);
       }
       b.className = `chev ${ch.kind}${ch.last ? ' last' : ''}`;
+      b.dataset['select'] = selectKey(ch.option);
       b.innerHTML = `${CHEVRON_SVG}<span>${ch.label}</span>`;
       b.title = this.optionTitle(ch.option);
       b.style.left = pct(ch.tick);
@@ -482,7 +510,7 @@ export class InWorldRespawn {
     const time = formatBattleTime(optionTick(o));
     return o.kind === 'new'
       ? str('inworld.pointAt', {
-          name: spawnName(this.props.map, o.spawnPointId, this.names),
+          name: this.labels.get(o.spawnPointId)?.name ?? o.spawnPointId,
           time,
         })
       : str('inworld.resumeHere', { n: ordinalFromId(o.soldierId), time });
@@ -492,6 +520,10 @@ export class InWorldRespawn {
     if (!id) return null;
     const s = this.controls?.currentView.soldiers.find((x) => x.id === id);
     return s ? { x: s.x, y: s.y } : null;
+  }
+
+  private letterOf(spawnPointId: string): string {
+    return this.labels.get(spawnPointId)?.letter ?? '?';
   }
 
   private soldierAlive(id: string): { x: number; y: number } | null {
@@ -548,7 +580,8 @@ export class InWorldRespawn {
         b.innerHTML =
           o.kind === 'resume'
             ? roleIconSvg(this.props.soldiers.find((r) => r.id === o.soldierId)?.roleId, 22, '')
-            : spawnLetter(this.props.map, o.spawnPointId);
+            : this.letterOf(o.spawnPointId);
+        b.dataset['select'] = selectKey(o);
         b.title = this.optionTitle(o);
         b.onclick = () => {
           const opt = this.props.options.find((x) => optionKeyOf(x) === key);
@@ -615,9 +648,10 @@ export class InWorldRespawn {
       const m = money.get(r.id);
       const b = el('button', r.id === (this.props.roleId ?? 'rifleman') ? 'on' : '');
       b.innerHTML = roleIconSvg(r.id, 22, '');
+      b.dataset['role'] = r.id;
       b.title = `${str(r.nameKey)}${m ? ` · ${m.price}` : ''}`;
       b.disabled = roleLocked(this.props, r.id) || (m ? !m.affordable : false);
-      if (m && m.price) b.append(el('small', '', m.price));
+      if (m && m.price && this.moneyShown()) b.append(el('small', '', m.price));
       b.onclick = () => pick(r.id);
       buttons.push([r.id, b]);
       wrap.append(b);

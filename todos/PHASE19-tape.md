@@ -68,8 +68,17 @@ Owner session 2026-11-21 (after the in-world respawn POC, `todos/POC-inworld-res
 - Tape size: ~2 MB of JSON per 9 s of battle with ~46 soldiers in memory (70 KB deflated in the
   save). Long missions will want trimming (fewer frames for old battle time, or a compact
   frame format) — not done.
-- `flow.inWorldRespawn` (F2 → Game, on) switches it all; off = the old respawn screen. Basic
-  training and autoplay keep the old screen.
+- `flow.inWorldRespawn` (F2 → Game, on) switches it all; off = the old respawn screen. Autoplay
+  keeps the old screen. **Basic training uses the new view** (owner: "make it the standard"):
+  its coach points at the chevron to pick, the class on the card, then DEPLOY
+  (`inWorldCoachSteps` in main.ts; chevrons and circles carry `data-select`, class buttons
+  `data-role`). A fresh mission opens on the suggested spawn's card. Money that can't run out
+  (training's 9,999,999) isn't shown.
+- Spawn letters (`spawnLabels`): a point named with a NATO word ("Alpha flag") keeps that
+  letter; the rest take the free letters in map order and their NATO name (Breach: A Alpha,
+  B Bravo, C Charlie; basic training's Barracks: E Echo).
 - Not done: reverse playback with effects (going back is silent), timeline captures/objective
   marks, the old screen's lane-change captions ("Soldier 3 now survives"), sounds pitched with
-  time, phone pinch tested only by code (not on a device), basic training's respawn station.
+  time, phone pinch tested only by code (not on a device). Basic training's coach was checked in
+  the browser for the first deploy and the first respawn; the resume and new-class lessons were
+  not played through.
