@@ -57,8 +57,10 @@ describe('replay library', () => {
   it(`keeps the newest ${KEEP_PER_MISSION} per mission`, () => {
     let list: LibraryEntry[] = [];
     for (let i = 0; i < 5; i++) list = withEntry(list, e(`a${i}`, 'm3', i));
+    expect(list.map((x) => x.id)).toEqual(['a4', 'a3', 'a2']);
+    // (PHASE19) Three in total: a new mission's win pushes the oldest out.
     list = withEntry(list, e('b0', 'm5', 10));
-    expect(list.map((x) => x.id)).toEqual(['b0', 'a4', 'a3', 'a2']);
+    expect(list.map((x) => x.id)).toEqual(['b0', 'a4', 'a3']);
   });
 
   it(`keeps at most ${KEEP_TOTAL} in all (a campaign's levels are each a mission)`, () => {

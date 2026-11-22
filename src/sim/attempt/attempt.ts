@@ -43,7 +43,8 @@ import { ordinalOf, recordedTo } from '../recording/records';
 import { ObservationBuilder } from './observation';
 import type { WorldObservation } from '../../contracts/mission';
 import { SnapshotStore, type WorldSnapshot } from './snapshots';
-import { TapeRecorder, type TapeFrame } from '../tape/tape';
+import { TapeRecorder, type Tape, type TapeFrame } from '../tape/tape';
+import { alignToFrame } from '../tape/align';
 
 export type AttemptFrom = { kind: 'start' } | { kind: 'snapshot'; snapshot: WorldSnapshot };
 
@@ -74,6 +75,11 @@ export interface AttemptParams {
   snapshots?: SnapshotStore;
   /** Internal: 'resolve' for resolve passes. */
   kind?: AttemptObservation['kind'];
+  /**
+   * (PHASE19) The battle tape. Until the live soldier takes control, the run is set to the
+   * tape at every frame it has (the lead-in is a replay); the sim takes over at control.
+   */
+  tape?: Tape;
 }
 
 export interface TickResult {
@@ -120,9 +126,13 @@ export class Attempt {
   private readonly hooks: StepHooks;
   /** (PHASE19) Records this run onto the battle tape (frames + events). */
   private readonly tape: TapeRecorder;
+  /** (PHASE19) What happened so far, played back until control (see `AttemptParams.tape`). */
+  private readonly truth: Tape | null;
+  private drift: string | null = null;
 
   constructor(p: AttemptParams) {
     this.kind = p.kind ?? 'attempt';
+    this.truth = p.tape ?? null;
     this.attemptNumber = p.attempt;
     this.live = p.live;
     this.snapshots = p.snapshots ?? new SnapshotStore();
@@ -209,6 +219,11 @@ export class Attempt {
    */
   get tapeFromTick(): Tick {
     return Number.isFinite(this.controlFromTick) ? this.controlFromTick : this.fromTick;
+  }
+
+  /** (PHASE19) The first way the re-simulation had drifted from the tape before control (dev). */
+  get tapeDrift(): string | null {
+    return this.drift;
   }
 
   /** (PHASE19) Tape frames recorded since the last call. */
@@ -385,6 +400,11 @@ export class Attempt {
     const w = this.world;
     const tick = w.state.tick;
     this.echoes.spawnDue(w);
+    // (PHASE19) Before control the past is playback: stay on the tape wherever it has a frame.
+    if (this.truth && this.live && !this.controlling && tick < this.controlFromTick) {
+      const frame = this.truth.frameAt(tick);
+      if (frame) this.drift ??= alignToFrame(w, frame.view);
+    }
 
     const live = this.live;
     if (live?.mode === 'new' && tick === live.entryTick && !getSoldier(w, live.soldierId)) {

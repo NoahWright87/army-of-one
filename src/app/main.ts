@@ -59,6 +59,7 @@ import type { TimeControls } from '../render/time-controls';
 import { createWorld } from '../sim/sim';
 import { IDLE_INPUT } from '../sim/entities/soldier';
 import { leadInStart, spawnRules } from '../timeline/spawn-options';
+import { firstDrift } from '../sim/tape/drift';
 import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
@@ -143,6 +144,8 @@ import { browserStorage } from './storage';
 export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 
 const params = new URLSearchParams(window.location.search);
+/** (PHASE19) Share links are hidden until there's a backend (`?share=1` brings them back). */
+const SHARE_LINKS = params.get('share') === '1';
 const sceneParam = params.get('scene');
 /** `?scene=gallery` (visual test page), `?scene=sandbox` (old free-play battle), else the game. */
 /**
@@ -908,10 +911,15 @@ async function startGame(): Promise<void> {
       },
       {
         ...labels,
-        onShare: () =>
-          void packedP.then((packed) => {
-            if (packed) void shareLink(packed);
-          }),
+        // (PHASE19, owner 2026-11-21) Share links are hidden until there's a backend.
+        ...(SHARE_LINKS
+          ? {
+              onShare: () =>
+                void packedP.then((packed) => {
+                  if (packed) void shareLink(packed);
+                }),
+            }
+          : {}),
         onWatchAgain: () => controls?.restart(),
         onPlayAgain: () => {
           stopReplay();
@@ -1123,7 +1131,7 @@ async function startGame(): Promise<void> {
         title: str(done ? 'replay.title' : 'replay.titleProgress'),
         playLabel: str(done ? 'replay.playMission' : 'replay.continue'),
         onWatchAgain: () => controls?.restart(),
-        onShare: () => void packRun(run).then(shareLink),
+        ...(SHARE_LINKS ? { onShare: () => void packRun(run).then(shareLink) } : {}),
         onMenu: backToMenu,
         onPlayAgain: () => void (done ? pickMission(run.missionId) : continueFrom(run)),
       },
@@ -1161,7 +1169,9 @@ async function startGame(): Promise<void> {
         }),
         actions: [
           { label: str('library.watch'), run: () => openViewer(run()) },
-          { label: str('library.share'), run: () => void packRun(run()).then(shareLink) },
+          ...(SHARE_LINKS
+            ? [{ label: str('library.share'), run: () => void packRun(run()).then(shareLink) }]
+            : []),
           {
             label: str('library.continue'),
             primary: true,
@@ -1192,7 +1202,9 @@ async function startGame(): Promise<void> {
                 .then(openViewer)
                 .catch(() => notice.show(str('replay.broken'))),
           },
-          { label: str('library.share'), run: () => void shareLink(e.packed) },
+          ...(SHARE_LINKS
+            ? [{ label: str('library.share'), run: () => void shareLink(e.packed) }]
+            : []),
         ],
       });
     }
@@ -1403,6 +1415,13 @@ async function startGame(): Promise<void> {
       autopilot.play(lives);
     },
     kill: () => controller.devKill(),
+    /**
+     * (PHASE19) Re-simulates the mission from 0:00 and compares it with the tape (what actually
+     * played): the first tick they disagree and what differs, or null. Run it after a replay
+     * looked wrong.
+     */
+    checkDrift: () =>
+      firstDrift(controller.tape, MISSION, controller.tuning, controller.mission.soldiers),
   });
 
   const spec = params.get('autoplay');

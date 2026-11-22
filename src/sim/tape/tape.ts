@@ -123,6 +123,12 @@ export class Tape {
     return best;
   }
 
+  /** The frame recorded exactly at `tick`, if any. */
+  frameAt(tick: Tick): TapeFrame | null {
+    const f = this.frameAtOrBefore(tick);
+    return f && f.tick === tick ? f : null;
+  }
+
   frameAtOrBefore(tick: Tick): TapeFrame | null {
     const i = this.indexAtOrBefore(tick);
     return i >= 0 ? this.frames[i]! : null;

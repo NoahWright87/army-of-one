@@ -7,7 +7,7 @@ export const LIBRARY_KEY = 'aoo:replays:v1';
 /** Finished runs kept per mission. */
 export const KEEP_PER_MISSION = 3;
 /** (PHASE17) Finished runs kept in all: a campaign adds one per level won. */
-export const KEEP_TOTAL = 12;
+export const KEEP_TOTAL = 3; // (PHASE19, owner 2026-11-21) a few in total is plenty
 /** Safety cap on the whole list (localStorage is small). */
 export const MAX_LIBRARY_CHARS = 1_500_000;
 

@@ -36,5 +36,7 @@ describe('battle tape through the game flow', () => {
     }
     expect(firstDrift(tape, MISSION_03, DEFAULT_TUNING, h.game.mission.soldiers)).toBeNull();
     expect(resumes).toBeGreaterThan(0);
+    // Every handoff (the tick the player took control) agreed with the tape.
+    expect(h.logs.filter((m) => m.startsWith('Handoff'))).toEqual([]);
   }, 120000);
 });

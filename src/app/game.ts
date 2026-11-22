@@ -43,6 +43,7 @@ import type { Vec2 } from '../sim/core/vec';
 import { getSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
 import { Tape } from '../sim/tape/tape';
+import { compareViews } from '../sim/tape/drift';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
 import { applyCaptureObservation } from '../timeline/captures';
@@ -447,6 +448,7 @@ export class GameController {
       from,
       live,
       snapshots: this.snapshots,
+      tape: this.tape, // (PHASE19) the lead-in replays the tape; the sim takes over at control
     });
     attempt.runHeadless(ffTarget);
     if (ff0 !== undefined && ffTicks >= 120) {
@@ -533,6 +535,11 @@ export class GameController {
 
   private onControl(run: LiveRun): void {
     if (run !== this.run) return;
+    // (PHASE19) The handoff: the sim takes over from the tape here. They should agree exactly;
+    // if not, say where (a drifting re-simulation is what made replays disagree).
+    const frame = this.tape.covers(run.tick) ? this.tape.viewAt(run.tick) : null;
+    const drift = frame ? compareViews(frame, run.attempt.view(), 3) : null;
+    if (drift) this.log(`Handoff at tick ${run.tick}: the sim differs from the tape: ${drift}`);
     resetForLife(this.policy, run.tick);
     this.go({ type: 'controlStarted' });
   }
