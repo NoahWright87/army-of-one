@@ -80,6 +80,11 @@ export class Resolve {
     return this.state === 'cancelled';
   }
 
+  /** (PHASE19) Tape frames recorded since the last call. */
+  drainTape() {
+    return this.run.drainTape();
+  }
+
   /** The world being resolved (read-only use, e.g. a debug view). */
   get world() {
     return this.run.world;

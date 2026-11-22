@@ -87,6 +87,7 @@ import {
   type RespawnHandle,
 } from './game';
 import { REPLAY_VERSION, ReplayPlayer } from './replay/replay-player';
+import { TapePlayer, type ReplaySource } from './replay/tape-player';
 import { ReplayScene, type ReplayControls } from '../render/phaser/replay-scene';
 import { ResultsScreen } from '../ui/results/results-screen';
 import {
@@ -867,10 +868,8 @@ async function startGame(): Promise<void> {
     } catch {
       // ignore
     }
-    const player = new ReplayPlayer(r.map, r.tuning, {
-      version: REPLAY_VERSION,
-      missionId: m.missionId,
-      soldiers: m.soldiers,
+    // (PHASE19) The replay plays the tape: exactly what happened, the win included.
+    const player = new TapePlayer(r.tape, r.map, r.tuning, {
       endTick,
       ...(m.completed ? { winnerId: m.completed.bySoldierId } : {}),
     });
@@ -916,7 +915,7 @@ async function startGame(): Promise<void> {
   /** Starts the replay scene for `player` under the results card. */
   const playReplay = (
     map: MapDef,
-    player: ReplayPlayer,
+    player: ReplaySource,
     onControls: (c: ReplayControls) => void,
   ) => {
     void assetsReady

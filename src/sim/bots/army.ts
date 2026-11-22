@@ -16,6 +16,7 @@ import { createRng, nextFloat, nextInt, type RngState } from '../core/rng';
 import { secondsToTicks, type Tick } from '../core/time';
 import { addSegment, nextSoldierId } from '../recording/records';
 import type { MapDef } from '../world/map';
+import type { Tape } from '../tape/tape';
 import {
   BOT_KINDS,
   createBotDriver,
@@ -36,6 +37,8 @@ export interface ArmyParams {
   lifeSeconds?: [number, number];
   /** Shared snapshot cache (default: a fresh store). */
   snapshots?: SnapshotStore;
+  /** (PHASE19) Battle tape to stitch every life onto. */
+  tape?: Tape;
 }
 
 export interface ArmyLife {
@@ -128,6 +131,7 @@ export class ArmyBuilder {
       }
     }
     const result = attempt.finish();
+    this.p.tape?.splice(attempt.tapeFromTick, attempt.drainTape());
     if (result.liveSegment) {
       this.records = addSegment(
         this.records,

@@ -170,7 +170,7 @@ describe('rescue chain: X → rescue → O → resume', () => {
     expect(a3.liveSegment!.endReason).toBe('suspended');
   });
 
-  it('during the lead-in the resumed soldier is on schedule, unkillable and shown as live', () => {
+  it('during the lead-in the resumed soldier is on schedule, killable like its echo, and shown as live', () => {
     const snapshots = new SnapshotStore();
     // Rebuild the snapshot cache the way PHASE04 would have it after attempt 2.
     life({
@@ -201,11 +201,10 @@ describe('rescue chain: X → rescue → O → resume', () => {
         if (a.tick < s1End) {
           // Still in the lead-in: the next step won't take input yet.
           seen.leadIn++;
-          expect(s.minHp).toBe(1);
-          expect(v).toMatchObject({ role: 'live', leadIn: true });
-          // Lethal damage during the lead-in is floored ([D5]).
-          if (a.tick === s1End - 60) damageSoldier(a.world, s, 1000, undefined, 'test');
-          if (a.tick > s1End - 60) expect(s.alive && s.hp === 1).toBe(true);
+          // (PHASE19) No floor: the lead-in is the recorded echo, nothing more.
+          expect(s.minHp).toBe(0);
+          expect(v).toMatchObject({ role: 'live', leadIn: false });
+          if (a.tick === s1End - 60) damageSoldier(a.world, s, 10, undefined, 'test');
         } else {
           // From tick s1End on, the next step takes input (control starts at s1End + 1).
           seen.control++;
@@ -218,7 +217,8 @@ describe('rescue chain: X → rescue → O → resume', () => {
     });
     expect(seen.leadIn).toBeGreaterThanOrEqual(LEAD_IN_TICKS - 1);
     expect(seen.control).toBeGreaterThan(30);
-    expect(hpWhenControlStarted).toBe(1);
+    expect(hpWhenControlStarted).toBeLessThan(DEFAULT_TUNING.soldier.maxHp);
+    expect(hpWhenControlStarted).toBeGreaterThan(0);
   });
 
   it('input given during the lead-in is ignored (not applied retroactively)', () => {

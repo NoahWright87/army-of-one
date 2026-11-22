@@ -42,6 +42,7 @@ import { secondsToTicks, type Tick } from '../sim/core/time';
 import type { Vec2 } from '../sim/core/vec';
 import { getSoldier } from '../sim/sim';
 import type { MapDef } from '../sim/world/map';
+import { Tape } from '../sim/tape/tape';
 import { deriveSpawnOptions, leadInStart, spawnRules } from '../timeline/spawn-options';
 import { applyObservation } from '../timeline/truth';
 import { applyCaptureObservation } from '../timeline/captures';
@@ -99,6 +100,8 @@ export interface CompleteResults {
   tuning: Tuning;
   map: MapDef;
   rescues: number;
+  /** (PHASE19) What actually played: the replay plays this, not a re-simulation. */
+  tape: Tape;
 }
 
 export interface GameUi {
@@ -200,6 +203,8 @@ export class GameController {
   mission: MissionState;
   tuning: Tuning;
   snapshots = new SnapshotStore();
+  /** (PHASE19) The battle tape: what actually played (truth for playback and replays). */
+  tape = new Tape();
   run: LiveRun | null = null;
   rescues = 0;
   /** Last simulated tick of the latest attempt (respawn header). */
@@ -278,6 +283,7 @@ export class GameController {
     this.tuning = this.a.tuning();
     this.policy = createAutosavePolicy(secondsToTicks(this.tuning.autosaveIntervalSeconds));
     this.snapshots = new SnapshotStore(snapshotThinning(this.tuning));
+    this.tape = new Tape();
     this.rescues = 0;
     this.reachedTick = null;
     this.lastObservation = null;
@@ -578,6 +584,7 @@ export class GameController {
     const over = attempt.overReason();
     const reason = over === 'missionComplete' || over === 'historyShifted' ? over : 'death';
     const res = attempt.finish();
+    this.tape.splice(attempt.tapeFromTick, attempt.drainTape());
     const live = attempt.live!;
     this.mission.attemptCount = Math.max(this.mission.attemptCount, attempt.attemptNumber);
     if (res.liveSegment) {
@@ -704,13 +711,15 @@ export class GameController {
         pace,
       },
       {
-        onProgress: (obs, snaps) => {
+        onProgress: (obs, snaps, frames) => {
           if (this.resolveJob !== job) return;
+          this.tape.append(frames);
           this.resolve!.snaps.push(...snaps);
           this.onResolved(obs, false);
         },
-        onDone: (obs, snaps) => {
+        onDone: (obs, snaps, frames) => {
           if (this.resolveJob !== job) return;
+          this.tape.append(frames);
           this.resolve!.snaps.push(...snaps);
           this.onResolved(obs, true);
           this.commitResolve(obs.toTick);
@@ -910,6 +919,7 @@ export class GameController {
       tuning: this.tuning,
       map: this.a.map,
       rescues: this.rescues,
+      tape: this.tape,
     });
   }
 

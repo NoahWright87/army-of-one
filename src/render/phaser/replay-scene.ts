@@ -6,7 +6,7 @@
  */
 import Phaser from 'phaser';
 import { advance, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
-import type { ReplayPlayer } from '../../app/replay/replay-player';
+import type { ReplaySource } from '../../app/replay/tape-player';
 import { TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
 import type { WorldView } from '../../sim/view';
 import {
@@ -54,7 +54,7 @@ export interface ReplayControls {
 }
 
 export interface ReplaySessionData {
-  player: ReplayPlayer;
+  player: ReplaySource;
   /** Objective positions (framed near the end). */
   objectives: { x: number; y: number }[];
   /** Called once the scene is up, with its controls. */
@@ -84,7 +84,7 @@ function scaleInsets(
 
 export class ReplayScene extends Phaser.Scene implements ReplayControls {
   private data0!: ReplaySessionData;
-  private player!: ReplayPlayer;
+  private player!: ReplaySource;
   private stepper!: FixedStepper;
   private prevView!: WorldView;
   private view!: WorldView;

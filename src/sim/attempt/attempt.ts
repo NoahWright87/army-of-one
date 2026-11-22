@@ -43,6 +43,7 @@ import { ordinalOf, recordedTo } from '../recording/records';
 import { ObservationBuilder } from './observation';
 import type { WorldObservation } from '../../contracts/mission';
 import { SnapshotStore, type WorldSnapshot } from './snapshots';
+import { TapeRecorder, type TapeFrame } from '../tape/tape';
 
 export type AttemptFrom = { kind: 'start' } | { kind: 'snapshot'; snapshot: WorldSnapshot };
 
@@ -117,6 +118,8 @@ export class Attempt {
   private shifted: HistoryShift | null = null;
   private finished = false;
   private readonly hooks: StepHooks;
+  /** (PHASE19) Records this run onto the battle tape (frames + events). */
+  private readonly tape: TapeRecorder;
 
   constructor(p: AttemptParams) {
     this.kind = p.kind ?? 'attempt';
@@ -195,6 +198,22 @@ export class Attempt {
 
     this.betweenSteps();
     this.stageSnapshot();
+    this.tape = new TapeRecorder(Math.max(1, p.tuning.attempt.tapeFrameEveryTicks));
+    this.tape.onTick(this.tick, [], () => this.view(), true);
+  }
+
+  /**
+   * (PHASE19) Where this run starts to matter on the tape: the live soldier's control tick
+   * (before it the lead-in only replays what already happened), or the first tick of a run
+   * without one.
+   */
+  get tapeFromTick(): Tick {
+    return Number.isFinite(this.controlFromTick) ? this.controlFromTick : this.fromTick;
+  }
+
+  /** (PHASE19) Tape frames recorded since the last call. */
+  drainTape(): TapeFrame[] {
+    return this.tape.drain();
   }
 
   get tick(): Tick {
@@ -270,6 +289,7 @@ export class Attempt {
     this.echoes.syncDeaths(this.world);
     this.betweenSteps();
     if (this.tick % this.world.tuning.attempt.snapshotIntervalTicks === 0) this.stageSnapshot();
+    this.tape.onTick(this.tick, events, () => this.view(), this.isOver());
     return {
       tick: this.tick,
       events,
@@ -333,6 +353,7 @@ export class Attempt {
     const segReason: SegmentEndReason = reason === 'resolved' ? 'suspended' : reason;
     const liveSegment = this.recorder?.segment(segReason) ?? null;
     const endSnapshot = this.takeSnapshot();
+    this.tape.onTick(this.tick, [], () => this.view(), true);
     this.snapshots.stage(endSnapshot);
     this.snapshots.commit({
       attempt: this.attemptNumber,
@@ -396,8 +417,9 @@ export class Attempt {
         // The lead-in ends: the player takes over from the next step on.
         this.handOver();
       } else if (s?.alive) {
-        // Lead-in ([D5]): plays its recording, unkillable but damageable, shown as the player's.
-        s.minHp = 1;
+        // Lead-in ([D5]): plays its recording, shown as the player's. (PHASE19, owner
+        // 2026-11-21) No invincibility: it is exactly the echo the tape recorded, so the
+        // replay and every later run agree with what played.
         s.viewRole = 'live';
       }
     }
