@@ -212,9 +212,10 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   (one campaign in localStorage). Levels are carved by terrain (`src/gen/carve.ts`); crossings
   between them are spawns (from held ground) and objectives (into the rest), see
   `src/gen/region.ts`. Attack opens
-  `?mission=world-<seed>-<level>-<budget>-h<held…>-r<turns>&from=campaign` (`h`: neighbours held,
-  `r`: quarter turns to fit the screen, `src/gen/rotate-map.ts`): no title screen, "← Campaign"
-  goes back, and a win marks the level taken. Your saved blocks are only used with `pool=mine`.
+  `?mission=world-<seed>-<level>-<budget>-h<held…>&from=campaign` (`h`: neighbours held).
+  The camera moves from the board to the battle's spawn view without rotating ([D107]).
+  "Back to the campaign" ends the replay and zooms out. Old active missions can still have
+  an `r` suffix for their saved orientation. Your saved blocks are only used with `pool=mine`.
   PHASE14 ([D116]–[D126]): one level at a time (the active level, Resume only); money,
   income, reserves (survivors as free spawns) and unlocked roles carry over
   (`src/gen/campaign-result.ts`, `applyLevelSettings` in `src/app/campaign-storage.ts`); level

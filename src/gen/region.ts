@@ -34,7 +34,7 @@ import { blockTotalCost, spendBudget } from './budget';
 import { fillGaps, type Crossing } from './carve';
 import type { GrownCell } from './grow';
 import { mix, objectiveReachable } from './level';
-import type { GeneratedWorld } from './world';
+import type { GeneratedWorld, WorldLevel } from './world';
 
 /**
  * A block's content that lies in level `index` (by the tile each thing sits on). Walls and gates
@@ -100,6 +100,12 @@ export interface WorldLevelMap {
   blocks: string[];
 }
 
+/** The board tile that becomes (0, 0) in the unrotated battle map. */
+export function worldLevelOrigin(level: WorldLevel): Vec2 {
+  const pad = BLOCK_TUNING.carve.mapMargin;
+  return { x: Math.max(0, level.box.x - pad), y: Math.max(0, level.box.y - pad) };
+}
+
 export function worldLevelMap(
   world: GeneratedWorld,
   index: number,
@@ -115,8 +121,7 @@ export function worldLevelMap(
   const runTiles = Math.round(
     (DEFAULT_TUNING.spawn.leadInSeconds * DEFAULT_TUNING.soldier.speed) / BLOCK_TUNING.cellSize,
   );
-  const x0 = Math.max(0, lv.box.x - pad);
-  const y0 = Math.max(0, lv.box.y - pad);
+  const { x: x0, y: y0 } = worldLevelOrigin(lv);
   const x1 = Math.min(W, lv.box.x + lv.box.w + pad);
   // A level on the start edge gets a strip of ground beyond the board to run in across ([D112]).
   const onStart = world.crossings.some((c) => c.a === -1 && c.b === index);

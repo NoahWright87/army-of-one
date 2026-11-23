@@ -26,7 +26,8 @@ export function genMissionId(seed: number, budget?: number): string {
  * (PHASE13-c/d) One level of a world map: `world-<seed>-<level>[-<budget>][-h<a>.<b>…][-r<q>][-fog]`.
  * `h` lists the neighbouring levels you hold ([D108]: their crossings are spawns, not
  * objectives; without it, the neighbours met earlier); `r` turns the map `q` quarter turns to
- * fit the screen ([D107]). Fog is recorded in the id so existing saves keep their weather.
+ * fit the screen for a playtest or an older campaign save. Fog is recorded in the id so
+ * existing saves keep their weather.
  */
 export interface WorldMissionId {
   seed: number;

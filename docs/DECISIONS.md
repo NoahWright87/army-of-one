@@ -480,10 +480,10 @@ the objective in the lower third, no visible way on), and every level got the sa
 spawns. Levels follow the terrain now, and the crossings between them decide spawns and
 objectives.
 
-- **[D107] Levels turn to fit the screen.** A level's long side goes along the screen's long side:
-  tall on a phone held upright, wide on a PC, a big window or a phone on its side, to show as much
-  of it as possible. Its main way in ends up at the bottom or the left. You can attack a level
-  from any side (any crossing from ground you hold).
+- **[D107] Campaign battles keep the board's orientation (owner, 2026-11-23).** Attack zooms into
+  the selected level's terrain and hands off to the existing opening spawn view. Back to the
+  campaign ends the replay and zooms out from its current view. An active campaign battle saved
+  under the earlier screen-fitting rule keeps its recorded orientation.
 - **[D108] Every exit is an objective; entries are spawns.** A crossing into ground you don't hold
   is a capture point, and the level is won when every one is ours. A crossing from ground you hold
   (the start edge, or a level taken) is a place to spawn from the start. So the same crossing is

@@ -213,7 +213,7 @@ export function isRuntimeMission(id: string): boolean {
 
 /**
  * (PHASE13-d) The mission id for playing one level of a world: with the neighbours held (for a
- * campaign) and turned to fit this screen's long side ([D107]).
+ * campaign) or turned to fit this screen for a standalone world playtest ([D107]).
  */
 export function worldLevelMissionId(
   world: GeneratedWorld,
@@ -223,7 +223,10 @@ export function worldLevelMissionId(
 ): string {
   const lv = world.levels[level]!;
   const screen = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape';
-  const turns = fitTurns(lv.box.w, lv.box.h, screen, mainEntrySide(world, level, held));
+  // Campaign battles share the board's compass. The standalone world playtester can still fit.
+  const turns = held
+    ? undefined
+    : fitTurns(lv.box.w, lv.box.h, screen, mainEntrySide(world, level));
   // Only the neighbours matter (the id stays short and the save slot stable).
   const near = new Set(
     world.crossings
@@ -233,7 +236,7 @@ export function worldLevelMissionId(
   );
   return worldMissionId(world.seed, level, budget, {
     ...(held ? { held: [...held].filter((h) => near.has(h)) } : {}),
-    turns,
+    ...(turns !== undefined ? { turns } : {}),
     weather: weatherForLevel(world.seed, level),
   });
 }

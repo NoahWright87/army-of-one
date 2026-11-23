@@ -132,14 +132,39 @@ export class CampaignView {
     window.addEventListener('resize', () => this.draw());
   }
 
-  show(m: CampaignViewModel): void {
+  setInteractive(enabled: boolean): void {
+    this.root.inert = !enabled;
+  }
+
+  /** Snapshot the board in viewport coordinates, including its current scroll position. */
+  captureBoard(): {
+    image: HTMLCanvasElement;
+    rect: DOMRect;
+    stage: DOMRect;
+    px: number;
+    pad: number;
+  } {
+    const image = el('canvas');
+    image.width = this.board.width;
+    image.height = this.board.height;
+    image.getContext('2d')!.drawImage(this.board, 0, 0);
+    return {
+      image,
+      rect: this.board.getBoundingClientRect(),
+      stage: this.stage.getBoundingClientRect(),
+      px: this.px,
+      pad: this.pad,
+    };
+  }
+
+  show(m: CampaignViewModel, keepScroll = false): void {
     this.m = m;
     this.oriented = m.world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
     this.disp = displayOwner(m.world.owner, m.world.tiles.w, m.world.tiles.h);
     this.selected = m.active ?? m.attackable[0] ?? m.taken[m.taken.length - 1] ?? null;
     this.draw();
     this.renderSide();
-    this.scrollToSelected();
+    if (!keepScroll) this.scrollToSelected();
   }
 
   private select(index: number): void {

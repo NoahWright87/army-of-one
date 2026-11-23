@@ -1304,3 +1304,10 @@ export const PROJECTILE_VISUAL_TUNING = {
   grenadeShadowWidth: 12, // TUNE
   grenadeShadowHeightSpread: 0.1, // TUNE
 } as const;
+
+export const CAMPAIGN_CAMERA = {
+  approachMs: 460, // TUNE
+  handoffMs: 250, // TUNE
+  blendMs: 160, // TUNE
+  pullbackMs: 680, // TUNE
+} as const;

@@ -4,6 +4,7 @@
  * everything else boots the game (main.ts).
  */
 import { str } from '../content/strings';
+import { campaignFrame } from './campaign-frame';
 import {
   installErrorHandling,
   reportFatalError,
@@ -17,10 +18,14 @@ const startup = watchForStall('application startup', 60_000);
 const params = new URLSearchParams(window.location.search);
 
 async function boot(): Promise<void> {
-  if (params.get('scene') === 'campaign') {
+  const campaignBattle = params.get('from') === 'campaign' && !campaignFrame();
+  if (params.get('scene') === 'campaign' || campaignBattle) {
     // (PHASE13-d) The campaign map: plain DOM, no Phaser.
     const m = await import('./campaign-main');
-    await m.startCampaignMap(document.getElementById('ui-root') ?? document.body);
+    m.startCampaignMap(
+      document.getElementById('ui-root') ?? document.body,
+      campaignBattle ? new URL(location.href) : undefined,
+    );
   } else if (params.get('scene') === 'world') {
     // (PHASE13-c) World map generator viewer: plain DOM, no Phaser.
     const m = await import('./world-main');
