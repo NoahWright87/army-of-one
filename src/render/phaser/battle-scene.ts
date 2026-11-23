@@ -92,6 +92,7 @@ export class BattleScene extends Phaser.Scene {
     tape: Tape;
     clock: TimeClock;
     pairTick: number;
+    snapCamera: boolean;
     lastEvent: number;
     goal: { x: number; y: number; zoom: number };
     drag: { x: number; y: number } | null;
@@ -388,12 +389,14 @@ export class BattleScene extends Phaser.Scene {
     start: number;
     rate: number;
     frontier: () => number;
+    snapCamera?: boolean;
   }): TimeControls {
     const tape = o.tape;
     this.rs = {
       tape,
       clock: new TimeClock({ min: () => tape.start ?? 0, frontier: o.frontier }, o.start, o.rate),
       pairTick: Number.NaN,
+      snapCamera: o.snapCamera ?? false,
       lastEvent: o.start,
       goal: { x: this.cam.x, y: this.cam.y, zoom: this.zoomNow || this.baseZoom || 1 },
       drag: null,
@@ -559,7 +562,8 @@ export class BattleScene extends Phaser.Scene {
     // The free camera glides to its goal (dragging already moved it).
     const { min, max } = this.zoomLimits();
     rs.goal.zoom = Math.max(min, Math.min(max, rs.goal.zoom));
-    const k = 1 - Math.exp(-deltaMs / 180);
+    const k = rs.snapCamera ? 1 : 1 - Math.exp(-deltaMs / 180);
+    rs.snapCamera = false;
     this.cam = {
       x: this.cam.x + (rs.goal.x - this.cam.x) * k,
       y: this.cam.y + (rs.goal.y - this.cam.y) * k,

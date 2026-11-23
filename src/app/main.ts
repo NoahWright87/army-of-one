@@ -140,6 +140,7 @@ import {
   writeCampaign,
 } from './campaign-storage';
 import { browserStorage } from './storage';
+import { campaignFrame, type BattleProjection } from './campaign-frame';
 
 export const SETTINGS_STORAGE_KEY = 'army-of-one.settings.v1';
 
@@ -213,27 +214,21 @@ const campaignBattle =
         return c && c.seed === worldPlaytest.seed ? c : null;
       })()
     : null;
-/**
- * The way back to where a playtest or campaign battle came from: a button in the respawn
- * screen's top bar and an action in the settings panel (not a floating button: it covered the
- * role button).
- */
 /** (PHASE18) Started from the HQ: straight into the mission, and a way back. */
 const fromHub = params.get('go') === '1';
-const backTo: { label: string; run(): void } | null = fromHub
-  ? { label: str('hub.back'), run: () => openHub() }
-  : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
-    ? {
-        label: str(
-          campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
-        ),
-        run: campaignBattle
-          ? openCampaignMap
-          : worldPlaytest
-            ? () => openWorld(worldPlaytest.seed)
-            : openEditor,
-      }
-    : null;
+/** The painted camera projection in CSS pixels, including render scale. */
+function campaignProjection(): BattleProjection | null {
+  const key = game.scene.isActive('replay') ? 'replay' : 'battle';
+  if (!game.scene.isActive(key)) return null;
+  const camera = game.scene.getScene(key).cameras.main;
+  const rect = game.canvas.getBoundingClientRect();
+  const cssScale = rect.width / game.scale.width;
+  return {
+    x: rect.left + (camera.width / 2 - camera.midPoint.x * camera.zoom) * cssScale,
+    y: rect.top + (camera.height / 2 - camera.midPoint.y * camera.zoom) * cssScale,
+    zoom: camera.zoom * cssScale,
+  };
+}
 
 /** (PHASE18) Back to the HQ. */
 function openHub(): void {
@@ -707,8 +702,6 @@ panel.addAction({
   run: () => services.commands.playCountdown?.(),
 });
 
-if (backTo) panel.addAction(backTo);
-
 installHotkeys(window, {
   toggleDebug: () => settings.toggle(SETTING_IDS.debugOverlay),
   toggleSettings: () => panel.toggle(),
@@ -727,6 +720,52 @@ async function startGame(): Promise<void> {
   hud.setVisible(false);
   countdown.setPlacement('upper');
   const store = await openBestStore();
+
+  const frame = campaignBattle ? campaignFrame() : undefined;
+  function returnToCampaign(): void {
+    if (!frame) {
+      openCampaignMap();
+      return;
+    }
+    const projection = campaignProjection();
+    game.loop.sleep();
+    game.sound.stopAll();
+    controller.saveInProgressNow('hidden');
+    frame.returnToMap(projection, controller.flushSaves());
+  }
+
+  const backTo: { label: string; run(): void } | null = fromHub
+    ? { label: str('hub.back'), run: () => openHub() }
+    : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+      ? {
+          label: str(
+            campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
+          ),
+          run: campaignBattle
+            ? returnToCampaign
+            : worldPlaytest
+              ? () => openWorld(worldPlaytest.seed)
+              : openEditor,
+        }
+      : null;
+
+  if (backTo) panel.addAction(backTo);
+  // The first painted camera and the campaign tiles line up before play begins.
+  let openingCamera = Boolean(frame);
+  const firstFrame = () => {
+    const projection = campaignProjection();
+    if (!projection) return;
+    openingCamera = false;
+    game.events.off(Phaser.Core.Events.POST_RENDER, firstFrame);
+    game.loop.sleep();
+    frame?.ready(projection, wakeLoop);
+  };
+  if (frame) game.events.on(Phaser.Core.Events.POST_RENDER, firstFrame);
+  const showWithoutBattle = () => {
+    openingCamera = false;
+    game.events.off(Phaser.Core.Events.POST_RENDER, firstFrame);
+    frame?.ready(null, () => {});
+  };
 
   // Respawn screen + "History shifted" notice.
   let respawn: RespawnScreen | null = null;
@@ -798,6 +837,7 @@ async function startGame(): Promise<void> {
         ...(backTo ? { back: backTo } : {}),
       });
       respawn = screen;
+      showWithoutBattle();
       // (PHASE18) Basic training: the coach points at what to do on this screen.
       const hint = training?.respawnHint(props.options) ?? null;
       if (hint) coach.show(coachSteps(hint));
@@ -834,9 +874,11 @@ async function startGame(): Promise<void> {
       if (campaignBattle) {
         // (PHASE13-d) Won a campaign level: it's taken; the results lead back to the map.
         if (extra) takeCampaignLevel(extra);
-        if (!extra) complete.show(stats, openCampaignMap);
-        else {
-          showResults(extra, openCampaignMap, {
+        if (!extra) {
+          complete.show(stats, returnToCampaign);
+          showWithoutBattle();
+        } else {
+          showResults(extra, returnToCampaign, {
             title: str('campaign.levelWon'),
             playLabel: str('campaign.backToMap'),
           });
@@ -976,8 +1018,13 @@ async function startGame(): Promise<void> {
           : {}),
         onWatchAgain: () => controls?.restart(),
         onPlayAgain: () => {
-          stopReplay();
-          onPlayAgain();
+          if (onPlayAgain === returnToCampaign && frame) {
+            controls?.setPlaying(false);
+            returnToCampaign();
+          } else {
+            stopReplay();
+            onPlayAgain();
+          }
         },
       },
     );
@@ -1065,6 +1112,7 @@ async function startGame(): Promise<void> {
         // After a death, time slows right down and plays on to what has been resolved.
         rate: died !== null ? 0.25 : 0,
         frontier: () => tape.end ?? end,
+        snapCamera: openingCamera && died === null,
       });
       // A fresh mission opens on the suggested spawn's card: the winning move is one tap away.
       overlay.attach(controls, died === null);

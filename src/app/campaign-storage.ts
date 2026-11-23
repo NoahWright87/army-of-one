@@ -113,7 +113,7 @@ export function openCampaignMap(): void {
  * Attacks a level ([D122]): it becomes the active level with the settings it starts with now,
  * or, if it's already active, resumes it as it was started. Does nothing if it can't be.
  */
-export function openCampaignBattle(c: CampaignState, level: number): void {
+export function prepareCampaignBattle(c: CampaignState, level: number): URL | null {
   let state = c;
   if (!state.active) {
     const world = campaignWorld(state);
@@ -122,9 +122,9 @@ export function openCampaignBattle(c: CampaignState, level: number): void {
     state = startLevel(world, state, levelSettings(world, state, level, id));
     writeCampaign(state);
   }
-  if (state.active?.level !== level) return;
+  if (state.active?.level !== level) return null;
   const url = freshUrl();
   url.searchParams.set('mission', state.active.missionId);
   url.searchParams.set('from', 'campaign');
-  window.location.assign(url.toString());
+  return url;
 }

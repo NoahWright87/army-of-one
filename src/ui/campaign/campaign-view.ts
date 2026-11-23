@@ -4,21 +4,18 @@
  */
 import { BLOCK_CELLS } from '../../content/ground';
 import { str } from '../../content/strings';
+import { weatherForLevel } from '../../gen/weather';
 import { orientBlock } from '../../gen/transform';
 import type { LevelTag, RoleCounts } from '../../gen/campaign';
 import type { GeneratedWorld, WorldLevel } from '../../gen/world';
 import { ROLES } from '../../content/roles';
 import { roleIconSvg } from '../../content/role-icons';
-import { helmetSvg } from '../../content/ui-icons';
 import { DIFFICULTIES, DIFFICULTY, type Difficulty } from '../../content/difficulty';
 import type { RoleId } from '../../contracts/mission';
-import type { MapDef } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
-import { paintedPanelCss, tabletopBackground } from '../art-theme';
 import {
   drawBoardGround,
   displayOwner,
-  drawMapSketch,
   levelAnchors,
   levelOverlay,
   type Rgba,
@@ -48,7 +45,7 @@ export interface CampaignViewModel {
 
 export interface CampaignViewActions {
   /** A level at this campaign's budget: the budget, its map and how many enemies it holds. */
-  levelInfo(index: number): { budget: number; enemies: number; map: MapDef };
+  levelInfo(index: number): { budget: number; enemies: number };
   attack(index: number): void;
   newCampaign(): void;
   menu(): void;
@@ -59,11 +56,27 @@ export interface CampaignViewActions {
 }
 
 const css = `
-.aoo-cp { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px;
-  font: 14px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #0d1014; }
-.aoo-cp .stage { position: relative; overflow: auto; }
+.aoo-cp { position: fixed; inset: 0; font: 14px/1.4 system-ui, sans-serif;
+  color: #e7e9ec; background: #0d1014; }
+.aoo-cp .stage { position: absolute; inset: 0; overflow: auto; }
 .aoo-cp canvas.board { display: block; cursor: pointer; margin: 0 auto; }
-.aoo-cp aside { overflow-y: auto; padding: 16px; background: #161a1f; border-left: 1px solid #262c33; }
+.aoo-cp .campaign-toolbar { position: absolute; top: max(12px, env(safe-area-inset-top));
+  right: 16px; display: flex; align-items: center; gap: 8px; }
+.aoo-cp .level-actions { position: absolute; display: flex; align-items: center; gap: 6px;
+  transform: translate(-50%, -100%); }
+.aoo-cp .level-actions button, .aoo-cp .campaign-toolbar button { width: auto; margin: 0; }
+.aoo-cp .level-actions button.info { min-width: 44px; min-height: 44px; font-size: 20px; }
+.aoo-cp aside { position: absolute; right: 16px; top: 68px; width: min(344px, calc(100% - 32px));
+  max-height: calc(100% - 84px); overflow: auto; box-sizing: border-box; padding: 16px;
+  background: #161a1f; border: 1px solid #39414a; border-radius: 10px;
+  box-shadow: 0 8px 25px #0009; }
+.aoo-cp aside h2 { margin-top: 0; }
+.aoo-cp aside button.close { float: right; width: auto; margin: 0 0 6px 6px; }
+.aoo-cp .legend { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px;
+  align-items: center; margin: 12px 0; }
+.aoo-cp .legend dd { font-weight: normal; }
+.aoo-cp .loading { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: #161a1f; padding: 8px 14px; border-radius: 6px; white-space: nowrap; }
 .aoo-cp h1 { margin: 0 0 8px; font-size: 26px; color: #ffd34d; letter-spacing: .03em; }
 .aoo-cp .diff { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
 .aoo-cp .diff .k { color: #9aa3ad; margin-right: 4px; }
@@ -91,18 +104,9 @@ const css = `
 .aoo-cp button { display: block; width: 100%; margin: 6px 0; font: 600 15px system-ui, sans-serif;
   color: #e7e9ec; background: #232930; border: 1px solid #343c46; border-radius: 6px; padding: 9px; cursor: pointer; }
 .aoo-cp button:hover { background: #2c343d; }
-.aoo-cp button.go { color: #10140f; background: #ffd34d; border: 0; font-size: 18px; padding: 12px; }
+.aoo-cp button.go { color: #10140f; background: #ffd34d; border: 0; font-size: 18px; padding: 10px 15px; }
 .aoo-cp button.confirm { background: #a33a2c; }
-.aoo-cp canvas.sketch { display: block; width: 100%; margin: 8px 0; background: #0d1014; }
 .aoo-cp .foot { margin-top: 18px; border-top: 1px solid #262c33; padding-top: 10px; }
-@media (max-width: 760px) {
-  .aoo-cp { display: flex; flex-direction: column; overflow-y: auto; }
-  .aoo-cp .stage { height: 60vh; flex: none; }
-  .aoo-cp aside { border-left: 0; border-top: 1px solid #262c33; overflow: visible; }
-}
-${paintedPanelCss('.aoo-cp aside')}
-.aoo-cp .stage { background: ${tabletopBackground('ui_campaign_background')}; }
-.aoo-cp aside { box-sizing: border-box; }
 `;
 
 export class CampaignView {
@@ -110,6 +114,12 @@ export class CampaignView {
   private readonly stage = el('div', 'stage');
   private readonly board = el('canvas', 'board');
   private readonly side = el('aside');
+  private readonly actionsBar = el('div', 'level-actions');
+  private readonly toolbar = el('div', 'campaign-toolbar');
+  private readonly loading = el('div', 'loading', str('loading.level'));
+  private readonly terrain = el('canvas');
+  private panel: 'campaign' | 'level' | null = null;
+  private anchors: [number, number][] = [];
   private m: CampaignViewModel | null = null;
   private oriented: ReturnType<typeof orientBlock>[][] = [];
   private selected: number | null = null;
@@ -123,35 +133,81 @@ export class CampaignView {
   ) {
     injectStyle('aoo-campaign-css', css);
     this.stage.append(this.board);
-    this.root.append(this.stage, this.side);
+    this.loading.hidden = true;
+    this.loading.setAttribute('role', 'status');
+    this.side.hidden = true;
+    this.root.append(this.stage, this.actionsBar, this.toolbar, this.side, this.loading);
+    this.stage.addEventListener('scroll', () => this.positionActions(), { passive: true });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !this.root.inert) this.togglePanel(null);
+    });
     host.append(this.root);
     this.board.addEventListener('click', (e) => {
       const lv = this.levelAt(e);
       if (lv) this.select(lv.index);
     });
-    window.addEventListener('resize', () => this.draw());
+    window.addEventListener('resize', () => {
+      this.draw();
+      this.positionActions();
+    });
   }
 
-  show(m: CampaignViewModel): void {
+  setInteractive(enabled: boolean): void {
+    this.root.inert = !enabled;
+    if (!enabled && this.panel) this.togglePanel(null);
+  }
+
+  setLoading(loading: boolean): void {
+    this.loading.hidden = !loading;
+  }
+
+  /** Snapshot the board in viewport coordinates, including its current scroll position. */
+  captureBoard(): {
+    annotated: HTMLCanvasElement;
+    terrain: HTMLCanvasElement;
+    rect: DOMRect;
+    px: number;
+    pad: number;
+  } {
+    const copy = (source: HTMLCanvasElement) => {
+      const image = el('canvas');
+      image.width = source.width;
+      image.height = source.height;
+      image.getContext('2d')!.drawImage(source, 0, 0);
+      return image;
+    };
+    return {
+      terrain: copy(this.terrain),
+      annotated: copy(this.board),
+      rect: this.board.getBoundingClientRect(),
+      px: this.px,
+      pad: this.pad,
+    };
+  }
+
+  show(m: CampaignViewModel, keepScroll = false): void {
     this.m = m;
     this.oriented = m.world.grid.map((row) => row.map((g) => orientBlock(g.block, g.o)));
     this.disp = displayOwner(m.world.owner, m.world.tiles.w, m.world.tiles.h);
+    this.anchors = levelAnchors(m.world.owner, m.world.tiles.w, m.world.levels.length);
     this.selected = m.active ?? m.attackable[0] ?? m.taken[m.taken.length - 1] ?? null;
     this.draw();
-    this.renderSide();
-    this.scrollToSelected();
+    this.renderControls();
+    if (!keepScroll) this.scrollToSelected();
+    this.positionActions();
   }
 
   private select(index: number): void {
     this.selected = index;
     this.draw();
-    this.renderSide();
+    this.renderControls();
+    this.positionActions();
   }
 
   private scrollToSelected(): void {
     const lv = this.selected !== null ? this.m?.world.levels[this.selected] : undefined;
     if (!lv) return;
-    const mid = this.pad + (lv.box.y + lv.box.h / 2) * this.px;
+    const mid = this.pad + (this.anchors[lv.index]![0] + 0.5) * this.px;
     this.stage.scrollTop = Math.max(0, mid - this.stage.clientHeight / 2);
   }
 
@@ -172,10 +228,10 @@ export class CampaignView {
     if (!m || !this.stage.clientWidth) return;
     const w = m.world;
     const cells = { x: w.cols * BLOCK_CELLS, y: w.rows * BLOCK_CELLS };
-    // Fit the width, but zoomed out enough to see about two fronts of levels at once.
+    // Fit the width on phones and show a front of levels at a time on wide screens.
     const band = 9 * BLOCK_CELLS;
     const fitW = Math.floor((this.stage.clientWidth - 2 * this.pad - 14) / cells.x);
-    const fitH = Math.floor(this.stage.clientHeight / (2 * band));
+    const fitH = Math.floor(this.stage.clientHeight / band);
     this.px = Math.max(2, Math.min(fitW, fitH));
     const p = this.px;
     const width = cells.x * p + 2 * this.pad;
@@ -183,13 +239,17 @@ export class CampaignView {
     const c = this.board;
     c.style.width = `${width}px`;
     c.style.height = `${height}px`;
-    const dpr = window.devicePixelRatio || 1;
+    // The board extends far beyond the viewport, and the zoom temporarily copies it.
+    const dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(3_000_000 / (width * height)));
     c.width = Math.round(width * dpr);
     c.height = Math.round(height * dpr);
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.translate(this.pad, this.pad);
     drawBoardGround(ctx, this.oriented, p);
+    this.terrain.width = c.width;
+    this.terrain.height = c.height;
+    this.terrain.getContext('2d')!.drawImage(c, 0, 0);
     // Levels ([D109]): taken tinted blue, attackable outlined yellow, locked dimmed, the HQ red.
     const overlay = levelOverlay(this.disp, w.tiles.w, w.tiles.h, (lv) => {
       const taken = m.taken.includes(lv);
@@ -233,48 +293,149 @@ export class CampaignView {
       ctx.fill();
       ctx.stroke();
     }
-    const anchors = levelAnchors(w.owner, w.tiles.w, w.levels.length);
     for (const lv of w.levels) {
-      const taken = m.taken.includes(lv.index);
-      const open = m.attackable.includes(lv.index);
-      const [ay, ax] = anchors[lv.index]!;
-      // Labels: the level's number and what it is to you.
-      const status =
-        lv.index === m.hq && !taken
-          ? str('campaign.label.hq')
-          : taken
-            ? str('campaign.label.taken')
-            : lv.index === m.active
-              ? str('campaign.label.active')
-              : open
-                ? str('campaign.label.attack')
-                : '';
-      // (PHASE17) What it offers or warns about, as icons ([D140], [D141]).
-      const icons = (m.tags[lv.index] ?? []).map(tagIcon).join(' ');
-      const head = `${lv.index + 1}${icons ? `  ${icons}` : ''}`;
-      const lines = [head, ...(status ? [status] : [])];
-      ctx.font = 'bold 12px system-ui, sans-serif';
+      const [ay, ax] = this.anchors[lv.index]!;
+      const markers = this.markers(lv)
+        .map(({ icon }) => icon)
+        .join(' ');
+      const label = `${lv.index + 1}  ${markers}`;
+      ctx.font = 'bold 13px system-ui, sans-serif';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
-      const tw = Math.max(...lines.map((t) => ctx.measureText(t).width)) + 12;
-      const cx = (ax + 0.5) * p;
-      const cy = (ay + 0.5) * p;
-      const bh = lines.length * 16 + 6;
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
-      ctx.fillRect(cx - tw / 2, cy - bh / 2, tw, bh);
-      lines.forEach((t, i) => {
-        ctx.fillStyle = i === 0 ? '#e7e9ec' : open ? '#ffd34d' : taken ? '#9cc7ff' : '#ff8a80';
-        ctx.fillText(t, cx, cy - bh / 2 + 11 + i * 16);
-      });
-      ctx.textAlign = 'start';
+      const width = ctx.measureText(label).width + 14;
+      const x = (ax + 0.5) * p;
+      const y = (ay + 0.5) * p;
+      ctx.fillStyle = '#0d1014e8';
+      ctx.fillRect(x - width / 2, y - 12, width, 24);
+      ctx.fillStyle = lv.index === this.selected ? '#ffd34d' : '#e7e9ec';
+      ctx.fillText(label, x, y);
     }
   }
 
-  private renderSide(): void {
+  private markers(lv: WorldLevel): { icon: string; label: string }[] {
+    const m = this.m!;
+    const taken = m.taken.includes(lv.index);
+    const active = m.active === lv.index;
+    const open = m.attackable.includes(lv.index);
+    const icon = taken ? '✓' : active ? '⏳' : open ? '⚔' : '🔒';
+    const status =
+      m.active !== null && !active && !taken
+        ? str('campaign.status.busy', { n: m.active + 1 })
+        : str(
+            taken
+              ? 'campaign.status.taken'
+              : active
+                ? 'campaign.status.active'
+                : open
+                  ? 'campaign.status.open'
+                  : 'campaign.status.locked',
+          );
+    const markers = [{ icon, label: status }];
+    if (lv.index === m.hq) markers.push({ icon: '⚑', label: str('campaign.label.hq') });
+    if (weatherForLevel(m.world.seed, lv.index) === 'fog') {
+      markers.push({ icon: '≋', label: str('campaign.fog') });
+    }
+    for (const tag of m.tags[lv.index] ?? []) {
+      markers.push({ icon: tagIcon(tag), label: tagText(tag) });
+    }
+    return markers;
+  }
+
+  private togglePanel(panel: typeof this.panel): void {
+    this.panel = this.panel === panel ? null : panel;
+    this.renderControls();
+    this.positionActions();
+  }
+
+  private positionActions(): void {
+    if (this.selected === null) return;
+    const [y, x] = this.anchors[this.selected]!;
+    const rect = this.board.getBoundingClientRect();
+    const anchorX = rect.left + this.pad + (x + 0.5) * this.px;
+    const anchorY = rect.top + this.pad + (y + 0.5) * this.px;
+    const inView = anchorY >= 0 && anchorY <= this.stage.clientHeight;
+    this.actionsBar.style.visibility = inView ? 'visible' : 'hidden';
+    const half = this.actionsBar.offsetWidth / 2 + 8;
+    this.actionsBar.style.left = `${Math.max(half, Math.min(this.stage.clientWidth - half, anchorX))}px`;
+    this.actionsBar.style.top = `${Math.max(52, anchorY - 17)}px`;
+  }
+
+  private renderControls(): void {
     const m = this.m;
-    const box = this.side;
-    box.replaceChildren();
     if (!m) return;
+    this.toolbar.replaceChildren();
+    this.actionsBar.replaceChildren();
+    this.side.replaceChildren();
+    this.side.hidden = !this.panel;
+    if (m.won) this.toolbar.append(el('span', 'chip won', str('campaign.won')));
+    const settings = el('button', '', '⚙');
+    settings.setAttribute('aria-label', str('campaign.options'));
+    settings.setAttribute('aria-expanded', String(this.panel === 'campaign'));
+    settings.onclick = () => {
+      this.togglePanel('campaign');
+      this.toolbar.querySelector('button')?.focus({ preventScroll: true });
+    };
+    this.toolbar.append(settings);
+
+    const lv = this.selected !== null ? m.world.levels[this.selected] : undefined;
+    if (lv) {
+      if (m.attackable.includes(lv.index)) {
+        const go = el(
+          'button',
+          'go',
+          str(m.active === lv.index ? 'campaign.resume' : 'campaign.attack'),
+        );
+        go.onclick = () => this.actions.attack(lv.index);
+        this.actionsBar.append(go);
+      }
+      const info = el('button', 'info', 'ℹ');
+      info.setAttribute('aria-label', str('campaign.levelInfo'));
+      info.setAttribute('aria-expanded', String(this.panel === 'level'));
+      info.onclick = () => {
+        this.togglePanel('level');
+        this.actionsBar.querySelector<HTMLButtonElement>('.info')?.focus({ preventScroll: true });
+      };
+      this.actionsBar.append(info);
+    }
+
+    if (this.panel) {
+      const close = el('button', 'close', '×');
+      close.setAttribute('aria-label', str('campaign.close'));
+      close.onclick = () => {
+        const panel = this.panel;
+        this.togglePanel(null);
+        const opener =
+          panel === 'level'
+            ? this.actionsBar.querySelector<HTMLButtonElement>('.info')
+            : this.toolbar.querySelector('button');
+        opener?.focus({ preventScroll: true });
+      };
+      this.side.append(close);
+    }
+    if (this.panel === 'campaign') this.renderCampaign(m);
+    else if (this.panel === 'level' && lv) this.renderLevel(lv);
+  }
+
+  private renderLevel(lv: WorldLevel): void {
+    this.side.append(el('h2', '', str('campaign.level', { n: lv.index + 1 })));
+    const legend = el('dl', 'legend');
+    for (const { icon, label } of this.markers(lv))
+      legend.append(el('dt', '', icon), el('dd', '', label));
+    this.side.append(legend);
+    if (this.m!.taken.includes(lv.index)) return;
+    const info = this.actions.levelInfo(lv.index);
+    const facts = el('dl');
+    for (const [label, value] of [
+      [str('campaign.enemies'), String(info.enemies)],
+      [str('campaign.budget'), String(info.budget)],
+      [str('campaign.size'), str('campaign.sizeValue', { blocks: lv.blocks })],
+    ])
+      facts.append(el('dt', '', label), el('dd', '', value));
+    this.side.append(facts);
+  }
+
+  private renderCampaign(m: CampaignViewModel): void {
+    const box = this.side;
     box.append(el('h1', '', str('campaign.title')));
     if (m.won) box.append(el('p', 'won', str('campaign.won')));
     // (PHASE17) Icons over words ([D140]): hover for what each means.
@@ -327,62 +488,6 @@ export class CampaignView {
     }
     box.append(diff);
 
-    const lv = this.selected !== null ? m.world.levels[this.selected] : undefined;
-    if (lv) {
-      const taken = m.taken.includes(lv.index);
-      const open = m.attackable.includes(lv.index);
-      const active = m.active === lv.index;
-      const busy = m.active !== null && !active && !taken;
-      const title = el(
-        'h2',
-        '',
-        str(lv.index === m.hq ? 'campaign.levelHq' : 'campaign.level', { n: lv.index + 1 }),
-      );
-      box.append(title);
-      const tags = el('div', 'strip');
-      for (const t of m.tags[lv.index] ?? []) {
-        const c = el('span', 'chip', tagIcon(t));
-        c.title = tagText(t);
-        tags.append(c);
-      }
-      const status = taken ? '✅' : active ? '⏳' : busy ? '🔒' : open ? '🎯' : '🔒';
-      const st = el('span', 'chip', status);
-      st.title = busy
-        ? str('campaign.status.busy', { n: m.active! + 1 })
-        : str(
-            taken
-              ? 'campaign.status.taken'
-              : active
-                ? 'campaign.status.active'
-                : open
-                  ? 'campaign.status.open'
-                  : 'campaign.status.locked',
-          );
-      tags.prepend(st);
-      if (!taken) {
-        const info = this.actions.levelInfo(lv.index);
-        const e = el('span', 'chip');
-        e.innerHTML = `${helmetSvg(16)}<span>×${info.enemies}</span>`;
-        e.style.display = 'inline-flex';
-        e.style.alignItems = 'center';
-        e.style.gap = '3px';
-        e.title = str('campaign.enemies');
-        tags.append(e);
-      }
-      box.append(tags);
-      if (!taken) {
-        const info = this.actions.levelInfo(lv.index);
-        if (open) {
-          const go = el('button', 'go', str(active ? 'campaign.resume' : 'campaign.attack'));
-          go.onclick = () => this.actions.attack(lv.index);
-          box.append(go);
-        }
-        const sketch = el('canvas', 'sketch');
-        box.append(sketch);
-        this.drawSketch(sketch, info.map);
-      }
-    }
-
     const foot = el('div', 'foot');
     const fresh = el('button', '', str('campaign.new'));
     let armed = m.won;
@@ -399,20 +504,6 @@ export class CampaignView {
     menu.onclick = () => this.actions.menu();
     foot.append(fresh, menu);
     box.append(foot);
-  }
-
-  private drawSketch(c: HTMLCanvasElement, map: MapDef): void {
-    const dpr = window.devicePixelRatio || 1;
-    const width = c.clientWidth || 320;
-    const k = Math.min(width / map.width, Math.max(360, window.innerHeight * 0.7) / map.height);
-    const height = Math.round(map.height * k);
-    c.style.height = `${height}px`;
-    c.width = Math.round(width * dpr);
-    c.height = Math.round(height * dpr);
-    const ctx = c.getContext('2d')!;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.translate(Math.round((width - map.width * k) / 2), 0);
-    drawMapSketch(ctx, map, k);
   }
 }
 

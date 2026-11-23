@@ -1,3 +1,4 @@
+import { campaignFrame } from './campaign-frame';
 import { str } from '../content/strings';
 
 let failed = false;
@@ -148,7 +149,9 @@ export function reportFatalError(error: unknown): void {
     const url = new URL(location.href);
     url.search = campaign ? '?scene=campaign' : '?mission=mission-03';
     url.hash = '';
-    location.assign(url.href);
+    const frame = campaignFrame();
+    if (campaign && frame) frame.returnToMap(null);
+    else location.assign(url.href);
   });
   const label = document.createElement('label');
   label.textContent = str('error.details');
@@ -175,5 +178,6 @@ export function reportFatalError(error: unknown): void {
   card.append(title, description, actions, label);
   root.append(card);
   document.body.append(root);
+  campaignFrame()?.failed();
   reload.focus();
 }

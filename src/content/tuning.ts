@@ -1304,3 +1304,12 @@ export const PROJECTILE_VISUAL_TUNING = {
   grenadeShadowWidth: 12, // TUNE
   grenadeShadowHeightSpread: 0.1, // TUNE
 } as const;
+
+export const CAMPAIGN_CAMERA = {
+  minFlightMs: 1700, // TUNE
+  msPerDoubling: 440, // TUNE
+  loadingProgress: 0.31, // TUNE how far the camera travels before the battle can render
+  accelerationMs: 115, // TUNE
+  registerMs: 320, // TUNE
+  blendMs: 160, // TUNE fallback for views without a terrain projection
+} as const;
