@@ -16,6 +16,11 @@ describe('visual startup requirements', () => {
     }
   });
 
+  it('still requests rubble art and starts when that art fails to load', () => {
+    expect(STARTUP_IMAGES.some((asset) => asset.key === 'rubble_metal')).toBe(true);
+    expect(missingStartupImages((key) => !key.startsWith('rubble_'))).toEqual([]);
+  });
+
   it('reports missing decoded textures even if there was no network error', () => {
     expect(missingStartupImages((key) => key !== 'mini_atlas' && key !== 'terrain_grass')).toEqual(
       expect.arrayContaining(['mini_atlas', 'terrain_grass']),

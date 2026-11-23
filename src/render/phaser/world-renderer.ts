@@ -579,12 +579,15 @@ export class WorldRenderer {
       const destroyed = down.includes(def.id);
       const piece = this.coverPieces.get(def.id)!;
       const l = coverArtLayout(def, destroyed);
+      const visible = !destroyed || this.scene.textures.exists(l.key);
+      piece.sprite.setVisible(visible);
+      piece.shadow.setVisible(!destroyed);
+      if (!visible) continue;
       piece.sprite
         .setTexture(l.key)
         .setSize(l.width, l.height)
         .setTileScale(l.tileScale)
         .setDepth(destroyed ? DEPTH.decals : DEPTH.walls);
-      piece.shadow.setVisible(!destroyed);
     }
   }
 
