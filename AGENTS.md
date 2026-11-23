@@ -137,7 +137,9 @@ respawn screen → lead-in → battle → …, PHASE04); `?mission=<id>` also go
 screen dev page. Hotkeys: `` ` `` debug overlay, `F2` settings panel (display/debug options,
 game flow, sim tuning; saved in localStorage), `F4` play the countdown overlay, `R` / `Space`
 quick redeploy on the death beat or respawn screen (PHASE06-c; a fresh mission skips the empty
-respawn screen). Perf knobs: `display.renderScale`, `display.antialias`, `debug.maxCatchUpSteps`
+respawn screen). `Esc` / `P` (or the ⏸ button) pauses a live battle: no battle time passes, then a 3-2-1
+resume; it also auto-pauses when the tab is hidden, the phone locks or the window loses focus
+(`src/render/pause-model.ts`, `src/ui/hud/pause-overlay.ts`). Perf knobs: `display.renderScale`, `display.antialias`, `debug.maxCatchUpSteps`
 (see `docs/perf.md`, PHASE06-c).
 
 Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):

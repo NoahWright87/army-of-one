@@ -5,6 +5,7 @@ import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierId, World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import type { CountdownOverlay } from '../../ui/hud/countdown-overlay';
+import type { PauseOverlay } from '../../ui/hud/pause-overlay';
 import type { DebugOverlay, Hud } from '../../ui/hud/hud';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import type { InputSource } from '../input/input-source';
@@ -87,6 +88,8 @@ export interface SceneServices {
   leadInHint?: { set(on: boolean): void };
   hud: Hud;
   countdown: CountdownOverlay;
+  /** Pause button + card (live battles). */
+  pauseUi?: PauseOverlay;
   debug: DebugOverlay;
   createSession(): BattleSession;
   commands: SceneCommands;
