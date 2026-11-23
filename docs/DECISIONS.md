@@ -481,9 +481,11 @@ spawns. Levels follow the terrain now, and the crossings between them decide spa
 objectives.
 
 - **[D107] Campaign battles keep the board's orientation (owner, 2026-11-23).** Attack zooms into
-  the selected level's terrain and hands off to the existing opening spawn view. Back to the
-  campaign ends the replay and zooms out from its current view. An active campaign battle saved
-  under the earlier screen-fitting rule keeps its recorded orientation.
+  toward the opening spawn while battle loads. Flat tiles and textured terrain stay aligned while
+  the detail fades in. Back to the campaign ends the replay and reverses the zoom from its current
+  view. An active campaign battle saved under the earlier screen-fitting rule keeps its recorded
+  orientation. The map fills the screen, with Attack or Resume above the selected territory.
+  Level symbols are explained by the info button. Campaign management is under the gear.
 - **[D108] Every exit is an objective; entries are spawns.** A crossing into ground you don't hold
   is a capture point, and the level is won when every one is ours. A crossing from ground you hold
   (the start edge, or a level taken) is a place to spawn from the start. So the same crossing is

@@ -1306,8 +1306,10 @@ export const PROJECTILE_VISUAL_TUNING = {
 } as const;
 
 export const CAMPAIGN_CAMERA = {
-  approachMs: 460, // TUNE
-  handoffMs: 250, // TUNE
-  blendMs: 160, // TUNE
-  pullbackMs: 680, // TUNE
+  minFlightMs: 1700, // TUNE
+  msPerDoubling: 440, // TUNE
+  loadingProgress: 0.31, // TUNE how far the camera travels before the battle can render
+  accelerationMs: 115, // TUNE
+  registerMs: 320, // TUNE
+  blendMs: 160, // TUNE fallback for views without a terrain projection
 } as const;

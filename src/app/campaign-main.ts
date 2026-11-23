@@ -61,7 +61,7 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
         held: heldSet(state),
       });
       const enemies = (level.map.squads ?? []).reduce((n, s) => n + s.members.length, 0);
-      return { budget, enemies, map: level.map };
+      return { budget, enemies };
     },
     attack: (index) => {
       if (frame) return;
@@ -113,7 +113,8 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
   }
   function enterBattle(url: URL, flyIn: boolean): void {
     const mission = parseWorldMissionId(url.searchParams.get('mission') ?? '');
-    const level = mission?.seed === state.seed ? campaignWorld(state).levels[mission.level] : null;
+    const world = campaignWorld(state);
+    const level = mission?.seed === state.seed ? world.levels[mission.level] : null;
     if (!mission || !level) {
       location.replace(mapUrl);
       return;
@@ -123,8 +124,7 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
     let returning = false;
     let entered = false;
     let failed = false;
-    let flight = flyIn && !mission.turns ? new CampaignFlight(view, level, host) : null;
-    const approach = flight?.flyIn();
+    let flight: CampaignFlight | null = null;
     const battle = document.createElement('iframe') as CampaignBattleFrame;
     battle.title = str('map.world.name');
     battle.style.cssText =
@@ -132,6 +132,23 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
     battle.inert = true;
     frame = battle;
     view.setInteractive(false);
+    const canFlyIn = flyIn && !mission.turns;
+    view.setLoading(flyIn);
+    if (canFlyIn) flight = new CampaignFlight(view, host);
+    // The first crossing estimates the opening camera while the battle renderer starts.
+    const held = new Set([-1, ...(mission.held ?? [])]);
+    const entry = world.crossings.find(
+      (crossing) =>
+        (crossing.a === level.index && held.has(crossing.b)) ||
+        (crossing.b === level.index && held.has(crossing.a)),
+    );
+    const tile = entry && (entry.a === level.index ? entry.atA : entry.atB);
+    const arrival = flight?.move(
+      level,
+      battle,
+      true,
+      tile && { x: tile[1] + 0.5, y: tile[0] + 0.5 },
+    );
 
     const cleanup = () => {
       if (frame !== battle) return;
@@ -141,6 +158,7 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
       battle.remove();
       frame = null;
       view.setInteractive(true);
+      view.setLoading(false);
       state = readCampaign() ?? state;
       show(true);
     };
@@ -149,11 +167,16 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
         if (entered) return;
         entered = true;
         void (async () => {
-          await approach;
           if (frame !== battle || returning || failed) return;
-          if (flight && projection) await flight.land(level, projection);
-          if (frame !== battle || returning || failed) return;
-          await animate(battle, [{ opacity: 0 }, { opacity: 1 }], CAMPAIGN_CAMERA.blendMs);
+          view.setLoading(false);
+          if (flight && projection) {
+            flight.register(projection);
+            await arrival;
+          } else {
+            flight?.remove();
+            flight = null;
+            await animate(battle, [{ opacity: 0 }, { opacity: 1 }], CAMPAIGN_CAMERA.blendMs);
+          }
           if (frame !== battle || returning || failed) return;
           flight?.remove();
           flight = null;
@@ -170,12 +193,15 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
           state = readCampaign() ?? state;
           show(true);
           if (projection && !mission.turns) {
-            flight = new CampaignFlight(view, level, host);
-            flight.align(level, projection);
+            flight = new CampaignFlight(view, host);
+            flight.register(projection);
+            await Promise.all([flight.move(level, battle, false), save]);
+          } else {
+            await Promise.all([
+              animate(battle, [{ opacity: 1 }, { opacity: 0 }], CAMPAIGN_CAMERA.blendMs),
+              save,
+            ]);
           }
-          await animate(battle, [{ opacity: 1 }, { opacity: 0 }], CAMPAIGN_CAMERA.blendMs);
-          if (frame !== battle) return;
-          await Promise.all([flight?.flyOut(), save]);
           if (frame !== battle) return;
           cleanup();
           if (flyIn) history.back();
@@ -188,6 +214,10 @@ export function startCampaignMap(host: HTMLElement, initialBattle?: URL): void {
         flight?.remove();
         flight = null;
         battle.style.opacity = '1';
+        battle.style.transform = '';
+        battle.style.maskImage = '';
+        const ui = battle.contentDocument?.getElementById('ui-root');
+        if (ui) ui.style.opacity = '';
         battle.inert = false;
         battle.contentWindow?.focus();
       },
