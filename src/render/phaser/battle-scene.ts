@@ -17,7 +17,10 @@ import { lerpAngle, smoothFollow } from '../interp';
 import type { BattleSession, SceneServices } from './services';
 import { SoundBank } from './sound-bank';
 import { WorldRenderer } from './world-renderer';
-import { alongPath, approachFor, spawnAt } from '../run-in';
+import { arrivalPose, spawnAt } from '../run-in';
+import { ENTRANCE } from '../../content/tuning';
+import type { SpawnPointDef } from '../../sim/world/map';
+import { vehicleMiniature } from '../vehicle-miniatures';
 import { DEPTH } from '../depth';
 import type { Vec2 } from '../../sim/core/vec';
 import { fitPx, type ImageKey } from '../../content/assets';
@@ -74,8 +77,9 @@ export class BattleScene extends Phaser.Scene {
   private money: { balance: number; rate: number } | null = null;
   private moneyTick: number | null = null;
   private ghostDrawn = false;
-  /** (PHASE13-d) The live soldier's run in during the countdown ([D112]). */
-  private runPath: Vec2[] | null = null;
+  /** The live soldier's spawn during the countdown. */
+  private arrivalSpawn: SpawnPointDef | null = null;
+  private arrivalGraphics!: Phaser.GameObjects.Graphics;
   private runTotal = 1;
   private runnerPos: Vec2 | null = null;
   private runners = new Map<string, Phaser.GameObjects.Image>();
@@ -119,6 +123,7 @@ export class BattleScene extends Phaser.Scene {
     this.worldRenderer.onCue = (c) => this.onCue(c);
     this.cameras.main.setBounds(0, 0, this.world.map.width, this.world.map.height);
     this.ghost = this.add.graphics().setDepth(1000);
+    this.arrivalGraphics = this.add.graphics().setDepth(DEPTH.live + 0.5);
     this.rs = null;
     this.zoomNow = 0;
     this.setupRespawnInput();
@@ -179,18 +184,20 @@ export class BattleScene extends Phaser.Scene {
     const camWas = this.cam;
     this.cam = this.lookAhead(home, live?.facing ?? this.homeFacing);
     if (keepCamera) this.cam = camWas;
-    // (PHASE13-d) A new soldier runs in to its spawn point during the countdown ([D112]).
-    this.runPath = null;
+    // Preview a new soldier's arrival during the countdown.
+    this.arrivalSpawn = null;
     this.runnerPos = null;
+    this.arrivalGraphics.clear();
     for (const img of this.runners.values()) img.destroy();
     this.runners = new Map();
     const left0 = driver?.countdown() ?? null;
     if (driver && !live && left0 !== null && left0 > 0) {
       const sp = spawnAt(map.spawnPoints, driver.cameraHome);
       if (sp) {
-        this.runPath = approachFor(sp, this.runDistance());
+        this.arrivalSpawn = sp;
         this.runTotal = left0;
-        this.runnerPos = this.runPath[0] ?? null;
+        const at = arrivalPose(sp, driver.previewRoleId, 0);
+        this.runnerPos = at.transport?.pos ?? at.pos;
         if (!keepCamera) this.cam = this.lookAhead(this.runnerPos ?? home, this.homeFacing);
       }
     }
@@ -407,6 +414,7 @@ export class BattleScene extends Phaser.Scene {
     this.services.leadInHint?.set(false);
     this.ghost.clear();
     this.ghostDrawn = false;
+    this.arrivalGraphics.clear();
     for (const img of this.runners.values()) img.destroy();
     this.runners = new Map();
     this.input.setDefaultCursor('grab');
@@ -645,28 +653,40 @@ export class BattleScene extends Phaser.Scene {
     return { x: pos.x + ahead.x, y: pos.y + ahead.y };
   }
 
-  /** How far a soldier runs in a lead-in (world units). */
-  private runDistance(): number {
-    const t = this.world.tuning;
-    return t.spawn.leadInSeconds * t.soldier.speed;
-  }
-
-  /**
-   * (PHASE13-d) Runners ([D112]): the live soldier during its countdown, and echoes in the
-   * lead-in's worth of ticks before they spawn, each along its spawn point's approach. For show:
-   * the sim knows nothing of them.
-   */
+  /** Draw arrivals before the simulation activates the soldier. */
   private updateRunners(driver: BattleSession['driver'], alpha: number): void {
     const seen = new Set<string>();
+    const graphics = this.arrivalGraphics;
+    graphics.clear();
     const place = (
       key: string,
-      texture: 'soldier_live' | 'soldier_echo',
-      at: { pos: Vec2; facing: number },
+      team: 'live' | 'echo',
+      spawn: SpawnPointDef,
+      progress: number,
       roleId: RoleId = 'rifleman',
     ) => {
-      const mini = pilotMiniature(roleId, texture === 'soldier_live' ? 'live' : 'echo');
-      const depth = key === 'live' ? DEPTH.live : DEPTH.echoes;
-      const layer = (suffix: string, asset: ImageKey, rotation: number, z: number) => {
+      const gate = spawn.transport?.gateId;
+      if (gate && !this.view.gates.some((g) => g.id === gate && g.open)) return;
+      const capture = this.world.map.capturePoints?.find((cp) => cp.id === spawn.capturePointId);
+      if (
+        capture?.antiAirTurrets &&
+        !this.view.capturePoints.some((cp) => cp.id === capture.id && cp.stage === 'ours')
+      )
+        return;
+      const at = arrivalPose(spawn, roleId, progress);
+      const mini = pilotMiniature(roleId, team);
+      const vehicle = vehicleMiniature(roleId, team, true);
+      const depth = team === 'live' ? DEPTH.live : DEPTH.echoes;
+      const diameter = this.world.tuning.soldier.spriteRadius * 2;
+      const layer = (
+        suffix: string,
+        asset: ImageKey,
+        rotation: number,
+        z: number,
+        size = diameter,
+        pos = at.pos,
+        opacity = 1,
+      ) => {
         const id = `${key}:${suffix}`;
         seen.add(id);
         let img = this.runners.get(id);
@@ -677,41 +697,63 @@ export class BattleScene extends Phaser.Scene {
         img
           .setTexture(asset)
           .setDepth(z)
-          .setScale((this.world.tuning.soldier.spriteRadius * 2) / fitPx(asset))
-          .setPosition(at.pos.x, at.pos.y)
+          .setScale(size / fitPx(asset))
+          .setPosition(pos.x, pos.y)
           .setRotation(rotation)
-          .setVisible(true);
+          .setAlpha(opacity);
       };
-      if (!mini) {
-        layer('figure', texture, at.facing, depth);
+      if (at.transport) {
+        const { pos, facing, alpha } = at.transport;
+        layer('transport', 'vehicle', facing, DEPTH.vehicles, ENTRANCE.truckLength, pos, alpha);
+      }
+      if (!at.visible) return;
+      if (vehicle && (roleId === 'truck' || roleId === 'tank')) {
+        const size = this.world.tuning.drive[roleId].bodyRadius * 2;
+        layer('base', vehicle.base, at.facing, depth - 0.1, size);
+        layer('figure', vehicle.hull, at.facing, depth, size);
+        if (vehicle.turret) layer('turret', vehicle.turret, at.facing, depth + 0.1, size);
         return;
       }
-      if (mini.base) {
-        layer('base', mini.base, 0, depth - 0.1);
-        this.runners
-          .get(`${key}:base`)!
-          .setScale(
-            ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.base)) * INFANTRY_BASE_SCALE,
-          );
+      const figure = { x: at.pos.x, y: at.pos.y - at.height };
+      if (at.canopy > 0) {
+        const r = diameter * 0.9 * at.canopy;
+        const top = figure.y - diameter * 0.7;
+        graphics
+          .fillStyle(0x101b1c, 0.22)
+          .fillEllipse(at.pos.x, at.pos.y, diameter, diameter * 0.56);
+        graphics.lineStyle(1.5, 0xf2ead3, at.canopy);
+        graphics.lineBetween(figure.x - r, top, figure.x - 4, figure.y);
+        graphics.lineBetween(figure.x + r, top, figure.x + 4, figure.y);
+        graphics.fillStyle(0x58775d, at.canopy).fillEllipse(figure.x, top - r / 4, r * 2, r);
+        graphics.fillStyle(0xc5cbaa, at.canopy).fillEllipse(figure.x, top - r / 4, r, r);
       }
-      layer('figure', mini.figure, at.facing, depth);
-      this.runners
-        .get(`${key}:figure`)!
-        .setScale(
-          ((this.world.tuning.soldier.spriteRadius * 2) / fitPx(mini.figure)) *
-            INFANTRY_FIGURE_SCALE,
+      if (!mini) {
+        layer(
+          'figure',
+          team === 'live' ? 'soldier_live' : 'soldier_echo',
+          at.facing,
+          depth,
+          diameter,
+          figure,
         );
+        return;
+      }
+      if (mini.base && at.height === 0) {
+        layer('base', mini.base, 0, depth - 0.1, diameter * INFANTRY_BASE_SCALE);
+      }
+      layer('figure', mini.figure, at.facing, depth, diameter * INFANTRY_FIGURE_SCALE, figure);
     };
     // The live soldier, until it exists.
     this.runnerPos = null;
     const left = driver?.countdown() ?? null;
     const exists = this.worldRenderer.soldierRenderPos(this.liveId, alpha) !== null;
-    if (this.runPath && !exists && left !== null && left > 0) {
-      const at = alongPath(this.runPath, 1 - left / this.runTotal);
-      this.runnerPos = at.pos;
-      place('live', 'soldier_live', at, driver?.previewRoleId);
+    if (this.arrivalSpawn && !exists && left !== null && left > 0) {
+      const progress = 1 - left / this.runTotal;
+      const at = arrivalPose(this.arrivalSpawn, driver?.previewRoleId, progress);
+      this.runnerPos = at.visible ? at.pos : (at.transport?.pos ?? at.pos);
+      place('live', 'live', this.arrivalSpawn, progress, driver?.previewRoleId);
     } else if (exists) {
-      this.runPath = null;
+      this.arrivalSpawn = null;
     }
     // Echoes about to spawn.
     const lead = this.world.tuning.spawn.leadInSeconds * TICKS_PER_SECOND;
@@ -721,12 +763,7 @@ export class BattleScene extends Phaser.Scene {
       if (ahead <= 0 || ahead > lead) continue;
       const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
       if (!sp) continue;
-      place(
-        a.id,
-        'soldier_echo',
-        alongPath(approachFor(sp, this.runDistance()), 1 - ahead / lead),
-        a.roleId,
-      );
+      place(a.id, 'echo', sp, 1 - ahead / lead, a.roleId);
     }
     for (const [key, img] of this.runners) {
       if (!seen.has(key)) {

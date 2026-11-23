@@ -112,6 +112,7 @@ export const STRINGS = {
   'spawn.mission05.depot': 'Depot',
   'capture.mission05.checkpoint': 'Checkpoint',
   'capture.mission05.fuel': 'Fuel Farm',
+  'capture.destroyAA': 'Destroy AA guns',
   'capture.mission05.crossroads': 'Crossroads',
   'capture.mission05.depot': 'Depot',
   'role.rifleman': 'Rifleman',

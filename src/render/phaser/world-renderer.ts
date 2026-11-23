@@ -327,6 +327,16 @@ export class WorldRenderer {
       .setOrigin(0)
       .setDepth(DEPTH.ground);
     if (map.ground) drawGround(scene, map.ground);
+    for (const spawn of map.spawnPoints) {
+      const transport = spawn.transport;
+      if (!transport) continue;
+      const road = scene.add.graphics().setDepth(DEPTH.ground + 0.1);
+      road.lineStyle(84, 0x56584d, 0.85);
+      road.strokePoints(
+        [...transport.path, spawn.position].map(({ x, y }) => new Phaser.Math.Vector2(x, y)),
+        false,
+      );
+    }
     for (const w of map.water) {
       if (isPaintedRect(map.ground, w, ['W'])) continue;
       scene.add.tileSprite(w.x, w.y, w.w, w.h, TERRAIN_ART.W).setOrigin(0).setDepth(DEPTH.water);
@@ -1520,26 +1530,29 @@ export class WorldRenderer {
         g.arc(c.x, c.y, c.radius + 6, -Math.PI / 2, -Math.PI / 2 + c.progress * Math.PI * 2);
         g.strokePath();
       }
-      // Pole + flags. The pole's foot sits at the point's centre.
-      const poleH = 72;
-      const foot = c.y;
-      this.flagPoles
-        .get(c.id)
-        .setTexture('flag_pole')
-        .setOrigin(0.5, 1)
-        .setPosition(c.x, foot)
-        .setScale(poleH / 96);
-      const h = flagHeights(c.stage, c.progress);
-      const flagKey = h.enemy > 0 ? 'flag_enemy' : h.ours > 0 ? 'flag_ours' : null;
-      if (flagKey) {
-        const lift = h.enemy > 0 ? h.enemy : h.ours;
-        const wave = 1 + Math.sin(nowMs / 180) * 0.06;
-        this.flags
+      const antiAir = this.map.capturePoints?.find((point) => point.id === c.id)?.antiAirTurrets;
+      if (!antiAir) {
+        // Pole + flags. The pole's foot sits at the point's centre.
+        const poleH = 72;
+        const foot = c.y;
+        this.flagPoles
           .get(c.id)
-          .setTexture(flagKey)
-          .setOrigin(0, 0)
-          .setPosition(c.x + 1, foot - 14 - lift * (poleH - 22))
-          .setScale(0.7 * wave, 0.7);
+          .setTexture('flag_pole')
+          .setOrigin(0.5, 1)
+          .setPosition(c.x, foot)
+          .setScale(poleH / 96);
+        const h = flagHeights(c.stage, c.progress);
+        const flagKey = h.enemy > 0 ? 'flag_enemy' : h.ours > 0 ? 'flag_ours' : null;
+        if (flagKey) {
+          const lift = h.enemy > 0 ? h.enemy : h.ours;
+          const wave = 1 + Math.sin(nowMs / 180) * 0.06;
+          this.flags
+            .get(c.id)
+            .setTexture(flagKey)
+            .setOrigin(0, 0)
+            .setPosition(c.x + 1, foot - 14 - lift * (poleH - 22))
+            .setScale(0.7 * wave, 0.7);
+        }
       }
       // Contributor highlight.
       for (const id of c.contributors) {
@@ -1552,7 +1565,7 @@ export class WorldRenderer {
       // Label: name (+ "flag" objectives get the HQ name in caps by their string). (06-c) Text and
       // colour are set only when they change: each change re-renders the label's texture.
       const label = this.captureLabels.get(c.id);
-      const name = strDynamic(c.nameKey);
+      const name = strDynamic(antiAir && c.stage !== 'ours' ? 'capture.destroyAA' : c.nameKey);
       if (label.text !== name) label.setText(name);
       const labelColor =
         c.stage === 'ours' ? '#bff5cf' : c.stage === 'enemy' ? '#ffc2b8' : '#e6e6e6';

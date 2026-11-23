@@ -5,6 +5,7 @@ import { M5, M5_H, MISSION_05 } from '../../content/maps/mission-05';
 import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { hashState } from '../core/hash';
+import { damageTurret } from '../combat/damage';
 import { createWorld, spawnSoldier, step } from '../sim';
 import { findPath } from '../world/nav';
 
@@ -49,6 +50,32 @@ describe('mission-05 Armored Push', () => {
     for (const sp of MISSION_05.spawnPoints) {
       expect(findPath(w, sp.position, goal), sp.id).not.toBeNull();
     }
+  });
+
+  it('secures the fuel farm only after both AA guns are destroyed', () => {
+    const w = createWorld(MISSION_05, T);
+    const point = w.state.capturePoints.find((c) => c.id === 'cp-b')!;
+    const guns = ['m5-aa-west', 'm5-aa-east'];
+    step(w, new Map());
+    expect(point.stage).toBe('enemy');
+    for (const id of guns) {
+      const i = w.state.turrets.findIndex((t) => t.id === id);
+      damageTurret(w, i, w.state.turrets[i]!.hp, 'test');
+      step(w, new Map());
+      expect(point.stage).toBe(id === guns[0] ? 'enemy' : 'ours');
+    }
+    expect(point.capturedTick).not.toBeNull();
+  });
+
+  it('opens the reinforcement gate when the checkpoint is captured', () => {
+    const w = createWorld(MISSION_05, T);
+    const gate = w.state.gates.find((g) => g.id === 'm5-gate-supply')!;
+    step(w, new Map());
+    expect(gate.open).toBe(false);
+    w.state.capturePoints.find((c) => c.id === 'cp-a')!.stage = 'ours';
+    step(w, new Map());
+    expect(gate.open).toBe(true);
+    expect(MISSION_05.levers?.some((lever) => lever.targetId === gate.id)).toBe(false);
   });
 
   it('ten seconds with every enemy awake (and fighting one of ours) run the same twice', () => {

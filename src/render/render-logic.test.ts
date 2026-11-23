@@ -17,6 +17,45 @@ import { flickerNoise, soldierVisual } from './soldier-style';
 import { distanceGain, effectiveVolume, SoundThrottle } from './sound-mix';
 import { ASSET_MANIFEST } from '../content/assets';
 import { DEPTH } from './depth';
+import { arrivalPose } from './run-in';
+import { MISSION_05 } from '../content/maps/mission-05';
+
+describe('reinforcement arrivals', () => {
+  const fuel = MISSION_05.spawnPoints.find((s) => s.id === 'fuel')!;
+  const checkpoint = MISSION_05.spawnPoints.find((s) => s.id === 'checkpoint')!;
+
+  it('drops infantry over their spawn and folds the canopy at touchdown', () => {
+    expect(arrivalPose(fuel, 'rifleman', 0.5)).toMatchObject({
+      pos: fuel.position,
+      visible: true,
+      canopy: 1,
+    });
+    expect(arrivalPose(fuel, 'rifleman', 1)).toMatchObject({
+      pos: fuel.position,
+      canopy: 0,
+      height: 0,
+    });
+  });
+
+  it('backs the truck in before infantry jump out', () => {
+    expect(arrivalPose(checkpoint, 'rifleman', 0.5)).toMatchObject({ visible: false });
+    const jump = arrivalPose(checkpoint, 'rifleman', 0.85);
+    expect(jump.visible).toBe(true);
+    expect(jump.height).toBeGreaterThan(0);
+    expect(jump.transport?.facing).toBeCloseTo(Math.PI / 2);
+    expect(arrivalPose(checkpoint, 'rifleman', 1).pos).toEqual(checkpoint.position);
+  });
+
+  it.each(['tank', 'truck'] as const)('keeps %s arrivals on the ground', (role) => {
+    expect(arrivalPose(fuel, role, 0.5)).toMatchObject({ visible: false, height: 0, canopy: 0 });
+    expect(arrivalPose(checkpoint, role, 0.5)).toMatchObject({
+      visible: true,
+      height: 0,
+      canopy: 0,
+    });
+    expect(arrivalPose(checkpoint, role, 1).pos).toEqual(checkpoint.position);
+  });
+});
 
 const soldier = (p: Partial<SoldierView> = {}): SoldierView => ({
   kind: 'soldier',

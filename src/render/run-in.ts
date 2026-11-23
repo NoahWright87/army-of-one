@@ -1,19 +1,60 @@
-/**
- * (PHASE13-d) Soldiers running in during the lead-in ([D112]): for show only. A spawn point's
- * `approach` (or, without one, a straight run up to it from behind its facing) and where along it
- * a runner is. Pure.
- */
 import type { Vec2 } from '../sim/core/vec';
 import type { SpawnPointDef } from '../sim/world/map';
 
-/** The route a soldier runs in along to `sp`, ending at its position. */
-export function approachFor(sp: SpawnPointDef, runDistance: number): Vec2[] {
-  if (sp.approach && sp.approach.length >= 2) return sp.approach;
-  const back = { x: -Math.cos(sp.facing), y: -Math.sin(sp.facing) };
-  return [
-    { x: sp.position.x + back.x * runDistance, y: sp.position.y + back.y * runDistance },
-    sp.position,
-  ];
+import { roleDef } from '../content/roles';
+import { ENTRANCE } from '../content/tuning';
+import type { RoleId } from '../contracts/mission';
+
+export interface ArrivalPose {
+  pos: Vec2;
+  facing: number;
+  height: number;
+  canopy: number;
+  visible: boolean;
+  transport?: { pos: Vec2; facing: number; alpha: number };
+}
+
+/** Cosmetic only. Every arrival ends at the exact position and facing used by the sim. */
+export function arrivalPose(
+  sp: SpawnPointDef,
+  role: RoleId | undefined,
+  progress: number,
+): ArrivalPose {
+  const f = Math.min(1, Math.max(0, progress));
+  const vehicle = roleDef(role).vehicle;
+  const ground = { pos: sp.position, facing: sp.facing, height: 0, canopy: 0, visible: true };
+  if (sp.transport) {
+    const path = sp.transport.path;
+    const drop = path[path.length - 1]!;
+    if (vehicle) {
+      const arrival = alongPath([...path, sp.position], f);
+      return { ...ground, ...arrival, facing: f === 1 ? sp.facing : arrival.facing };
+    }
+    const unload = ENTRANCE.truckUnloadFraction;
+    const backedIn = alongPath(path, f / unload);
+    const step = Math.max(0, (f - unload) / (1 - unload));
+    const rear = {
+      x: drop.x + Math.cos(backedIn.facing) * ENTRANCE.truckLength * 0.45,
+      y: drop.y + Math.sin(backedIn.facing) * ENTRANCE.truckLength * 0.45,
+    };
+    return {
+      ...ground,
+      pos: alongPath([rear, sp.position], step).pos,
+      height: Math.sin(step * Math.PI) * ENTRANCE.truckJumpHeight,
+      visible: f >= unload,
+      transport: {
+        pos: backedIn.pos,
+        facing: backedIn.facing + Math.PI,
+        alpha: 1 - step,
+      },
+    };
+  }
+  if (vehicle) return { ...ground, visible: false };
+  return {
+    ...ground,
+    height: ENTRANCE.parachuteHeight * (1 - f),
+    canopy: Math.min(1, (1 - f) * ENTRANCE.parachuteCollapseRate),
+  };
 }
 
 /** The point `f` (0…1) of the way along `path`, and the way it's heading there. */
