@@ -117,6 +117,8 @@ const cover = (
   extra: Partial<CoverDef> = {},
 ): CoverDef => ({ id, material, rect, ...extra });
 
+/** R1's sandbags: wall to wall (the doorways' walls are 20 thick), so you can't walk round. */
+export const BT_R1_BAGS: Rect = { x: 880, y: BT.r1, w: 24, h: BT.r0 - 20 - BT.r1 };
 /** Targets on the range (R1). */
 export const BT_TARGETS = ['bt-t1', 'bt-t2', 'bt-t3', 'bt-t4'] as const;
 /**
@@ -179,8 +181,9 @@ export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
   // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]);
-  // 4: R7's guns spread out behind a minefield; 5: concealment in R3, R4 and R7.
-  rev: 5,
+  // 4: R7's guns spread out behind a minefield; 5: concealment in R3, R4 and R7;
+  // 6: R1's sandbags run wall to wall, targets behind other cover.
+  rev: 6,
   width: BT_W,
   height: BT_H,
   walls: [
@@ -217,8 +220,12 @@ export const BASIC_TRAINING: MapDef = {
   cover: [
     // The sergeant's fence: you can see him, you can't get to him.
     cover('bt-fence', 'fence', { x: BT_FENCE_X, y: 40, w: 12, h: BT_H - 80 }),
-    // R1: sandbags between you and the targets: get up to them and fire over.
-    cover('bt-r1-bags', 'sandbags', { x: 880, y: 3480, w: 24, h: 280 }),
+    // R1: sandbags wall to wall between you and the targets, so there's no way round: get up to
+    // them and fire over. Behind them the targets sit in different cover (Sarge explains each).
+    cover('bt-r1-bags', 'sandbags', BT_R1_BAGS),
+    cover('bt-r1-fence', 'fence', { x: 1226, y: 3556, w: 12, h: 90 }), // t2: bullets go through
+    cover('bt-r1-crate', 'crate', { x: 1090, y: 3680, w: 36, h: 40 }), // t3: soaks shots up
+    cover('bt-r1-wall', 'halfWall', { x: 1226, y: 3756, w: 12, h: 90 }), // t4: soaks more
     // R3: the fence the MG fires through, and the nest's heavy cover.
     cover('bt-r3-fence', 'fence', { x: 1000, y: BT.r3, w: 12, h: BT_CHUTE_SAFE_Y - BT.r3 }),
     cover('bt-mg-nest', 'sandbags', { x: 1060, y: 2380, w: 24, h: 160 }, { bullet: 0.95 }),

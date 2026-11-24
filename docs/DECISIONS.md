@@ -754,6 +754,18 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   straighter and stop near where they land; flags take ~25 % less time. The minefield is
   simply dense: staggered rows from halfway up the chute to the wall past its exit, no gaps.
   Money: the map just starts you with $9,999,999 and no income.
+- **[D160] Sarge is a ghost who shows you** (owner, 2026-11). Watching a first-time player
+  (walked round the sandbags, thinking they blocked her shots) showed that yelling isn't
+  enough. The drill sergeant now exists outside the timelines: translucent, can't be hurt,
+  draws no fire, not in the sim or the tape, and he leaves the fence to share the course with
+  you (he tags along behind you). When there's something to show he runs there and waits: in
+  R1 he stands at the sandbags opposite the next target ("get right up to them, you shoot OVER
+  them"). **The battle never pauses for him.** Ignore him and he heckles ("You got dirt in
+  your ears, Private?!? I said GET OVER HERE!!!"). R1's sandbags run wall to wall (no way
+  round) and the targets sit behind different cover (open, fence, crate, half wall), each
+  named by Sarge. Still to do: on the respawn screen (time already stopped) he walks to the
+  spawn point you should pick and yells ("Over here, numbnuts!") if you don't follow, staying
+  on screen; the dimming coach stays for now and may become unnecessary.
 - **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

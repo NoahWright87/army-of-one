@@ -6,7 +6,7 @@
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
 import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
-import { BT_CHEVRONS, BT_FENCE_X, BT_H, BT_SARGE_X } from '../content/maps/basic-training';
+import { BT_CHEVRONS, BT_H, BT_W } from '../content/maps/basic-training';
 import type { SignDef } from '../content/sign-styles';
 import { str, type StringKey } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
@@ -18,9 +18,14 @@ import { SpeechLayer } from '../render/worldtext/speech-layer';
 import type { BasicTraining } from './basic-training';
 
 const SARGE = 'sarge';
-/** How fast he walks along the fence (units/s), and how big he's drawn. */
+/** How fast the ghost runs (units/s), how big he's drawn, and how see-through. */
 const SARGE_SPEED = 400; // TUNE: keeps up with a sprint
 const SARGE_SIZE = 36;
+const GHOST_ALPHA = 0.6; // TUNE
+const GHOST_TINT = 0xbfe3ff;
+/** Tagging along: he stays about here from you (behind-left), and only moves when you leave it. */
+const FOLLOW_OFFSET = { x: -90, y: 70 }; // TUNE
+const FOLLOW_SLACK = 70; // TUNE
 /** A breath between his lines (ms). */
 const LINE_GAP_MS = 250; // TUNE
 /** A line still waiting this long is stale (you've moved on): dropped. */
@@ -35,8 +40,11 @@ export const BT_SIGNS: readonly SignDef[] = [
   { id: 'bt-s-sniper', x: 520, y: 450, kind: 'plate', textKey: 'bt.sign.sniper', size: 44 },
 ];
 
-/** The drill sergeant stays between lives (he's the same man): one per page. */
-const sarge = { x: BT_SARGE_X, y: 4250 };
+/**
+ * The drill sergeant is a ghost outside the timelines: he can't be hurt, nothing collides with
+ * him, and he's not in the sim or the tape. The same man between lives: one per page.
+ */
+const sarge = { x: 520, y: 4300 };
 
 export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let scene: Phaser.Scene;
@@ -51,6 +59,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let lastFrame = -1;
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
+  let lastView: WorldView | null = null;
 
   return {
     create(s, id, display) {
@@ -66,7 +75,9 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       body = scene.add
         .image(sarge.x, sarge.y, 'npc_sarge')
         .setScale(SARGE_SIZE / fitPx('npc_sarge'))
-        .setDepth(DEPTH.static);
+        .setAlpha(GHOST_ALPHA)
+        .setTint(GHOST_TINT)
+        .setDepth(DEPTH.labels - 1);
       tag = scene.add
         .text(sarge.x, sarge.y + 28, str('bt.sarge.name'), {
           fontFamily: 'system-ui, sans-serif',
@@ -77,6 +88,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
           strokeThickness: 3,
         })
         .setOrigin(0.5)
+        .setAlpha(GHOST_ALPHA + 0.2)
         .setDepth(DEPTH.labels)
         .setResolution(2);
       scene.events.once('shutdown', () => speech.destroy());
@@ -89,6 +101,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       floor.destroy();
     },
     onStep(view: WorldView) {
+      lastView = view;
       const me = view.soldiers.find((x) => x.id === liveId);
       const now = scene.time.now;
       if (!started && me?.alive) {
@@ -101,19 +114,34 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
       lastFrame = nowMs;
       if (live) livePos = live;
-      // Keep level with you, behind the fence.
-      if (livePos) {
-        const want = Math.max(80, Math.min(BT_H - 80, livePos.y));
-        const dy = want - sarge.y;
-        const stepY = Math.sign(dy) * Math.min(Math.abs(dy), SARGE_SPEED * dt);
-        sarge.y += stepY;
-        body.setRotation(
-          Math.abs(stepY) > 0.5
-            ? Math.atan2(stepY, 0)
-            : Math.atan2(livePos.y - sarge.y, livePos.x - BT_SARGE_X),
-        );
+      // Where he wants to be: where the lesson is, else tagging along with you.
+      const guide = lastView ? director.guide(lastView) : null;
+      let face: number | null = null;
+      let goal: { x: number; y: number } | null = null;
+      if (guide) {
+        goal = guide.at;
+        face = guide.face;
+      } else if (livePos) {
+        const want = { x: livePos.x + FOLLOW_OFFSET.x, y: livePos.y + FOLLOW_OFFSET.y };
+        if (Math.hypot(want.x - sarge.x, want.y - sarge.y) > FOLLOW_SLACK) goal = want;
+        face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       }
-      sarge.x = Math.min(BT_SARGE_X, BT_FENCE_X - 40);
+      if (goal) {
+        const dx = goal.x - sarge.x;
+        const dy = goal.y - sarge.y;
+        const d = Math.hypot(dx, dy);
+        const step = Math.min(d, SARGE_SPEED * dt);
+        if (d > 1) {
+          sarge.x += (dx / d) * step;
+          sarge.y += (dy / d) * step;
+        }
+        // Running: face the way he goes; arrived: face where the lesson says.
+        body.setRotation(d - step > 2 || face === null ? Math.atan2(dy, dx) : face);
+      } else if (face !== null) {
+        body.setRotation(face);
+      }
+      sarge.x = Math.max(60, Math.min(BT_W - 60, sarge.x));
+      sarge.y = Math.max(60, Math.min(BT_H - 60, sarge.y));
       body.setPosition(sarge.x, sarge.y);
       tag.setPosition(sarge.x, sarge.y + 28);
       // One line at a time.

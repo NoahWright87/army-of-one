@@ -19,7 +19,15 @@ const me = (x: number, y: number, more: Partial<SoldierView> = {}): SoldierView 
   ...more,
 });
 const view = (soldiers: SoldierView[], events: SimEvent[] = []): WorldView =>
-  ({ soldiers, events, objectives: [], tick: 0 }) as unknown as WorldView;
+  ({
+    soldiers,
+    events,
+    objectives: [
+      { id: 'bt-t1', x: 1150, y: 3500, destroyed: false },
+      { id: 'bt-t2', x: 1270, y: 3600, destroyed: false },
+    ],
+    tick: 0,
+  }) as unknown as WorldView;
 
 function memory() {
   const m = new Map<string, string>();
@@ -35,7 +43,7 @@ describe('basic training director', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
     expect(bt.startLife('S1', view([me(600, 4250)]), 0)[0]).toBe('bt.intro.0');
-    expect(bt.step(view([me(600, 3700)]), 100, sarge)).toEqual(['bt.r1.enter']);
+    expect(bt.step(view([me(600, 3700)]), 100, sarge)).toEqual(['bt.r1.enter', 'bt.r1.bags']);
     expect(bt.step(view([me(600, 3650)]), 200, sarge)).toEqual([]);
   });
 
@@ -126,5 +134,28 @@ describe('basic training director', () => {
       hitY: 4000,
     };
     expect(bt.step(view([me(600, 4000)], [shot]), 100, sarge)).toContain('bt.shotAt');
+  });
+
+  it('R1: Sarge runs to the sandbags and heckles you if you ignore him', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(600, 4250)]), 0);
+    expect(bt.step(view([me(600, 3700)]), 100, sarge)).toEqual(['bt.r1.enter', 'bt.r1.bags']);
+    const at600 = view([me(600, 3700)]);
+    expect(bt.guide(at600)?.at.x).toBeLessThan(880); // by the bags, on your side
+    expect(bt.guide(at600)?.at.y).toBe(3500); // opposite the next target
+    expect(bt.step(at600, 3000, sarge)).toEqual([]); // gives you a moment
+    expect(bt.step(at600, 8000, sarge)[0]).toBe('bt.r1.ignore.0');
+    expect(bt.step(at600, 16000, sarge)[0]).toBe('bt.r1.ignore.1'); // and again
+  });
+
+  it('R1: at the bags Sarge stops heckling and names the cover the target is in', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(600, 4250)]), 0);
+    bt.step(view([me(600, 3700)]), 100, sarge);
+    const near = view([me(860, 3500)]);
+    expect(bt.step(near, 300, sarge)).toEqual(['bt.r1.near', 'bt.r1.t1']);
+    expect(bt.step(near, 9000, sarge)).toEqual([]);
   });
 });

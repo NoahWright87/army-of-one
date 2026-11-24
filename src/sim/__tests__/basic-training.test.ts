@@ -113,6 +113,18 @@ describe('basic training (PHASE18): on rails', () => {
     expect(w.state.missionComplete).toBeNull(); // practice targets don't win
   });
 
+  it("R1: the sandbags run wall to wall: there's no way round them", () => {
+    const w = bt();
+    const me = soldierAt(w, { x: 860, y: 3500 });
+    // Every row of the room, north to south: walking east stops at the bags.
+    for (const y of [3400, 3500, 3640, 3760, 3860]) {
+      getSoldier(w, me)!.x = 860;
+      getSoldier(w, me)!.y = y;
+      run(w, 90, { [me]: toward({ x: 860, y }, { x: 1300, y }) });
+      expect(getSoldier(w, me)!.x).toBeLessThan(880);
+    }
+  });
+
   it('R2: taking Alpha is safe from the MG; the chute gate opens a few seconds later', () => {
     const w = bt();
     const me = spawnAt(w, 'bt-start');

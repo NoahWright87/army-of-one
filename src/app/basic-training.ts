@@ -10,6 +10,7 @@ import type { RoleId, SpawnOption } from '../contracts/mission';
 import {
   BASIC_TRAINING,
   BT_CORRIDOR_X,
+  BT_R1_BAGS,
   BT_TARGETS,
   btRoomAt,
   type BtRoom,
@@ -72,6 +73,26 @@ const REPEAT_MS = 15_000; // TUNE
 /** Same room this long with nothing said: a nag. */
 const NAG_MS = 40_000; // TUNE
 const NAGS: StringKey[] = ['bt.nag.0', 'bt.nag.1', 'bt.nag.2'];
+/** Sarge asked you to come over and you haven't: he heckles again after this long. */
+const HECKLE_MS = 7_000; // TUNE
+const HECKLES: StringKey[] = ['bt.r1.ignore.0', 'bt.r1.ignore.1', 'bt.r1.ignore.2'];
+/** You're "at the sandbags" this close to them (a little more than fire-over distance). */
+const AT_BAGS = 40; // TUNE
+
+/** Where the ghost Sarge wants to be right now (null: just tag along with you). */
+export interface BtGuide {
+  at: { x: number; y: number };
+  /** The way he faces once there (radians). */
+  face: number;
+}
+
+/** Per-target lessons in R1 (said once, when that target is next and you're at the sandbags). */
+const TARGET_LINES: Record<string, StringKey> = {
+  'bt-t1': 'bt.r1.t1',
+  'bt-t2': 'bt.r1.t2',
+  'bt-t3': 'bt.r1.t3',
+  'bt-t4': 'bt.r1.t4',
+};
 
 export class BasicTraining {
   progress: BtProgress;
@@ -81,6 +102,9 @@ export class BasicTraining {
   private lastLineMs = 0;
   private readonly lastSaid = new Map<string, number>();
   private nag = 0;
+  /** R1: since when has Sarge been waiting for you at the sandbags (null: not waiting)? */
+  private waitingSince: number | null = null;
+  private heckle = 0;
 
   constructor(private readonly storage: TextStorage | null) {
     this.progress = this.load();
@@ -142,6 +166,9 @@ export class BasicTraining {
         out.push(...this.enter(r));
       }
     }
+    if (me?.alive && this.room === 'r1' && this.progress.said.includes('bt.r1.enter')) {
+      out.push(...this.bags(view, me, nowMs));
+    }
     for (const e of view.events) {
       switch (e.kind) {
         case 'objectiveDestroyed':
@@ -191,6 +218,7 @@ export class BasicTraining {
     if (
       me?.alive &&
       this.room !== 'r7' &&
+      this.room !== 'r1' &&
       nowMs - this.roomSince > NAG_MS &&
       nowMs - this.lastLineMs > NAG_MS
     ) {
@@ -201,6 +229,55 @@ export class BasicTraining {
       this.save();
     }
     return out;
+  }
+
+  /**
+   * Where Sarge should stand (null: follow you). In R1 he runs to the sandbags opposite the next
+   * target and waits for you to come up to them; if you dawdle he heckles ([`step`] says it).
+   */
+  guide(view: WorldView): BtGuide | null {
+    const me = view.soldiers.find((s) => s.id === this.liveId);
+    if (!me?.alive || btRoomAt(me.x, me.y) !== 'r1') return null;
+    const next = this.nextTarget(view);
+    if (!next) return null;
+    return {
+      at: { x: BT_R1_BAGS.x - 30, y: Math.max(BT_R1_BAGS.y + 40, next.y) },
+      face: 0,
+    };
+  }
+
+  private nextTarget(view: WorldView) {
+    for (const id of BT_TARGETS) {
+      const o = view.objectives.find((x) => x.id === id);
+      if (o && !o.destroyed) return o;
+    }
+    return undefined;
+  }
+
+  /** R1's coaching: Sarge waits at the bags; heckles if you don't come; says what each cover is. */
+  private bags(view: WorldView, me: SoldierView, nowMs: number): StringKey[] {
+    const next = this.nextTarget(view);
+    if (!next) {
+      this.waitingSince = null;
+      return [];
+    }
+    const dx = Math.max(BT_R1_BAGS.x - me.x, 0, me.x - (BT_R1_BAGS.x + BT_R1_BAGS.w));
+    const dy = Math.max(BT_R1_BAGS.y - me.y, 0, me.y - (BT_R1_BAGS.y + BT_R1_BAGS.h));
+    if (Math.hypot(dx, dy) <= AT_BAGS) {
+      this.waitingSince = null;
+      const key = TARGET_LINES[next.id];
+      return [...this.once(['bt.r1.near']), ...(key ? this.once([key]) : [])];
+    }
+    if (!this.progress.said.includes('bt.r1.bags')) {
+      this.waitingSince = nowMs;
+      return this.once(['bt.r1.bags']);
+    }
+    this.waitingSince ??= nowMs;
+    if (nowMs - this.waitingSince > HECKLE_MS) {
+      this.waitingSince = nowMs;
+      return [HECKLES[this.heckle++ % HECKLES.length]!];
+    }
+    return [];
   }
 
   /** The hint the respawn screen should show now (null: none). */
