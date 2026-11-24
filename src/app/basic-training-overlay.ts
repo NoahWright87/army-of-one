@@ -10,6 +10,9 @@ import { BT_CHEVRONS, BT_H, BT_W } from '../content/maps/basic-training';
 import type { SignDef } from '../content/sign-styles';
 import { str } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
+import type { Vec2 } from '../sim/core/vec';
+import type { World } from '../sim/sim';
+import { findPath } from '../sim/world/nav';
 import type { WorldView } from '../sim/view';
 import { DEPTH } from '../render/depth';
 import type { SessionOverlay } from '../render/phaser/services';
@@ -60,6 +63,11 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
   let lastView: WorldView | null = null;
+  let world: World;
+  /** The way he's running (around walls, like any soldier), and what it was worked out for. */
+  let route: Vec2[] = [];
+  let routeFor: Vec2 | null = null;
+  let routeAt = -1e9;
 
   /** Queues lines; an urgent one cuts him off and drops what he hadn't said yet. */
   const enqueue = (says: BtSay[], keep = false) => {
@@ -74,11 +82,30 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
     }
   };
 
-  /** Runs him toward `goal` (or just turns to `face`), clamped to the map, and draws him. */
-  const move = (dt: number, goal: { x: number; y: number } | null, face: number | null) => {
+  /** Next point on his way to `goal` (a path round the walls; gates count as walls while shut). */
+  const waypoint = (nowMs: number, goal: Vec2): Vec2 => {
+    const moved = !routeFor || Math.hypot(goal.x - routeFor.x, goal.y - routeFor.y) > 30;
+    if (moved || nowMs - routeAt > 700) {
+      route = findPath(world, { x: sarge.x, y: sarge.y }, goal) ?? [goal];
+      routeFor = { x: goal.x, y: goal.y };
+      routeAt = nowMs;
+    }
+    while (route.length > 1 && Math.hypot(route[0]!.x - sarge.x, route[0]!.y - sarge.y) < 12) {
+      route.shift();
+    }
+    return route[0] ?? goal;
+  };
+
+  /**
+   * Runs him toward `goal` along the map's paths (or just turns to `face`) and draws him. He
+   * moves like a soldier but is a ghost: nothing he does touches the game.
+   */
+  const move = (nowMs: number, dt: number, goal: Vec2 | null, face: number | null) => {
     if (goal) {
-      const dx = goal.x - sarge.x;
-      const dy = goal.y - sarge.y;
+      const to = waypoint(nowMs, goal);
+      const left = Math.hypot(goal.x - sarge.x, goal.y - sarge.y);
+      const dx = to.x - sarge.x;
+      const dy = to.y - sarge.y;
       const d = Math.hypot(dx, dy);
       const step = Math.min(d, SARGE_SPEED * dt);
       if (d > 1) {
@@ -86,9 +113,11 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         sarge.y += (dy / d) * step;
       }
       // Running: face the way he goes; arrived: face where the lesson says.
-      body.setRotation(d - step > 2 || face === null ? Math.atan2(dy, dx) : face);
-    } else if (face !== null) {
-      body.setRotation(face);
+      body.setRotation(left > 6 || face === null ? Math.atan2(dy, dx) : face);
+    } else {
+      route = [];
+      routeFor = null;
+      if (face !== null) body.setRotation(face);
     }
     sarge.x = Math.max(60, Math.min(BT_W - 60, sarge.x));
     sarge.y = Math.max(60, Math.min(BT_H - 60, sarge.y));
@@ -112,8 +141,11 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   };
 
   return {
-    create(s, id, display) {
+    create(s, id, display, w) {
       scene = s;
+      world = w;
+      route = [];
+      routeFor = null;
       liveId = id;
       started = false;
       queue.length = 0;
@@ -177,7 +209,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         const t = Math.min(1, hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
         goal = { x: cx + dx * t, y: cy + dy * t };
       }
-      move(dt, goal, g ? g.face : null);
+      move(nowMs, dt, goal, g ? g.face : null);
       talk(nowMs);
     },
     update(nowMs, live, input) {
@@ -196,7 +228,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         if (Math.hypot(want.x - sarge.x, want.y - sarge.y) > FOLLOW_SLACK) goal = want;
         face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       }
-      move(dt, goal, face);
+      move(nowMs, dt, goal, face);
       talk(nowMs);
       signs.update(nowMs, live, input.fire);
       drawChevrons(floor, nowMs);

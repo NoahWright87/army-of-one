@@ -817,8 +817,8 @@ export const STRINGS = {
 
   // Basic training: the drill sergeant (speech markup) and the course's signs.
   'bt.sarge.name': 'DRILL SGT.',
-  'bt.intro.0': '[big][shake]LISTEN UP, MAGGOT!',
-  'bt.intro.1': 'Welcome to [gold]basic training[/].',
+  'bt.intro.0': '[big][shake]EYES FRONT, MAGGOT!',
+  'bt.intro.1': 'That door. [p=200][gold]WASD[/] to move.',
   'bt.intro.2': 'Move it! [shake]NORTH!',
   'bt.intro.3': '[gold]SHIFT[/] to sprint!',
   'bt.r1.enter': "Targets! [shake]Light 'em up!",
@@ -854,7 +854,10 @@ export const STRINGS = {
   'bt.death.1': "Dead again! [p=200]I've seen sandbags with better reflexes.",
   'bt.death.2': 'Down you go! [p=200]Happens to the best of us.',
   'bt.rs.explain': "That's [gold]respawning[/], kid. Come back and [gold]fix it[/].",
-  'bt.rs.deploy': 'Pick your spot and hit [gold]DEPLOY[/], soldier!',
+  'bt.rs.welcome.0': '[big][shake]WELCOME TO BASIC TRAINING!',
+  'bt.rs.welcome.1':
+    "I'm your [gold]Drill Sergeant[/]. [p=300]Follow my orders and everything will be [gold]fine[/].",
+  'bt.rs.deploy': "Now hit [gold]DEPLOY[/], soldier! [p=200]That's the big yellow button.",
   'bt.rs.ignore.0': 'Over here, [shake]numbnuts[/]!',
   'bt.rs.ignore.1': 'You deaf, Private?! [p=200]I said [gold]DEPLOY[/]!',
   'bt.rs.ignore.2': "The enemy isn't going to [wave]wait[/], maggot!",

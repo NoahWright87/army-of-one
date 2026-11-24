@@ -21,6 +21,7 @@ import type { SoldierInput } from '../entities/soldier';
 import { getSoldier, type World } from '../sim';
 import type { RoleId } from '../../contracts/mission';
 import { validateMap } from '../world/map';
+import { findPath, isSegmentWalkable } from '../world/nav';
 import { idle, run, soldierAt, world } from './helpers';
 
 type P = { x: number; y: number };
@@ -111,6 +112,37 @@ describe('basic training (PHASE18): on rails', () => {
     run(w, 1);
     expect(gateOpen(w, 'bt-g1')).toBe(true);
     expect(w.state.missionComplete).toBeNull(); // practice targets don't win
+  });
+
+  it("Sarge's stations are linked by real paths (he runs round walls like a soldier)", () => {
+    const w = bt();
+    w.state.gates.find((g) => g.id === 'bt-g1')!.open = true; // the targets are down by then
+    const stops: P[] = [
+      { x: 600, y: 4300 }, // the start
+      { x: 600, y: 3940 }, // the door
+      { x: 850, y: 3500 }, // the sandbags
+      { x: 930, y: 3030 }, // Alpha
+      { x: 860, y: 2910 }, // the sprint gate (shut)
+    ];
+    for (let i = 1; i < stops.length; i++) {
+      const path = findPath(w, stops[i - 1]!, stops[i]!);
+      expect(path, `path to stop ${i}`).not.toBeNull();
+      // Every leg is clear of walls and shut gates; the path isn't a straight line through them.
+      for (let j = 1; j < path!.length; j++) {
+        expect(isSegmentWalkable(w, path![j - 1]!, path![j]!)).toBe(true);
+      }
+    }
+    // Through the R1 door (x 520–680), not the wall beside it.
+    const through = findPath(w, stops[0]!, stops[2]!)!;
+    let crossedAt: number | null = null;
+    for (let j = 1; j < through.length; j++) {
+      const a = through[j - 1]!;
+      const b = through[j]!;
+      if (a.y >= 3890 && b.y <= 3890) crossedAt = a.x + ((b.x - a.x) * (a.y - 3890)) / (a.y - b.y);
+    }
+    expect(crossedAt).not.toBeNull();
+    expect(crossedAt!).toBeGreaterThan(520);
+    expect(crossedAt!).toBeLessThan(680);
   });
 
   it("R1: the sandbags run wall to wall: there's no way round them", () => {

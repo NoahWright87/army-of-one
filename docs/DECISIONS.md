@@ -770,7 +770,11 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   should pick (never off screen), says what to do there (the first time: that's respawning, you
   come back and fix it), and heckles if you don't deploy ("Over here, numbnuts!"). The dimming
   coach is hidden in the in-world respawn view (`BT_COACH_IN_WORLD`, code kept); the old
-  respawn screen still uses it.
+  respawn screen still uses it. Instead the control to use next pulses (`ui/coach/pulse.ts`).
+  Sarge runs the map's paths like a soldier (the sim's `findPath`, shut gates are walls) but
+  touches nothing. Basic training only resumes on a reload mid-way (sessionStorage
+  `aoo:bt:active`); leaving for the HQ or loading it any other way starts over. The first
+  screen has him welcome you, introduce himself and tell you to hit DEPLOY.
 - **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

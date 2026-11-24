@@ -22,6 +22,7 @@ import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
 import {
   BasicTraining,
+  BT_ACTIVE_KEY,
   BT_COACH_IN_WORLD,
   BT_DONE_KEY,
   BT_SENT_KEY,
@@ -30,6 +31,7 @@ import {
 import { basicTrainingOverlay } from './basic-training-overlay';
 import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
+import { pulseSteps } from '../ui/coach/pulse';
 import { roleDef } from '../content/roles';
 import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
@@ -238,6 +240,11 @@ function campaignProjection(): BattleProjection | null {
 
 /** (PHASE18) Back to the HQ. */
 function openHub(): void {
+  try {
+    window.sessionStorage.removeItem(BT_ACTIVE_KEY); // leaving ends basic training in progress
+  } catch {
+    // fine
+  }
   const url = new URL(window.location.href);
   const dev = url.searchParams.get('dev');
   url.search = '';
@@ -786,7 +793,17 @@ async function startGame(): Promise<void> {
       // (PHASE18) So does a skirmish picked in the HQ.
       if (campaignBattle || fromHub || training) {
         // (PHASE18) Basic training from the start (the HQ's "again", or nothing saved yet).
-        const restart = params.get('new') === '1' || !p.canContinue;
+        // Only a reload in the middle of it carries on; loading it any other way starts over.
+        let midway = false;
+        if (training) {
+          try {
+            midway = window.sessionStorage.getItem(BT_ACTIVE_KEY) === '1';
+            window.sessionStorage.setItem(BT_ACTIVE_KEY, '1');
+          } catch {
+            // no storage: always from the start
+          }
+        }
+        const restart = params.get('new') === '1' || !p.canContinue || (!!training && !midway);
         if (training && restart) {
           training.reset();
           const u = new URL(window.location.href);
@@ -1095,6 +1112,7 @@ async function startGame(): Promise<void> {
     const tuning = props.tuning!;
     let controls: TimeControls | null = null;
     let live = true;
+    let stopPulse: (() => void) | null = null;
     const overlay = new InWorldRespawn(uiRoot, props, {
       // Deploying glides back into the lead-in, then the run takes over in the same scene.
       onDeploy: (o) => {
@@ -1132,6 +1150,8 @@ async function startGame(): Promise<void> {
       // coach is kept in code, off).
       training?.enterRespawn(hint, died !== null, performance.now());
       if (hint && BT_COACH_IN_WORLD) coach.show(inWorldCoachSteps(hint, props));
+      // A pulsing outline on the control to use next (the class to pick, the spawn, DEPLOY).
+      if (hint && !BT_COACH_IN_WORLD) stopPulse = pulseSteps(inWorldCoachSteps(hint, props));
     };
     const hint = training?.respawnHint(props.options) ?? null;
     void assetsReady
@@ -1152,6 +1172,7 @@ async function startGame(): Promise<void> {
       update: (u) => overlay.update(u),
       destroy: () => {
         live = false;
+        stopPulse?.();
         overlay.destroy();
         if (inWorld === overlay) inWorld = null;
         notice.show(null);

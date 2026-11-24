@@ -25,6 +25,11 @@ const KEY = 'aoo:bt:v1';
 export const BT_DONE_KEY = 'aoo:bt:done';
 /** The first visit was sent to basic training (from then on `/` is the HQ). */
 export const BT_SENT_KEY = 'aoo:bt:sent';
+/**
+ * (sessionStorage) Basic training is in progress in this tab: a reload carries on where you were.
+ * Leaving for the HQ (or closing the tab) ends it; the next time it loads it starts over.
+ */
+export const BT_ACTIVE_KEY = 'aoo:bt:active';
 
 export interface BtProgress {
   /** Lines said (once-only ones). */
@@ -416,8 +421,9 @@ export class BasicTraining {
   enterRespawn(hint: BtHint | null, died: boolean, nowMs: number): void {
     const pending: BtSay[] = [];
     let spot = startSpawn().position;
-    if (hint?.kind === 'deploy') pending.push({ key: 'bt.rs.deploy' });
-    else if (hint) {
+    if (hint?.kind === 'deploy') {
+      pending.push({ key: 'bt.rs.welcome.0' }, { key: 'bt.rs.welcome.1' }, { key: 'bt.rs.deploy' });
+    } else if (hint) {
       if (died) pending.push(...this.onceSays(['bt.rs.explain']));
       if (hint.kind === 'resume') pending.push({ key: 'bt.coach.resume' });
       if (hint.kind === 'spawn') {
