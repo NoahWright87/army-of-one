@@ -4,6 +4,7 @@
  * everything else boots the game (main.ts).
  */
 import { str } from '../content/strings';
+import { SCENARIO_PREVIEW_ID } from './scenario-route';
 import { campaignFrame } from './campaign-frame';
 import {
   installErrorHandling,
@@ -34,6 +35,13 @@ async function boot(): Promise<void> {
     // (PHASE13-a) Block editor: plain DOM, no Phaser.
     const m = await import('./editor-main');
     await m.startEditor(document.getElementById('ui-root') ?? document.body, params);
+  } else if (
+    params.get('scene') === 'scenario' ||
+    (params.get('mission') === SCENARIO_PREVIEW_ID &&
+      !(await import('./scenario-storage')).loadScenarioPreview())
+  ) {
+    const m = await import('./scenario-main');
+    m.startScenarioEditor(document.getElementById('ui-root') ?? document.body);
   } else if (params.get('screen') === 'respawn') {
     const m = await import('./respawn-dev');
     await m.startRespawnDevPage(params, document.getElementById('ui-root') ?? document.body);

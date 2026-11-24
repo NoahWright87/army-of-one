@@ -8,6 +8,10 @@ import {
 } from './editor-storage';
 import { genMissionId, parseGenMissionId, parseWorldMissionId } from '../gen/mission-id';
 import { clearMission, loadMission, MissionSaver } from '../persistence/mission-store';
+import { MemoryStore } from '../persistence/storage';
+import { el, injectStyle } from '../ui/dom';
+import { SCENARIO_PREVIEW_ID } from './scenario-route';
+import { loadScenarioPreview } from './scenario-storage';
 import { recordedTo } from '../sim/recording/records';
 import { str, strDynamic } from '../content/strings';
 import type { SpawnOption } from '../contracts/mission';
@@ -201,6 +205,9 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
   const preview = editorPreviewMap();
   if (preview) registerMap(preview);
 }
+const scenarioMap =
+  params.get('mission') === SCENARIO_PREVIEW_ID ? loadScenarioPreview() : undefined;
+if (scenarioMap) registerMap(scenarioMap);
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 /** (PHASE18) Basic training ([D155]): its drill sergeant and its progress (unlocks, hints). */
 const training = MISSION.id === BASIC_TRAINING_ID ? new BasicTraining(safeLocalStorage()) : null;
@@ -269,10 +276,10 @@ function openWorld(seed?: number): void {
 }
 
 /** (PHASE13-a) The block editor ([D88]): the title screen's link. */
-function openEditor(): void {
+function openEditor(scene: 'editor' | 'scenario' = 'editor'): void {
   const url = new URL(window.location.href);
   url.searchParams.delete('mission');
-  url.searchParams.set('scene', 'editor');
+  url.searchParams.set('scene', scene);
   url.hash = '';
   window.location.assign(url.toString());
 }
@@ -719,7 +726,7 @@ export const appReady =
 async function startGame(): Promise<void> {
   hud.setVisible(false);
   countdown.setPlacement('upper');
-  const store = await openBestStore();
+  const store = scenarioMap ? new MemoryStore() : await openBestStore();
 
   const frame = campaignBattle ? campaignFrame() : undefined;
   function returnToCampaign(): void {
@@ -734,22 +741,37 @@ async function startGame(): Promise<void> {
     frame.returnToMap(projection, controller.flushSaves());
   }
 
-  const backTo: { label: string; run(): void } | null = fromHub
-    ? { label: str('hub.back'), run: () => openHub() }
-    : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
-      ? {
-          label: str(
-            campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
-          ),
-          run: campaignBattle
-            ? returnToCampaign
-            : worldPlaytest
-              ? () => openWorld(worldPlaytest.seed)
-              : openEditor,
-        }
+  const previewEditor = scenarioMap
+    ? 'scenario'
+    : MISSION.id === EDITOR_PREVIEW_ID
+      ? 'editor'
       : null;
+  const backTo: { label: string; run(): void } | null =
+    fromHub && !scenarioMap
+      ? { label: str('hub.back'), run: () => openHub() }
+      : previewEditor
+        ? { label: str('editor.backToEditor'), run: () => openEditor(previewEditor) }
+        : worldPlaytest
+          ? {
+              label: str(campaignBattle ? 'campaign.back' : 'world.back'),
+              run: campaignBattle ? returnToCampaign : () => openWorld(worldPlaytest.seed),
+            }
+          : null;
 
-  if (backTo) panel.addAction(backTo);
+  if (backTo && scenarioMap) {
+    // The layout has no win condition, so the exit must be available during play.
+    injectStyle(
+      'aoo-scenario-preview',
+      `
+      .aoo-hud .scenario-back { position: absolute; top: 44px; left: 50%; transform: translateX(-50%);
+        pointer-events: auto; font: inherit; color: inherit; background: #181c21;
+        border: 1px solid #59626e; border-radius: 4px; padding: 5px 9px; cursor: pointer; }
+    `,
+    );
+    const button = el('button', 'scenario-back', backTo.label);
+    button.onclick = backTo.run;
+    hud.root.append(button);
+  } else if (backTo) panel.addAction(backTo);
   // The first painted camera and the campaign tiles line up before play begins.
   let openingCamera = Boolean(frame);
   const firstFrame = () => {
@@ -778,7 +800,7 @@ async function startGame(): Promise<void> {
     showTitle: (p) => {
       // (PHASE13-d) A campaign battle goes straight in (or carries on where you left it).
       // (PHASE18) So does a skirmish picked in the HQ.
-      if (campaignBattle || fromHub || training) {
+      if (campaignBattle || fromHub || training || scenarioMap) {
         // (PHASE18) Basic training from the start (the HQ's "again", or nothing saved yet).
         const restart = params.get('new') === '1' || !p.canContinue;
         if (training && restart) {
@@ -1414,7 +1436,8 @@ async function startGame(): Promise<void> {
       deathBeatSeconds: () => (unifiedOn() ? 0.05 : null),
       // Autoplay deploys its own first life from the respawn screen.
       skipEmptyRespawn: () =>
-        settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active && !training,
+        Boolean(scenarioMap) ||
+        (settings.getBool(GAME_SETTING_IDS.skipEmptyRespawn) && !autopilot.active && !training),
       spinnerThresholdMs: () => settings.getNumber(GAME_SETTING_IDS.spinnerThresholdMs),
     },
     onEvent: (e) => {
