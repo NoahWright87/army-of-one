@@ -1,4 +1,4 @@
-import{c as e}from"./index-BJXKSeQN.js";import{m as t,n,t as r}from"./dom-wzJE6Gi2.js";import{D as i,P as a,S as o,T as s,b as c,d as l,g as u,h as d,n as f,w as p,y as m}from"./editor-storage-BZu7a6CR.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-DKY3DXrj.js";import{r as b,t as x}from"./indexeddb-store-DSYp6b9a.js";import{t as S}from"./connection-graph-DaViXLzj.js";var C=`army-of-one.world.overlays`,w=`
+import{c as e}from"./index-Ba2J_t3X.js";import{m as t,n,t as r}from"./dom-wzJE6Gi2.js";import{D as i,P as a,S as o,T as s,b as c,d as l,g as u,h as d,n as f,w as p,y as m}from"./editor-storage-BZu7a6CR.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-DKY3DXrj.js";import{r as b,t as x}from"./indexeddb-store-ubjv3oF9.js";import{t as S}from"./connection-graph-DBkeWwZZ.js";var C=`army-of-one.world.overlays`,w=`
 .aoo-wm { position: fixed; inset: 0; display: grid; grid-template-columns: 230px 1fr 400px;
   font: 13px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #111418; }
 .aoo-wm aside { overflow-y: auto; padding: 12px; background: #181c21; }
