@@ -6,9 +6,12 @@ import { str } from '../../content/strings';
 import { el, injectStyle, setText } from '../dom';
 
 const CSS = `
-.aoo-pausebtn { position: fixed; top: 44px; right: 12px; z-index: 12; width: 40px; height: 40px;
+/* z-index above the touch controls' overlay (20): its full-screen zone otherwise eats the tap. */
+.aoo-pausebtn { position: fixed; top: 44px; right: 12px; z-index: 25; width: 44px; height: 44px;
   border: 0; border-radius: 8px; background: rgba(255,255,255,.25); color: #fff; font: 700 18px system-ui;
   touch-action: none; cursor: pointer; }
+/* Touch: next to the settings gear, clear of the clock and the minimap. */
+body.aoo-touch-mode .aoo-pausebtn { right: auto; left: 58px; top: 62px; }
 .aoo-pausebtn[hidden], .aoo-pause[hidden] { display: none; }
 .aoo-pause { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 14px; background: rgba(0,0,0,.6);
