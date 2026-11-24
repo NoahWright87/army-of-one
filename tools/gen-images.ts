@@ -241,6 +241,7 @@ type PlaceholderImageKey = Exclude<
   | `mini_${string}`
   | `fx_${string}`
   | `projectile_${string}`
+  | `parachute_${string}`
   | `terrain_${string}`
   | `cover_${string}`
   | `rubble_${string}`

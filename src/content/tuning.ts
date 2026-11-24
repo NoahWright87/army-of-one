@@ -1316,8 +1316,10 @@ export const CAMPAIGN_CAMERA = {
 
 // TUNE: cosmetic entrance distances and timing within the deploy countdown.
 export const ENTRANCE = {
-  parachuteHeight: 108,
-  parachuteCollapseRate: 8,
+  parachuteTouchdownFraction: 0.76,
+  parachuteDiameter: 1.65,
+  parachuteShadowOffset: 24,
+  parachuteDrift: 15,
   truckUnloadFraction: 0.7,
   truckJumpHeight: 14,
   truckLength: 110,

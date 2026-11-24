@@ -24,16 +24,21 @@ describe('reinforcement arrivals', () => {
   const fuel = MISSION_05.spawnPoints.find((s) => s.id === 'fuel')!;
   const checkpoint = MISSION_05.spawnPoints.find((s) => s.id === 'checkpoint')!;
 
-  it('drops infantry over their spawn and folds the canopy at touchdown', () => {
+  it('hides descending infantry until the overhead canopy crumples on the ground', () => {
     expect(arrivalPose(fuel, 'rifleman', 0.5)).toMatchObject({
       pos: fuel.position,
-      visible: true,
-      canopy: 1,
+      visible: false,
+      parachute: { altitude: expect.any(Number), collapse: 0 },
+    });
+    expect(arrivalPose(fuel, 'rifleman', 0.8)).toMatchObject({
+      visible: false,
+      parachute: { altitude: 0, collapse: expect.any(Number) },
     });
     expect(arrivalPose(fuel, 'rifleman', 1)).toMatchObject({
       pos: fuel.position,
-      canopy: 0,
+      visible: true,
       height: 0,
+      parachute: { altitude: 0, collapse: 1 },
     });
   });
 
@@ -47,11 +52,11 @@ describe('reinforcement arrivals', () => {
   });
 
   it.each(['tank', 'truck'] as const)('keeps %s arrivals on the ground', (role) => {
-    expect(arrivalPose(fuel, role, 0.5)).toMatchObject({ visible: false, height: 0, canopy: 0 });
+    expect(arrivalPose(fuel, role, 0.5)).toMatchObject({ visible: false, height: 0 });
+    expect(arrivalPose(fuel, role, 0.5).parachute).toBeUndefined();
     expect(arrivalPose(checkpoint, role, 0.5)).toMatchObject({
       visible: true,
       height: 0,
-      canopy: 0,
     });
     expect(arrivalPose(checkpoint, role, 1).pos).toEqual(checkpoint.position);
   });

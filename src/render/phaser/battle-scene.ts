@@ -79,7 +79,6 @@ export class BattleScene extends Phaser.Scene {
   private ghostDrawn = false;
   /** The live soldier's spawn during the countdown. */
   private arrivalSpawn: SpawnPointDef | null = null;
-  private arrivalGraphics!: Phaser.GameObjects.Graphics;
   private runTotal = 1;
   private runnerPos: Vec2 | null = null;
   private runners = new Map<string, Phaser.GameObjects.Image>();
@@ -123,7 +122,6 @@ export class BattleScene extends Phaser.Scene {
     this.worldRenderer.onCue = (c) => this.onCue(c);
     this.cameras.main.setBounds(0, 0, this.world.map.width, this.world.map.height);
     this.ghost = this.add.graphics().setDepth(1000);
-    this.arrivalGraphics = this.add.graphics().setDepth(DEPTH.live + 0.5);
     this.rs = null;
     this.zoomNow = 0;
     this.setupRespawnInput();
@@ -187,7 +185,6 @@ export class BattleScene extends Phaser.Scene {
     // Preview a new soldier's arrival during the countdown.
     this.arrivalSpawn = null;
     this.runnerPos = null;
-    this.arrivalGraphics.clear();
     for (const img of this.runners.values()) img.destroy();
     this.runners = new Map();
     const left0 = driver?.countdown() ?? null;
@@ -414,7 +411,6 @@ export class BattleScene extends Phaser.Scene {
     this.services.leadInHint?.set(false);
     this.ghost.clear();
     this.ghostDrawn = false;
-    this.arrivalGraphics.clear();
     for (const img of this.runners.values()) img.destroy();
     this.runners = new Map();
     this.input.setDefaultCursor('grab');
@@ -656,8 +652,6 @@ export class BattleScene extends Phaser.Scene {
   /** Draw arrivals before the simulation activates the soldier. */
   private updateRunners(driver: BattleSession['driver'], alpha: number): void {
     const seen = new Set<string>();
-    const graphics = this.arrivalGraphics;
-    graphics.clear();
     const place = (
       key: string,
       team: 'live' | 'echo',
@@ -701,10 +695,56 @@ export class BattleScene extends Phaser.Scene {
           .setPosition(pos.x, pos.y)
           .setRotation(rotation)
           .setAlpha(opacity);
+        return img;
       };
       if (at.transport) {
         const { pos, facing, alpha } = at.transport;
         layer('transport', 'vehicle', facing, DEPTH.vehicles, ENTRANCE.truckLength, pos, alpha);
+      }
+      if (at.parachute) {
+        const { altitude, collapse } = at.parachute;
+        const size = diameter * ENTRANCE.parachuteDiameter;
+        const drift = ENTRANCE.parachuteDrift * altitude;
+        const canopy = { x: at.pos.x - drift, y: at.pos.y + drift * 0.3 };
+        const inflated = Math.max(0, 1 - collapse * 2.5);
+        if (inflated > 0) {
+          const shadowOffset = ENTRANCE.parachuteShadowOffset * altitude;
+          const shadow = { x: canopy.x + shadowOffset, y: canopy.y + shadowOffset * 0.7 };
+          layer(
+            'canopy-shadow',
+            'parachute_open',
+            at.facing,
+            DEPTH.decals,
+            size * (1 - altitude * 0.14),
+            shadow,
+            (0.23 - altitude * 0.11) * inflated,
+          )
+            .setTint(0x172013)
+            .setTintMode(Phaser.TintModes.FILL);
+          layer(
+            'canopy',
+            'parachute_open',
+            at.facing + altitude * 0.18,
+            depth + 0.2,
+            size * (1 + altitude * 0.26 - collapse * 0.3),
+            canopy,
+            inflated,
+          );
+        }
+        if (collapse > 0) {
+          const slide = size * 0.65 * collapse;
+          const fall = { x: at.pos.x - slide, y: at.pos.y + slide * 0.45 };
+          const alpha = Math.min(collapse * 2.5, (1 - collapse) * 4, 1);
+          layer(
+            'canopy-folded',
+            'parachute_folded',
+            at.facing + collapse * 0.55,
+            collapse < 0.5 ? depth + 0.2 : DEPTH.decals,
+            size * (0.89 - collapse * 0.18),
+            fall,
+            alpha,
+          );
+        }
       }
       if (!at.visible) return;
       if (vehicle && (roleId === 'truck' || roleId === 'tank')) {
@@ -715,18 +755,6 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
       const figure = { x: at.pos.x, y: at.pos.y - at.height };
-      if (at.canopy > 0) {
-        const r = diameter * 0.9 * at.canopy;
-        const top = figure.y - diameter * 0.7;
-        graphics
-          .fillStyle(0x101b1c, 0.22)
-          .fillEllipse(at.pos.x, at.pos.y, diameter, diameter * 0.56);
-        graphics.lineStyle(1.5, 0xf2ead3, at.canopy);
-        graphics.lineBetween(figure.x - r, top, figure.x - 4, figure.y);
-        graphics.lineBetween(figure.x + r, top, figure.x + 4, figure.y);
-        graphics.fillStyle(0x58775d, at.canopy).fillEllipse(figure.x, top - r / 4, r * 2, r);
-        graphics.fillStyle(0xc5cbaa, at.canopy).fillEllipse(figure.x, top - r / 4, r, r);
-      }
       if (!mini) {
         layer(
           'figure',

@@ -9,7 +9,7 @@ export interface ArrivalPose {
   pos: Vec2;
   facing: number;
   height: number;
-  canopy: number;
+  parachute?: { altitude: number; collapse: number };
   visible: boolean;
   transport?: { pos: Vec2; facing: number; alpha: number };
 }
@@ -22,7 +22,7 @@ export function arrivalPose(
 ): ArrivalPose {
   const f = Math.min(1, Math.max(0, progress));
   const vehicle = roleDef(role).vehicle;
-  const ground = { pos: sp.position, facing: sp.facing, height: 0, canopy: 0, visible: true };
+  const ground = { pos: sp.position, facing: sp.facing, height: 0, visible: true };
   if (sp.transport) {
     const path = sp.transport.path;
     const drop = path[path.length - 1]!;
@@ -50,10 +50,15 @@ export function arrivalPose(
     };
   }
   if (vehicle) return { ...ground, visible: false };
+  const touchdown = ENTRANCE.parachuteTouchdownFraction;
+  const collapse = Math.max(0, (f - touchdown) / (1 - touchdown));
   return {
     ...ground,
-    height: ENTRANCE.parachuteHeight * (1 - f),
-    canopy: Math.min(1, (1 - f) * ENTRANCE.parachuteCollapseRate),
+    visible: collapse >= 0.5,
+    parachute: {
+      altitude: Math.max(0, 1 - f / touchdown),
+      collapse,
+    },
   };
 }
 
