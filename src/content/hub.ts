@@ -25,6 +25,7 @@ import type { SignDef } from './sign-styles';
 import type { StringKey } from './strings';
 import {
   borderWalls,
+  rectContains,
   type CoverDef,
   type MapDef,
   type Rect,
@@ -52,7 +53,11 @@ const parapet = (side: string, rect: Rect): CoverDef => ({
   fireOverFrom: rangeTower,
 });
 
-const rangeCove = { x: 800, y: 2240, w: 320, h: 360 };
+const rangeCove: Rect[] = [
+  { x: 880, y: 2240, w: 160, h: 80 },
+  { x: 800, y: 2320, w: 320, h: 160 },
+  { x: 720, y: 2480, w: 480, h: 160 },
+];
 const terrainCell = 80;
 
 export const HUB_ARRIVAL_SPAWNS: readonly (SpawnPointDef & { nameKey: StringKey })[] = [
@@ -122,16 +127,17 @@ export const HUB_MAP: MapDef = {
     { x: 40, y: 1160, w: 1100, h: 40 },
     { x: 1260, y: 1160, w: 1100, h: 40 },
   ],
-  water: [rangeCove],
+  water: rangeCove,
   ground: {
     cellSize: terrainCell,
     rows: Array.from({ length: HUB_H / terrainCell }, (_, row) =>
       Array.from({ length: HUB_W / terrainCell }, (_, col) => {
-        const x = col * terrainCell;
-        const y = row * terrainCell;
-        if (x < rangeCove.x || x >= rangeCove.x + rangeCove.w) return 'G';
-        if (y >= rangeCove.y) return 'W';
-        return y >= rangeCove.y - terrainCell ? 'S' : 'G';
+        const x = (col + 0.5) * terrainCell;
+        const y = (row + 0.5) * terrainCell;
+        if (rangeCove.some((water) => rectContains(water, { x, y }))) return 'W';
+        return rangeCove.some((water) => rectContains(water, { x, y: y + terrainCell }))
+          ? 'S'
+          : 'G';
       }).join(''),
     ),
   },
