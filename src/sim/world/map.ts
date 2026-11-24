@@ -26,13 +26,15 @@ export interface SpawnPointDef {
   kind: 'initial' | 'capture';
   /** (05-a) kind 'capture' only: the capture point that opens this spawn point. */
   capturePointId?: string;
+  /** Enemy entrances omit player deployment markers. */
+  team?: 'enemy';
   /**
    * (PHASE13-d) Where a new soldier runs in from during the lead-in countdown, ending here
    * ([D112]): for show only, the sim never reads it. May start off the map.
    */
   approach?: Vec2[];
   /** Authored transport route. Its final waypoint is the vehicle's drop-off. */
-  transport?: { kind: 'truck'; path: Vec2[]; gateId?: string };
+  transport?: { kind: 'truck' | 'boat'; path: Vec2[]; gateId?: string };
 }
 
 /** (05-a) Capture stages ([D11]): lower the enemy flag → neutral; raise ours → ours. */

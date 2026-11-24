@@ -7,6 +7,7 @@
  */
 import type { RoleId } from '../contracts/mission';
 import {
+  HUB_ARRIVAL_SPAWNS,
   HUB_EXITS,
   HUB_MAP,
   HUB_RANGE_SPAWN,
@@ -23,6 +24,7 @@ import {
   getView,
   resetSoldier,
   setGateOpen,
+  setSoldierFlags,
   spawnSoldier,
   step,
   type SoldierId,
@@ -30,7 +32,7 @@ import {
   type World,
 } from '../sim/sim';
 import type { WorldView } from '../sim/view';
-import type { SessionDriver } from '../render/phaser/services';
+import type { PendingArrival, SessionDriver } from '../render/phaser/services';
 
 /** Seconds before a fallen target / you get back up. */
 export const HUB_TARGET_RESPAWN_S = 2; // TUNE
@@ -52,6 +54,11 @@ export class HubDriver implements SessionDriver {
   private readonly open = new Set<HubExitId>();
   private pendingRole: RoleId | null = null;
   private current: WorldView;
+  private readonly drill: {
+    spawn: (typeof HUB_ARRIVAL_SPAWNS)[number];
+    id?: SoldierId;
+    tick?: number;
+  }[] = HUB_ARRIVAL_SPAWNS.map((spawn) => ({ spawn }));
 
   constructor(
     base: Tuning,
@@ -72,6 +79,36 @@ export class HubDriver implements SessionDriver {
       this.targets.push({ id, home });
     }
     this.current = getView(this.world);
+  }
+
+  /** Play the three entrances together, reusing the same practice enemies on repeat. */
+  launchArrivals(): void {
+    if (this.drill.some((target) => target.tick !== undefined)) return;
+    const tick = this.world.state.tick + this.arrivalLead();
+    for (const target of this.drill) {
+      target.tick = tick;
+      if (target.id) setSoldierFlags(this.world, target.id, { interactive: false });
+    }
+    this.updateView();
+  }
+
+  arrivals(): PendingArrival[] {
+    return this.drill.flatMap(({ spawn, tick }) =>
+      tick === undefined
+        ? []
+        : [{ id: spawn.id, spawnPointId: spawn.id, spawnTick: tick, team: 'enemy' as const }],
+    );
+  }
+
+  private arrivalLead(): number {
+    return secondsToTicks(this.world.tuning.spawn.leadInSeconds);
+  }
+
+  private updateView(): void {
+    this.current = getView(this.world);
+    this.current.soldiers = this.current.soldiers.filter(
+      (s) => !this.drill.some((target) => target.id === s.id && target.tick !== undefined),
+    );
   }
 
   /** Opens an exit's gate (the sign's choice was made). */
@@ -123,7 +160,22 @@ export class HubDriver implements SessionDriver {
         }
       }
     }
-    this.current = getView(w);
+    for (const target of this.drill) {
+      const { spawn, id } = target;
+      const soldier = id ? getSoldier(w, id) : undefined;
+      if (target.tick === undefined && soldier && soldier.deathTick !== null) {
+        target.tick = soldier.deathTick + secondsToTicks(HUB_TARGET_RESPAWN_S) + this.arrivalLead();
+      }
+      if (target.tick === undefined || tick < target.tick) continue;
+      if (id) {
+        resetSoldier(w, id, { position: spawn.position, facing: spawn.facing });
+        setSoldierFlags(w, id, { interactive: true });
+      } else {
+        target.id = spawnSoldier(w, spawn.id, { team: 'enemy', controllable: false });
+      }
+      delete target.tick;
+    }
+    this.updateView();
     // Out through an open gate.
     if (me.alive) {
       for (const e of HUB_EXITS) {

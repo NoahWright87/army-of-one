@@ -47,6 +47,14 @@ export interface SessionOverlay {
   destroy?(): void;
 }
 
+export interface PendingArrival {
+  id: string;
+  spawnPointId: string;
+  spawnTick: number;
+  roleId?: RoleId;
+  team?: 'enemy';
+}
+
 /** What the scene needs from a driven battle (app/live-run.ts implements it). */
 export interface SessionDriver {
   /** One fixed step with the input read this tick. Returns true if the world advanced. */
@@ -60,13 +68,8 @@ export interface SessionDriver {
   readonly ended: boolean;
   /** Camera position until the live soldier exists (its spawn point). */
   readonly cameraHome: Vec2;
-  /** (PHASE13-d) Echoes still to spawn: their run-ins are drawn ([D112]). */
-  arrivals?: () => readonly {
-    id: string;
-    spawnPointId: string;
-    spawnTick: number;
-    roleId?: RoleId;
-  }[];
+  /** Units still to spawn: their entrances are rendered before they become interactive. */
+  arrivals?: () => readonly PendingArrival[];
   /** Selected infantry sculpt for the live pre-spawn run-in. */
   readonly previewRoleId?: RoleId;
   /** (PHASE11) Money for the HUD; absent/null = not shown. */

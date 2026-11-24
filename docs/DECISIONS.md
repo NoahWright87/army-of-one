@@ -507,9 +507,11 @@ objectives.
 - **[D112] Reinforcements arrive during the lead-in.** Infantry parachute onto the deployment
   point when there is no authored entrance. At a road reinforcement point a captured checkpoint
   opens the supply door, and a truck backs in to unload infantry. At an AA-controlled drop zone,
-  destroying the defending guns secures the point. Both approaches start after the unlock.
+  destroying the defending guns secures the point. Capturing a beachhead opens a landing craft
+  route to shore. These approaches start after the unlock.
   Trucks and tanks stay on the ground. Echoes use the same arrival animations. Troops become
-  interactive at touchdown or dismount, when the countdown ends.
+  interactive at touchdown or dismount, when the countdown ends. The southern HQ range runs a
+  repeatable reinforcement drill with enemy practice targets using the same three entrances.
 - **[D113] Neighbouring ground on screen is walkable.** No invisible walls: a level's map shows
   some of the levels around it (with a light haze) and you can walk there; only ground beyond
   that margin is the map's edge. Levels on the start edge get a strip of ground beyond the board

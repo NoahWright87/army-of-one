@@ -124,7 +124,7 @@ function patrol(id: string, loop: readonly { x: number; y: number }[], from: num
 
 export const MISSION_05: MapDef = {
   id: 'mission-05',
-  rev: 1,
+  rev: 2,
   nameKey: 'map.mission05.name',
   width: M5_W,
   height: M5_H,
@@ -186,6 +186,8 @@ export const MISSION_05: MapDef = {
     cover('m5-outer-e', 'sandbags', CX + 330, M5.outerLineY + 260, 180),
   ],
   water: [
+    // The beachhead lies at the end of a cove connected to the river.
+    { x: 960, y: 2470, w: 240, h: M5.riverY[0] - 2470 },
     // River, except under the two bridges.
     { x: 0, y: M5.riverY[0], w: BRIDGE1_X[0], h: M5.riverY[1] - M5.riverY[0] },
     {
@@ -232,6 +234,21 @@ export const MISSION_05: MapDef = {
     forwardSpawn('fuel', 'spawn.mission05.fuel', 'cp-b', M5.fuelY),
     forwardSpawn('crossroads', 'spawn.mission05.crossroads', 'cp-c', M5.crossroadsY),
     forwardSpawn('depot', 'spawn.mission05.depot', 'cp-d', M5.depotY),
+    {
+      id: 'beachhead',
+      nameKey: 'spawn.mission05.beachhead',
+      position: { x: 1080, y: 2420 },
+      facing: -Math.PI / 2,
+      kind: 'capture',
+      capturePointId: 'cp-beachhead',
+      transport: {
+        kind: 'boat',
+        path: [
+          { x: 1080, y: 2710 },
+          { x: 1080, y: 2520 },
+        ],
+      },
+    },
   ],
   capturePoints: [
     capture('cp-a', 'capture.mission05.checkpoint', M5.checkpointY),
@@ -241,6 +258,11 @@ export const MISSION_05: MapDef = {
     },
     capture('cp-c', 'capture.mission05.crossroads', M5.crossroadsY),
     capture('cp-d', 'capture.mission05.depot', M5.depotY),
+    {
+      id: 'cp-beachhead',
+      nameKey: 'spawn.mission05.beachhead',
+      position: { x: 1080, y: 2370 },
+    },
   ],
   objectives: [{ id: 'm5-hq', position: { x: CX, y: M5.hqY }, radius: 64, maxHp: 900 }],
   turrets: [

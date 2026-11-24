@@ -198,6 +198,20 @@ export const IMAGE_ASSETS = {
     'Campaign-map war-room table surround.',
     'Quiet overhead campaign tabletop surround with no text.',
   ),
+  arrival_truck: img(
+    'arrival_truck',
+    224,
+    128,
+    'Troop truck used for road reinforcements.',
+    'Directly overhead painted olive cargo truck with an open troop bed.',
+  ),
+  arrival_boat: img(
+    'arrival_boat',
+    224,
+    128,
+    'Landing craft used for beach reinforcements.',
+    'Directly overhead painted landing craft with an open well and a bow ramp.',
+  ),
   parachute_open: img(
     'parachute_open',
     192,

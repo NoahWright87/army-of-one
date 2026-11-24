@@ -35,6 +35,20 @@ const legacy = (
 ): FinishedArtSpec => ({ ...world(key, w, h, brief, fitPx), file: `finished/legacy/${key}.png` });
 
 export const FINISHED_ART: Readonly<Record<string, FinishedArtSpec>> = {
+  arrival_truck: world(
+    'arrival_truck',
+    224,
+    128,
+    'Directly overhead painted olive cargo truck with an open troop bed.',
+    208,
+  ),
+  arrival_boat: world(
+    'arrival_boat',
+    224,
+    128,
+    'Directly overhead painted landing craft with an open well and a bow ramp.',
+    208,
+  ),
   parachute_open: world(
     'parachute_open',
     192,

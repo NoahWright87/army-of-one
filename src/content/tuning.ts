@@ -1321,6 +1321,8 @@ export const ENTRANCE = {
   parachuteShadowOffset: 24,
   parachuteDrift: 15,
   truckUnloadFraction: 0.7,
+  boatUnloadFraction: 0.65,
+  boatLength: 132,
   truckJumpHeight: 14,
   truckLength: 110,
 } as const;

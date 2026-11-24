@@ -11,7 +11,7 @@ export interface ArrivalPose {
   height: number;
   parachute?: { altitude: number; collapse: number };
   visible: boolean;
-  transport?: { pos: Vec2; facing: number; alpha: number };
+  transport?: { kind: 'truck' | 'boat'; pos: Vec2; facing: number; alpha: number };
 }
 
 /** Cosmetic only. Every arrival ends at the exact position and facing used by the sim. */
@@ -24,28 +24,35 @@ export function arrivalPose(
   const vehicle = roleDef(role).vehicle;
   const ground = { pos: sp.position, facing: sp.facing, height: 0, visible: true };
   if (sp.transport) {
-    const path = sp.transport.path;
+    const { kind, path } = sp.transport;
     const drop = path[path.length - 1]!;
     if (vehicle) {
+      if (kind === 'boat') return { ...ground, visible: false };
       const arrival = alongPath([...path, sp.position], f);
       return { ...ground, ...arrival, facing: f === 1 ? sp.facing : arrival.facing };
     }
-    const unload = ENTRANCE.truckUnloadFraction;
-    const backedIn = alongPath(path, f / unload);
+    const boat = kind === 'boat';
+    const length = boat ? ENTRANCE.boatLength : ENTRANCE.truckLength;
+    const unload = boat ? ENTRANCE.boatUnloadFraction : ENTRANCE.truckUnloadFraction;
+    const approach = alongPath(path, f / unload);
     const step = Math.max(0, (f - unload) / (1 - unload));
-    const rear = {
-      x: drop.x + Math.cos(backedIn.facing) * ENTRANCE.truckLength * 0.45,
-      y: drop.y + Math.sin(backedIn.facing) * ENTRANCE.truckLength * 0.45,
+    const ramp = {
+      x: drop.x + Math.cos(approach.facing) * length * 0.45,
+      y: drop.y + Math.sin(approach.facing) * length * 0.45,
     };
+    // Keep the ramp in place until the infantry has cleared it.
+    const retreat = Math.max(0, (step - 0.25) / 0.75);
+    const departure = alongPath(path, 1 - retreat * 0.8);
     return {
       ...ground,
-      pos: alongPath([rear, sp.position], step).pos,
-      height: Math.sin(step * Math.PI) * ENTRANCE.truckJumpHeight,
+      pos: alongPath([ramp, sp.position], step).pos,
+      height: boat ? 0 : Math.sin(step * Math.PI) * ENTRANCE.truckJumpHeight,
       visible: f >= unload,
       transport: {
-        pos: backedIn.pos,
-        facing: backedIn.facing + Math.PI,
-        alpha: 1 - step,
+        kind,
+        pos: f < unload ? approach.pos : departure.pos,
+        facing: approach.facing + (boat ? 0 : Math.PI),
+        alpha: Math.min(1, (1 - step) * 3),
       },
     };
   }

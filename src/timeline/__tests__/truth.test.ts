@@ -14,7 +14,7 @@ import { MISSION_05 } from '../../content/maps/mission-05';
 
 it('starts the road and AA lead-ins after capture', () => {
   const rules = { spawnIntervalTicks: 120, leadInTicks: 120 };
-  const captures = ['cp-a', 'cp-b', 'cp-c'].map((pointId) => ({
+  const captures = ['cp-a', 'cp-b', 'cp-c', 'cp-beachhead'].map((pointId) => ({
     pointId,
     stage: 'ours' as const,
     tick: 200,
@@ -24,6 +24,7 @@ it('starts the road and AA lead-ins after capture', () => {
   const options = deriveSpawnOptions(MISSION_05, [], [], rules, captures);
   expect(options).toContainEqual({ kind: 'new', spawnPointId: 'checkpoint', entryTick: 320 });
   expect(options).toContainEqual({ kind: 'new', spawnPointId: 'fuel', entryTick: 320 });
+  expect(options).toContainEqual({ kind: 'new', spawnPointId: 'beachhead', entryTick: 320 });
   expect(options).toContainEqual({ kind: 'new', spawnPointId: 'crossroads', entryTick: 200 });
 });
 

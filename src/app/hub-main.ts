@@ -196,6 +196,11 @@ export function startHub(deps: HubDeps): void {
             },
           })),
         };
+      case 'arrivals':
+        return {
+          text: str('hub.sign.arrivals'),
+          buttons: [{ label: str('hub.btn.arrivals'), run: () => driver.launchArrivals() }],
+        };
       case 'training':
         return {
           text: str('hub.sign.training'),

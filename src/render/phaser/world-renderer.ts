@@ -329,7 +329,7 @@ export class WorldRenderer {
     if (map.ground) drawGround(scene, map.ground);
     for (const spawn of map.spawnPoints) {
       const transport = spawn.transport;
-      if (!transport) continue;
+      if (transport?.kind !== 'truck') continue;
       const road = scene.add.graphics().setDepth(DEPTH.ground + 0.1);
       road.lineStyle(84, 0x56584d, 0.85);
       road.strokePoints(
@@ -465,7 +465,7 @@ export class WorldRenderer {
     }
     for (const sp of map.spawnPoints) {
       // Forward (capture) spawn markers are drawn with their capture point, only while ours.
-      if (sp.kind === 'capture') continue;
+      if (sp.kind === 'capture' || sp.team === 'enemy') continue;
       scene.add
         .image(sp.position.x, sp.position.y, 'spawn_marker')
         .setRotation(sp.facing)

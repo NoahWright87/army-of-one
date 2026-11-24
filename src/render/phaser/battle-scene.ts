@@ -654,7 +654,7 @@ export class BattleScene extends Phaser.Scene {
     const seen = new Set<string>();
     const place = (
       key: string,
-      team: 'live' | 'echo',
+      team: 'live' | 'echo' | 'enemy',
       spawn: SpawnPointDef,
       progress: number,
       roleId: RoleId = 'rifleman',
@@ -698,8 +698,16 @@ export class BattleScene extends Phaser.Scene {
         return img;
       };
       if (at.transport) {
-        const { pos, facing, alpha } = at.transport;
-        layer('transport', 'vehicle', facing, DEPTH.vehicles, ENTRANCE.truckLength, pos, alpha);
+        const { pos, facing, alpha, kind } = at.transport;
+        layer(
+          'transport',
+          kind === 'boat' ? 'arrival_boat' : 'arrival_truck',
+          facing,
+          DEPTH.vehicles,
+          kind === 'boat' ? ENTRANCE.boatLength : ENTRANCE.truckLength,
+          pos,
+          alpha,
+        );
       }
       if (at.parachute) {
         const { altitude, collapse } = at.parachute;
@@ -758,7 +766,7 @@ export class BattleScene extends Phaser.Scene {
       if (!mini) {
         layer(
           'figure',
-          team === 'live' ? 'soldier_live' : 'soldier_echo',
+          team === 'live' ? 'soldier_live' : team === 'enemy' ? 'soldier_enemy' : 'soldier_echo',
           at.facing,
           depth,
           diameter,
@@ -791,7 +799,7 @@ export class BattleScene extends Phaser.Scene {
       if (ahead <= 0 || ahead > lead) continue;
       const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
       if (!sp) continue;
-      place(a.id, 'echo', sp, 1 - ahead / lead, a.roleId);
+      place(a.id, a.team ?? 'echo', sp, 1 - ahead / lead, a.roleId);
     }
     for (const [key, img] of this.runners) {
       if (!seen.has(key)) {
