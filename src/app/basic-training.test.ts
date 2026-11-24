@@ -22,6 +22,7 @@ const view = (soldiers: SoldierView[], events: SimEvent[] = []): WorldView =>
   ({
     soldiers,
     events,
+    gates: [{ id: 'bt-g2', open: false }],
     objectives: [
       { id: 'bt-t1', x: 1150, y: 3500, destroyed: false },
       { id: 'bt-t2', x: 1270, y: 3600, destroyed: false },
@@ -157,5 +158,66 @@ describe('basic training director', () => {
     const near = view([me(860, 3500)]);
     expect(bt.step(near, 300, sarge)).toEqual(['bt.r1.near', 'bt.r1.t1']);
     expect(bt.step(near, 9000, sarge)).toEqual([]);
+  });
+
+  it('start: Sarge runs ahead to the door and heckles if you stand there', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(600, 4250)]), 0);
+    expect(bt.guide(view([me(600, 4250)]))?.at.y).toBeLessThan(4250); // ahead of you, at the door
+    expect(bt.guide(view([me(600, 4250)]))?.at.y).toBeGreaterThan(3900);
+    bt.step(view([me(600, 4250)]), 1000, sarge);
+    const lines = bt.step(view([me(600, 4250)]), 20000, sarge);
+    expect(lines[0]).toBe('bt.r0.ignore.0');
+  });
+
+  it('sprint: after the flag he waits at the gate and says it will open; then he runs ahead', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(860, 3100)]), 0);
+    bt.step(view([me(860, 3100)]), 100, sarge);
+    const taken = view(
+      [me(860, 3030)],
+      [{ kind: 'captureStageChanged', tick: 1, id: 'bt-a', stage: 'ours', contributors: ['S1'] }],
+    );
+    bt.step(taken, 200, sarge);
+    const lines = bt.step(view([me(860, 3030)]), 250, sarge);
+    expect(lines).toContain('bt.r2.sprint');
+    const closed = bt.guide(view([me(860, 3030)]))!;
+    expect(closed.at.y).toBeCloseTo(2910, -1); // just south of the gate
+    const open = { ...view([me(860, 3030)]), gates: [{ id: 'bt-g2', open: true }] } as WorldView;
+    expect(bt.step(open, 300, sarge)).toEqual(['bt.r2.go']);
+    expect(bt.guide(open)!.at.y).toBeLessThan(closed.at.y); // through it, ahead of you
+    expect(bt.step(open, 9000, sarge)[0]).toBe('bt.r2.ignore.0'); // dawdling: he heckles
+  });
+
+  it('dying: he laughs (the first time too), then the respawn view has him walk to the flag', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(860, 2500)]), 0);
+    const died = (t: number) =>
+      bt.step(
+        view(
+          [me(860, 2500, { alive: false })],
+          [{ kind: 'soldierDied', tick: 1, id: 'S1', cause: 'mine' } as SimEvent],
+        ),
+        t,
+        sarge,
+      );
+    expect(died(100)[0]).toBe('bt.death.first');
+    const opts = [
+      { kind: 'new' as const, spawnPointId: 'bt-start', entryTick: 0 },
+      { kind: 'new' as const, spawnPointId: 'bt-sp-a', entryTick: 0 },
+    ];
+    bt.enterRespawn(bt.respawnHint(opts), true, 1000);
+    const spot = bt.respawnGuide()!.at;
+    expect(Math.abs(spot.x - 860)).toBeLessThan(100); // by Alpha
+    expect(Math.abs(spot.y - 3110)).toBeLessThan(100);
+    const says = bt.respawnSays(1100).map((x) => x.key);
+    expect(says).toEqual(['bt.rs.explain', 'bt.coach.spawnA']);
+    expect(bt.respawnSays(5000)).toEqual([]);
+    expect(bt.respawnSays(12000)[0]!.key).toBe('bt.rs.ignore.0'); // no deploy: "numbnuts"
+    bt.leaveRespawn();
+    expect(bt.respawnGuide()).toBeNull();
   });
 });

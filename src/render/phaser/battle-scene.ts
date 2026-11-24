@@ -575,6 +575,7 @@ export class BattleScene extends Phaser.Scene {
     cam.setZoom(this.zoomNow);
     cam.centerOn(this.cam.x, this.cam.y);
     this.worldRenderer.render({ alpha: t - f, nowMs: time, liveId: null, pointer: null });
+    this.session.overlay?.respawnUpdate?.(time, cam.worldView);
   }
 
   /** (06-c) Frame interval readout: EMA plus the worst frame of the last ~second. */

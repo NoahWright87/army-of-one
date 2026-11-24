@@ -20,7 +20,13 @@ import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
 import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
-import { BasicTraining, BT_DONE_KEY, BT_SENT_KEY, type BtHint } from './basic-training';
+import {
+  BasicTraining,
+  BT_COACH_IN_WORLD,
+  BT_DONE_KEY,
+  BT_SENT_KEY,
+  type BtHint,
+} from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
 import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
@@ -1071,6 +1077,8 @@ async function startGame(): Promise<void> {
       pointerWorld: () => null,
       destroy: () => {},
     }),
+    // (PHASE18) Basic training's Sarge is there from the first screen (he says what to do).
+    ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
   });
 
   const respawnLook = (on: boolean) => {
@@ -1120,8 +1128,10 @@ async function startGame(): Promise<void> {
       touchControls.setVisible(false);
       hud.setVisible(false);
       startRespawnMinimap(controls);
-      // (PHASE18) Basic training: the coach points at what to do here.
-      if (hint) coach.show(inWorldCoachSteps(hint, props));
+      // (PHASE18) Basic training: Sarge walks to where to deploy and says what to do (the dimming
+      // coach is kept in code, off).
+      training?.enterRespawn(hint, died !== null, performance.now());
+      if (hint && BT_COACH_IN_WORLD) coach.show(inWorldCoachSteps(hint, props));
     };
     const hint = training?.respawnHint(props.options) ?? null;
     void assetsReady
@@ -1146,8 +1156,9 @@ async function startGame(): Promise<void> {
         if (inWorld === overlay) inWorld = null;
         notice.show(null);
         respawnLook(false);
+        training?.leaveRespawn();
         if (hint) {
-          coach.hide();
+          if (BT_COACH_IN_WORLD) coach.hide();
           training?.followed(hint);
         }
       },

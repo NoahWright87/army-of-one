@@ -8,14 +8,14 @@ import { fitPx } from '../content/assets';
 import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
 import { BT_CHEVRONS, BT_H, BT_W } from '../content/maps/basic-training';
 import type { SignDef } from '../content/sign-styles';
-import { str, type StringKey } from '../content/strings';
+import { str } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
 import type { WorldView } from '../sim/view';
 import { DEPTH } from '../render/depth';
 import type { SessionOverlay } from '../render/phaser/services';
 import { SignpostLayer } from '../render/worldtext/signpost-layer';
 import { SpeechLayer } from '../render/worldtext/speech-layer';
-import type { BasicTraining } from './basic-training';
+import { BT_URGENT, type BasicTraining, type BtSay } from './basic-training';
 
 const SARGE = 'sarge';
 /** How fast the ghost runs (units/s), how big he's drawn, and how see-through. */
@@ -55,11 +55,61 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let body: Phaser.GameObjects.Image;
   let tag: Phaser.GameObjects.Text;
   let floor: Phaser.GameObjects.Graphics;
-  const queue: { key: StringKey; at: number }[] = [];
+  const queue: (BtSay & { at: number; keep?: boolean })[] = [];
   let lastFrame = -1;
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
   let lastView: WorldView | null = null;
+
+  /** Queues lines; an urgent one cuts him off and drops what he hadn't said yet. */
+  const enqueue = (says: BtSay[], keep = false) => {
+    const now = scene.time.now;
+    for (const say of says) {
+      if (BT_URGENT.has(say.key)) {
+        queue.length = 0;
+        speech.clear();
+        quietUntil = 0;
+      }
+      queue.push({ ...say, at: now, ...(keep ? { keep } : {}) });
+    }
+  };
+
+  /** Runs him toward `goal` (or just turns to `face`), clamped to the map, and draws him. */
+  const move = (dt: number, goal: { x: number; y: number } | null, face: number | null) => {
+    if (goal) {
+      const dx = goal.x - sarge.x;
+      const dy = goal.y - sarge.y;
+      const d = Math.hypot(dx, dy);
+      const step = Math.min(d, SARGE_SPEED * dt);
+      if (d > 1) {
+        sarge.x += (dx / d) * step;
+        sarge.y += (dy / d) * step;
+      }
+      // Running: face the way he goes; arrived: face where the lesson says.
+      body.setRotation(d - step > 2 || face === null ? Math.atan2(dy, dx) : face);
+    } else if (face !== null) {
+      body.setRotation(face);
+    }
+    sarge.x = Math.max(60, Math.min(BT_W - 60, sarge.x));
+    sarge.y = Math.max(60, Math.min(BT_H - 60, sarge.y));
+    body.setPosition(sarge.x, sarge.y);
+    tag.setPosition(sarge.x, sarge.y + 28);
+  };
+
+  /** One line at a time. */
+  const talk = (nowMs: number) => {
+    while (queue.length && !queue[0]!.keep && nowMs - queue[0]!.at > STALE_MS) queue.shift();
+    if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
+      const say = queue.shift()!;
+      speech.say(SARGE, str(say.key, say.params), {
+        keepOnScreen: true,
+        color: '#fff3d6',
+        voice: DRILL_SERGEANT_VOICE,
+      });
+      quietUntil = nowMs + LINE_GAP_MS;
+    }
+    speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
+  };
 
   return {
     create(s, id, display) {
@@ -106,9 +156,29 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const now = scene.time.now;
       if (!started && me?.alive) {
         started = true;
-        queue.push(...director.startLife(liveId, view, now).map((key) => ({ key, at: now })));
+        enqueue(director.startLife(liveId, view, now).map((key) => ({ key })));
       }
-      if (started) queue.push(...director.step(view, now, sarge).map((key) => ({ key, at: now })));
+      if (started) enqueue(director.step(view, now, sarge).map((key) => ({ key })));
+    },
+    respawnUpdate(nowMs, view) {
+      const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
+      lastFrame = nowMs;
+      enqueue(director.respawnSays(nowMs), true); // nothing to run from: he says it all
+      const g = director.respawnGuide();
+      let goal: { x: number; y: number } | null = null;
+      if (g) {
+        // Never off screen: if where he should be is out of view, he waits at the edge nearest it.
+        const cx = view.x + view.width / 2;
+        const cy = view.y + view.height / 2;
+        const hw = Math.max(40, view.width / 2 - 90);
+        const hh = Math.max(40, view.height / 2 - 90);
+        const dx = g.at.x - cx;
+        const dy = g.at.y - cy;
+        const t = Math.min(1, hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
+        goal = { x: cx + dx * t, y: cy + dy * t };
+      }
+      move(dt, goal, g ? g.face : null);
+      talk(nowMs);
     },
     update(nowMs, live, input) {
       const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
@@ -126,35 +196,8 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         if (Math.hypot(want.x - sarge.x, want.y - sarge.y) > FOLLOW_SLACK) goal = want;
         face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       }
-      if (goal) {
-        const dx = goal.x - sarge.x;
-        const dy = goal.y - sarge.y;
-        const d = Math.hypot(dx, dy);
-        const step = Math.min(d, SARGE_SPEED * dt);
-        if (d > 1) {
-          sarge.x += (dx / d) * step;
-          sarge.y += (dy / d) * step;
-        }
-        // Running: face the way he goes; arrived: face where the lesson says.
-        body.setRotation(d - step > 2 || face === null ? Math.atan2(dy, dx) : face);
-      } else if (face !== null) {
-        body.setRotation(face);
-      }
-      sarge.x = Math.max(60, Math.min(BT_W - 60, sarge.x));
-      sarge.y = Math.max(60, Math.min(BT_H - 60, sarge.y));
-      body.setPosition(sarge.x, sarge.y);
-      tag.setPosition(sarge.x, sarge.y + 28);
-      // One line at a time.
-      while (queue.length && nowMs - queue[0]!.at > STALE_MS) queue.shift();
-      if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
-        speech.say(SARGE, str(queue.shift()!.key), {
-          keepOnScreen: true,
-          color: '#fff3d6',
-          voice: DRILL_SERGEANT_VOICE,
-        });
-        quietUntil = nowMs + LINE_GAP_MS;
-      }
-      speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
+      move(dt, goal, face);
+      talk(nowMs);
       signs.update(nowMs, live, input.fire);
       drawChevrons(floor, nowMs);
     },

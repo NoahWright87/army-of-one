@@ -763,9 +763,14 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   them"). **The battle never pauses for him.** Ignore him and he heckles ("You got dirt in
   your ears, Private?!? I said GET OVER HERE!!!"). R1's sandbags run wall to wall (no way
   round) and the targets sit behind different cover (open, fence, crate, half wall), each
-  named by Sarge. Still to do: on the respawn screen (time already stopped) he walks to the
-  spawn point you should pick and yells ("Over here, numbnuts!") if you don't follow, staying
-  on screen; the dimming coach stays for now and may become unnecessary.
+  named by Sarge. He reacts to the moment (a line marked urgent cuts him off mid-sentence) and
+  sets things up ahead: at the start he runs to the door; after Alpha he waits at the gate,
+  says it's about to open and to SPRINT, then runs ahead of you through it. When you die he
+  laughs ("Happens to the best of us, kid"), and on the respawn view he walks to the spawn you
+  should pick (never off screen), says what to do there (the first time: that's respawning, you
+  come back and fix it), and heckles if you don't deploy ("Over here, numbnuts!"). The dimming
+  coach is hidden in the in-world respawn view (`BT_COACH_IN_WORLD`, code kept); the old
+  respawn screen still uses it.
 - **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

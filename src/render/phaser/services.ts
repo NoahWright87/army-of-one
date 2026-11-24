@@ -41,6 +41,14 @@ export interface SessionOverlay {
   /** After the world is drawn: the live soldier's drawn position and this frame's input. */
   update(nowMs: number, live: Vec2 | null, input: SoldierInput): void;
   /**
+   * While the scene is in respawn mode (no live soldier, the camera is free): each frame, with
+   * the world rectangle the camera shows.
+   */
+  respawnUpdate?(
+    nowMs: number,
+    view: { x: number; y: number; width: number; height: number },
+  ): void;
+  /**
    * (PHASE19) Removes what `create` added: the scene carries on with the next run's session
    * (`BattleScene.adopt`) instead of shutting down.
    */

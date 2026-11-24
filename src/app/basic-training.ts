@@ -7,15 +7,17 @@
  * few that may repeat after a cooldown (getting shot, nagging, shooting at him).
  */
 import type { RoleId, SpawnOption } from '../contracts/mission';
+import { roleDef } from '../content/roles';
 import {
   BASIC_TRAINING,
+  BT,
   BT_CORRIDOR_X,
   BT_R1_BAGS,
   BT_TARGETS,
   btRoomAt,
   type BtRoom,
 } from '../content/maps/basic-training';
-import type { StringKey } from '../content/strings';
+import { strDynamic, type StringKey } from '../content/strings';
 import type { SoldierView, WorldView } from '../sim/view';
 import type { TextStorage } from './replay-library';
 
@@ -76,6 +78,34 @@ const NAGS: StringKey[] = ['bt.nag.0', 'bt.nag.1', 'bt.nag.2'];
 /** Sarge asked you to come over and you haven't: he heckles again after this long. */
 const HECKLE_MS = 7_000; // TUNE
 const HECKLES: StringKey[] = ['bt.r1.ignore.0', 'bt.r1.ignore.1', 'bt.r1.ignore.2'];
+/** (Other places Sarge waits for you.) */
+const DOOR_HECKLES: StringKey[] = ['bt.r0.ignore.0', 'bt.r0.ignore.1'];
+const RUN_HECKLES: StringKey[] = ['bt.r2.ignore.0', 'bt.r2.ignore.1'];
+const RESPAWN_HECKLES: StringKey[] = ['bt.rs.ignore.0', 'bt.rs.ignore.1', 'bt.rs.ignore.2'];
+const DEATH_LINES: StringKey[] = ['bt.death.0', 'bt.death.1', 'bt.death.2'];
+/** On the respawn view he heckles after this long without you deploying. */
+const RESPAWN_HECKLE_MS = 10_000; // TUNE
+/**
+ * Lines that cut him off mid-sentence: the moment changed (you died, the gate opened, you shot
+ * at him), so what he was saying no longer matters.
+ */
+export const BT_URGENT: ReadonlySet<StringKey> = new Set<StringKey>([
+  'bt.death.first',
+  'bt.death.0',
+  'bt.death.1',
+  'bt.death.2',
+  'bt.r2.sprint',
+  'bt.r2.go',
+  'bt.shotAt',
+]);
+/** The in-world respawn view has Sarge lead the way, so its dimming coach stays off. */
+export const BT_COACH_IN_WORLD = false;
+
+/** One thing Sarge says on the respawn view (with the values its text needs). */
+export interface BtSay {
+  key: StringKey;
+  params?: Record<string, string>;
+}
 /** You're "at the sandbags" this close to them (a little more than fire-over distance). */
 const AT_BAGS = 40; // TUNE
 
@@ -85,6 +115,9 @@ export interface BtGuide {
   /** The way he faces once there (radians). */
   face: number;
 }
+
+const NORTH = -Math.PI / 2;
+const startSpawn = () => BASIC_TRAINING.spawnPoints.find((x) => x.id === 'bt-start')!;
 
 /** Per-target lessons in R1 (said once, when that target is next and you're at the sandbags). */
 const TARGET_LINES: Record<string, StringKey> = {
@@ -105,6 +138,19 @@ export class BasicTraining {
   /** R1: since when has Sarge been waiting for you at the sandbags (null: not waiting)? */
   private waitingSince: number | null = null;
   private heckle = 0;
+  /** Waiting for you at the start door / the sprint gate (null: not waiting). */
+  private doorSince: number | null = null;
+  private runSince: number | null = null;
+  private doorHeckle = 0;
+  private runHeckle = 0;
+  private deathLine = 0;
+  /** The respawn view: where he's walking, what he still has to say, and when he last spoke. */
+  private rs: {
+    spot: { x: number; y: number };
+    pending: BtSay[];
+    lastMs: number | null;
+    heckle: number;
+  } | null = null;
 
   constructor(private readonly storage: TextStorage | null) {
     this.progress = this.load();
@@ -169,6 +215,7 @@ export class BasicTraining {
     if (me?.alive && this.room === 'r1' && this.progress.said.includes('bt.r1.enter')) {
       out.push(...this.bags(view, me, nowMs));
     }
+    if (me?.alive) out.push(...this.plans(view, me, nowMs));
     for (const e of view.events) {
       switch (e.kind) {
         case 'objectiveDestroyed':
@@ -178,7 +225,7 @@ export class BasicTraining {
           break;
         case 'captureStageChanged':
           if (e.stage !== 'ours') break;
-          if (e.id === 'bt-a') out.push(...this.once(['bt.r2.done', 'bt.r2.gate']));
+          if (e.id === 'bt-a') out.push(...this.once(['bt.r2.done']));
           if (e.id === 'bt-b') {
             this.unlock('shield');
             out.push(...this.once(['bt.r4.done']));
@@ -219,6 +266,7 @@ export class BasicTraining {
       me?.alive &&
       this.room !== 'r7' &&
       this.room !== 'r1' &&
+      this.room !== 'r0' &&
       nowMs - this.roomSince > NAG_MS &&
       nowMs - this.lastLineMs > NAG_MS
     ) {
@@ -232,18 +280,63 @@ export class BasicTraining {
   }
 
   /**
-   * Where Sarge should stand (null: follow you). In R1 he runs to the sandbags opposite the next
-   * target and waits for you to come up to them; if you dawdle he heckles ([`step`] says it).
+   * Where Sarge should be right now (null: tag along). Worked out afresh every frame from what the
+   * player is doing, so he reacts to the moment: he gets to the next thing before you do and waits
+   * there. ([`step`] says the lines that go with it.)
    */
   guide(view: WorldView): BtGuide | null {
     const me = view.soldiers.find((s) => s.id === this.liveId);
-    if (!me?.alive || btRoomAt(me.x, me.y) !== 'r1') return null;
-    const next = this.nextTarget(view);
-    if (!next) return null;
-    return {
-      at: { x: BT_R1_BAGS.x - 30, y: Math.max(BT_R1_BAGS.y + 40, next.y) },
-      face: 0,
-    };
+    if (!me?.alive) return null;
+    const room = btRoomAt(me.x, me.y);
+    if (room === 'r0') return { at: { x: 600, y: BT.r0 + 40 }, face: NORTH };
+    if (room === 'r1') {
+      const next = this.nextTarget(view);
+      if (!next) return null;
+      return {
+        at: { x: BT_R1_BAGS.x - 30, y: Math.max(BT_R1_BAGS.y + 40, next.y) },
+        face: 0,
+      };
+    }
+    if (room === 'r2') {
+      if (!this.progress.said.includes('bt.r2.done'))
+        return { at: { x: 930, y: 3030 }, face: Math.PI };
+      // Flag taken: he's at the gate before it opens, then runs ahead of you through it.
+      if (!this.gateOpen(view, 'bt-g2')) return { at: { x: 860, y: BT.r2 + 50 }, face: NORTH };
+      return { at: { x: 860, y: BT.r2 - 120 }, face: NORTH };
+    }
+    if (room === 'r3' && !this.progress.minesDone) return { at: { x: 860, y: 2090 }, face: NORTH };
+    return null;
+  }
+
+  private gateOpen(view: WorldView, id: string): boolean {
+    return view.gates.find((g) => g.id === id)?.open ?? false;
+  }
+
+  /** The start door and the sprint gate: he waits, then heckles if you don't come. */
+  private plans(view: WorldView, me: SoldierView, nowMs: number): StringKey[] {
+    const room = btRoomAt(me.x, me.y);
+    if (room === 'r0') {
+      this.doorSince ??= nowMs;
+      if (nowMs - this.doorSince > HECKLE_MS * 1.5) {
+        this.doorSince = nowMs;
+        return [DOOR_HECKLES[this.doorHeckle++ % DOOR_HECKLES.length]!];
+      }
+    } else this.doorSince = null;
+    if (room === 'r2' && this.progress.said.includes('bt.r2.done')) {
+      if (this.gateOpen(view, 'bt-g2')) {
+        const first = this.once(['bt.r2.go']);
+        if (first.length) this.runSince = nowMs;
+        this.runSince ??= nowMs;
+        if (!first.length && nowMs - this.runSince > HECKLE_MS) {
+          this.runSince = nowMs;
+          return [RUN_HECKLES[this.runHeckle++ % RUN_HECKLES.length]!];
+        }
+        return first;
+      }
+      return this.once(['bt.r2.sprint']);
+    }
+    this.runSince = null;
+    return [];
   }
 
   private nextTarget(view: WorldView) {
@@ -316,6 +409,66 @@ export class BasicTraining {
     this.save();
   }
 
+  /**
+   * The respawn view opens (`died`: after a death). Sarge walks to where you should deploy and
+   * says what to do there; if you just sit, [`respawnSays`] heckles.
+   */
+  enterRespawn(hint: BtHint | null, died: boolean, nowMs: number): void {
+    const pending: BtSay[] = [];
+    let spot = startSpawn().position;
+    if (hint?.kind === 'deploy') pending.push({ key: 'bt.rs.deploy' });
+    else if (hint) {
+      if (died) pending.push(...this.onceSays(['bt.rs.explain']));
+      if (hint.kind === 'resume') pending.push({ key: 'bt.coach.resume' });
+      if (hint.kind === 'spawn') {
+        const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === hint.spawnPointId);
+        if (sp) spot = sp.position;
+        pending.push({
+          key: hint.text,
+          params: { place: strDynamic(hint.place) },
+        });
+        if (hint.role) {
+          pending.push({
+            key: 'bt.coach.role',
+            params: { role: strDynamic(roleDef(hint.role).nameKey) },
+          });
+        }
+      }
+    }
+    this.rs = { spot: { ...spot }, pending, lastMs: nowMs, heckle: 0 };
+  }
+
+  leaveRespawn(): void {
+    this.rs = null;
+    this.save();
+  }
+
+  /** Where he stands on the respawn view (null: not on it). */
+  respawnGuide(): BtGuide | null {
+    return this.rs ? { at: { x: this.rs.spot.x - 50, y: this.rs.spot.y - 40 }, face: 0 } : null;
+  }
+
+  /** What he says on the respawn view right now (the first call gives the opening lines). */
+  respawnSays(nowMs: number): BtSay[] {
+    const rs = this.rs;
+    if (!rs) return [];
+    if (rs.pending.length) {
+      const out = rs.pending;
+      rs.pending = [];
+      rs.lastMs = nowMs;
+      return out;
+    }
+    if (rs.lastMs !== null && nowMs - rs.lastMs > RESPAWN_HECKLE_MS) {
+      rs.lastMs = nowMs;
+      return [{ key: RESPAWN_HECKLES[rs.heckle++ % RESPAWN_HECKLES.length]! }];
+    }
+    return [];
+  }
+
+  private onceSays(keys: StringKey[]): BtSay[] {
+    return this.once(keys).map((key) => ({ key }));
+  }
+
   private enter(r: BtRoom): StringKey[] {
     switch (r) {
       case 'r1':
@@ -346,14 +499,20 @@ export class BasicTraining {
     p.deaths++;
     const r = me ? btRoomAt(me.x, me.y) : (this.room ?? 'r0');
     p.deathsIn[r] = (p.deathsIn[r] ?? 0) + 1;
-    if (r === 'r3' && !p.minesDone) {
-      return this.again(cause === 'mine' ? 'bt.r3.mine' : 'bt.r3.shot', nowMs);
-    }
-    if (r === 'r4' && me && me.x > BT_CORRIDOR_X) return this.once(['bt.r4.surprise']);
+    // He laughs first (the first time he explains what dying is for once you're on the
+    // respawn view), then says what went wrong.
+    const laugh: StringKey[] =
+      p.deaths === 1 ? ['bt.death.first'] : this.again(DEATH_LINES[this.deathLine++ % 3]!, nowMs);
     if (r === 'r5') this.unlock('gunner');
     if (r === 'r6') this.unlock('grenadier');
     if (r === 'r7') this.unlock('sniper');
-    return [];
+    if (r === 'r3' && !p.minesDone) {
+      return [...laugh, ...this.again(cause === 'mine' ? 'bt.r3.mine' : 'bt.r3.shot', nowMs)];
+    }
+    if (r === 'r4' && me && me.x > BT_CORRIDOR_X) {
+      return [...laugh, ...this.once(['bt.r4.surprise'])];
+    }
+    return laugh;
   }
 
   private unlock(role: RoleId): void {
