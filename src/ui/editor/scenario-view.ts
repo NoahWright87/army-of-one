@@ -1,4 +1,4 @@
-import { GROUND, PAINT_KINDS, type GroundKind } from '../../content/ground';
+import { GROUND, GROUND_KINDS, PAINT_KINDS, type GroundKind } from '../../content/ground';
 import { str, strDynamic, type StringKey } from '../../content/strings';
 import {
   insideLayout,
@@ -16,6 +16,7 @@ import type { Vec2 } from '../../sim/core/vec';
 import type { CoverMaterial, Rect } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import { EditHistory } from './edit-history';
+import { coverTiles, terrainTiles, tileStamp, wallTile } from './scenario-tiles';
 
 const css = `
 .aoo-scenario { position: fixed; inset: 0; display: grid; grid-template-columns: 205px minmax(0,1fr);
@@ -33,9 +34,17 @@ const css = `
 .aoo-scenario button:disabled { opacity: .45; }
 .aoo-scenario .row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
 .aoo-scenario .col, .aoo-scenario label { display: grid; gap: 4px; }
-.aoo-scenario canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.aoo-scenario .stage canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .aoo-scenario .stage { min-height: 0; }
 .aoo-scenario .warning { color: #f0b37e; }
+.aoo-scenario .swatch { display: flex; gap: 5px; align-items: center; text-align: left; }
+.aoo-scenario .swatch canvas { width: 16px; height: 16px; flex: none; image-rendering: pixelated; }
+@media (max-width: 640px) {
+  .aoo-scenario { grid-template: minmax(0, 54%) minmax(0, 1fr) / minmax(0, 1fr); }
+  .aoo-scenario .stage { grid-row: 1; }
+  .aoo-scenario aside { grid-row: 2; border-right: 0; border-top: 1px solid #343c46; }
+  .aoo-scenario button { min-height: 44px; }
+}
 `;
 
 type Tool = 'paint' | 'wall' | 'cover' | 'spawn' | 'erase';
@@ -69,6 +78,13 @@ export class ScenarioView {
   private readonly redoButton: HTMLButtonElement;
   private readonly playButton: HTMLButtonElement;
   private readonly tools = new Map<HTMLButtonElement, () => boolean>();
+  private readonly terrainStamps = new Map(
+    GROUND_KINDS.map((kind) => [kind, tileStamp(terrainTiles[kind])]),
+  );
+  private readonly wallStamp = tileStamp(wallTile);
+  private readonly coverStamps = new Map(
+    SCENARIO_MATERIALS.map((material) => [material, tileStamp(coverTiles[material])]),
+  );
   private tool: Tool = 'paint';
   private terrain: GroundKind = 'D';
   private material: CoverMaterial = 'sandbags';
@@ -115,8 +131,10 @@ export class ScenarioView {
         this.terrain = kind;
         this.useTool('paint');
       };
-      swatch.style.borderLeftColor = this.groundColor(kind);
-      swatch.style.borderLeftWidth = '5px';
+      swatch.className = 'swatch';
+      const icon = tileStamp(terrainTiles[kind]);
+      icon.setAttribute('aria-hidden', 'true');
+      swatch.prepend(icon);
       paint.append(swatch);
       this.tools.set(swatch, () => this.tool === 'paint' && this.terrain === kind);
     }
@@ -124,27 +142,40 @@ export class ScenarioView {
     const objects = el('div', 'row');
     for (const [tool, label] of [
       ['wall', 'editor.kind.wall'],
-      ['cover', 'editor.kind.cover'],
       ['spawn', 'scenario.spawn'],
       ['erase', 'scenario.erase'],
     ] as const) {
       const button = this.button(label, () => this.useTool(tool));
+      if (tool === 'wall') {
+        button.className = 'swatch';
+        const icon = tileStamp(wallTile);
+        icon.setAttribute('aria-hidden', 'true');
+        button.prepend(icon);
+      }
       objects.append(button);
       this.tools.set(button, () => this.tool === tool);
     }
-    const coverLabel = el('label', '', str('editor.prop.material'));
-    const materials = el('select');
+    const covers = el('div', 'row');
     for (const material of SCENARIO_MATERIALS) {
-      const option = el('option', '', str(`editor.material.${material}`));
-      option.value = material;
-      materials.append(option);
+      const button = this.button(`editor.material.${material}`, () => {
+        this.material = material;
+        this.useTool('cover');
+      });
+      button.className = 'swatch';
+      const icon = tileStamp(coverTiles[material]);
+      icon.setAttribute('aria-hidden', 'true');
+      button.prepend(icon);
+      covers.append(button);
+      this.tools.set(button, () => this.tool === 'cover' && this.material === material);
     }
-    materials.onchange = () => {
-      this.material = SCENARIO_MATERIALS[materials.selectedIndex] ?? 'sandbags';
-      this.useTool('cover');
-    };
-    coverLabel.append(materials);
-    sidebar.append(paint, el('h2', '', str('editor.place')), objects, coverLabel, this.toolHelp);
+    sidebar.append(
+      paint,
+      el('h2', '', str('editor.place')),
+      objects,
+      el('h2', '', str('editor.kind.cover')),
+      covers,
+      this.toolHelp,
+    );
 
     const history = el('div', 'row');
     this.undoButton = this.button('scenario.undo', () => this.undo());
@@ -397,10 +428,6 @@ export class ScenarioView {
     if (changed) this.layout = { ...this.layout, ground };
   }
 
-  private groundColor(kind: GroundKind): string {
-    return `#${GROUND[kind].color.toString(16).padStart(6, '0')}`;
-  }
-
   private draw(): void {
     const { canvas, ctx } = this;
     const width = canvas.clientWidth;
@@ -416,13 +443,10 @@ export class ScenarioView {
     const y = Math.floor((height - size * this.rows) / 2);
     this.grid = { x, y, size };
     ctx.setTransform(dpr * size, 0, 0, dpr * size, dpr * x, dpr * y);
-    const fill = (r: Rect, color: string) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(r.x, r.y, r.w, r.h);
-    };
+    ctx.imageSmoothingEnabled = false;
     for (const [row, ground] of this.layout.ground.entries()) {
       for (const [col, kind] of [...ground].entries()) {
-        fill({ x: col, y: row, w: 1, h: 1 }, this.groundColor(kind as GroundKind));
+        ctx.drawImage(this.terrainStamps.get(kind as GroundKind)!, col, row, 1, 1);
       }
     }
     ctx.beginPath();
@@ -437,13 +461,24 @@ export class ScenarioView {
     ctx.lineWidth = 1 / size;
     ctx.strokeStyle = '#11141888';
     ctx.stroke();
-    for (const item of this.layout.items) {
-      fill(item.rect, item.kind === 'wall' ? '#262c33' : '#b39b6b');
+    const drawObject = ({ x, y, w, h }: Rect, stamp: HTMLCanvasElement) => {
+      for (let row = y; row < y + h; row++) {
+        for (let col = x; col < x + w; col++) {
+          ctx.drawImage(stamp, col, row, 1, 1);
+        }
+      }
       ctx.strokeStyle = '#e7e9ec88';
-      ctx.strokeRect(item.rect.x, item.rect.y, item.rect.w, item.rect.h);
+      ctx.strokeRect(x, y, w, h);
+    };
+    for (const item of this.layout.items) {
+      const stamp = item.kind === 'wall' ? this.wallStamp : this.coverStamps.get(item.material)!;
+      drawObject(item.rect, stamp);
     }
     if (this.stroke && (this.tool === 'wall' || this.tool === 'cover')) {
-      fill(cellRect(this.stroke.start, this.stroke.last), '#e7e9ec88');
+      const stamp = this.tool === 'wall' ? this.wallStamp : this.coverStamps.get(this.material)!;
+      ctx.globalAlpha = 0.65;
+      drawObject(cellRect(this.stroke.start, this.stroke.last), stamp);
+      ctx.globalAlpha = 1;
     }
     if (this.layout.spawn) {
       const spawn = this.layout.spawn;

@@ -763,9 +763,12 @@ async function startGame(): Promise<void> {
     injectStyle(
       'aoo-scenario-preview',
       `
+      /* The touch input surface covers the viewport at z-index 20. */
+      .aoo-hud:has(.scenario-back) { z-index: 21; }
       .aoo-hud .scenario-back { position: absolute; top: 44px; left: 50%; transform: translateX(-50%);
         pointer-events: auto; font: inherit; color: inherit; background: #181c21;
-        border: 1px solid #59626e; border-radius: 4px; padding: 5px 9px; cursor: pointer; }
+        border: 1px solid #59626e; border-radius: 4px; padding: 5px 12px; cursor: pointer;
+        min-height: 44px; touch-action: manipulation; }
     `,
     );
     const button = el('button', 'scenario-back', backTo.label);

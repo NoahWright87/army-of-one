@@ -469,7 +469,7 @@ export const STRINGS = {
   'scenario.play': 'Play this scenario',
   'scenario.help.paint': 'Drag to paint ground.',
   'scenario.help.wall': 'Drag to draw a wall.',
-  'scenario.help.cover': 'Choose a material, then drag to draw cover.',
+  'scenario.help.cover': 'Drag to draw the selected cover.',
   'scenario.help.spawn': 'Click open ground to place or move the spawn.',
   'scenario.help.erase': 'Click an object to erase it.',
   'scenario.problem.missing': 'Place a starting spawn to play.',
