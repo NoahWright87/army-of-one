@@ -15,6 +15,8 @@
 import { str, strDynamic } from '../../content/strings';
 import { roleIconSvg } from '../../content/role-icons';
 import { ROLES } from '../../content/roles';
+import { DEFAULT_TUNING } from '../../content/tuning';
+import { ROLE_CARD_CSS, roleCardHtml } from '../respawn/role-card-view';
 import type { RoleId, SpawnOption } from '../../contracts/mission';
 import type { TimeControls } from '../../render/time-controls';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
@@ -104,6 +106,9 @@ const CSS = `
 .aoo-iw .roles button.on { border-color: #ffd34d; color: #ffd34d; }
 .aoo-iw .roles button:disabled { opacity: .3; cursor: default; }
 .aoo-iw .roles button small { position: absolute; bottom: 0; right: 2px; font-size: 9px; color: #9aa6b2; }
+.aoo-iw .rolecard { width: 262px; margin-bottom: 8px; }
+.aoo-iw .rolecard .rs-card { margin-top: 0; }
+${ROLE_CARD_CSS}
 .aoo-iw .go { width: 100%; min-height: 48px; border: 0; border-radius: 8px; background: #ffd34d; color: #1a1406;
   font: 900 18px system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; }
 .aoo-iw .go.resume { background: #4dd87a; }
@@ -637,12 +642,31 @@ export class InWorldRespawn {
 
   private rolePicker(o: SpawnOption): HTMLElement {
     const wrap = el('div', 'roles');
+    const info = el('div', 'rolecard');
+    let statOpen: string | null = null;
+    const showCard = () => {
+      const id = this.props.roleId ?? 'rifleman';
+      info.innerHTML = roleCardHtml(
+        this.props.tuning ?? DEFAULT_TUNING,
+        id,
+        money.get(id)?.price,
+        statOpen,
+      );
+      this.placeCard();
+    };
+    info.onclick = (e) => {
+      const st = (e.target as HTMLElement).closest<HTMLElement>('[data-stat]');
+      if (!st) return;
+      statOpen = statOpen === st.dataset['stat'] ? null : (st.dataset['stat'] ?? null);
+      showCard();
+    };
     const money = new Map(roleMoney(o, this.props).map((m) => [m.roleId, m]));
     const buttons: [RoleId, HTMLButtonElement][] = [];
     const pick = (id: RoleId) => {
       this.props = { ...this.props, roleId: id };
       this.props.onRole?.(id);
       for (const [rid, b] of buttons) b.classList.toggle('on', rid === id);
+      showCard();
     };
     for (const r of ROLES) {
       const m = money.get(r.id);
@@ -656,7 +680,10 @@ export class InWorldRespawn {
       buttons.push([r.id, b]);
       wrap.append(b);
     }
-    return wrap;
+    const both = el('div', 'rolepick');
+    both.append(wrap, info);
+    showCard();
+    return both;
   }
 
   /** Keeps the card under its circle (clamped to the screen). */

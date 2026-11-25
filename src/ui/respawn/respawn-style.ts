@@ -4,6 +4,7 @@
  * "no longer happens" is dashed grey; interruption is dotted orange; unknown is hatched.
  */
 import { paintedPanelCss } from '../art-theme';
+import { ROLE_CARD_CSS } from './role-card-view';
 
 export const RESPAWN_CSS = `
 ${paintedPanelCss('.aoo-respawn .rs-tl, .aoo-respawn .rs-map')}
@@ -27,6 +28,7 @@ ${paintedPanelCss('.aoo-respawn .rs-tl, .aoo-respawn .rs-map')}
 .rs-tool.rs-back { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px;
   white-space: nowrap; background: #2f5b86; border-color: #4a86bd; }
 .rs-back-lbl { font-size: 13px; }
+${ROLE_CARD_CSS}
 @media (max-width: 760px) {
   .rs-back-lbl { display: none; }
   .rs-tl-bar { gap: 4px; padding-left: 6px; }
@@ -246,7 +248,7 @@ ${paintedPanelCss('.aoo-respawn .rs-tl, .aoo-respawn .rs-map')}
 .rs-deploy:disabled { background: #3a3f45; color: #8a96a3; cursor: default; }
 
 /* The role menu, above the bar. */
-.rs-role-menu { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 30; max-width: 520px;
+.rs-role-menu { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 30; max-width: 520px; max-height: calc(100% - 100px); overflow-y: auto;
   background: #161c22; border: 1px solid #4a5560; border-radius: 8px; padding: 8px;
   box-shadow: 0 8px 28px rgba(0,0,0,.6); }
 .rs-rm-money { font-size: 12px; color: #9ee59a; padding: 2px 4px 8px; }

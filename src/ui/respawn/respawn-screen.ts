@@ -56,6 +56,8 @@ import {
   type TimelineRow,
 } from './respawn-model';
 import { roleIconG, roleIconSvg } from '../../content/role-icons';
+import { DEFAULT_TUNING } from '../../content/tuning';
+import { roleCardHtml } from './role-card-view';
 import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
 import { DEFAULT_RESPAWN_SETTINGS, type RespawnViewSettings } from './respawn-settings';
 import { RESPAWN_CSS } from './respawn-style';
@@ -139,6 +141,8 @@ export class RespawnScreen {
   /** (PHASE12-c) One role button beside DEPLOY; it opens the role menu. */
   private readonly roleBtn = el('button', 'rs-role-btn');
   private readonly roleMenu = el('div', 'rs-role-menu');
+  /** Which stat of the role card is expanded to its raw numbers. */
+  private statOpen: string | null = null;
   private readonly main = el('div', 'rs-main');
   /** (06-b) Revealed map ([D29]). */
   private readonly mapPanel = new MapPanel({
@@ -373,8 +377,18 @@ export class RespawnScreen {
     on(this.roleMenu, 'click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-role]');
       if (b && !b.disabled && isRoleId(b.dataset.role)) {
+        // A new pick keeps the menu open so its card can be read; tapping the picked role closes.
+        const same = b.dataset.role === this.roleFor(this.selectedOption()).roleId;
         this.pickRole(b.dataset.role);
-        this.toggleRoleMenu(false);
+        if (same) this.toggleRoleMenu(false);
+        else this.renderRoles(this.selectedOption());
+        return;
+      }
+      // Tapping a stat on the card opens its raw numbers.
+      const st = (e.target as HTMLElement).closest<HTMLElement>('[data-stat]');
+      if (st) {
+        this.statOpen = this.statOpen === st.dataset.stat ? null : (st.dataset.stat ?? null);
+        this.renderRoles(this.selectedOption());
       }
     });
     // Tapping anywhere else closes the menu.
@@ -739,10 +753,13 @@ export class RespawnScreen {
         `<span class="k">${i + 1}</span></button>`
       );
     });
+    const card = roleCardHtml(this.props.tuning ?? DEFAULT_TUNING, roleId, m?.price, this.statOpen);
     this.roleMenu.innerHTML =
       (avail
         ? `<div class="rs-rm-money${avail.debt ? ' debt' : ''}">${esc(avail.text)}</div>`
-        : '') + `<div class="rs-rm-grid">${items.join('')}</div>`;
+        : '') +
+      `<div class="rs-rm-grid">${items.join('')}</div>` +
+      card;
   }
 
   /** Opens/closes the role menu (above the role button). */
