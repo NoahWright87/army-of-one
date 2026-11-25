@@ -171,11 +171,18 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   time glides, deploying continues in the same scene (`adopt`). `__aoo.checkDrift()` re-simulates
   and reports the first difference with the tape. Share links are hidden (`?share=1`). Basic
   training uses it too (its coach points at the chevrons, the card's classes and DEPLOY).
+- Stances and the weapon swap (PHASE20, [D160]): manual by default. **Z** (stance icon, bottom
+  left) braces on cover / goes prone (Sniper) / deploys (Machine Gunner) / stands up; **Q** (weapon
+  icon, bottom right) swaps a Sniper's pistol and rifle and shows every weapon's reload. Nobody
+  fires while settling or swapping. Right-click or long-press an icon for auto (the old
+  stand-still behaviour, an "A" in its corner; the AI and scripted inputs are auto). Sim:
+  `stepStance` in `src/sim/combat/guns.ts`, tuning `tuning.stance`/`brace`, the recorded `stance`
+  action; UI: `src/ui/hud/loadout-hud.ts`, `src/render/input/loadout-controls.ts`.
 - Cover and roles (PHASE07-c): partial cover is `map.cover` (materials in `tuning.cover`);
   roles are picked on the respawn screen (keys 1–9; PHASE12-a added Sniper, Shield,
   Shotgunner and Bazooka; PHASE12-b the Gun truck and Tank). The Grenadier throws at the cursor;
   grenades, rockets and shells fire at once, then reload ([D159]). Guns have spread + recoil (`src/sim/combat/guns.ts`); the
-  reticle grows with the current cone. The Machine Gunner mounts by standing still at cover.
+  reticle grows with the current cone. The Machine Gunner deploys by choice ([D160]; auto mode mounts by standing still at cover).
 - Enemies (PHASE07-d): maps' `squads` spawn AI soldiers (`src/sim/ai/brain.ts`, role
   personalities in `roles.ts`, `tuning.ai`). Dev autoplay runs without them unless `&enemies=1`;
   `&enemies=0` turns them off anywhere. Scripted tests use `CLASSIC_TUNING` (no enemies).
