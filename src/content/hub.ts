@@ -14,18 +14,27 @@
  *         │ SHOOTING RANGE   guns   range sign                 │
  *         │  cover of each kind on the firing line             │
  *         │   targets at 150 · 300 · 450 · 600 (some behind cover)
- *    1960 └────────────────────────────────────────────────────┘
+ *    2010 │                     reinforcement drill             │
+ *         │      beach         drop zone         road           │
+ *    2600 └────────────────────────────────────────────────────┘
  *
  * Plain data only. Sign texts and buttons are filled in by the app (they depend on saves).
  */
 import type { ImageKey } from './assets';
 import type { SignDef } from './sign-styles';
 import type { StringKey } from './strings';
-import { borderWalls, type CoverDef, type MapDef, type Rect } from '../sim/world/map';
+import {
+  borderWalls,
+  rectContains,
+  type CoverDef,
+  type MapDef,
+  type Rect,
+  type SpawnPointDef,
+} from '../sim/world/map';
 import type { Vec2 } from '../sim/core/vec';
 
 export const HUB_W = 2400;
-export const HUB_H = 2000;
+export const HUB_H = 2640;
 const T = 40;
 
 export const HUB_MAP_ID = 'hq';
@@ -43,6 +52,85 @@ const parapet = (side: string, rect: Rect): CoverDef => ({
   bullet: 0.4, // TUNE: tower walls stop 40% of crossing shots
   fireOverFrom: rangeTower,
 });
+
+const rangeCove: Rect[] = [
+  { x: 800, y: 2240, w: 320, h: 240 },
+  { x: 720, y: 2480, w: 480, h: 160 },
+];
+const terrainCell = 80;
+
+export const HUB_DRILL_FRAME = { x: 1200, y: 2230, width: 920, height: 670 };
+
+export const HUB_ARRIVAL_SPAWNS: readonly (SpawnPointDef & { nameKey: StringKey })[] = [
+  {
+    id: 'range-boat',
+    nameKey: 'hub.label.arrivalBeach',
+    position: { x: 900, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'boat',
+      path: [
+        { x: 900, y: 2495 },
+        { x: 900, y: 2340 },
+      ],
+    },
+  },
+  {
+    id: 'range-air',
+    nameKey: 'hub.label.arrivalField',
+    position: { x: 1200, y: 2188 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+  },
+  {
+    id: 'range-truck',
+    nameKey: 'hub.label.arrivalRoad',
+    position: { x: 1380, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'truck',
+      path: [
+        { x: 1380, y: 2495 },
+        { x: 1380, y: 2310 },
+      ],
+    },
+  },
+  {
+    id: 'range-boat-east',
+    nameKey: 'hub.label.arrivalBeach',
+    position: { x: 1020, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'boat',
+      path: [
+        { x: 1020, y: 2495 },
+        { x: 1020, y: 2340 },
+      ],
+    },
+  },
+  {
+    id: 'range-truck-east',
+    nameKey: 'hub.label.arrivalRoad',
+    position: { x: 1500, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'truck',
+      path: [
+        { x: 1500, y: 2495 },
+        { x: 1500, y: 2310 },
+      ],
+    },
+  },
+];
 
 export const HUB_MAP: MapDef = {
   id: HUB_MAP_ID,
@@ -70,7 +158,20 @@ export const HUB_MAP: MapDef = {
     { x: 40, y: 1160, w: 1100, h: 40 },
     { x: 1260, y: 1160, w: 1100, h: 40 },
   ],
-  water: [],
+  water: rangeCove,
+  ground: {
+    cellSize: terrainCell,
+    rows: Array.from({ length: HUB_H / terrainCell }, (_, row) =>
+      Array.from({ length: HUB_W / terrainCell }, (_, col) => {
+        const x = (col + 0.5) * terrainCell;
+        const y = (row + 0.5) * terrainCell;
+        if (rangeCove.some((water) => rectContains(water, { x, y }))) return 'W';
+        return rangeCove.some((water) => rectContains(water, { x, y: y + terrainCell }))
+          ? 'S'
+          : 'G';
+      }).join(''),
+    ),
+  },
   gates: [
     { id: 'gate-skirmish', rect: { x: 120, y: 560, w: 40, h: 120 }, initiallyOpen: false },
     { id: 'gate-campaign', rect: { x: 2240, y: 560, w: 40, h: 120 }, initiallyOpen: false },
@@ -112,6 +213,7 @@ export const HUB_MAP: MapDef = {
       facing: -Math.PI / 2,
       kind: 'initial',
     },
+    ...HUB_ARRIVAL_SPAWNS,
   ],
 };
 
@@ -149,7 +251,8 @@ export type HubSignId =
   | 'guns'
   | 'range'
   | 'dev'
-  | 'training';
+  | 'training'
+  | 'arrivals';
 
 export const HUB_SIGNS: readonly (SignDef & { id: HubSignId })[] = [
   { id: 'training', x: 900, y: 1040, kind: 'clipboard', textKey: 'hub.sign.training', size: 44 },
@@ -177,6 +280,7 @@ export const HUB_SIGNS: readonly (SignDef & { id: HubSignId })[] = [
     radius: 80,
   },
   { id: 'range', x: 1400, y: 1262, kind: 'wood', textKey: 'hub.sign.range', size: 48 },
+  { id: 'arrivals', x: 1200, y: 2010, kind: 'clipboard', textKey: 'hub.sign.arrivals', size: 48 },
   { id: 'dev', x: 1200, y: 420, kind: 'plain', textKey: 'hub.sign.dev', size: 48 },
 ];
 
@@ -193,6 +297,9 @@ export const HUB_LABELS: readonly { key: StringKey; x: number; y: number; big?: 
   { key: 'hub.label.wallWalk', x: 1450, y: 765 },
   { key: 'hub.label.tower', x: 1200, y: 1305 },
   { key: 'hub.label.range', x: 1200, y: 1110 },
+  { key: 'hub.label.arrivalBeach', x: 960, y: 2100 },
+  { key: 'hub.label.arrivalField', x: 1200, y: 2100 },
+  { key: 'hub.label.arrivalRoad', x: 1440, y: 2100 },
   { key: 'hub.label.dev', x: 1550, y: 570 },
   { key: 'hub.label.exit', x: 220, y: 620 },
   { key: 'hub.label.exitEast', x: 2180, y: 620 },

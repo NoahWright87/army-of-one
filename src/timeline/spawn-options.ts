@@ -87,7 +87,11 @@ export function deriveSpawnOptions(
   for (const p of map.spawnPoints) {
     const openTick = spawnPointOpenTick(map, p.id, captures);
     if (openTick === null) continue;
-    const entryTick = nextEntryTick(openTick, p.id, soldiers, rules);
+    const capture = map.capturePoints?.find((cp) => cp.id === p.capturePointId);
+    // These reinforcements start their approach once the gate opens or the AA is down.
+    const stagingTicks =
+      p.kind === 'capture' && (p.transport || capture?.antiAirTurrets) ? rules.leadInTicks : 0;
+    const entryTick = nextEntryTick(openTick + stagingTicks, p.id, soldiers, rules);
     // (PHASE11, [Q25]) A forward point lost to enemy soldiers closes from that tick on.
     if (p.kind === 'capture' && p.capturePointId !== undefined) {
       const lost = pointLostAfter(losses, p.capturePointId, openTick);

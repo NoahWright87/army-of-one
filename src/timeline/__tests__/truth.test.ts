@@ -10,6 +10,23 @@ import { applyObservation } from '../truth';
 import { deriveSpawnOptions, leadInStart } from '../spawn-options';
 import { paintSpan, spansCover } from '../spans';
 import { TEST_RANGE } from '../../content/maps/test-range';
+import { MISSION_05 } from '../../content/maps/mission-05';
+
+it('starts the road and AA lead-ins after capture', () => {
+  const rules = { spawnIntervalTicks: 120, leadInTicks: 120 };
+  const captures = ['cp-a', 'cp-b', 'cp-c', 'cp-beachhead'].map((pointId) => ({
+    pointId,
+    stage: 'ours' as const,
+    tick: 200,
+    by: [],
+    observedInAttempt: 1,
+  }));
+  const options = deriveSpawnOptions(MISSION_05, [], [], rules, captures);
+  expect(options).toContainEqual({ kind: 'new', spawnPointId: 'checkpoint', entryTick: 320 });
+  expect(options).toContainEqual({ kind: 'new', spawnPointId: 'fuel', entryTick: 320 });
+  expect(options).toContainEqual({ kind: 'new', spawnPointId: 'beachhead', entryTick: 320 });
+  expect(options).toContainEqual({ kind: 'new', spawnPointId: 'crossroads', entryTick: 200 });
+});
 
 const seg = (
   start: number,

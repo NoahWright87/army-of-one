@@ -55,6 +55,7 @@ import {
   type TitleLibraryItem,
 } from '../ui/flow/flow-screens';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
+import { PauseOverlay } from '../ui/hud/pause-overlay';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
 import { Minimap } from '../ui/minimap/minimap';
 import {
@@ -350,6 +351,7 @@ function gameTuning() {
 const uiRoot = document.getElementById('ui-root') ?? document.body;
 const hud = new Hud(uiRoot);
 const countdown = new CountdownOverlay(uiRoot);
+const pauseUi = new PauseOverlay(uiRoot);
 const leadInHint = new LeadInHint(uiRoot);
 const debug = new DebugOverlay(uiRoot);
 const caption = new Caption(uiRoot);
@@ -558,6 +560,7 @@ const services: SceneServices = {
   display,
   hud,
   countdown,
+  pauseUi,
   debug,
   commands: {},
   leadInHint,

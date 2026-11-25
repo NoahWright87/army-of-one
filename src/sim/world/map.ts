@@ -26,11 +26,15 @@ export interface SpawnPointDef {
   kind: 'initial' | 'capture';
   /** (05-a) kind 'capture' only: the capture point that opens this spawn point. */
   capturePointId?: string;
+  /** Enemy entrances omit player deployment markers. */
+  team?: 'enemy';
   /**
    * (PHASE13-d) Where a new soldier runs in from during the lead-in countdown, ending here
    * ([D112]): for show only, the sim never reads it. May start off the map.
    */
   approach?: Vec2[];
+  /** Authored transport route. Its final waypoint is the vehicle's drop-off. */
+  transport?: { kind: 'truck' | 'boat'; path: Vec2[]; gateId?: string };
 }
 
 /** (05-a) Capture stages ([D11]): lower the enemy flag → neutral; raise ours → ours. */
@@ -45,6 +49,8 @@ export interface CapturePointDef {
   /** Key into src/content/strings.ts for the display name. */
   nameKey: string;
   position: Vec2;
+  /** Destroying every listed turret secures this point. */
+  antiAirTurrets?: readonly string[];
   /** Overrides `tuning.capture.radius`. */
   radius?: number;
   /** Default 'enemy'. */
@@ -353,9 +359,25 @@ export function validateMap(map: MapDef): void {
     }
   }
   for (const sp of map.spawnPoints) {
+    if (
+      sp.transport &&
+      (sp.transport.path.length < 2 ||
+        (sp.transport.gateId && !(map.gates ?? []).some((g) => g.id === sp.transport!.gateId)))
+    ) {
+      throw new Error(`${map.id}: invalid transport route for ${sp.id}`);
+    }
     if (sp.kind !== 'capture') continue;
     if (!(map.capturePoints ?? []).some((c) => c.id === sp.capturePointId)) {
       throw new Error(`${map.id}: capture spawn ${sp.id} needs a known capturePointId`);
+    }
+  }
+  for (const cp of map.capturePoints ?? []) {
+    if (
+      cp.antiAirTurrets &&
+      (!cp.antiAirTurrets.length ||
+        cp.antiAirTurrets.some((id) => !(map.turrets ?? []).some((t) => t.id === id)))
+    ) {
+      throw new Error(`${map.id}: invalid AA turrets for ${cp.id}`);
     }
   }
   for (const lever of map.levers ?? []) {

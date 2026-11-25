@@ -48,6 +48,7 @@ export function rotateMap(map: MapDef, q: number): MapDef {
       position: pt(s.position),
       facing: ang(s.facing),
       ...(s.approach ? { approach: s.approach.map(pt) } : {}),
+      ...(s.transport ? { transport: { ...s.transport, path: s.transport.path.map(pt) } } : {}),
     })),
   };
   if (map.bounds) out.bounds = rects(map.bounds);

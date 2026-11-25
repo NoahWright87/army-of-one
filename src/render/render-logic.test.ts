@@ -17,6 +17,67 @@ import { flickerNoise, soldierVisual } from './soldier-style';
 import { distanceGain, effectiveVolume, SoundThrottle } from './sound-mix';
 import { ASSET_MANIFEST } from '../content/assets';
 import { DEPTH } from './depth';
+import { arrivalPose } from './run-in';
+import { MISSION_05 } from '../content/maps/mission-05';
+
+describe('reinforcement arrivals', () => {
+  const fuel = MISSION_05.spawnPoints.find((s) => s.id === 'fuel')!;
+  const checkpoint = MISSION_05.spawnPoints.find((s) => s.id === 'checkpoint')!;
+
+  it('hides descending infantry until the overhead canopy crumples on the ground', () => {
+    expect(arrivalPose(fuel, 'rifleman', 0.5)).toMatchObject({
+      pos: fuel.position,
+      visible: false,
+      parachute: { altitude: expect.any(Number), collapse: 0 },
+    });
+    expect(arrivalPose(fuel, 'rifleman', 0.8)).toMatchObject({
+      visible: false,
+      parachute: { altitude: 0, collapse: expect.any(Number) },
+    });
+    expect(arrivalPose(fuel, 'rifleman', 1)).toMatchObject({
+      pos: fuel.position,
+      visible: true,
+      height: 0,
+      parachute: { altitude: 0, collapse: 1 },
+    });
+  });
+
+  it('backs the truck in before infantry jump out', () => {
+    const aboard = arrivalPose(checkpoint, 'rifleman', 0.5);
+    const otherSeat = arrivalPose(checkpoint, 'rifleman', 0.5, 1);
+    expect(aboard.visible).toBe(true);
+    expect(aboard.transport).toEqual(otherSeat.transport);
+    expect(aboard.pos).not.toEqual(otherSeat.pos);
+    const jump = arrivalPose(checkpoint, 'rifleman', 0.85);
+    expect(jump.visible).toBe(true);
+    expect(jump.height).toBeGreaterThan(0);
+    expect(jump.transport?.facing).toBeCloseTo(Math.PI / 2);
+    expect(arrivalPose(checkpoint, 'rifleman', 1).pos).toEqual(checkpoint.position);
+  });
+
+  it('brings a landing craft bow-first and disembarks infantry from its ramp', () => {
+    const beach = MISSION_05.spawnPoints.find((s) => s.id === 'beachhead')!;
+    const approach = arrivalPose(beach, 'rifleman', 0.5);
+    expect(approach.visible).toBe(true);
+    expect(approach.transport).toMatchObject({ kind: 'boat', facing: -Math.PI / 2 });
+    const disembark = arrivalPose(beach, 'rifleman', 0.94);
+    expect(disembark.visible).toBe(true);
+    expect(disembark.height).toBeGreaterThan(0);
+    expect(disembark.pos.y).toBeLessThan(2470);
+    expect(arrivalPose(beach, 'rifleman', 1).pos).toEqual(beach.position);
+    expect(arrivalPose(beach, 'tank', 0.5).transport).toBeUndefined();
+  });
+
+  it.each(['tank', 'truck'] as const)('keeps %s arrivals on the ground', (role) => {
+    expect(arrivalPose(fuel, role, 0.5)).toMatchObject({ visible: false, height: 0 });
+    expect(arrivalPose(fuel, role, 0.5).parachute).toBeUndefined();
+    expect(arrivalPose(checkpoint, role, 0.5)).toMatchObject({
+      visible: true,
+      height: 0,
+    });
+    expect(arrivalPose(checkpoint, role, 1).pos).toEqual(checkpoint.position);
+  });
+});
 
 const soldier = (p: Partial<SoldierView> = {}): SoldierView => ({
   kind: 'soldier',
