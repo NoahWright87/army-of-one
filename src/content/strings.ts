@@ -59,6 +59,12 @@ export const STRINGS = {
   'countdown.go': 'GO',
   'countdown.hint': 'Get ready',
 
+  // Pause (placeholder copy)
+  'pause.title': 'Paused',
+  'pause.resume': 'Resume',
+  'pause.hint': 'Esc or P',
+  'pause.button': 'Pause',
+
   // Game flow (PHASE04)
   'title.name': 'Army of One',
   'title.tagline': 'One soldier at a time. Every life you lose fights beside you.',

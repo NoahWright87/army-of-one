@@ -24,6 +24,7 @@ import { fitPx, type ImageKey } from '../../content/assets';
 import { pilotMiniature } from '../pilot-miniatures';
 import type { Tape } from '../../sim/tape/tape';
 import { TimeClock } from '../time-clock';
+import { PauseModel } from '../pause-model';
 import type { TimeControls } from '../time-controls';
 import { INFANTRY_BASE_SCALE, INFANTRY_FIGURE_SCALE } from '../../content/miniatures';
 
@@ -42,6 +43,8 @@ export class BattleScene extends Phaser.Scene {
   private world!: World;
   private liveId!: string;
   private stepper!: FixedStepper;
+  /** Pause state: while it holds, the sim doesn't step and no battle time passes. */
+  private readonly pauseModel = new PauseModel();
   private source!: InputSource;
   private prevView!: WorldView;
   private view!: WorldView;
@@ -137,7 +140,43 @@ export class BattleScene extends Phaser.Scene {
         this.time.now,
       );
 
+    // Pause: Esc / P / the on-screen button, and automatically when the player looks away
+    // (tab hidden, phone locked, app switched, window loses focus).
+    this.pauseModel.reset();
+    const pauseUi = this.services.pauseUi;
+    if (pauseUi) {
+      pauseUi.onPause = () => this.requestPause();
+      pauseUi.onResume = () => this.requestResume();
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (this.pauseModel.paused) this.requestResume();
+      else this.requestPause();
+      e.preventDefault?.();
+    };
+    this.input.keyboard?.on('keydown-ESC', onKey);
+    this.input.keyboard?.on('keydown-P', onKey);
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') this.requestPause();
+    };
+    const onAway = () => this.requestPause();
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', onAway);
+    window.addEventListener('blur', onAway);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', onAway);
+      window.removeEventListener('blur', onAway);
+      this.input.keyboard?.off('keydown-ESC', onKey);
+      this.input.keyboard?.off('keydown-P', onKey);
+      this.pauseModel.reset();
+      if (pauseUi) {
+        pauseUi.onPause = () => {};
+        pauseUi.onResume = () => {};
+        pauseUi.setAvailable(false);
+        pauseUi.render('running', null);
+      }
       this.source.destroy();
       this.sounds.destroy();
       this.services.countdown.update(null);
@@ -146,6 +185,22 @@ export class BattleScene extends Phaser.Scene {
         delete this.services.commands.playCountdown;
       }
     });
+  }
+
+  /** Pauses the live battle (not in the respawn view or after the run ended). */
+  private requestPause(): void {
+    if (this.rs || this.session.driver?.ended || this.pauseModel.holding) return;
+    this.pauseModel.pause();
+    this.sound.pauseAll();
+    this.input.setDefaultCursor('default');
+    this.services.pauseUi?.render('paused', null);
+  }
+
+  private requestResume(): void {
+    if (!this.pauseModel.paused) return;
+    this.pauseModel.resume();
+    this.sound.resumeAll();
+    this.input.setDefaultCursor('none');
   }
 
   /**
@@ -203,6 +258,7 @@ export class BattleScene extends Phaser.Scene {
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
     this.session.overlay?.create(this, this.liveId, this.services.display);
+    this.services.pauseUi?.setAvailable(true);
   }
 
   override update(time: number): void {
@@ -212,13 +268,21 @@ export class BattleScene extends Phaser.Scene {
     // which would slow battle time. The fixed stepper does its own capping. (06-c) The first
     // frame's delta is the scene's creation time: don't replay it as a burst of steps.
     const rawDelta = this.game.loop.rawDelta;
-    const deltaMs = this.firstFrame ? 0 : rawDelta;
+    let deltaMs = this.firstFrame ? 0 : rawDelta;
     if (!this.firstFrame) this.trackFrame(rawDelta);
     this.firstFrame = false;
     if (this.rs) {
       this.updateRespawn(time, deltaMs);
       return;
     }
+    // Paused (or counting back in): no time passes, the last frame stays drawn.
+    const wasHolding = this.pauseModel.holding;
+    this.pauseModel.tick(deltaMs);
+    if (this.pauseModel.holding || wasHolding) {
+      deltaMs = 0;
+      if (!this.pauseModel.holding) this.stepper.accumulatorMs = 0; // resumed: no burst
+    }
+    this.services.pauseUi?.render(this.pauseModel.state, this.pauseModel.countdownLabel);
     const speed = Number(display.timeScale) || 1;
     const { steps, alpha } = advance(
       this.stepper,
@@ -403,6 +467,7 @@ export class BattleScene extends Phaser.Scene {
       pinch: null,
     };
     this.services.hud.setVisible(false);
+    this.services.pauseUi?.setAvailable(false);
     this.services.countdown.update(null);
     this.services.leadInHint?.set(false);
     this.ghost.clear();
