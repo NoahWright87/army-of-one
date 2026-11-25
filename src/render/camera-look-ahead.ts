@@ -71,6 +71,13 @@ export interface LookState {
   braced: boolean;
   /** Mounted / set up (Machine Gunner on cover, Sniper rifle up). */
   setUp: boolean;
+  /**
+   * (PHASE20) Zoomed in only while steady: prone, braced or deployed ([D160]). Absent: it zooms
+   * (so older callers keep working); the battle always says.
+   */
+  scope?: boolean;
+  /** (PHASE20) Braced on cover: the direction across it; the camera leans that way ([D160]). */
+  braceAim?: number;
   /** Aim direction (radians) and how far out the cursor is (absent: touch / auto-aim). */
   aim: number;
   aimDistance?: number;
@@ -104,13 +111,20 @@ export function lookView(s: LookState): { offset: Vec2; zoom: number; reach: num
       ? CAMERA.defaultAim
       : Math.max(0, Math.min(1, s.aimDistance / reach));
   const z = Math.max(0, Math.min(1, (out - CAMERA.zoomFrom) / (1 - CAMERA.zoomFrom)));
-  const zoom = s.baseZoom * (1 + (s.look.maxZoom - 1) * z * z * (3 - 2 * z));
+  const maxZoom = s.scope === false ? 1 : s.look.maxZoom;
+  const zoom = s.baseZoom * (1 + (maxZoom - 1) * z * z * (3 - 2 * z));
   // Half the view along the aim (world units at this zoom).
   const c = Math.abs(Math.cos(s.aim));
   const sn = Math.abs(Math.sin(s.aim));
   const half = (c * s.viewW + sn * s.viewH) / 2 / zoom;
   const pan = Math.min(out * Math.max(0, reach - half), half * s.look.maxPan);
   const offset = { x: Math.cos(s.aim) * pan, y: Math.sin(s.aim) * pan };
+  // (PHASE20) Braced: lean toward the cover's far side, the way you'd be shooting ([D160]).
+  if (s.braceAim !== undefined) {
+    const lean = CAMERA.braceShift * Math.max(0, Math.cos(s.aim - s.braceAim));
+    offset.x += Math.cos(s.braceAim) * lean;
+    offset.y += Math.sin(s.braceAim) * lean;
+  }
   // Both the aim point and the soldier stay on screen, on each axis: the aim within
   // `aimOnScreen` of the half-view, the soldier within `meOnScreen`. Where they can't both fit
   // (aiming far across a phone's narrow side), zoom out just enough.
