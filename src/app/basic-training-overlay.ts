@@ -18,21 +18,16 @@ import { DEPTH } from '../render/depth';
 import type { SessionOverlay } from '../render/phaser/services';
 import { SignpostLayer } from '../render/worldtext/signpost-layer';
 import { SpeechLayer } from '../render/worldtext/speech-layer';
-import { BT_URGENT, type BasicTraining, type BtSay } from './basic-training';
+import type { BasicTraining, BtSay } from './basic-training';
 
 const SARGE = 'sarge';
-/** How fast the ghost runs (units/s), how big he's drawn, and how see-through. */
-const SARGE_SPEED = 400; // TUNE: keeps up with a sprint
+/** How big he's drawn, and how see-through. */
 const SARGE_SIZE = 36;
 const GHOST_ALPHA = 0.6; // TUNE
 const GHOST_TINT = 0xbfe3ff;
 /** Tagging along: he stays about here from you (behind-left), and only moves when you leave it. */
 const FOLLOW_OFFSET = { x: -90, y: 70 }; // TUNE
 const FOLLOW_SLACK = 70; // TUNE
-/** A breath between his lines (ms). */
-const LINE_GAP_MS = 250; // TUNE
-/** A line still waiting this long is stale (you've moved on): dropped. */
-const STALE_MS = 3500; // TUNE
 
 export const BT_SIGNS: readonly SignDef[] = [
   { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },
@@ -59,11 +54,13 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let tag: Phaser.GameObjects.Text;
   let floor: Phaser.GameObjects.Graphics;
   const queue: (BtSay & { at: number; keep?: boolean })[] = [];
+  const timing = () => director.script.timing;
   let lastFrame = -1;
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
   let lastView: WorldView | null = null;
   let world: World;
+  let look = cloneWorldText();
   /** The way he's running (around walls, like any soldier), and what it was worked out for. */
   let route: Vec2[] = [];
   let routeFor: Vec2 | null = null;
@@ -73,7 +70,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   const enqueue = (says: BtSay[], keep = false) => {
     const now = scene.time.now;
     for (const say of says) {
-      if (BT_URGENT.has(say.key)) {
+      if (say.urgent) {
         queue.length = 0;
         speech.clear();
         quietUntil = 0;
@@ -107,7 +104,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const dx = to.x - sarge.x;
       const dy = to.y - sarge.y;
       const d = Math.hypot(dx, dy);
-      const step = Math.min(d, SARGE_SPEED * dt);
+      const step = Math.min(d, timing().speed * dt);
       if (d > 1) {
         sarge.x += (dx / d) * step;
         sarge.y += (dy / d) * step;
@@ -127,15 +124,23 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
 
   /** One line at a time. */
   const talk = (nowMs: number) => {
-    while (queue.length && !queue[0]!.keep && nowMs - queue[0]!.at > STALE_MS) queue.shift();
+    // His pacing is the script's (and the editor changes it live).
+    const t = timing();
+    look.speech.holdMs = t.holdMs;
+    look.speech.holdPerCharMs = t.holdPerCharMs;
+    look.speech.wordMs = t.wordMs;
+    look.speech.wordPerCharMs = t.wordPerCharMs;
+    while (queue.length && !queue[0]!.keep && nowMs - queue[0]!.at > timing().staleMs)
+      queue.shift();
+    if (queue.length || speech.isSpeaking(SARGE)) director.spoke(nowMs);
     if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
       const say = queue.shift()!;
-      speech.say(SARGE, str(say.key, say.params), {
+      speech.say(SARGE, say.text, {
         keepOnScreen: true,
         color: '#fff3d6',
         voice: DRILL_SERGEANT_VOICE,
       });
-      quietUntil = nowMs + LINE_GAP_MS;
+      quietUntil = nowMs + timing().lineGapMs;
     }
     speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
   };
@@ -150,7 +155,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       started = false;
       queue.length = 0;
       lastFrame = -1;
-      const look = cloneWorldText();
+      look = cloneWorldText();
       speech = new SpeechLayer(scene, look, display);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
       floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
@@ -188,9 +193,9 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const now = scene.time.now;
       if (!started && me?.alive) {
         started = true;
-        enqueue(director.startLife(liveId, view, now).map((key) => ({ key })));
+        enqueue(director.startLife(liveId, view, now));
       }
-      if (started) enqueue(director.step(view, now, sarge).map((key) => ({ key })));
+      if (started) enqueue(director.step(view, now, sarge));
     },
     respawnUpdate(nowMs, view) {
       const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
@@ -217,7 +222,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       lastFrame = nowMs;
       if (live) livePos = live;
       // Where he wants to be: where the lesson is, else tagging along with you.
-      const guide = lastView ? director.guide(lastView) : null;
+      const guide = lastView ? director.guide(lastView, nowMs) : null;
       let face: number | null = null;
       let goal: { x: number; y: number } | null = null;
       if (guide) {

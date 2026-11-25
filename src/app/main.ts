@@ -29,7 +29,11 @@ import {
   type BtHint,
 } from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
-import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
+import { BASIC_TRAINING, BASIC_TRAINING_ID } from '../content/maps/basic-training';
+import { applyStation, BT_STATIONS, btStation } from '../content/maps/basic-training-stations';
+import { DEFAULT_SARGE_SCRIPT } from '../content/sarge-script';
+import { SargeEditor } from '../ui/sarge-editor/sarge-editor';
+import { clearScript, loadScript, parseScript, saveScript } from './sarge-script-store';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
 import { pulseSteps } from '../ui/coach/pulse';
 import { roleDef } from '../content/roles';
@@ -211,7 +215,11 @@ if (params.get('mission') === EDITOR_PREVIEW_ID) {
 }
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 /** (PHASE18) Basic training ([D155]): its drill sergeant and its progress (unlocks, hints). */
-const training = MISSION.id === BASIC_TRAINING_ID ? new BasicTraining(safeLocalStorage()) : null;
+const loadedScript = MISSION.id === BASIC_TRAINING_ID ? loadScript(safeLocalStorage()) : null;
+const training = loadedScript ? new BasicTraining(safeLocalStorage(), loadedScript.script) : null;
+/** (PHASE18, [D160]) `?station=r3`: the course as it stands at that station (the editor's "start here"). */
+const trainingStation = training ? btStation(params.get('station') ?? '') : undefined;
+if (trainingStation) applyStation(BASIC_TRAINING, trainingStation);
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
 /** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
@@ -339,6 +347,56 @@ const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 /** (PHASE18) Points at the one control that matters (basic training's respawn hints). */
 const coach = new Coach(uiRoot);
+
+/** (PHASE18, [D160]) The drill sergeant's script editor: a pencil button on the training mission. */
+if (training && loadedScript) {
+  const store = safeLocalStorage();
+  let edited = loadedScript.edited;
+  let outdated = loadedScript.outdated;
+  new SargeEditor(
+    uiRoot,
+    {
+      script: () => training.script,
+      apply: (script) => {
+        training.setScript(script);
+        saveScript(store, script);
+        edited = true;
+      },
+      reset: () => {
+        clearScript(store);
+        training.setScript(structuredClone(DEFAULT_SARGE_SCRIPT));
+        edited = false;
+        outdated = false;
+      },
+      importJson: (json) => {
+        const parsed = parseScript(json);
+        if (typeof parsed === 'string') return parsed;
+        training.setScript(parsed);
+        saveScript(store, parsed);
+        edited = true;
+        return null;
+      },
+      say: (text) => training.preview(text),
+      stations: BT_STATIONS,
+      startAt: (id) => {
+        const u = new URL(window.location.href);
+        u.searchParams.set('mission', BASIC_TRAINING_ID);
+        u.searchParams.set('go', '1');
+        u.searchParams.set('new', '1');
+        u.searchParams.set('station', id);
+        u.hash = '';
+        window.location.assign(u.toString());
+      },
+      get edited() {
+        return edited;
+      },
+      get outdated() {
+        return outdated;
+      },
+    },
+    params.get('edit') === '1',
+  );
+}
 
 /**
  * (PHASE19) The coach's steps for a basic-training hint in the respawn view: the chevron to
@@ -806,6 +864,7 @@ async function startGame(): Promise<void> {
         const restart = params.get('new') === '1' || !p.canContinue || (!!training && !midway);
         if (training && restart) {
           training.reset();
+          if (trainingStation) training.startAt(trainingStation.had, trainingStation.roles);
           const u = new URL(window.location.href);
           u.searchParams.delete('new');
           window.history.replaceState(null, '', u.toString());

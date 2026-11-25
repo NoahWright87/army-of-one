@@ -1,27 +1,26 @@
 /**
- * (PHASE18) Basic training's drill sergeant ([D155]): watches each sim step and decides what he
- * yells, which classes are unlocked, and which hint the respawn screen shows. No Phaser, no DOM:
- * storage is passed in, the overlay draws him and the coach draws the hints.
- *
- * Lines play once (progress is saved, so a hint you've satisfied never plays again), except a
- * few that may repeat after a cooldown (getting shot, nagging, shooting at him).
+ * (PHASE18) Basic training's drill sergeant ([D155], [D160]): watches each sim step and decides
+ * what he says (by running his script, `src/content/sarge-script.ts`, through `sarge-engine.ts`),
+ * where he stands, which classes are unlocked, and which hint the respawn view shows. The game's
+ * own rules stay here in code (unlocks, what counts as a death); the words and when he says them
+ * are the script's. No Phaser, no DOM: storage is passed in.
  */
 import type { RoleId, SpawnOption } from '../contracts/mission';
 import { roleDef } from '../content/roles';
 import {
   BASIC_TRAINING,
-  BT,
   BT_CORRIDOR_X,
-  BT_R1_BAGS,
   BT_TARGETS,
   btRoomAt,
   type BtRoom,
 } from '../content/maps/basic-training';
-import { strDynamic, type StringKey } from '../content/strings';
+import { DEFAULT_SARGE_SCRIPT, type SargeScript, type SargeSpot } from '../content/sarge-script';
+import { str, strDynamic, type StringKey } from '../content/strings';
 import type { SoldierView, WorldView } from '../sim/view';
+import { SargeRunner, type SargeCtx } from './sarge-engine';
 import type { TextStorage } from './replay-library';
 
-const KEY = 'aoo:bt:v1';
+const KEY = 'aoo:bt:v2';
 export const BT_DONE_KEY = 'aoo:bt:done';
 /** The first visit was sent to basic training (from then on `/` is the HQ). */
 export const BT_SENT_KEY = 'aoo:bt:sent';
@@ -32,8 +31,10 @@ export const BT_SENT_KEY = 'aoo:bt:sent';
 export const BT_ACTIVE_KEY = 'aoo:bt:active';
 
 export interface BtProgress {
-  /** Lines said (once-only ones). */
+  /** Beats said (the once-only ones). */
   said: string[];
+  /** Things that have happened ("captured:bt-a", "minesShot", …): the script's `had:` tokens. */
+  had: string[];
   /** Classes unlocked so far (the Rifleman always is). */
   unlocked: RoleId[];
   /** Respawn-screen hints already followed. */
@@ -42,18 +43,16 @@ export interface BtProgress {
   deaths: number;
   /** Deaths by room. */
   deathsIn: Partial<Record<BtRoom, number>>;
-  /** The mines in R3 have been shot (that station's hints are done). */
-  minesDone: boolean;
 }
 
 const fresh = (): BtProgress => ({
   said: [],
+  had: [],
   unlocked: ['rifleman'],
   taught: [],
   lives: 0,
   deaths: 0,
   deathsIn: {},
-  minesDone: false,
 });
 
 /** What the respawn screen's coach points at. */
@@ -75,44 +74,16 @@ export type BtHint =
 /** Flags' spawn points, newest (furthest north) first. */
 const FORWARD = ['bt-sp-d', 'bt-sp-c', 'bt-sp-b', 'bt-sp-a'] as const;
 
-/** Lines said again after this long (the repeatable ones). */
-const REPEAT_MS = 15_000; // TUNE
-/** Same room this long with nothing said: a nag. */
-const NAG_MS = 40_000; // TUNE
-const NAGS: StringKey[] = ['bt.nag.0', 'bt.nag.1', 'bt.nag.2'];
-/** Sarge asked you to come over and you haven't: he heckles again after this long. */
-const HECKLE_MS = 7_000; // TUNE
-const HECKLES: StringKey[] = ['bt.r1.ignore.0', 'bt.r1.ignore.1', 'bt.r1.ignore.2'];
-/** (Other places Sarge waits for you.) */
-const DOOR_HECKLES: StringKey[] = ['bt.r0.ignore.0', 'bt.r0.ignore.1'];
-const RUN_HECKLES: StringKey[] = ['bt.r2.ignore.0', 'bt.r2.ignore.1'];
-const RESPAWN_HECKLES: StringKey[] = ['bt.rs.ignore.0', 'bt.rs.ignore.1', 'bt.rs.ignore.2'];
-const DEATH_LINES: StringKey[] = ['bt.death.0', 'bt.death.1', 'bt.death.2'];
-/** On the respawn view he heckles after this long without you deploying. */
-const RESPAWN_HECKLE_MS = 10_000; // TUNE
-/**
- * Lines that cut him off mid-sentence: the moment changed (you died, the gate opened, you shot
- * at him), so what he was saying no longer matters.
- */
-export const BT_URGENT: ReadonlySet<StringKey> = new Set<StringKey>([
-  'bt.death.first',
-  'bt.death.0',
-  'bt.death.1',
-  'bt.death.2',
-  'bt.r2.sprint',
-  'bt.r2.go',
-  'bt.shotAt',
-]);
 /** The in-world respawn view has Sarge lead the way, so its dimming coach stays off. */
 export const BT_COACH_IN_WORLD = false;
 
-/** One thing Sarge says on the respawn view (with the values its text needs). */
+/** One thing Sarge says. `urgent`: it cuts him off. */
 export interface BtSay {
-  key: StringKey;
-  params?: Record<string, string>;
+  /** The beat's id. */
+  id: string;
+  text: string;
+  urgent?: boolean;
 }
-/** You're "at the sandbags" this close to them (a little more than fire-over distance). */
-const AT_BAGS = 40; // TUNE
 
 /** Where the ghost Sarge wants to be right now (null: just tag along with you). */
 export interface BtGuide {
@@ -121,52 +92,68 @@ export interface BtGuide {
   face: number;
 }
 
-const NORTH = -Math.PI / 2;
 const startSpawn = () => BASIC_TRAINING.spawnPoints.find((x) => x.id === 'bt-start')!;
-
-/** Per-target lessons in R1 (said once, when that target is next and you're at the sandbags). */
-const TARGET_LINES: Record<string, StringKey> = {
-  'bt-t1': 'bt.r1.t1',
-  'bt-t2': 'bt.r1.t2',
-  'bt-t3': 'bt.r1.t3',
-  'bt-t4': 'bt.r1.t4',
-};
+const fill = (text: string, params: Record<string, string>) =>
+  text.replace(/\{(\w+)\}/g, (m, k: string) => params[k] ?? m);
 
 export class BasicTraining {
   progress: BtProgress;
+  script: SargeScript;
+  private readonly runner: SargeRunner;
   private liveId: string | null = null;
   private room: BtRoom | null = null;
   private roomSince = 0;
   private lastLineMs = 0;
-  private readonly lastSaid = new Map<string, number>();
-  private nag = 0;
-  /** R1: since when has Sarge been waiting for you at the sandbags (null: not waiting)? */
-  private waitingSince: number | null = null;
-  private heckle = 0;
-  /** Waiting for you at the start door / the sprint gate (null: not waiting). */
-  private doorSince: number | null = null;
-  private runSince: number | null = null;
-  private doorHeckle = 0;
-  private runHeckle = 0;
-  private deathLine = 0;
-  /** The respawn view: where he's walking, what he still has to say, and when he last spoke. */
+  private cause: string | null = null;
+  /** The respawn view: where he's walking, and what it asks of the script. */
   private rs: {
     spot: { x: number; y: number };
-    pending: BtSay[];
-    lastMs: number | null;
-    heckle: number;
+    hint: BtHint | null;
+    afterDeath: boolean;
+    opened: boolean;
   } | null = null;
+  /** Lines to say now whatever the script thinks (the editor's ▶ button). */
+  private previews: BtSay[] = [];
 
-  constructor(private readonly storage: TextStorage | null) {
+  constructor(
+    private readonly storage: TextStorage | null,
+    script: SargeScript = DEFAULT_SARGE_SCRIPT,
+  ) {
+    this.script = script;
     this.progress = this.load();
+    this.runner = new SargeRunner(script, this.progress.said);
     this.applyRoles();
+  }
+
+  /** A new script (from the editor): takes effect at once. */
+  setScript(script: SargeScript): void {
+    this.script = script;
+    this.runner.setScript(script);
   }
 
   /** Back to the start (a new run of basic training). */
   reset(): void {
     this.progress = fresh();
+    this.runner.resetTimers();
+    this.runner.setSaid(this.progress.said);
     this.save();
     this.applyRoles();
+  }
+
+  /**
+   * Begin partway through ([D160]'s "start here"): everything before this station has happened.
+   * `had` are the edges that have fired, `roles` the classes unlocked by then.
+   */
+  startAt(had: string[], roles: RoleId[]): void {
+    this.progress.had = [...had, 'station'];
+    for (const r of roles) if (!this.progress.unlocked.includes(r)) this.progress.unlocked.push(r);
+    this.applyRoles();
+    this.save();
+  }
+
+  /** The overlay says he's speaking now: his silence counts from here (for `quiet:`). */
+  spoke(nowMs: number): void {
+    this.lastLineMs = nowMs;
   }
 
   /** Classes you can pick right now. */
@@ -174,174 +161,190 @@ export class BasicTraining {
     return [...this.progress.unlocked];
   }
 
+  /** Say this now (the editor's ▶): it cuts in and doesn't count as said. */
+  preview(text: string): void {
+    this.previews.push({ id: 'preview', text, urgent: true });
+  }
+
+  // --- The run -----------------------------------------------------------------------------
+
   /** A new life starts (`view` is its first). Returns lines to say. */
-  startLife(liveId: string, view: WorldView, nowMs: number): StringKey[] {
+  startLife(liveId: string, view: WorldView, nowMs: number): BtSay[] {
     this.liveId = liveId;
     this.room = null;
     this.roomSince = nowMs;
-    const p = this.progress;
-    p.lives++;
-    const out: StringKey[] = [];
-    const me = view.soldiers.find((s) => s.id === liveId);
-    if (p.lives === 1) {
-      out.push(...this.once(['bt.intro.0', 'bt.intro.1', 'bt.intro.2', 'bt.intro.3']));
-    } else if (me) {
-      const at = (id: string) => {
-        const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === id)!;
-        return Math.hypot(me.x - sp.position.x, me.y - sp.position.y) < 80;
-      };
-      if (at('bt-start') && p.said.includes('bt.r2.done'))
-        out.push(...this.again('bt.scenic', nowMs));
-      if (at('bt-sp-a') && !p.minesDone && (p.deathsIn.r3 ?? 0) > 0) {
-        out.push(...this.once(['bt.r3.back', 'bt.r3.minesHint']));
-      }
-      if (me.roleId === 'shield') out.push(...this.once(['bt.r4.shield']));
-      if (me.roleId === 'gunner') out.push(...this.once(['bt.r5.mg']));
-      if (me.roleId === 'grenadier') out.push(...this.once(['bt.r6.nade']));
-      if (me.roleId === 'sniper') out.push(...this.once(['bt.r7.sniper']));
-    }
+    this.progress.lives++;
+    const out = this.say(this.ctx(view, nowMs, new Set(['lifeStart'])));
     this.save();
     return out;
   }
 
   /** One sim step. `sarge`: where he stands (for shots at him). Returns lines to say. */
-  step(view: WorldView, nowMs: number, sarge: { x: number; y: number }): StringKey[] {
-    const p = this.progress;
-    const out: StringKey[] = [];
+  step(view: WorldView, nowMs: number, sarge: { x: number; y: number }): BtSay[] {
+    const edges = new Set<string>();
     const me = view.soldiers.find((s) => s.id === this.liveId);
     if (me?.alive) {
       const r = btRoomAt(me.x, me.y);
       if (r !== this.room) {
         this.room = r;
         this.roomSince = nowMs;
-        out.push(...this.enter(r));
+        edges.add(`enter:${r}`);
       }
     }
-    if (me?.alive && this.room === 'r1' && this.progress.said.includes('bt.r1.enter')) {
-      out.push(...this.bags(view, me, nowMs));
-    }
-    if (me?.alive) out.push(...this.plans(view, me, nowMs));
+    this.cause = null;
     for (const e of view.events) {
       switch (e.kind) {
         case 'objectiveDestroyed':
           if (BT_TARGETS.every((id) => view.objectives.find((o) => o.id === id)?.destroyed)) {
-            out.push(...this.once(['bt.r1.done']));
+            edges.add('targetsDown');
           }
           break;
         case 'captureStageChanged':
           if (e.stage !== 'ours') break;
-          if (e.id === 'bt-a') out.push(...this.once(['bt.r2.done']));
-          if (e.id === 'bt-b') {
-            this.unlock('shield');
-            out.push(...this.once(['bt.r4.done']));
-          }
+          edges.add(`captured:${e.id}`);
+          if (e.id === 'bt-b') this.unlock('shield');
           break;
         case 'mineDetonated': {
           const by = e.by ? view.soldiers.find((s) => s.id === e.by) : undefined;
-          if (!by || by.role === 'enemy' || p.minesDone) break;
-          p.minesDone = true;
-          out.push(...this.once([p.deaths === 0 ? 'bt.r3.minesEarly' : 'bt.r3.minesDone']));
+          if (by && by.role !== 'enemy') edges.add('minesShot');
           break;
         }
         case 'soldierDied':
-          if (e.id === this.liveId) out.push(...this.died(me, e.cause, nowMs));
-          else if (nestCleared(view)) out.push(...this.once(['bt.r4.cleared']));
-          else if (rangeCleared(view)) out.push(...this.once(['bt.r7.clear']));
+          if (e.id === this.liveId) {
+            this.cause = e.cause;
+            this.died(me, edges);
+          } else if (nestCleared(view)) edges.add('nestCleared');
+          else if (rangeCleared(view)) edges.add('rangeCleared');
           break;
         case 'gateChanged':
-          if (!e.open) break;
-          if (e.id === 'bt-g5') out.push(...this.once(['bt.r4.open']));
-          if (e.id === 'bt-g6') {
-            out.push(...this.once(['bt.r5.done']));
-            if (me && me.hp < me.maxHp) out.push(...this.once(['bt.r5.walk']));
-          }
-          if (e.id === 'bt-g8') out.push(...this.once(['bt.r6.done']));
+          if (e.open) edges.add(`gateOpened:${e.id}`);
           break;
         case 'shotFired':
-          if (e.by === this.liveId && passesNear(e, sarge, 40)) {
-            out.push(...this.again('bt.shotAt', nowMs));
-          }
+          if (e.by === this.liveId && passesNear(e, sarge, 40)) edges.add('shotAtSarge');
           break;
         default:
           break;
       }
     }
-    // Dawdling.
-    if (
-      me?.alive &&
-      this.room !== 'r7' &&
-      this.room !== 'r1' &&
-      this.room !== 'r0' &&
-      nowMs - this.roomSince > NAG_MS &&
-      nowMs - this.lastLineMs > NAG_MS
-    ) {
-      out.push(...this.again(NAGS[this.nag++ % NAGS.length]!, nowMs));
-    }
-    if (out.length) {
-      this.lastLineMs = nowMs;
-      this.save();
-    }
+    const out = this.say(this.ctx(view, nowMs, edges));
+    if (out.length || edges.size) this.save();
     return out;
   }
 
   /**
    * Where Sarge should be right now (null: tag along). Worked out afresh every frame from what the
-   * player is doing, so he reacts to the moment: he gets to the next thing before you do and waits
-   * there. ([`step`] says the lines that go with it.)
+   * player is doing, so he reacts to the moment (the script's `places` say where).
    */
-  guide(view: WorldView): BtGuide | null {
-    const me = view.soldiers.find((s) => s.id === this.liveId);
-    if (!me?.alive) return null;
-    const room = btRoomAt(me.x, me.y);
-    if (room === 'r0') return { at: { x: 600, y: BT.r0 + 40 }, face: NORTH };
-    if (room === 'r1') {
+  guide(view: WorldView, nowMs = 0): BtGuide | null {
+    const place = this.runner.place(this.ctx(view, nowMs, new Set()));
+    if (!place) return null;
+    let at: { x: number; y: number } | null = null;
+    const to = place.at;
+    if ('spot' in to) {
+      const s = this.script.spots.find((x) => x.id === to.spot);
+      if (s) {
+        at = s.rect
+          ? { x: s.rect.x + s.rect.w / 2, y: s.rect.y + s.rect.h / 2 }
+          : { x: s.x ?? 0, y: s.y ?? 0 };
+      }
+    } else if ('nextTarget' in to) {
       const next = this.nextTarget(view);
-      if (!next) return null;
-      return {
-        at: { x: BT_R1_BAGS.x - 30, y: Math.max(BT_R1_BAGS.y + 40, next.y) },
-        face: 0,
-      };
-    }
-    if (room === 'r2') {
-      if (!this.progress.said.includes('bt.r2.done'))
-        return { at: { x: 930, y: 3030 }, face: Math.PI };
-      // Flag taken: he's at the gate before it opens, then runs ahead of you through it.
-      if (!this.gateOpen(view, 'bt-g2')) return { at: { x: 860, y: BT.r2 + 50 }, face: NORTH };
-      return { at: { x: 860, y: BT.r2 - 120 }, face: NORTH };
-    }
-    if (room === 'r3' && !this.progress.minesDone) return { at: { x: 860, y: 2090 }, face: NORTH };
-    return null;
+      const bags = this.script.spots.find((x) => x.id === 'bags')?.rect;
+      if (next && bags) at = { x: bags.x + to.dx, y: Math.max(bags.y + 40, next.y) };
+    } else at = to;
+    return at ? { at, face: (place.face * Math.PI) / 180 } : null;
   }
 
-  private gateOpen(view: WorldView, id: string): boolean {
-    return view.gates.find((g) => g.id === id)?.open ?? false;
+  // --- The respawn view --------------------------------------------------------------------
+
+  /**
+   * The respawn view opens (`died`: after a death). Sarge walks to where you should deploy; what he
+   * says there is the script's (`respawnOpen` beats).
+   */
+  enterRespawn(hint: BtHint | null, died: boolean, nowMs: number): void {
+    let spot = startSpawn().position;
+    if (hint?.kind === 'spawn') {
+      const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === hint.spawnPointId);
+      if (sp) spot = sp.position;
+    }
+    this.rs = { spot: { ...spot }, hint, afterDeath: died, opened: false };
+    this.lastLineMs = nowMs;
+    this.runner.resetTimers();
   }
 
-  /** The start door and the sprint gate: he waits, then heckles if you don't come. */
-  private plans(view: WorldView, me: SoldierView, nowMs: number): StringKey[] {
-    const room = btRoomAt(me.x, me.y);
-    if (room === 'r0') {
-      this.doorSince ??= nowMs;
-      if (nowMs - this.doorSince > HECKLE_MS * 1.5) {
-        this.doorSince = nowMs;
-        return [DOOR_HECKLES[this.doorHeckle++ % DOOR_HECKLES.length]!];
-      }
-    } else this.doorSince = null;
-    if (room === 'r2' && this.progress.said.includes('bt.r2.done')) {
-      if (this.gateOpen(view, 'bt-g2')) {
-        const first = this.once(['bt.r2.go']);
-        if (first.length) this.runSince = nowMs;
-        this.runSince ??= nowMs;
-        if (!first.length && nowMs - this.runSince > HECKLE_MS) {
-          this.runSince = nowMs;
-          return [RUN_HECKLES[this.runHeckle++ % RUN_HECKLES.length]!];
-        }
-        return first;
-      }
-      return this.once(['bt.r2.sprint']);
+  leaveRespawn(): void {
+    this.rs = null;
+    this.save();
+  }
+
+  /** Where he stands on the respawn view (null: not on it). */
+  respawnGuide(): BtGuide | null {
+    return this.rs ? { at: { x: this.rs.spot.x - 50, y: this.rs.spot.y - 40 }, face: 0 } : null;
+  }
+
+  /** What he says on the respawn view right now (the first call after it opens gives the opening lines). */
+  respawnSays(nowMs: number): BtSay[] {
+    const rs = this.rs;
+    if (!rs) return this.takePreviews();
+    const edges = new Set<string>();
+    if (!rs.opened) {
+      rs.opened = true;
+      edges.add('respawnOpen');
     }
-    this.runSince = null;
-    return [];
+    const out = this.say(this.ctx(null, nowMs, edges));
+    return out;
+  }
+
+  // --- The context the script is judged against -------------------------------------------
+
+  private ctx(view: WorldView | null, nowMs: number, edges: ReadonlySet<string>): SargeCtx {
+    const p = this.progress;
+    const me = view?.soldiers.find((s) => s.id === this.liveId);
+    const room = me ? btRoomAt(me.x, me.y) : null;
+    const had = new Set([...p.had, ...p.said]);
+    const hint = this.rs?.hint ?? null;
+    return {
+      nowMs,
+      edges,
+      ...(me
+        ? {
+            me: {
+              x: me.x,
+              y: me.y,
+              hp: me.hp,
+              maxHp: me.maxHp,
+              alive: me.alive,
+              ...(me.roleId ? { roleId: me.roleId } : {}),
+            },
+          }
+        : {}),
+      room,
+      inRoomS: Math.max(0, (nowMs - this.roomSince) / 1000),
+      quietS: Math.max(0, (nowMs - this.lastLineMs) / 1000),
+      had,
+      lives: p.lives,
+      deaths: p.deaths,
+      deathsIn: p.deathsIn,
+      taught: p.taught,
+      cause: edges.has('died') || [...edges].some((e) => e.startsWith('died:')) ? this.cause : null,
+      gateOpen: (id) => view?.gates.find((g) => g.id === id)?.open ?? false,
+      nextTarget: view ? (this.nextTarget(view)?.id ?? null) : null,
+      targetsLeft: view ? !!this.nextTarget(view) : false,
+      inCorridor: !!me && me.x > BT_CORRIDOR_X && btRoomAt(me.x, me.y) === 'r4',
+      atSpawn: (id) => {
+        const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === id);
+        return !!me && !!sp && Math.hypot(me.x - sp.position.x, me.y - sp.position.y) < 80;
+      },
+      nearSpot: (s: SargeSpot) => (me ? nearSpot(me, s) : false),
+      respawn: this.rs
+        ? {
+            hint: hint ? hint.kind : null,
+            spawnPointId: hint?.kind === 'spawn' ? hint.spawnPointId : null,
+            hasRole: hint?.kind === 'spawn' && !!hint.role,
+            afterDeath: this.rs.afterDeath,
+          }
+        : null,
+    };
   }
 
   private nextTarget(view: WorldView) {
@@ -352,30 +355,60 @@ export class BasicTraining {
     return undefined;
   }
 
-  /** R1's coaching: Sarge waits at the bags; heckles if you don't come; says what each cover is. */
-  private bags(view: WorldView, me: SoldierView, nowMs: number): StringKey[] {
-    const next = this.nextTarget(view);
-    if (!next) {
-      this.waitingSince = null;
-      return [];
+  /** Runs the script, remembers what happened, and returns what he says. */
+  private say(c: SargeCtx): BtSay[] {
+    const fired = this.runner.run(c);
+    // What happened now counts as having happened for the next look (not this one).
+    for (const e of c.edges) if (!this.progress.had.includes(e)) this.progress.had.push(e);
+    const hint = this.rs?.hint;
+    const params: Record<string, string> = {};
+    if (hint?.kind === 'spawn') {
+      params.place = strDynamic(hint.place);
+      if (hint.role) params.role = str(roleDef(hint.role).nameKey);
     }
-    const dx = Math.max(BT_R1_BAGS.x - me.x, 0, me.x - (BT_R1_BAGS.x + BT_R1_BAGS.w));
-    const dy = Math.max(BT_R1_BAGS.y - me.y, 0, me.y - (BT_R1_BAGS.y + BT_R1_BAGS.h));
-    if (Math.hypot(dx, dy) <= AT_BAGS) {
-      this.waitingSince = null;
-      const key = TARGET_LINES[next.id];
-      return [...this.once(['bt.r1.near']), ...(key ? this.once([key]) : [])];
-    }
-    if (!this.progress.said.includes('bt.r1.bags')) {
-      this.waitingSince = nowMs;
-      return this.once(['bt.r1.bags']);
-    }
-    this.waitingSince ??= nowMs;
-    if (nowMs - this.waitingSince > HECKLE_MS) {
-      this.waitingSince = nowMs;
-      return [HECKLES[this.heckle++ % HECKLES.length]!];
-    }
-    return [];
+    const out: BtSay[] = [
+      ...this.takePreviews(),
+      ...fired.map((f) => ({
+        id: f.beat.id,
+        text: fill(f.text, params),
+        ...(f.beat.urgent ? { urgent: true } : {}),
+      })),
+    ];
+    if (fired.length) this.lastLineMs = c.nowMs;
+    return out;
+  }
+
+  private takePreviews(): BtSay[] {
+    const out = this.previews;
+    this.previews = [];
+    return out;
+  }
+
+  // --- The game's own rules ----------------------------------------------------------------
+
+  /** Your soldier died: counts, and the classes a death unlocks. */
+  private died(me: SoldierView | undefined, edges: Set<string>): void {
+    const p = this.progress;
+    p.deaths++;
+    const r = me ? btRoomAt(me.x, me.y) : (this.room ?? 'r0');
+    p.deathsIn[r] = (p.deathsIn[r] ?? 0) + 1;
+    edges.add('died');
+    edges.add(`died:${r}`);
+    if (r === 'r5') this.unlock('gunner');
+    if (r === 'r6') this.unlock('grenadier');
+    if (r === 'r7') this.unlock('sniper');
+  }
+
+  private unlock(role: RoleId): void {
+    if (this.progress.unlocked.includes(role)) return;
+    this.progress.unlocked.push(role);
+    this.applyRoles();
+    this.save();
+  }
+
+  /** The mission's open classes follow your progress (the respawn screen reads them). */
+  private applyRoles(): void {
+    (BASIC_TRAINING as { roles?: readonly RoleId[] }).roles = this.roles();
   }
 
   /** The hint the respawn screen should show now (null: none). */
@@ -414,140 +447,6 @@ export class BasicTraining {
     this.save();
   }
 
-  /**
-   * The respawn view opens (`died`: after a death). Sarge walks to where you should deploy and
-   * says what to do there; if you just sit, [`respawnSays`] heckles.
-   */
-  enterRespawn(hint: BtHint | null, died: boolean, nowMs: number): void {
-    const pending: BtSay[] = [];
-    let spot = startSpawn().position;
-    if (hint?.kind === 'deploy') {
-      pending.push({ key: 'bt.rs.welcome.0' }, { key: 'bt.rs.welcome.1' }, { key: 'bt.rs.deploy' });
-    } else if (hint) {
-      if (died) pending.push(...this.onceSays(['bt.rs.explain']));
-      if (hint.kind === 'resume') pending.push({ key: 'bt.coach.resume' });
-      if (hint.kind === 'spawn') {
-        const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === hint.spawnPointId);
-        if (sp) spot = sp.position;
-        pending.push({
-          key: hint.text,
-          params: { place: strDynamic(hint.place) },
-        });
-        if (hint.role) {
-          pending.push({
-            key: 'bt.coach.role',
-            params: { role: strDynamic(roleDef(hint.role).nameKey) },
-          });
-        }
-      }
-    }
-    this.rs = { spot: { ...spot }, pending, lastMs: nowMs, heckle: 0 };
-  }
-
-  leaveRespawn(): void {
-    this.rs = null;
-    this.save();
-  }
-
-  /** Where he stands on the respawn view (null: not on it). */
-  respawnGuide(): BtGuide | null {
-    return this.rs ? { at: { x: this.rs.spot.x - 50, y: this.rs.spot.y - 40 }, face: 0 } : null;
-  }
-
-  /** What he says on the respawn view right now (the first call gives the opening lines). */
-  respawnSays(nowMs: number): BtSay[] {
-    const rs = this.rs;
-    if (!rs) return [];
-    if (rs.pending.length) {
-      const out = rs.pending;
-      rs.pending = [];
-      rs.lastMs = nowMs;
-      return out;
-    }
-    if (rs.lastMs !== null && nowMs - rs.lastMs > RESPAWN_HECKLE_MS) {
-      rs.lastMs = nowMs;
-      return [{ key: RESPAWN_HECKLES[rs.heckle++ % RESPAWN_HECKLES.length]! }];
-    }
-    return [];
-  }
-
-  private onceSays(keys: StringKey[]): BtSay[] {
-    return this.once(keys).map((key) => ({ key }));
-  }
-
-  private enter(r: BtRoom): StringKey[] {
-    switch (r) {
-      case 'r1':
-        return this.once(['bt.r1.enter']);
-      case 'r2':
-        return this.once(['bt.r2.enter']);
-      case 'r3':
-        return this.progress.minesDone ? [] : this.once(['bt.r3.enter']);
-      case 'r4':
-        return this.once(['bt.r4.enter']);
-      case 'r5f':
-        return this.once(['bt.flag.c']);
-      case 'r5':
-        return this.once(['bt.r5.enter']);
-      case 'r6f':
-        return this.once(['bt.flag.d']);
-      case 'r6':
-        return this.once(['bt.r6.enter']);
-      case 'r7':
-        return this.once(['bt.r7.enter']);
-      default:
-        return [];
-    }
-  }
-
-  private died(me: SoldierView | undefined, cause: string, nowMs: number): StringKey[] {
-    const p = this.progress;
-    p.deaths++;
-    const r = me ? btRoomAt(me.x, me.y) : (this.room ?? 'r0');
-    p.deathsIn[r] = (p.deathsIn[r] ?? 0) + 1;
-    // He laughs first (the first time he explains what dying is for once you're on the
-    // respawn view), then says what went wrong.
-    const laugh: StringKey[] =
-      p.deaths === 1 ? ['bt.death.first'] : this.again(DEATH_LINES[this.deathLine++ % 3]!, nowMs);
-    if (r === 'r5') this.unlock('gunner');
-    if (r === 'r6') this.unlock('grenadier');
-    if (r === 'r7') this.unlock('sniper');
-    if (r === 'r3' && !p.minesDone) {
-      return [...laugh, ...this.again(cause === 'mine' ? 'bt.r3.mine' : 'bt.r3.shot', nowMs)];
-    }
-    if (r === 'r4' && me && me.x > BT_CORRIDOR_X) {
-      return [...laugh, ...this.once(['bt.r4.surprise'])];
-    }
-    return laugh;
-  }
-
-  private unlock(role: RoleId): void {
-    if (this.progress.unlocked.includes(role)) return;
-    this.progress.unlocked.push(role);
-    this.applyRoles();
-    this.save();
-  }
-
-  /** The mission's open classes follow your progress (the respawn screen reads them). */
-  private applyRoles(): void {
-    (BASIC_TRAINING as { roles?: readonly RoleId[] }).roles = this.roles();
-  }
-
-  /** The keys not said yet (and marks them said). */
-  private once(keys: StringKey[]): StringKey[] {
-    const out = keys.filter((k) => !this.progress.said.includes(k));
-    this.progress.said.push(...out);
-    return out;
-  }
-
-  /** A repeatable line, at most every REPEAT_MS. */
-  private again(key: StringKey, nowMs: number): StringKey[] {
-    const last = this.lastSaid.get(key);
-    if (last !== undefined && nowMs - last < REPEAT_MS) return [];
-    this.lastSaid.set(key, nowMs);
-    return [key];
-  }
-
   private load(): BtProgress {
     try {
       const raw = this.storage?.getItem(KEY);
@@ -565,6 +464,16 @@ export class BasicTraining {
       // this visit only
     }
   }
+}
+
+/** Is `me` at this spot (a point with a radius, or a rectangle with a margin)? */
+function nearSpot(me: { x: number; y: number }, s: SargeSpot): boolean {
+  if (s.rect) {
+    const dx = Math.max(s.rect.x - me.x, 0, me.x - (s.rect.x + s.rect.w));
+    const dy = Math.max(s.rect.y - me.y, 0, me.y - (s.rect.y + s.rect.h));
+    return Math.hypot(dx, dy) <= s.radius;
+  }
+  return Math.hypot(me.x - (s.x ?? 0), me.y - (s.y ?? 0)) <= s.radius;
 }
 
 /** The MG nest and its shotgunner (east corridor, R3/R4) are all down. */
