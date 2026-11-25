@@ -271,7 +271,11 @@ export class BattleScene extends Phaser.Scene {
       this.runnerPos ??
       driver?.cameraHome ??
       null;
-    if (target) {
+    const frame = this.session.cameraFrame?.();
+    if (frame) {
+      this.zoomGoal = Math.min(this.baseZoom, cam.width / frame.width, cam.height / frame.height);
+      this.cam = smoothFollow(this.cam, frame, display.cameraSmoothing, deltaMs);
+    } else if (target) {
       // During the countdown the pointer is still wherever Deploy was clicked, so look the way
       // the soldier faces (forward) instead of toward the reticle.
       const counting = (driver?.countdown() ?? 0) > 0;
@@ -658,6 +662,9 @@ export class BattleScene extends Phaser.Scene {
       spawn: SpawnPointDef,
       progress: number,
       roleId: RoleId = 'rifleman',
+      passenger?: number,
+      destination?: Vec2,
+      carrierKey = key,
     ) => {
       const gate = spawn.transport?.gateId;
       if (gate && !this.view.gates.some((g) => g.id === gate && g.open)) return;
@@ -667,7 +674,7 @@ export class BattleScene extends Phaser.Scene {
         !this.view.capturePoints.some((cp) => cp.id === capture.id && cp.stage === 'ours')
       )
         return;
-      const at = arrivalPose(spawn, roleId, progress);
+      const at = arrivalPose(spawn, roleId, progress, passenger, destination);
       const mini = pilotMiniature(roleId, team);
       const vehicle = vehicleMiniature(roleId, team, true);
       const depth = team === 'live' ? DEPTH.live : DEPTH.echoes;
@@ -680,8 +687,9 @@ export class BattleScene extends Phaser.Scene {
         size = diameter,
         pos = at.pos,
         opacity = 1,
+        owner = key,
       ) => {
-        const id = `${key}:${suffix}`;
+        const id = `${owner}:${suffix}`;
         seen.add(id);
         let img = this.runners.get(id);
         if (!img) {
@@ -697,7 +705,7 @@ export class BattleScene extends Phaser.Scene {
           .setAlpha(opacity);
         return img;
       };
-      if (at.transport) {
+      if (at.transport && !seen.has(`${carrierKey}:transport`)) {
         const { pos, facing, alpha, kind } = at.transport;
         layer(
           'transport',
@@ -707,6 +715,7 @@ export class BattleScene extends Phaser.Scene {
           kind === 'boat' ? ENTRANCE.boatLength : ENTRANCE.truckLength,
           pos,
           alpha,
+          carrierKey,
         );
       }
       if (at.parachute) {
@@ -756,7 +765,7 @@ export class BattleScene extends Phaser.Scene {
       }
       if (!at.visible) return;
       if (vehicle && (roleId === 'truck' || roleId === 'tank')) {
-        const size = this.world.tuning.drive[roleId].bodyRadius * 2;
+        const size = this.world.tuning.drive[roleId].bodyRadius * 2 * ENTRANCE.vehicleArtScale;
         layer('base', vehicle.base, at.facing, depth - 0.1, size);
         layer('figure', vehicle.hull, at.facing, depth, size);
         if (vehicle.turret) layer('turret', vehicle.turret, at.facing, depth + 0.1, size);
@@ -774,7 +783,7 @@ export class BattleScene extends Phaser.Scene {
         );
         return;
       }
-      if (mini.base && at.height === 0) {
+      if (mini.base && at.height === 0 && (!at.transport || progress > 0.9)) {
         layer('base', mini.base, 0, depth - 0.1, diameter * INFANTRY_BASE_SCALE);
       }
       layer('figure', mini.figure, at.facing, depth, diameter * INFANTRY_FIGURE_SCALE, figure);
@@ -799,7 +808,16 @@ export class BattleScene extends Phaser.Scene {
       if (ahead <= 0 || ahead > lead) continue;
       const sp = this.world.map.spawnPoints.find((s) => s.id === a.spawnPointId);
       if (!sp) continue;
-      place(a.id, a.team ?? 'echo', sp, 1 - ahead / lead, a.roleId);
+      place(
+        a.id,
+        a.team ?? 'echo',
+        sp,
+        1 - ahead / lead,
+        a.roleId,
+        a.passenger,
+        a.position,
+        `${sp.id}:${a.spawnTick}`,
+      );
     }
     for (const [key, img] of this.runners) {
       if (!seen.has(key)) {

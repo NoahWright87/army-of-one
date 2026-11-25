@@ -227,7 +227,7 @@ export const MISSION_05: MapDef = {
         gateId: 'm5-gate-supply',
         path: [
           { x: CX, y: M5.checkpointY + 570 },
-          { x: CX, y: M5.checkpointY + 310 },
+          { x: CX, y: M5.checkpointY + 380 },
         ],
       },
     },
@@ -244,8 +244,8 @@ export const MISSION_05: MapDef = {
       transport: {
         kind: 'boat',
         path: [
-          { x: 1080, y: 2710 },
-          { x: 1080, y: 2520 },
+          { x: 1080, y: 2640 },
+          { x: 1080, y: 2570 },
         ],
       },
     },

@@ -54,25 +54,26 @@ const parapet = (side: string, rect: Rect): CoverDef => ({
 });
 
 const rangeCove: Rect[] = [
-  { x: 880, y: 2240, w: 160, h: 80 },
-  { x: 800, y: 2320, w: 320, h: 160 },
+  { x: 800, y: 2240, w: 320, h: 240 },
   { x: 720, y: 2480, w: 480, h: 160 },
 ];
 const terrainCell = 80;
+
+export const HUB_DRILL_FRAME = { x: 1200, y: 2230, width: 920, height: 670 };
 
 export const HUB_ARRIVAL_SPAWNS: readonly (SpawnPointDef & { nameKey: StringKey })[] = [
   {
     id: 'range-boat',
     nameKey: 'hub.label.arrivalBeach',
-    position: { x: 960, y: 2188 },
+    position: { x: 900, y: 2170 },
     facing: -Math.PI / 2,
     kind: 'initial',
     team: 'enemy',
     transport: {
       kind: 'boat',
       path: [
-        { x: 960, y: 2460 },
-        { x: 960, y: 2290 },
+        { x: 900, y: 2495 },
+        { x: 900, y: 2340 },
       ],
     },
   },
@@ -87,15 +88,45 @@ export const HUB_ARRIVAL_SPAWNS: readonly (SpawnPointDef & { nameKey: StringKey 
   {
     id: 'range-truck',
     nameKey: 'hub.label.arrivalRoad',
-    position: { x: 1440, y: 2188 },
+    position: { x: 1380, y: 2170 },
     facing: -Math.PI / 2,
     kind: 'initial',
     team: 'enemy',
     transport: {
       kind: 'truck',
       path: [
-        { x: 1440, y: 2470 },
-        { x: 1440, y: 2270 },
+        { x: 1380, y: 2495 },
+        { x: 1380, y: 2310 },
+      ],
+    },
+  },
+  {
+    id: 'range-boat-east',
+    nameKey: 'hub.label.arrivalBeach',
+    position: { x: 1020, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'boat',
+      path: [
+        { x: 1020, y: 2495 },
+        { x: 1020, y: 2340 },
+      ],
+    },
+  },
+  {
+    id: 'range-truck-east',
+    nameKey: 'hub.label.arrivalRoad',
+    position: { x: 1500, y: 2170 },
+    facing: -Math.PI / 2,
+    kind: 'initial',
+    team: 'enemy',
+    transport: {
+      kind: 'truck',
+      path: [
+        { x: 1500, y: 2495 },
+        { x: 1500, y: 2310 },
       ],
     },
   },
@@ -266,11 +297,9 @@ export const HUB_LABELS: readonly { key: StringKey; x: number; y: number; big?: 
   { key: 'hub.label.wallWalk', x: 1450, y: 765 },
   { key: 'hub.label.tower', x: 1200, y: 1305 },
   { key: 'hub.label.range', x: 1200, y: 1110 },
-  ...HUB_ARRIVAL_SPAWNS.map((spawn) => ({
-    key: spawn.nameKey,
-    x: spawn.position.x,
-    y: 2110,
-  })),
+  { key: 'hub.label.arrivalBeach', x: 960, y: 2100 },
+  { key: 'hub.label.arrivalField', x: 1200, y: 2100 },
+  { key: 'hub.label.arrivalRoad', x: 1440, y: 2100 },
   { key: 'hub.label.dev', x: 1550, y: 570 },
   { key: 'hub.label.exit', x: 220, y: 620 },
   { key: 'hub.label.exitEast', x: 2180, y: 620 },

@@ -38,6 +38,14 @@ import type { PendingArrival, SessionDriver } from '../render/phaser/services';
 export const HUB_TARGET_RESPAWN_S = 2; // TUNE
 export const HUB_LIVE_RESPAWN_S = 1; // TUNE
 
+export type DrillWave = 'single' | 'few' | 'many';
+
+const DRILL_WAVE: Record<DrillWave, readonly number[]> = {
+  single: [1, 1, 1, 0, 0],
+  few: [2, 2, 2, 0, 0],
+  many: [4, 8, 4, 4, 4],
+};
+
 /** The HQ runs without the AI (targets stand still) and without money. */
 export function hubTuning(base: Tuning): Tuning {
   return withTuning(base, { ai: { enabled: false }, economy: { enabled: false } });
@@ -56,9 +64,29 @@ export class HubDriver implements SessionDriver {
   private current: WorldView;
   private readonly drill: {
     spawn: (typeof HUB_ARRIVAL_SPAWNS)[number];
+    group: number;
+    passenger: number;
+    position: Vec2;
+    active: boolean;
     id?: SoldierId;
     tick?: number;
-  }[] = HUB_ARRIVAL_SPAWNS.map((spawn) => ({ spawn }));
+  }[] = HUB_ARRIVAL_SPAWNS.flatMap((spawn, group) =>
+    Array.from({ length: DRILL_WAVE.many[group] ?? 0 }, (_, passenger) => {
+      const air = !spawn.transport;
+      const column = air ? (passenger % 3) - 1 : (passenger % 2) - 0.5;
+      const row = Math.floor(passenger / (air ? 3 : 2));
+      return {
+        spawn,
+        group,
+        passenger,
+        active: false,
+        position: {
+          x: spawn.position.x + column * (air ? 65 : 46),
+          y: spawn.position.y + (air ? (row - 1) * 58 : -row * 46),
+        },
+      };
+    }),
+  );
 
   constructor(
     base: Tuning,
@@ -82,21 +110,32 @@ export class HubDriver implements SessionDriver {
   }
 
   /** Play the three entrances together, reusing the same practice enemies on repeat. */
-  launchArrivals(): void {
-    if (this.drill.some((target) => target.tick !== undefined)) return;
-    const tick = this.world.state.tick + this.arrivalLead();
+  launchArrivals(wave: DrillWave = 'single'): void {
+    const now = this.world.state.tick;
+    const tick = now + this.arrivalLead();
     for (const target of this.drill) {
-      target.tick = tick;
+      target.active = target.passenger < (DRILL_WAVE[wave][target.group] ?? 0);
+      if (target.active) target.tick = tick;
+      else delete target.tick;
       if (target.id) setSoldierFlags(this.world, target.id, { interactive: false });
     }
     this.updateView();
   }
 
   arrivals(): PendingArrival[] {
-    return this.drill.flatMap(({ spawn, tick }) =>
+    return this.drill.flatMap(({ spawn, tick, passenger, position }) =>
       tick === undefined
         ? []
-        : [{ id: spawn.id, spawnPointId: spawn.id, spawnTick: tick, team: 'enemy' as const }],
+        : [
+            {
+              id: `${spawn.id}:${passenger}`,
+              spawnPointId: spawn.id,
+              spawnTick: tick,
+              team: 'enemy' as const,
+              passenger,
+              position,
+            },
+          ],
     );
   }
 
@@ -107,7 +146,10 @@ export class HubDriver implements SessionDriver {
   private updateView(): void {
     this.current = getView(this.world);
     this.current.soldiers = this.current.soldiers.filter(
-      (s) => !this.drill.some((target) => target.id === s.id && target.tick !== undefined),
+      (s) =>
+        !this.drill.some(
+          (target) => target.id === s.id && (!target.active || target.tick !== undefined),
+        ),
     );
   }
 
@@ -161,17 +203,18 @@ export class HubDriver implements SessionDriver {
       }
     }
     for (const target of this.drill) {
-      const { spawn, id } = target;
+      if (!target.active) continue;
+      const { spawn, id, position } = target;
       const soldier = id ? getSoldier(w, id) : undefined;
       if (target.tick === undefined && soldier && soldier.deathTick !== null) {
         target.tick = soldier.deathTick + secondsToTicks(HUB_TARGET_RESPAWN_S) + this.arrivalLead();
       }
       if (target.tick === undefined || tick < target.tick) continue;
       if (id) {
-        resetSoldier(w, id, { position: spawn.position, facing: spawn.facing });
+        resetSoldier(w, id, { position, facing: spawn.facing });
         setSoldierFlags(w, id, { interactive: true });
       } else {
-        target.id = spawnSoldier(w, spawn.id, { team: 'enemy', controllable: false });
+        target.id = spawnSoldier(w, spawn.id, { position, team: 'enemy', controllable: false });
       }
       delete target.tick;
     }

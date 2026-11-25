@@ -7,6 +7,7 @@
  */
 import {
   DEFAULT_TUNING,
+  ENTRANCE,
   GROUND_MIST_VISUAL_TUNING,
   PROJECTILE_VISUAL_TUNING,
 } from '../../content/tuning';
@@ -331,7 +332,7 @@ export class WorldRenderer {
       const transport = spawn.transport;
       if (transport?.kind !== 'truck') continue;
       const road = scene.add.graphics().setDepth(DEPTH.ground + 0.1);
-      road.lineStyle(84, 0x56584d, 0.85);
+      road.lineStyle(ENTRANCE.roadWidth, 0x56584d, 0.85);
       road.strokePoints(
         [...transport.path, spawn.position].map(({ x, y }) => new Phaser.Math.Vector2(x, y)),
         false,
@@ -1160,7 +1161,7 @@ export class WorldRenderer {
       const figureFacing = pose?.facing ?? facing;
       if (vehicle) {
         v.label = null;
-        const scale = (vBody * 2) / fitPx(vehicle.hull);
+        const scale = (vBody * 2 * ENTRANCE.vehicleArtScale) / fitPx(vehicle.hull);
         this.miniatureBases
           .get(s.id)
           .setTexture(vehicle.base)
@@ -1414,6 +1415,7 @@ export class WorldRenderer {
         .setRotation(heading)
         // w/h are world-axis extents; the sprite's own x axis runs along the heading.
         .setDisplaySize(...vehicleSpriteSize(v));
+      spr.setScale(spr.scaleX * ENTRANCE.vehicleArtScale, spr.scaleY * ENTRANCE.vehicleArtScale);
       if (!this.applyHitFlash(spr, v.id, this.now)) this.clearTint(spr);
       if (!wreck) this.hpBar(p.x, p.y - v.h / 2 - 10, 40, v.hp, v.maxHp);
     }

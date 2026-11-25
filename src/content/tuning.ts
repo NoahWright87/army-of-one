@@ -1322,7 +1322,10 @@ export const ENTRANCE = {
   parachuteDrift: 15,
   truckUnloadFraction: 0.7,
   boatUnloadFraction: 0.65,
-  boatLength: 132,
+  boatLength: 240,
   truckJumpHeight: 14,
-  truckLength: 110,
+  truckLength: 220,
+  roadWidth: 120,
+  vehicleArtScale: 2.25,
+  passengerSpacing: 42,
 } as const;

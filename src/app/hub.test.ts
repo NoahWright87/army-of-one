@@ -38,7 +38,7 @@ describe('HQ', () => {
     const lead = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
     d.launchArrivals();
     expect(d.arrivals().map((arrival) => arrival.spawnPointId)).toEqual(
-      HUB_ARRIVAL_SPAWNS.map((spawn) => spawn.id),
+      HUB_ARRIVAL_SPAWNS.slice(0, 3).map((spawn) => spawn.id),
     );
     expect(d.arrivals().every((arrival) => arrival.team === 'enemy')).toBe(true);
     idle(d, lead - 1);
@@ -60,6 +60,24 @@ describe('HQ', () => {
         .map((soldier) => soldier.id),
     ).toEqual(ids);
     expect(d.world.state.soldiers).toHaveLength(initialCount + 3);
+  });
+
+  it('loads multiple transports and spreads a large wave into distinct landing spots', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const initialCount = d.view().soldiers.length;
+    const lead = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
+    d.launchArrivals('many');
+    const arrivals = d.arrivals();
+    expect(arrivals).toHaveLength(24);
+    expect(arrivals.filter((a) => a.spawnPointId.startsWith('range-boat'))).toHaveLength(8);
+    expect(arrivals.filter((a) => a.spawnPointId.startsWith('range-truck'))).toHaveLength(8);
+    expect(new Set(arrivals.map((a) => JSON.stringify(a.position))).size).toBe(24);
+    idle(d, lead);
+    expect(d.view().soldiers).toHaveLength(initialCount + 24);
+    d.launchArrivals('few');
+    idle(d, lead);
+    expect(d.view().soldiers).toHaveLength(initialCount + 6);
+    expect(d.world.state.soldiers).toHaveLength(initialCount + 24);
   });
 
   it('routes a fallen drill target back through its entrance', () => {

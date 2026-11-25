@@ -30,6 +30,7 @@ export interface BattleSession {
   overlay?: SessionOverlay;
   /** (PHASE18) While true the look-ahead holds still (an HQ sign is open: its buttons mustn't slide). */
   holdLookAhead?: () => boolean;
+  cameraFrame?: () => { x: number; y: number; width: number; height: number } | null;
 }
 
 /** (PHASE18) Scene-side extras of a session: created with the scene, updated every frame. */
@@ -53,6 +54,8 @@ export interface PendingArrival {
   spawnTick: number;
   roleId?: RoleId;
   team?: 'enemy';
+  position?: Vec2;
+  passenger?: number;
 }
 
 /** What the scene needs from a driven battle (app/live-run.ts implements it). */

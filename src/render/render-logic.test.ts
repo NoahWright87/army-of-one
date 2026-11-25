@@ -43,7 +43,11 @@ describe('reinforcement arrivals', () => {
   });
 
   it('backs the truck in before infantry jump out', () => {
-    expect(arrivalPose(checkpoint, 'rifleman', 0.5)).toMatchObject({ visible: false });
+    const aboard = arrivalPose(checkpoint, 'rifleman', 0.5);
+    const otherSeat = arrivalPose(checkpoint, 'rifleman', 0.5, 1);
+    expect(aboard.visible).toBe(true);
+    expect(aboard.transport).toEqual(otherSeat.transport);
+    expect(aboard.pos).not.toEqual(otherSeat.pos);
     const jump = arrivalPose(checkpoint, 'rifleman', 0.85);
     expect(jump.visible).toBe(true);
     expect(jump.height).toBeGreaterThan(0);
@@ -54,11 +58,11 @@ describe('reinforcement arrivals', () => {
   it('brings a landing craft bow-first and disembarks infantry from its ramp', () => {
     const beach = MISSION_05.spawnPoints.find((s) => s.id === 'beachhead')!;
     const approach = arrivalPose(beach, 'rifleman', 0.5);
-    expect(approach.visible).toBe(false);
+    expect(approach.visible).toBe(true);
     expect(approach.transport).toMatchObject({ kind: 'boat', facing: -Math.PI / 2 });
-    const disembark = arrivalPose(beach, 'rifleman', 0.75);
+    const disembark = arrivalPose(beach, 'rifleman', 0.94);
     expect(disembark.visible).toBe(true);
-    expect(disembark.height).toBe(0);
+    expect(disembark.height).toBeGreaterThan(0);
     expect(disembark.pos.y).toBeLessThan(2470);
     expect(arrivalPose(beach, 'rifleman', 1).pos).toEqual(beach.position);
     expect(arrivalPose(beach, 'tank', 0.5).transport).toBeUndefined();
