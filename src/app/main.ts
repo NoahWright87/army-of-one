@@ -30,10 +30,8 @@ import {
 } from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
 import { BASIC_TRAINING, BASIC_TRAINING_ID } from '../content/maps/basic-training';
-import { applyStation, BT_STATIONS, btStation } from '../content/maps/basic-training-stations';
-import { DEFAULT_SARGE_SCRIPT } from '../content/sarge-script';
-import { SargeEditor } from '../ui/sarge-editor/sarge-editor';
-import { clearScript, loadScript, parseScript, saveScript } from './sarge-script-store';
+import { applyGateDelays, applyStation, btStation } from '../content/maps/basic-training-stations';
+import { loadScript } from './sarge-script-store';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
 import { pulseSteps } from '../ui/coach/pulse';
 import { roleDef } from '../content/roles';
@@ -220,6 +218,8 @@ const training = loadedScript ? new BasicTraining(safeLocalStorage(), loadedScri
 /** (PHASE18, [D160]) `?station=r3`: the course as it stands at that station (the editor's "start here"). */
 const trainingStation = training ? btStation(params.get('station') ?? '') : undefined;
 if (trainingStation) applyStation(BASIC_TRAINING, trainingStation);
+// (PHASE18, [D160]) How long each gate waits is in Sarge's script, so it's tuned beside his lines.
+if (loadedScript) applyGateDelays(BASIC_TRAINING, loadedScript.script.gateDelays);
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
 /** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
@@ -290,6 +290,17 @@ function openWorld(seed?: number): void {
 }
 
 /** (PHASE13-a) The block editor ([D88]): the title screen's link. */
+/** (PHASE18, [D160]) Back to the Sarge editor from a test play. */
+function openSargeEditor(): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  url.searchParams.set('scene', 'sarge');
+  if (dev) url.searchParams.set('dev', dev);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
+
 function openEditor(): void {
   const url = new URL(window.location.href);
   url.searchParams.delete('mission');
@@ -347,56 +358,6 @@ const notice = new Notice(uiRoot);
 const title = new TitleScreen(uiRoot);
 /** (PHASE18) Points at the one control that matters (basic training's respawn hints). */
 const coach = new Coach(uiRoot);
-
-/** (PHASE18, [D160]) The drill sergeant's script editor: a pencil button on the training mission. */
-if (training && loadedScript) {
-  const store = safeLocalStorage();
-  let edited = loadedScript.edited;
-  let outdated = loadedScript.outdated;
-  new SargeEditor(
-    uiRoot,
-    {
-      script: () => training.script,
-      apply: (script) => {
-        training.setScript(script);
-        saveScript(store, script);
-        edited = true;
-      },
-      reset: () => {
-        clearScript(store);
-        training.setScript(structuredClone(DEFAULT_SARGE_SCRIPT));
-        edited = false;
-        outdated = false;
-      },
-      importJson: (json) => {
-        const parsed = parseScript(json);
-        if (typeof parsed === 'string') return parsed;
-        training.setScript(parsed);
-        saveScript(store, parsed);
-        edited = true;
-        return null;
-      },
-      say: (text) => training.preview(text),
-      stations: BT_STATIONS,
-      startAt: (id) => {
-        const u = new URL(window.location.href);
-        u.searchParams.set('mission', BASIC_TRAINING_ID);
-        u.searchParams.set('go', '1');
-        u.searchParams.set('new', '1');
-        u.searchParams.set('station', id);
-        u.hash = '';
-        window.location.assign(u.toString());
-      },
-      get edited() {
-        return edited;
-      },
-      get outdated() {
-        return outdated;
-      },
-    },
-    params.get('edit') === '1',
-  );
-}
 
 /**
  * (PHASE19) The coach's steps for a basic-training hint in the respawn view: the chevron to
@@ -805,20 +766,27 @@ async function startGame(): Promise<void> {
     frame.returnToMap(projection, controller.flushSaves());
   }
 
-  const backTo: { label: string; run(): void } | null = fromHub
-    ? { label: str('hub.back'), run: () => openHub() }
-    : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
-      ? {
-          label: str(
-            campaignBattle ? 'campaign.back' : worldPlaytest ? 'world.back' : 'editor.backToEditor',
-          ),
-          run: campaignBattle
-            ? returnToCampaign
-            : worldPlaytest
-              ? () => openWorld(worldPlaytest.seed)
-              : openEditor,
-        }
-      : null;
+  const backTo: { label: string; run(): void } | null =
+    training && params.get('from') === 'sarge'
+      ? { label: str('sarge.back'), run: openSargeEditor }
+      : fromHub
+        ? { label: str('hub.back'), run: () => openHub() }
+        : MISSION.id === EDITOR_PREVIEW_ID || worldPlaytest
+          ? {
+              label: str(
+                campaignBattle
+                  ? 'campaign.back'
+                  : worldPlaytest
+                    ? 'world.back'
+                    : 'editor.backToEditor',
+              ),
+              run: campaignBattle
+                ? returnToCampaign
+                : worldPlaytest
+                  ? () => openWorld(worldPlaytest.seed)
+                  : openEditor,
+            }
+          : null;
 
   if (backTo) panel.addAction(backTo);
   // The first painted camera and the campaign tiles line up before play begins.

@@ -5,7 +5,8 @@
 import { DEFAULT_SARGE_SCRIPT, type SargeScript } from '../content/sarge-script';
 import type { TextStorage } from './replay-library';
 
-const KEY = 'aoo:bt:script:v1';
+export const SARGE_SCRIPT_KEY = 'aoo:bt:script:v2';
+const KEY = SARGE_SCRIPT_KEY;
 
 interface Saved {
   script: SargeScript;
@@ -30,13 +31,21 @@ export function parseScript(json: string): SargeScript | string {
     return "That isn't valid JSON.";
   }
   const s = v as Partial<SargeScript> | null;
-  if (!s || s.version !== 1) return 'Not a Sarge script (version should be 1).';
-  if (!s.timing || !Array.isArray(s.spots) || !Array.isArray(s.places) || !Array.isArray(s.beats)) {
-    return 'The script needs timing, spots, places and beats.';
+  if (!s || s.version !== 2) return 'Not a Sarge script (version should be 2).';
+  if (
+    !s.timing ||
+    !Array.isArray(s.zones) ||
+    !Array.isArray(s.flags) ||
+    !Array.isArray(s.prefs) ||
+    !Array.isArray(s.rules) ||
+    typeof s.gateDelays !== 'object' ||
+    !s.gateDelays
+  ) {
+    return 'The script needs timing, zones, flags, gateDelays, prefs and rules.';
   }
-  for (const b of s.beats) {
-    if (typeof b.id !== 'string' || typeof b.when !== 'string' || !Array.isArray(b.say)) {
-      return `A beat is malformed (${JSON.stringify(b).slice(0, 60)}…).`;
+  for (const r of s.rules) {
+    if (typeof r.id !== 'string' || typeof r.when !== 'string' || !Array.isArray(r.steps)) {
+      return `A rule is malformed (${JSON.stringify(r).slice(0, 60)}…).`;
     }
   }
   return s as SargeScript;

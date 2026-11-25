@@ -775,14 +775,20 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   touches nothing. Basic training only resumes on a reload mid-way (sessionStorage
   `aoo:bt:active`); leaving for the HQ or loading it any other way starts over. The first
   screen has him welcome you, introduce himself and tell you to hit DEPLOY.
-  **The script is data** (`src/content/sarge-script.ts`, run by `src/app/sarge-engine.ts`): beats
-  (words + when, as typed condition tokens), places (where he stands), spots and his timing. The
-  pencil button on the training mission edits it live (`src/ui/sarge-editor/`), keeps your copy
-  in localStorage on top of the repo default, and "start here" reloads at any station
-  (`?station=r3`, `content/maps/basic-training-stations.ts`). Exception to "all text in
-  strings.ts": Sarge's words live in his script so they're edited in one place. Open: pacing
-  (speech vs. how fast you move), whether doors should wait for key lines, what he does when
-  you outrun a line; tune these in the editor.
+  **The script is data** (`src/content/sarge-script.ts`, run by `src/app/sarge-engine.ts`):
+  RULES (WHEN conditions → DO steps: say, wait, set/clear a flag), ZONES (rectangles; the ten
+  rooms are zones already), FLAGS (yours, plus the game's own events as `had:` conditions),
+  timers (`inFor`, `flagFor`, `firedFor`, `waited`, `quiet`), PREFS (where Sarge likes to
+  stand: a spot, a zone, the sandbags by the next target, or near you) and his timing. Gate
+  delays are in the script too (`gateDelays`, applied when the level loads): the designer times
+  a gate against how long Sarge talks; the game doesn't make doors wait for speech. The editor
+  is a separate page, `?scene=sarge` (`src/app/sarge-editor-main.ts`, `src/ui/sarge-editor/`):
+  the course on a canvas where you draw zones and pin Sarge's spots, lines in a plain form
+  (conditions as sentences; "Type it instead" shows the raw words), ▶ Play from here opens the
+  game at a station (`?station=r3`, `content/maps/basic-training-stations.ts`) with "← Sarge
+  editor" back. Your copy is kept in localStorage over the repo default (download it to commit).
+  Exception to "all text in strings.ts": Sarge's words live in his script. Open: pacing (speech
+  vs. how fast you move) and what he does when you outrun a line; tune these in the editor.
 - **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

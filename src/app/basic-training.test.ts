@@ -4,6 +4,7 @@ import type { SimEvent } from '../sim/events';
 import type { SoldierView, WorldView } from '../sim/view';
 import { DEFAULT_SARGE_SCRIPT } from '../content/sarge-script';
 import { BasicTraining } from './basic-training';
+import type { SargeStep } from '../content/sarge-script';
 import { SargeRunner, checkWhen, validateScript } from './sarge-engine';
 
 const me = (x: number, y: number, more: Partial<SoldierView> = {}): SoldierView => ({
@@ -47,10 +48,10 @@ describe('basic training director', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
     expect(ids(bt.startLife('S1', view([me(600, 4250)]), 0))).toEqual([
-      'intro.0',
-      'intro.1',
-      'intro.2',
-      'intro.3',
+      'intro',
+      'intro',
+      'intro',
+      'intro',
     ]);
     expect(ids(bt.step(view([me(600, 3700)]), 100, sarge))).toEqual(['r1.enter']);
     expect(ids(bt.step(view([me(600, 3650)]), 200, sarge))).toEqual([]);
@@ -90,7 +91,7 @@ describe('basic training director', () => {
   it('teaches the newest class first: the Grenadier at the parapet, not a skipped MG lesson', () => {
     const store = memory();
     store.setItem(
-      'aoo:bt:v2',
+      'aoo:bt:v3',
       JSON.stringify({
         unlocked: ['rifleman', 'shield', 'gunner', 'grenadier'],
         taught: ['role:shield', 'resume', 'spawnA'],
@@ -157,8 +158,8 @@ describe('basic training director', () => {
     bt.startLife('S1', view([me(600, 4250)]), 0);
     expect(ids(bt.step(view([me(600, 3700)]), 100, sarge))).toEqual(['r1.enter']);
     const at600 = view([me(600, 3700)]);
-    expect(bt.guide(at600)?.at.x).toBeLessThan(880); // by the bags, on your side
-    expect(bt.guide(at600)?.at.y).toBe(3500); // opposite the next target
+    expect(bt.guide(at600)?.at?.x).toBeLessThan(880); // by the bags, on your side
+    expect(bt.guide(at600)?.at?.y).toBe(3500); // opposite the next target
     expect(ids(bt.step(at600, 600, sarge))).toEqual([]); // gives you a moment
     expect(ids(bt.step(at600, 1200, sarge))).toEqual(['r1.bags']); // then asks
     expect(bt.step(at600, 5000, sarge)).toEqual([]);
@@ -181,8 +182,8 @@ describe('basic training director', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
     bt.startLife('S1', view([me(600, 4250)]), 0);
-    expect(bt.guide(view([me(600, 4250)]))?.at.y).toBeLessThan(4250); // ahead of you, at the door
-    expect(bt.guide(view([me(600, 4250)]))?.at.y).toBeGreaterThan(3900);
+    expect(bt.guide(view([me(600, 4250)]))?.at?.y).toBeLessThan(4250); // ahead of you, at the door
+    expect(bt.guide(view([me(600, 4250)]))?.at?.y).toBeGreaterThan(3900);
     bt.step(view([me(600, 4250)]), 1000, sarge);
     expect(ids(bt.step(view([me(600, 4250)]), 20000, sarge))).toEqual(['r0.heckle']);
   });
@@ -201,10 +202,10 @@ describe('basic training director', () => {
     const lines = bt.step(view([me(860, 3030)]), 250, sarge);
     expect(ids(lines)).toContain('r2.sprint');
     const closed = bt.guide(view([me(860, 3030)]))!;
-    expect(closed.at.y).toBeCloseTo(2910, -1); // just south of the gate
+    expect(closed.at!.y).toBeCloseTo(2910, -1); // just south of the gate
     const open = { ...view([me(860, 3030)]), gates: [{ id: 'bt-g2', open: true }] } as WorldView;
     expect(ids(bt.step(open, 300, sarge))).toEqual(['r2.go']);
-    expect(bt.guide(open)!.at.y).toBeLessThan(closed.at.y); // through it, ahead of you
+    expect(bt.guide(open)!.at!.y).toBeLessThan(closed.at!.y); // through it, ahead of you
     expect(ids(bt.step(open, 8000, sarge))).toEqual(['r2.heckle']); // dawdling: he heckles
   });
 
@@ -229,7 +230,7 @@ describe('basic training director', () => {
       { kind: 'new' as const, spawnPointId: 'bt-sp-a', entryTick: 0 },
     ];
     bt.enterRespawn(bt.respawnHint(opts), true, 1000);
-    const spot = bt.respawnGuide()!.at;
+    const spot = bt.respawnGuide()!.at!;
     expect(Math.abs(spot.x - 860)).toBeLessThan(100); // by Alpha
     expect(Math.abs(spot.y - 3110)).toBeLessThan(100);
     const says = bt.respawnSays(1100);
@@ -249,7 +250,7 @@ describe('basic training director', () => {
       false,
       0,
     );
-    expect(ids(bt.respawnSays(10))).toEqual(['rs.welcome.0', 'rs.welcome.1', 'rs.deploy']);
+    expect(ids(bt.respawnSays(10))).toEqual(['rs.welcome', 'rs.welcome', 'rs.welcome']);
   });
 
   it('his silence counts from when he stops talking (the overlay tells the director)', () => {
@@ -271,12 +272,33 @@ describe('basic training director', () => {
     bt.reset();
     bt.startLife('S1', view([me(600, 4250)]), 0);
     const script = structuredClone(bt.script);
-    script.beats.find((x) => x.id === 'r1.enter')!.say = ['Hello, [gold]private[/].'];
-    script.beats.find((x) => x.id === 'r1.bags')!.off = true;
+    script.rules.find((x) => x.id === 'r1.enter')!.steps = [
+      { k: 'say', say: ['Hello, [gold]private[/].'] },
+    ];
+    script.rules.find((x) => x.id === 'r1.bags')!.off = true;
     bt.setScript(script);
     const says = bt.step(view([me(600, 3700)]), 100, sarge);
     expect(says[0]!.text).toBe('Hello, [gold]private[/].');
     expect(ids(bt.step(view([me(600, 3700)]), 2000, sarge))).toEqual([]);
+  });
+
+  it('a zone from the script: entering and leaving it are moments rules can use', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    const script = structuredClone(bt.script);
+    script.rules = [
+      { id: 'in', when: 'enter:bags', steps: [{ k: 'say', say: ['in!'] }], repeat: true },
+      { id: 'out', when: 'leave:bags', steps: [{ k: 'say', say: ['out!'] }], repeat: true },
+      { id: 'long', when: 'inFor:bags:3', steps: [{ k: 'say', say: ['3s!'] }], repeat: true },
+    ];
+    bt.setScript(script);
+    bt.startLife('S1', view([me(600, 3800)]), 0);
+    const bags = (x: number, t: number) => ids(bt.step(view([me(x, 3600)]), t, sarge));
+    expect(bags(700, 100)).toEqual([]); // outside
+    expect(bags(860, 200)).toEqual(['in']); // walks into the sandbag zone
+    expect(bags(860, 2000)).toEqual([]);
+    expect(bags(860, 3500)).toEqual(['long']); // 3 seconds in
+    expect(bags(700, 3600)).toEqual(['out']); // and out
   });
 
   it('start here: stations carry on from what has happened before them', () => {
@@ -284,60 +306,116 @@ describe('basic training director', () => {
     bt.reset();
     bt.startAt(['captured:bt-a', 'minesShot'], ['shield']);
     expect(bt.roles()).toContain('shield');
-    bt.startLife('S1', view([me(650, 1900)]), 0);
-    // The chute is behind him: no sprint talk, no mine hints.
-    expect(ids(bt.step(view([me(650, 1900)]), 100, sarge))).toEqual(['r4.enter']);
+    // The chute is behind him: no sprint talk, no mine hints; just the room he starts in.
+    expect(ids(bt.startLife('S1', view([me(650, 1900)]), 0))).toEqual(['r4.enter']);
+    expect(ids(bt.step(view([me(650, 1900)]), 100, sarge))).toEqual([]);
   });
 });
 
 describe('the script engine', () => {
   const clone = () => structuredClone(DEFAULT_SARGE_SCRIPT);
+  const blank = {
+    edges: new Set<string>(),
+    inRoomS: 0,
+    quietS: 0,
+    had: new Set<string>(),
+    lives: 1,
+    deaths: 0,
+    deathsIn: {},
+    taught: [],
+    cause: null,
+    zonesIn: new Set<string>(),
+    room: null as string | null,
+    zoneSinceS: (() => null) as (z: string) => number | null,
+    flags: new Set<string>(),
+    flagSinceS: (() => null) as (f: string) => number | null,
+    gateOpen: () => false,
+    nextTarget: null,
+    targetsLeft: false,
+    inCorridor: false,
+    atSpawn: () => false,
+    respawn: null,
+  };
+  const say = (text: string): SargeStep => ({ k: 'say', say: [text] });
 
   it('says what is wrong with a condition, in words', () => {
     const s = clone();
-    expect(checkWhen('enter:r1, near:nowhere, bogus, waited:x, enter:r99', s)).toEqual([
+    expect(checkWhen('enter:r1, bogus, waited:x, in:nowhere, flag:nope, enter:r99', s)).toEqual([
       '"bogus" isn\'t a token I know',
       '"waited:x" needs seconds (like waited:…)',
-      '"enter:r99": there\'s no room called "r99"',
-      'no spot "nowhere"',
+      'there\'s no zone called "nowhere"',
+      'there\'s no flag called "nope"',
+      'there\'s no zone called "r99"',
     ]);
-    s.beats.push(
-      { id: 'dup', when: 'room:r1', say: ['x'] },
-      { id: 'dup', when: 'nope', say: ['y'] },
+    s.rules.push(
+      { id: 'dup', when: 'in:r1', steps: [say('x')] },
+      { id: 'dup', when: 'nope', steps: [say('y')] },
     );
-    expect(validateScript(s).join('|')).toContain('Two beats are called "dup"');
+    expect(validateScript(s).join('|')).toContain('Two rules are called "dup"');
+    s.zones.push({ id: 'r1', name: 'clash', x: 0, y: 0, w: 1, h: 1 });
+    expect(validateScript(s).join('|')).toContain("has a room's name");
   });
 
-  it('a beat fires when its condition turns true, not every frame; repeat lets it fire again', () => {
-    const said: string[] = [];
+  it('a rule runs when its condition turns true, not every frame; repeat lets it run again', () => {
     const script = clone();
-    script.beats = [
-      { id: 'once', when: 'room:r1', say: ['a'] },
-      { id: 'again', when: 'room:r1', say: ['b'], repeat: true },
+    script.rules = [
+      { id: 'once', when: 'in:r1', steps: [say('a')] },
+      { id: 'again', when: 'in:r1', steps: [say('b')], repeat: true },
     ];
-    const runner = new SargeRunner(script, said);
-    const base = {
-      edges: new Set<string>(),
-      inRoomS: 0,
-      quietS: 0,
-      had: new Set<string>(),
-      lives: 1,
-      deaths: 0,
-      deathsIn: {},
-      taught: [],
-      cause: null,
-      gateOpen: () => false,
-      nextTarget: null,
-      targetsLeft: false,
-      inCorridor: false,
-      atSpawn: () => false,
-      nearSpot: () => false,
-      respawn: null,
-    };
-    const at = (room: string | null, nowMs: number) => runner.run({ ...base, nowMs, room });
-    expect(at('r1', 0).map((f) => f.beat.id)).toEqual(['once', 'again']);
+    const runner = new SargeRunner(script, [], []);
+    const at = (zone: string, nowMs: number) =>
+      runner.run({ ...blank, nowMs, room: zone, zonesIn: new Set([zone]) });
+    expect(at('r1', 0).map((f) => f.rule.id)).toEqual(['once', 'again']);
     expect(at('r1', 16)).toEqual([]); // still true: not again
     at('r2', 32); // leaves
-    expect(at('r1', 48).map((f) => f.beat.id)).toEqual(['again']); // back: only the repeating one
+    expect(at('r1', 48).map((f) => f.rule.id)).toEqual(['again']); // back: only the repeating one
+  });
+
+  it('steps run in order, with waits between, and can set and clear flags', () => {
+    const script = clone();
+    script.flags = ['explained'];
+    script.rules = [
+      {
+        id: 'seq',
+        when: 'lifeStart',
+        steps: [
+          say('one'),
+          { k: 'wait', s: 2 },
+          say('two'),
+          { k: 'set', flag: 'explained' },
+          say('three'),
+        ],
+      },
+      { id: 'after', when: 'flag:explained', steps: [say('flag is up')] },
+    ];
+    const flags: string[] = [];
+    const runner = new SargeRunner(script, [], flags);
+    const look = (nowMs: number, edges: string[] = []) =>
+      runner.run({ ...blank, nowMs, edges: new Set(edges), flags: new Set(flags) });
+    expect(look(0, ['lifeStart']).map((f) => f.text)).toEqual(['one']); // then it waits
+    expect(look(1000)).toEqual([]);
+    expect(look(2100).map((f) => f.text)).toEqual(['two', 'three']);
+    expect(flags).toEqual(['explained']);
+    expect(look(2200).map((f) => f.text)).toEqual(['flag is up']); // the flag turned a rule on
+  });
+
+  it('zone, flag and timer conditions', () => {
+    const script = clone();
+    script.flags = ['f'];
+    script.rules = [
+      { id: 'enter', when: 'enter:bags', steps: [say('in')] },
+      { id: 'leave', when: 'leave:bags', steps: [say('out')] },
+      { id: 'stay', when: 'inFor:bags:5', steps: [say('5s')] },
+      { id: 'late', when: 'flagFor:f:3', steps: [say('3s after')] },
+      { id: 'later', when: 'firedFor:enter:2', steps: [say('2s after enter')] },
+    ];
+    const runner = new SargeRunner(script, [], []);
+    const look = (nowMs: number, o: Partial<typeof blank> = {}) =>
+      runner.run({ ...blank, nowMs, ...o }).map((f) => f.rule.id);
+    expect(look(0, { edges: new Set(['enter:bags']) })).toEqual(['enter']);
+    expect(look(1000, { zoneSinceS: () => 4 })).toEqual([]);
+    expect(look(2500, { zoneSinceS: () => 5 })).toEqual(['stay', 'later']);
+    expect(look(3000, { flagSinceS: () => 3 })).toEqual(['late']);
+    expect(look(4000, { edges: new Set(['leave:bags']) })).toEqual(['leave']);
   });
 });

@@ -10,17 +10,20 @@ import { roleDef } from '../content/roles';
 import {
   BASIC_TRAINING,
   BT_CORRIDOR_X,
+  BT_R1_BAGS,
+  BT_ROOM_RECTS,
   BT_TARGETS,
   btRoomAt,
   type BtRoom,
 } from '../content/maps/basic-training';
-import { DEFAULT_SARGE_SCRIPT, type SargeScript, type SargeSpot } from '../content/sarge-script';
+import { DEFAULT_SARGE_SCRIPT, type SargeScript } from '../content/sarge-script';
 import { str, strDynamic, type StringKey } from '../content/strings';
 import type { SoldierView, WorldView } from '../sim/view';
+import type { Rect } from '../sim/world/map';
 import { SargeRunner, type SargeCtx } from './sarge-engine';
 import type { TextStorage } from './replay-library';
 
-const KEY = 'aoo:bt:v2';
+const KEY = 'aoo:bt:v3';
 export const BT_DONE_KEY = 'aoo:bt:done';
 /** The first visit was sent to basic training (from then on `/` is the HQ). */
 export const BT_SENT_KEY = 'aoo:bt:sent';
@@ -31,8 +34,10 @@ export const BT_SENT_KEY = 'aoo:bt:sent';
 export const BT_ACTIVE_KEY = 'aoo:bt:active';
 
 export interface BtProgress {
-  /** Beats said (the once-only ones). */
+  /** Rules that have run (the once-only ones). */
   said: string[];
+  /** The script's own flags that are set. */
+  flags: string[];
   /** Things that have happened ("captured:bt-a", "minesShot", …): the script's `had:` tokens. */
   had: string[];
   /** Classes unlocked so far (the Rifleman always is). */
@@ -47,6 +52,7 @@ export interface BtProgress {
 
 const fresh = (): BtProgress => ({
   said: [],
+  flags: [],
   had: [],
   unlocked: ['rifleman'],
   taught: [],
@@ -85,11 +91,14 @@ export interface BtSay {
   urgent?: boolean;
 }
 
-/** Where the ghost Sarge wants to be right now (null: just tag along with you). */
+/** Where the ghost Sarge wants to be right now (null: no opinion: near you). */
 export interface BtGuide {
-  at: { x: number; y: number };
-  /** The way he faces once there (radians). */
-  face: number;
+  /** A place on the map… */
+  at?: { x: number; y: number };
+  /** …or near you (an offset from where you are). */
+  player?: { dx: number; dy: number };
+  /** The way he faces once there (radians); null: toward you. */
+  face: number | null;
 }
 
 const startSpawn = () => BASIC_TRAINING.spawnPoints.find((x) => x.id === 'bt-start')!;
@@ -104,7 +113,13 @@ export class BasicTraining {
   private room: BtRoom | null = null;
   private roomSince = 0;
   private lastLineMs = 0;
+  /** The latest time the director has seen (for flag timers). */
+  private nowMs = 0;
   private cause: string | null = null;
+  /** Zones your soldier is in, and since when (ms). */
+  private zones = new Map<string, number>();
+  /** When each flag was set (ms; a flag set before this page loaded counts from its first look). */
+  private readonly flagSince = new Map<string, number>();
   /** The respawn view: where he's walking, and what it asks of the script. */
   private rs: {
     spot: { x: number; y: number };
@@ -121,7 +136,10 @@ export class BasicTraining {
   ) {
     this.script = script;
     this.progress = this.load();
-    this.runner = new SargeRunner(script, this.progress.said);
+    this.runner = new SargeRunner(script, this.progress.said, this.progress.flags, (f, on) => {
+      if (on) this.flagSince.set(f, this.nowMs);
+      else this.flagSince.delete(f);
+    });
     this.applyRoles();
   }
 
@@ -135,7 +153,9 @@ export class BasicTraining {
   reset(): void {
     this.progress = fresh();
     this.runner.resetTimers();
-    this.runner.setSaid(this.progress.said);
+    this.runner.setLists(this.progress.said, this.progress.flags);
+    this.flagSince.clear();
+    this.zones.clear();
     this.save();
     this.applyRoles();
   }
@@ -173,8 +193,19 @@ export class BasicTraining {
     this.liveId = liveId;
     this.room = null;
     this.roomSince = nowMs;
+    this.zones.clear();
+    this.nowMs = nowMs;
     this.progress.lives++;
-    const out = this.say(this.ctx(view, nowMs, new Set(['lifeStart'])));
+    // You start in whatever zones you stand in: that's an "enter" for each.
+    const edges = new Set(['lifeStart']);
+    const me = view.soldiers.find((x) => x.id === liveId);
+    if (me) {
+      for (const z of this.zonesAt(me.x, me.y)) {
+        this.zones.set(z, nowMs);
+        edges.add(`enter:${z}`);
+      }
+    }
+    const out = this.say(this.ctx(view, nowMs, edges));
     this.save();
     return out;
   }
@@ -182,13 +213,27 @@ export class BasicTraining {
   /** One sim step. `sarge`: where he stands (for shots at him). Returns lines to say. */
   step(view: WorldView, nowMs: number, sarge: { x: number; y: number }): BtSay[] {
     const edges = new Set<string>();
+    this.nowMs = nowMs;
     const me = view.soldiers.find((s) => s.id === this.liveId);
     if (me?.alive) {
       const r = btRoomAt(me.x, me.y);
       if (r !== this.room) {
         this.room = r;
         this.roomSince = nowMs;
-        edges.add(`enter:${r}`);
+      }
+      // Zones (the room, and the script's own rectangles): who came in, who went out.
+      const now = this.zonesAt(me.x, me.y);
+      for (const z of now) {
+        if (!this.zones.has(z)) {
+          this.zones.set(z, nowMs);
+          edges.add(`enter:${z}`);
+        }
+      }
+      for (const z of [...this.zones.keys()]) {
+        if (!now.has(z)) {
+          this.zones.delete(z);
+          edges.add(`leave:${z}`);
+        }
       }
     }
     this.cause = null;
@@ -236,23 +281,35 @@ export class BasicTraining {
    * player is doing, so he reacts to the moment (the script's `places` say where).
    */
   guide(view: WorldView, nowMs = 0): BtGuide | null {
-    const place = this.runner.place(this.ctx(view, nowMs, new Set()));
-    if (!place) return null;
-    let at: { x: number; y: number } | null = null;
-    const to = place.at;
-    if ('spot' in to) {
-      const s = this.script.spots.find((x) => x.id === to.spot);
-      if (s) {
-        at = s.rect
-          ? { x: s.rect.x + s.rect.w / 2, y: s.rect.y + s.rect.h / 2 }
-          : { x: s.x ?? 0, y: s.y ?? 0 };
+    const pref = this.runner.pref(this.ctx(view, nowMs, new Set()));
+    if (!pref) return null;
+    const face = pref.face === null ? null : (pref.face * Math.PI) / 180;
+    const at = pref.at;
+    switch (at.kind) {
+      case 'point':
+        return { at: { x: at.x, y: at.y }, face };
+      case 'player':
+        return { player: { dx: at.dx, dy: at.dy }, face };
+      case 'zone': {
+        const z = this.script.zones.find((x) => x.id === at.zone);
+        if (z) return { at: { x: z.x + z.w / 2, y: z.y + z.h / 2 }, face };
+        const room = (BT_ROOM_RECTS as Record<string, Rect | undefined>)[at.zone];
+        return room ? { at: { x: room.x + room.w / 2, y: room.y + room.h / 2 }, face } : null;
       }
-    } else if ('nextTarget' in to) {
-      const next = this.nextTarget(view);
-      const bags = this.script.spots.find((x) => x.id === 'bags')?.rect;
-      if (next && bags) at = { x: bags.x + to.dx, y: Math.max(bags.y + 40, next.y) };
-    } else at = to;
-    return at ? { at, face: (place.face * Math.PI) / 180 } : null;
+      case 'nextTarget': {
+        const next = this.nextTarget(view);
+        return next ? { at: { x: at.x, y: Math.max(BT_R1_BAGS.y + 40, next.y) }, face } : null;
+      }
+    }
+  }
+
+  /** The script's zones (and the room) that contain this point. */
+  private zonesAt(x: number, y: number): Set<string> {
+    const out = new Set<string>([btRoomAt(x, y)]);
+    for (const z of this.script.zones) {
+      if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) out.add(z.id);
+    }
+    return out;
   }
 
   // --- The respawn view --------------------------------------------------------------------
@@ -327,6 +384,21 @@ export class BasicTraining {
       deathsIn: p.deathsIn,
       taught: p.taught,
       cause: edges.has('died') || [...edges].some((e) => e.startsWith('died:')) ? this.cause : null,
+      zonesIn: new Set(this.zones.keys()),
+      zoneSinceS: (z) => {
+        const t = this.zones.get(z);
+        return t === undefined ? null : (nowMs - t) / 1000;
+      },
+      flags: new Set(p.flags),
+      flagSinceS: (f) => {
+        if (!p.flags.includes(f)) return null;
+        let t = this.flagSince.get(f);
+        if (t === undefined) {
+          t = nowMs;
+          this.flagSince.set(f, t);
+        }
+        return (nowMs - t) / 1000;
+      },
       gateOpen: (id) => view?.gates.find((g) => g.id === id)?.open ?? false,
       nextTarget: view ? (this.nextTarget(view)?.id ?? null) : null,
       targetsLeft: view ? !!this.nextTarget(view) : false,
@@ -335,7 +407,6 @@ export class BasicTraining {
         const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === id);
         return !!me && !!sp && Math.hypot(me.x - sp.position.x, me.y - sp.position.y) < 80;
       },
-      nearSpot: (s: SargeSpot) => (me ? nearSpot(me, s) : false),
       respawn: this.rs
         ? {
             hint: hint ? hint.kind : null,
@@ -369,9 +440,9 @@ export class BasicTraining {
     const out: BtSay[] = [
       ...this.takePreviews(),
       ...fired.map((f) => ({
-        id: f.beat.id,
+        id: f.rule.id,
         text: fill(f.text, params),
-        ...(f.beat.urgent ? { urgent: true } : {}),
+        ...(f.rule.urgent ? { urgent: true } : {}),
       })),
     ];
     if (fired.length) this.lastLineMs = c.nowMs;
@@ -464,16 +535,6 @@ export class BasicTraining {
       // this visit only
     }
   }
-}
-
-/** Is `me` at this spot (a point with a radius, or a rectangle with a margin)? */
-function nearSpot(me: { x: number; y: number }, s: SargeSpot): boolean {
-  if (s.rect) {
-    const dx = Math.max(s.rect.x - me.x, 0, me.x - (s.rect.x + s.rect.w));
-    const dy = Math.max(s.rect.y - me.y, 0, me.y - (s.rect.y + s.rect.h));
-    return Math.hypot(dx, dy) <= s.radius;
-  }
-  return Math.hypot(me.x - (s.x ?? 0), me.y - (s.y ?? 0)) <= s.radius;
 }
 
 /** The MG nest and its shotgunner (east corridor, R3/R4) are all down. */

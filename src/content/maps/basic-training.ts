@@ -60,6 +60,23 @@ export const BT = {
 
 export type BtRoom = keyof typeof BT;
 
+/**
+ * The rooms as rectangles (for drawing them in the Sarge editor and finding a room's middle).
+ * The chute and the corridor bend `btRoomAt`, so these are the plain bands.
+ */
+export const BT_ROOM_RECTS: Record<BtRoom, Rect> = (() => {
+  const order: BtRoom[] = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5f', 'r5', 'r6f', 'r6', 'r7'];
+  const x = BT_FENCE_X + 12;
+  const w = BT_W - 40 - x;
+  const out = {} as Record<BtRoom, Rect>;
+  order.forEach((r, i) => {
+    const top = BT[r];
+    const bottom = i === 0 ? BT_H - 40 : BT[order[i - 1]!];
+    out[r] = { x, y: top, w, h: bottom - top };
+  });
+  return out;
+})();
+
 /** The corridor east of R3/R4 (round behind the MG nest). */
 export const BT_CORRIDOR_X = 1006;
 

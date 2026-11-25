@@ -833,6 +833,8 @@ export const STRINGS = {
   'bt.coach.pickSpawn': 'Pick where to go back in',
   'bt.coach.role': 'New class: {role}. Pick it here',
   'bt.coach.roleItem': 'Pick {role}',
+  'sarge.back': '← Sarge editor',
+  'sarge.title': "Sarge's script editor",
   'bt.graduated': 'You graduated basic training!',
   'bt.toHq': 'Report to HQ',
   'hub.sign.training': 'BASIC TRAINING\n[small]Again? Suit yourself.[/]',

@@ -1,14 +1,15 @@
 /**
  * (PHASE18) The interpreter for Sarge's script (`src/content/sarge-script.ts`, [D160]): turns the
- * text of a beat's `when` into checks, and decides what he says and where he stands. No Phaser, no
- * DOM, no clock of its own: everything it knows comes in through `SargeCtx`.
+ * text of a rule's `when` into checks, runs the steps of the rules that fire, and says where he
+ * likes to stand. No Phaser, no DOM, no clock of its own: everything it knows comes in through
+ * `SargeCtx`.
  */
 import {
   SARGE_ROOMS,
-  type SargeBeat,
-  type SargePlace,
+  type SargePref,
+  type SargeRule,
   type SargeScript,
-  type SargeSpot,
+  type SargeStep,
 } from '../content/sarge-script';
 
 /** What the engine knows about the moment (built by the director). */
@@ -21,19 +22,28 @@ export interface SargeCtx {
   room: string | null;
   inRoomS: number;
   quietS: number;
-  /** Everything that has happened (edges, and beat ids that were said). */
+  /** Everything that has happened (edges, and ids of rules that ran once). */
   had: ReadonlySet<string>;
   lives: number;
   deaths: number;
   deathsIn: Readonly<Record<string, number>>;
   taught: readonly string[];
   cause: string | null;
+  /** Zones (and the room) your soldier is in now. */
+  zonesIn: ReadonlySet<string>;
+  /** Seconds in that zone so far (null: not in it). */
+  zoneSinceS: (zone: string) => number | null;
+  /** Your flags that are set. */
+  flags: ReadonlySet<string>;
+  /** Seconds since a flag was set (null: not set). */
+  flagSinceS: (flag: string) => number | null;
+  /** Seconds since a rule last ran (null: never). Filled in by the runner. */
+  firedSinceS?: (rule: string) => number | null;
   gateOpen: (id: string) => boolean;
   nextTarget: string | null;
   targetsLeft: boolean;
   inCorridor: boolean;
   atSpawn: (id: string) => boolean;
-  nearSpot: (spot: SargeSpot) => boolean;
   respawn: null | {
     hint: 'deploy' | 'spawn' | 'resume' | null;
     spawnPointId: string | null;
@@ -42,19 +52,21 @@ export interface SargeCtx {
   };
 }
 
-/** One condition of a beat. `edge`: true only at the moment it happens. */
-interface Tok {
+/** One condition of a rule. `edge`: true only at the moment it happens. */
+export interface Tok {
   raw: string;
   neg: boolean;
   name: string;
-  arg: string;
+  /** The parts after the name, split at ':' ("inFor:bags:5" → ["bags", "5"]). */
+  args: string[];
   edge: boolean;
   /** `waited:N` is handled by the runner. */
   waitS?: number;
-  test: (c: SargeCtx, spots: ReadonlyMap<string, SargeSpot>) => boolean;
+  test: (c: SargeCtx) => boolean;
 }
 
-const num = (s: string) => (s !== '' && Number.isFinite(Number(s)) ? Number(s) : null);
+const num = (s: string | undefined) =>
+  s !== undefined && s !== '' && Number.isFinite(Number(s)) ? Number(s) : null;
 
 /** Builds the check for one token, or an error message. */
 function makeTok(raw: string): Tok | string {
@@ -64,18 +76,21 @@ function makeTok(raw: string): Tok | string {
   const gt = /^deaths>(\d+)$/.exec(text);
   if (gt) {
     const n = Number(gt[1]);
-    return tok(raw, neg, 'deaths>', gt[1]!, false, (c) => c.deaths > n);
+    return tok(raw, neg, 'deaths>', [gt[1]!], false, (c) => c.deaths > n);
   }
-  const i = text.indexOf(':');
-  const name = i < 0 ? text : text.slice(0, i);
-  const arg = i < 0 ? '' : text.slice(i + 1);
+  const parts = text.split(':');
+  const name = parts[0]!;
+  const args = parts.slice(1);
+  const arg = args.join(':');
   const need = (what: string) => `"${raw.trim()}" needs ${what} (like ${name}:…)`;
   const room = () =>
     (SARGE_ROOMS as readonly string[]).includes(arg)
       ? null
       : `"${raw.trim()}": there's no room called "${arg}"`;
+  const edge = (test: (c: SargeCtx) => boolean) => tok(raw, neg, name, args, true, test);
+  const state = (test: (c: SargeCtx) => boolean) => tok(raw, neg, name, args, false, test);
   switch (name) {
-    // Edges.
+    // Events.
     case 'lifeStart':
     case 'targetsDown':
     case 'minesShot':
@@ -83,83 +98,99 @@ function makeTok(raw: string): Tok | string {
     case 'rangeCleared':
     case 'shotAtSarge':
     case 'respawnOpen':
-      return tok(raw, neg, name, arg, true, (c) => c.edges.has(name));
+      return edge((c) => c.edges.has(name));
     case 'died':
       if (arg && room()) return room()!;
-      return tok(raw, neg, name, arg, true, (c) => c.edges.has(arg ? `died:${arg}` : 'died'));
+      return edge((c) => c.edges.has(arg ? `died:${arg}` : 'died'));
     case 'enter':
-      if (room()) return room()!;
-      return tok(raw, neg, name, arg, true, (c) => c.edges.has(`enter:${arg}`));
+    case 'leave':
+      if (!arg) return need('a zone');
+      return edge((c) => c.edges.has(`${name}:${arg}`));
     case 'captured':
     case 'gateOpened':
       if (!arg) return need('a name');
-      return tok(raw, neg, name, arg, true, (c) => c.edges.has(`${name}:${arg}`));
+      return edge((c) => c.edges.has(`${name}:${arg}`));
     // States.
+    case 'in':
+      if (!arg) return need('a zone');
+      return state((c) => c.zonesIn.has(arg));
     case 'room':
       if (room()) return room()!;
-      return tok(raw, neg, name, arg, false, (c) => c.room === arg);
+      return state((c) => c.room === arg);
     case 'alive':
-      return tok(raw, neg, name, arg, false, (c) => !!c.me?.alive);
+      return state((c) => !!c.me?.alive);
     case 'firstLife':
-      return tok(raw, neg, name, arg, false, (c) => c.lives === 1);
+      return state((c) => c.lives === 1);
     case 'role':
-      return tok(raw, neg, name, arg, false, (c) => c.me?.roleId === arg);
+      return state((c) => c.me?.roleId === arg);
     case 'deaths':
       if (num(arg) === null) return need('a number');
-      return tok(raw, neg, name, arg, false, (c) => c.deaths === Number(arg));
+      return state((c) => c.deaths === Number(arg));
     case 'diedIn':
       if (room()) return room()!;
-      return tok(raw, neg, name, arg, false, (c) => (c.deathsIn[arg] ?? 0) > 0);
+      return state((c) => (c.deathsIn[arg] ?? 0) > 0);
     case 'had':
-      if (!arg) return need('an edge or a beat id');
-      return tok(raw, neg, name, arg, false, (c) => c.had.has(arg));
+      if (!arg) return need('an event or a rule id');
+      return state((c) => c.had.has(arg));
+    case 'flag':
+      if (!arg) return need('a flag name');
+      return state((c) => c.flags.has(arg));
     case 'gate':
       if (!arg) return need('a gate');
-      return tok(raw, neg, name, arg, false, (c) => c.gateOpen(arg));
-    case 'near':
-      if (!arg) return need('a spot');
-      return tok(raw, neg, name, arg, false, (c, spots) => {
-        const s = spots.get(arg);
-        return !!s && !!c.me?.alive && c.nearSpot(s);
-      });
+      return state((c) => c.gateOpen(arg));
     case 'nextTarget':
-      return tok(raw, neg, name, arg, false, (c) => c.nextTarget === arg);
+      return state((c) => c.nextTarget === arg);
     case 'targetsLeft':
-      return tok(raw, neg, name, arg, false, (c) => c.targetsLeft);
+      return state((c) => c.targetsLeft);
     case 'hurt':
-      return tok(raw, neg, name, arg, false, (c) => !!c.me && c.me.hp < c.me.maxHp);
+      return state((c) => !!c.me && c.me.hp < c.me.maxHp);
     case 'corridor':
-      return tok(raw, neg, name, arg, false, (c) => c.inCorridor);
+      return state((c) => c.inCorridor);
     case 'atSpawn':
       if (!arg) return need('a spawn id');
-      return tok(raw, neg, name, arg, false, (c) => c.atSpawn(arg));
+      return state((c) => c.atSpawn(arg));
     case 'cause':
-      return tok(raw, neg, name, arg, false, (c) => c.cause === arg);
+      return state((c) => c.cause === arg);
     case 'inRoom':
       if (num(arg) === null) return need('seconds');
-      return tok(raw, neg, name, arg, false, (c) => c.inRoomS >= Number(arg));
+      return state((c) => c.inRoomS >= Number(arg));
+    case 'inFor': {
+      const n = num(args[1]);
+      if (!args[0] || n === null) return need('a zone and seconds');
+      return state((c) => (c.zoneSinceS(args[0]!) ?? -1) >= n);
+    }
+    case 'flagFor': {
+      const n = num(args[1]);
+      if (!args[0] || n === null) return need('a flag and seconds');
+      return state((c) => (c.flagSinceS(args[0]!) ?? -1) >= n);
+    }
+    case 'firedFor': {
+      const n = num(args[1]);
+      if (!args[0] || n === null) return need('a rule and seconds');
+      return state((c) => (c.firedSinceS?.(args[0]!) ?? -1) >= n);
+    }
     case 'quiet':
       if (num(arg) === null) return need('seconds');
-      return tok(raw, neg, name, arg, false, (c) => c.quietS >= Number(arg));
+      return state((c) => c.quietS >= Number(arg));
     case 'waited': {
       const n = num(arg);
       if (n === null) return need('seconds');
-      const t = tok(raw, neg, name, arg, false, () => true);
+      const t = state(() => true);
       t.waitS = n;
       return t;
     }
     case 'respawn':
-      return tok(raw, neg, name, arg, false, (c) => !!c.respawn);
+      return state((c) => !!c.respawn);
     case 'afterDeath':
-      return tok(raw, neg, name, arg, false, (c) => !!c.respawn?.afterDeath);
+      return state((c) => !!c.respawn?.afterDeath);
     case 'hint':
-      return tok(raw, neg, name, arg, false, (c) => c.respawn?.hint === arg);
+      return state((c) => c.respawn?.hint === arg);
     case 'hintSpawn':
-      return tok(raw, neg, name, arg, false, (c) => c.respawn?.spawnPointId === arg);
+      return state((c) => c.respawn?.spawnPointId === arg);
     case 'hintRole':
-      return tok(raw, neg, name, arg, false, (c) => !!c.respawn?.hasRole);
+      return state((c) => !!c.respawn?.hasRole);
     case 'taught':
-      return tok(raw, neg, name, arg, false, (c) => c.taught.includes(arg));
+      return state((c) => c.taught.includes(arg));
     default:
       return `"${raw.trim()}" isn't a token I know`;
   }
@@ -169,18 +200,11 @@ function tok(
   raw: string,
   neg: boolean,
   name: string,
-  arg: string,
+  args: string[],
   edge: boolean,
   test: Tok['test'],
 ): Tok {
-  return {
-    raw,
-    neg,
-    name,
-    arg,
-    edge,
-    test: neg ? (c, s) => !test(c, s) : test,
-  };
+  return { raw, neg, name, args, edge, test: neg ? (c) => !test(c) : test };
 }
 
 export interface Compiled {
@@ -206,42 +230,63 @@ export function compileWhen(when: string): Compiled {
   return out;
 }
 
+/** The ids of every zone a script can talk about: the rooms and its own. */
+export const zoneIds = (script: SargeScript): Set<string> =>
+  new Set([...SARGE_ROOMS, ...script.zones.map((z) => z.id)]);
+
+/** Problems with one `when` string: wrong words, and zones, flags and rules that don't exist. */
+export function checkWhen(when: string, script: SargeScript): string[] {
+  const zones = zoneIds(script);
+  const flags = new Set(script.flags);
+  const rules = new Set(script.rules.map((r) => r.id));
+  const out = [...compileWhen(when).errors];
+  for (const t of compileWhen(when).toks) {
+    const a = t.args[0] ?? '';
+    if (['in', 'enter', 'leave', 'inFor'].includes(t.name) && !zones.has(a)) {
+      out.push(`there's no zone called "${a}"`);
+    }
+    if (['flag', 'flagFor'].includes(t.name) && !flags.has(a)) {
+      out.push(`there's no flag called "${a}"`);
+    }
+    if (t.name === 'firedFor' && !rules.has(a)) out.push(`there's no rule called "${a}"`);
+  }
+  return out;
+}
+
 /** Everything wrong with a script, as readable messages (empty: fine). */
 export function validateScript(script: SargeScript): string[] {
   const problems: string[] = [];
   const ids = new Set<string>();
-  const spots = new Set(script.spots.map((s) => s.id));
-  for (const beat of script.beats) {
-    if (ids.has(beat.id)) problems.push(`Two beats are called "${beat.id}"`);
-    ids.add(beat.id);
-    for (const e of compileWhen(beat.when).errors) problems.push(`${beat.id}: ${e}`);
-    for (const t of compileWhen(beat.when).toks) {
-      if (t.name === 'near' && !spots.has(t.arg)) problems.push(`${beat.id}: no spot "${t.arg}"`);
+  const zones = new Set<string>();
+  for (const z of script.zones) {
+    if ((SARGE_ROOMS as readonly string[]).includes(z.id)) {
+      problems.push(`Zone "${z.id}" has a room's name`);
+    }
+    if (zones.has(z.id)) problems.push(`Two zones are called "${z.id}"`);
+    zones.add(z.id);
+  }
+  for (const r of script.rules) {
+    if (ids.has(r.id)) problems.push(`Two rules are called "${r.id}"`);
+    ids.add(r.id);
+    for (const e of checkWhen(r.when, script)) problems.push(`${r.id}: ${e}`);
+    for (const st of r.steps) {
+      if (st.k === 'set' || st.k === 'clear') {
+        if (!script.flags.includes(st.flag)) problems.push(`${r.id}: there's no flag "${st.flag}"`);
+      }
     }
   }
-  for (const p of script.places) {
-    for (const e of compileWhen(p.when).errors) problems.push(`place ${p.id}: ${e}`);
-    if ('spot' in p.at && !spots.has(p.at.spot))
-      problems.push(`place ${p.id}: no spot "${p.at.spot}"`);
+  for (const p of script.prefs) {
+    for (const e of checkWhen(p.when, script)) problems.push(`position ${p.id}: ${e}`);
+    if (p.at.kind === 'zone' && !zoneIds(script).has(p.at.zone)) {
+      problems.push(`position ${p.id}: there's no zone "${p.at.zone}"`);
+    }
   }
   return problems;
 }
 
-/** Problems with one `when` string, for the editor to show next to the field. */
-export function checkWhen(when: string, script: SargeScript): string[] {
-  const spots = new Set(script.spots.map((s) => s.id));
-  const c = compileWhen(when);
-  return [
-    ...c.errors,
-    ...c.toks
-      .filter((t) => t.name === 'near' && !spots.has(t.arg))
-      .map((t) => `no spot "${t.arg}"`),
-  ];
-}
-
-/** What a beat said (the text is picked from its variants). */
+/** What a rule said (the text is picked from the step's variants). */
 export interface Fired {
-  beat: SargeBeat;
+  rule: SargeRule;
   text: string;
 }
 
@@ -251,61 +296,80 @@ interface Runtime {
   /** Since when everything but `waited` has held (ms), or null. */
   holdSince: number | null;
   lastMs: number;
-  variant: number;
+  /** Per say step: which variant is next. */
+  variant: number[];
 }
 
-/** Decides what fires. Keeps per-beat bookkeeping; `said` is the persisted list of once-only beats. */
+/** A rule that is partway through its steps (it had a wait in it). */
+interface Active {
+  rule: SargeRule;
+  idx: number;
+  due: number;
+}
+
+/** Decides what runs. Keeps per-rule bookkeeping; `done` and `flags` are the persisted lists. */
 export class SargeRunner {
   private readonly rt = new Map<string, Runtime>();
+  private active: Active[] = [];
 
   constructor(
     private script: SargeScript,
-    /** Beat ids already said once (shared with the saved progress). */
-    private said: string[],
+    /** Rules already run once (shared with the saved progress). */
+    private done: string[],
+    /** Flags that are set (shared with the saved progress). */
+    private flags: string[],
+    /** Called when a rule sets or clears a flag (so the director can time it). */
+    private readonly onFlag: (flag: string, on: boolean) => void = () => {},
   ) {}
-
-  /** The list of once-said beats changed (a reset): use the new one. */
-  setSaid(said: string[]): void {
-    this.said = said;
-  }
 
   setScript(script: SargeScript): void {
     this.script = script;
   }
 
-  /** Forget the per-beat timers (a new life, or the script changed). */
+  /** The persisted lists changed (a reset): use the new ones. */
+  setLists(done: string[], flags: string[]): void {
+    this.done = done;
+    this.flags = flags;
+  }
+
+  /** Forget the per-rule timers (a new life, or the script changed). */
   resetTimers(): void {
     this.rt.clear();
+    this.active = [];
   }
 
   private runtime(id: string): Runtime {
     let r = this.rt.get(id);
     if (!r) {
-      r = { was: false, holdSince: null, lastMs: -1e12, variant: 0 };
+      r = { was: false, holdSince: null, lastMs: -1e12, variant: [] };
       this.rt.set(id, r);
     }
     return r;
   }
 
-  private spots(): Map<string, SargeSpot> {
-    return new Map(this.script.spots.map((s) => [s.id, s]));
-  }
-
-  /** The beats that fire now, in script order. */
-  run(c: SargeCtx): Fired[] {
+  /** The rules that run now (lines come out in the order they're said). */
+  run(ctx: SargeCtx): Fired[] {
     const out: Fired[] = [];
-    const spots = this.spots();
+    const c: SargeCtx = {
+      ...ctx,
+      firedSinceS: (id) => {
+        const last = this.rt.get(id)?.lastMs ?? -1e12;
+        return last < -1e11 ? null : (ctx.nowMs - last) / 1000;
+      },
+    };
+    // Rules that are partway through their steps carry on first.
+    for (const a of [...this.active]) this.advance(a, c, out);
     let stopped = false;
-    for (const beat of this.script.beats) {
-      if (beat.off) continue;
-      const rt = this.runtime(beat.id);
-      const { toks, errors } = compileWhen(beat.when);
+    for (const rule of this.script.rules) {
+      if (rule.off) continue;
+      const rt = this.runtime(rule.id);
+      const { toks, errors } = compileWhen(rule.when);
       if (errors.length) continue;
       let wait: number | null = null;
       let ok = true;
       for (const t of toks) {
         if (t.waitS !== undefined) wait = t.waitS;
-        else if (!t.test(c, spots)) {
+        else if (!t.test(c)) {
           ok = false;
           break;
         }
@@ -324,27 +388,63 @@ export class SargeRunner {
       }
       rt.was = true;
       if (!fire || stopped) continue;
-      if (!beat.repeat && this.said.includes(beat.id)) continue;
-      if (beat.cooldownS && c.nowMs - rt.lastMs < beat.cooldownS * 1000) continue;
-      const lines = beat.say.filter((s) => s.trim() !== '');
-      if (!lines.length) continue;
-      const text = lines[rt.variant++ % lines.length]!;
+      if (!rule.repeat && this.done.includes(rule.id)) continue;
+      if (rule.cooldownS && c.nowMs - rt.lastMs < rule.cooldownS * 1000) continue;
+      if (!rule.steps.some((s) => s.k !== 'say' || s.say.some((t) => t.trim() !== ''))) continue;
       rt.lastMs = c.nowMs;
       if (wait !== null) rt.holdSince = c.nowMs;
-      if (!beat.repeat) this.said.push(beat.id);
-      out.push({ beat, text });
-      if (beat.stop) stopped = true;
+      if (!rule.repeat) this.done.push(rule.id);
+      const a: Active = { rule, idx: 0, due: c.nowMs };
+      this.active.push(a);
+      this.advance(a, c, out);
+      if (rule.stop) stopped = true;
     }
     return out;
   }
 
-  /** Where he should stand (the first place that holds), or null to tag along. */
-  place(c: SargeCtx): SargePlace | null {
-    const spots = this.spots();
-    for (const p of this.script.places) {
+  /** Runs a rule's steps until it has to wait. */
+  private advance(a: Active, c: SargeCtx, out: Fired[]): void {
+    const rt = this.runtime(a.rule.id);
+    while (a.idx < a.rule.steps.length && c.nowMs >= a.due) {
+      const step: SargeStep = a.rule.steps[a.idx]!;
+      const i = a.idx++;
+      switch (step.k) {
+        case 'say': {
+          const lines = step.say.filter((t) => t.trim() !== '');
+          if (!lines.length) break;
+          const n = rt.variant[i] ?? 0;
+          rt.variant[i] = n + 1;
+          out.push({ rule: a.rule, text: lines[n % lines.length]! });
+          break;
+        }
+        case 'wait':
+          a.due = c.nowMs + Math.max(0, step.s) * 1000;
+          break;
+        case 'set':
+          if (!this.flags.includes(step.flag)) {
+            this.flags.push(step.flag);
+            this.onFlag(step.flag, true);
+          }
+          break;
+        case 'clear': {
+          const at = this.flags.indexOf(step.flag);
+          if (at >= 0) {
+            this.flags.splice(at, 1);
+            this.onFlag(step.flag, false);
+          }
+          break;
+        }
+      }
+    }
+    if (a.idx >= a.rule.steps.length) this.active = this.active.filter((x) => x !== a);
+  }
+
+  /** Where he likes to stand (the first pref that holds), or null: no opinion. */
+  pref(c: SargeCtx): SargePref | null {
+    for (const p of this.script.prefs) {
       const { toks, errors } = compileWhen(p.when);
       if (errors.length) continue;
-      if (toks.every((t) => t.waitS !== undefined || t.test(c, spots))) return p;
+      if (toks.every((t) => t.waitS !== undefined || t.test(c))) return p;
     }
     return null;
   }

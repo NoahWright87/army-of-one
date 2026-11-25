@@ -134,3 +134,26 @@ export function applyStation(map: MapDef, station: BtStation): void {
     s.id === 'bt-start' ? { ...s, position: { ...station.start } } : s,
   );
 }
+
+/** The gates that open from a mission rule, with what each waits for (for the Sarge editor). */
+export function gateRules(map: MapDef): { gate: string; delayS: number; when: string }[] {
+  return (map.triggers ?? []).map((t) => ({
+    gate: t.openGate,
+    delayS: t.delaySeconds ?? 0,
+    when:
+      'captured' in t.when
+        ? `${t.when.captured} is captured`
+        : 'destroyed' in t.when
+          ? 'the range targets are destroyed'
+          : 'a squad is dead',
+  }));
+}
+
+/** Sets how long each gate waits after its rule is met (changes `map` in place, for this page). */
+export function applyGateDelays(map: MapDef, delays: Readonly<Record<string, number>>): void {
+  const m = map as { triggers?: MapDef['triggers'] };
+  m.triggers = map.triggers?.map((t) => {
+    const d = delays[t.openGate];
+    return d === undefined ? t : { ...t, delaySeconds: d };
+  });
+}

@@ -26,7 +26,7 @@ const SARGE_SIZE = 36;
 const GHOST_ALPHA = 0.6; // TUNE
 const GHOST_TINT = 0xbfe3ff;
 /** Tagging along: he stays about here from you (behind-left), and only moves when you leave it. */
-const FOLLOW_OFFSET = { x: -90, y: 70 }; // TUNE
+const FOLLOW_OFFSET = { dx: -90, dy: 70 }; // TUNE
 const FOLLOW_SLACK = 70; // TUNE
 
 export const BT_SIGNS: readonly SignDef[] = [
@@ -203,7 +203,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       enqueue(director.respawnSays(nowMs), true); // nothing to run from: he says it all
       const g = director.respawnGuide();
       let goal: { x: number; y: number } | null = null;
-      if (g) {
+      if (g?.at) {
         // Never off screen: if where he should be is out of view, he waits at the edge nearest it.
         const cx = view.x + view.width / 2;
         const cy = view.y + view.height / 2;
@@ -225,14 +225,17 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       const guide = lastView ? director.guide(lastView, nowMs) : null;
       let face: number | null = null;
       let goal: { x: number; y: number } | null = null;
-      if (guide) {
+      if (guide?.at) {
         goal = guide.at;
         face = guide.face;
       } else if (livePos) {
-        const want = { x: livePos.x + FOLLOW_OFFSET.x, y: livePos.y + FOLLOW_OFFSET.y };
+        // Near you: stays about here from you, and only moves when you leave it.
+        const off = guide?.player ?? FOLLOW_OFFSET;
+        const want = { x: livePos.x + off.dx, y: livePos.y + off.dy };
         if (Math.hypot(want.x - sarge.x, want.y - sarge.y) > FOLLOW_SLACK) goal = want;
-        face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
+        face = guide?.face ?? Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       }
+      if (face === null && livePos) face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       move(nowMs, dt, goal, face);
       talk(nowMs);
       signs.update(nowMs, live, input.fire);
