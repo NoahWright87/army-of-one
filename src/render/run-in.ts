@@ -1,19 +1,88 @@
-/**
- * (PHASE13-d) Soldiers running in during the lead-in ([D112]): for show only. A spawn point's
- * `approach` (or, without one, a straight run up to it from behind its facing) and where along it
- * a runner is. Pure.
- */
 import type { Vec2 } from '../sim/core/vec';
 import type { SpawnPointDef } from '../sim/world/map';
 
-/** The route a soldier runs in along to `sp`, ending at its position. */
-export function approachFor(sp: SpawnPointDef, runDistance: number): Vec2[] {
-  if (sp.approach && sp.approach.length >= 2) return sp.approach;
-  const back = { x: -Math.cos(sp.facing), y: -Math.sin(sp.facing) };
-  return [
-    { x: sp.position.x + back.x * runDistance, y: sp.position.y + back.y * runDistance },
-    sp.position,
-  ];
+import { roleDef } from '../content/roles';
+import { ENTRANCE } from '../content/tuning';
+import type { RoleId } from '../contracts/mission';
+
+export interface ArrivalPose {
+  pos: Vec2;
+  facing: number;
+  height: number;
+  parachute?: { altitude: number; collapse: number };
+  visible: boolean;
+  transport?: { kind: 'truck' | 'boat'; pos: Vec2; facing: number; alpha: number };
+}
+
+/** Cosmetic only. Every arrival ends at the exact position and facing used by the sim. */
+export function arrivalPose(
+  sp: SpawnPointDef,
+  role: RoleId | undefined,
+  progress: number,
+  passenger = 0,
+  destination = sp.position,
+): ArrivalPose {
+  const f = Math.min(1, Math.max(0, progress));
+  const vehicle = roleDef(role).vehicle;
+  const ground = { pos: destination, facing: sp.facing, height: 0, visible: true };
+  if (sp.transport) {
+    const { kind, path } = sp.transport;
+    const drop = path[path.length - 1]!;
+    if (vehicle) {
+      if (kind === 'boat') return { ...ground, visible: false };
+      const arrival = alongPath([...path, sp.position], f);
+      return { ...ground, ...arrival, facing: f === 1 ? sp.facing : arrival.facing };
+    }
+    const boat = kind === 'boat';
+    const length = boat ? ENTRANCE.boatLength : ENTRANCE.truckLength;
+    const unload = boat ? ENTRANCE.boatUnloadFraction : ENTRANCE.truckUnloadFraction;
+    const approach = alongPath(path, f / unload);
+    const step = Math.max(0, (f - unload) / (1 - unload));
+    const ramp = {
+      x: drop.x + Math.cos(approach.facing) * length * 0.45,
+      y: drop.y + Math.sin(approach.facing) * length * 0.45,
+    };
+    const facing = approach.facing + (boat ? 0 : Math.PI);
+    const row = Math.floor(passenger / 2);
+    const along = (row - 0.5) * ENTRANCE.passengerSpacing * (boat ? -1 : 1) - (boat ? 0 : 36);
+    const across = ((passenger % 2) - 0.5) * ENTRANCE.passengerSpacing;
+    const seat = {
+      x: approach.pos.x + Math.cos(facing) * along - Math.sin(facing) * across,
+      y: approach.pos.y + Math.sin(facing) * along + Math.cos(facing) * across,
+    };
+    // Clear the ramp before the carrier rolls back out. Rear seats dismount first.
+    const delay = row * 0.16;
+    const leaving = Math.max(0, (step - delay) / (1 - delay));
+    const retreat = Math.max(0, (step - 0.58) / 0.42);
+    const departure = alongPath(path, 1 - retreat * 0.8);
+    const exit = {
+      x: ramp.x - Math.sin(approach.facing) * across * 0.4,
+      y: ramp.y + Math.cos(approach.facing) * across * 0.4,
+    };
+    const jump = Math.max(0, (leaving - 0.3) / 0.7);
+    return {
+      ...ground,
+      pos: alongPath([seat, exit, destination], leaving).pos,
+      height: leaving === 1 ? 0 : Math.sin(jump * Math.PI) * ENTRANCE.truckJumpHeight,
+      transport: {
+        kind,
+        pos: f < unload ? approach.pos : departure.pos,
+        facing,
+        alpha: Math.min(1, (1 - step) * 4),
+      },
+    };
+  }
+  if (vehicle) return { ...ground, visible: false };
+  const touchdown = ENTRANCE.parachuteTouchdownFraction;
+  const collapse = Math.max(0, (f - touchdown) / (1 - touchdown));
+  return {
+    ...ground,
+    visible: collapse >= 0.5,
+    parachute: {
+      altitude: Math.max(0, 1 - f / touchdown),
+      collapse,
+    },
+  };
 }
 
 /** The point `f` (0…1) of the way along `path`, and the way it's heading there. */

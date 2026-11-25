@@ -124,6 +124,7 @@ function patrol(id: string, loop: readonly { x: number; y: number }[], from: num
 
 export const MISSION_05: MapDef = {
   id: 'mission-05',
+  rev: 2,
   nameKey: 'map.mission05.name',
   width: M5_W,
   height: M5_H,
@@ -136,6 +137,9 @@ export const MISSION_05: MapDef = {
     // Checkpoint wall + gate.
     { x: 0, y: M5.checkpointWallY, w: GATE_X[0], h: 50 },
     { x: GATE_X[1], y: M5.checkpointWallY, w: M5_W - GATE_X[1], h: 50 },
+    // The reinforcement gate sits between the supply road's concrete shoulders.
+    { x: CX - 185, y: M5.checkpointY + 380, w: 120, h: 30 },
+    { x: CX + 65, y: M5.checkpointY + 380, w: 120, h: 30 },
     // Outer line flanks.
     { x: 0, y: M5.outerLineY - 140, w: 220, h: 280 },
     { x: M5_W - 220, y: M5.outerLineY - 140, w: 220, h: 280 },
@@ -182,6 +186,8 @@ export const MISSION_05: MapDef = {
     cover('m5-outer-e', 'sandbags', CX + 330, M5.outerLineY + 260, 180),
   ],
   water: [
+    // The beachhead lies at the end of a cove connected to the river.
+    { x: 960, y: 2470, w: 240, h: M5.riverY[0] - 2470 },
     // River, except under the two bridges.
     { x: 0, y: M5.riverY[0], w: BRIDGE1_X[0], h: M5.riverY[1] - M5.riverY[0] },
     {
@@ -214,19 +220,54 @@ export const MISSION_05: MapDef = {
       facing: -Math.PI / 2,
       kind: 'initial',
     },
-    forwardSpawn('checkpoint', 'spawn.mission05.checkpoint', 'cp-a', M5.checkpointY),
+    {
+      ...forwardSpawn('checkpoint', 'spawn.mission05.checkpoint', 'cp-a', M5.checkpointY),
+      transport: {
+        kind: 'truck',
+        gateId: 'm5-gate-supply',
+        path: [
+          { x: CX, y: M5.checkpointY + 570 },
+          { x: CX, y: M5.checkpointY + 380 },
+        ],
+      },
+    },
     forwardSpawn('fuel', 'spawn.mission05.fuel', 'cp-b', M5.fuelY),
     forwardSpawn('crossroads', 'spawn.mission05.crossroads', 'cp-c', M5.crossroadsY),
     forwardSpawn('depot', 'spawn.mission05.depot', 'cp-d', M5.depotY),
+    {
+      id: 'beachhead',
+      nameKey: 'spawn.mission05.beachhead',
+      position: { x: 1080, y: 2420 },
+      facing: -Math.PI / 2,
+      kind: 'capture',
+      capturePointId: 'cp-beachhead',
+      transport: {
+        kind: 'boat',
+        path: [
+          { x: 1080, y: 2640 },
+          { x: 1080, y: 2570 },
+        ],
+      },
+    },
   ],
   capturePoints: [
     capture('cp-a', 'capture.mission05.checkpoint', M5.checkpointY),
-    capture('cp-b', 'capture.mission05.fuel', M5.fuelY),
+    {
+      ...capture('cp-b', 'capture.mission05.fuel', M5.fuelY),
+      antiAirTurrets: ['m5-aa-west', 'm5-aa-east'],
+    },
     capture('cp-c', 'capture.mission05.crossroads', M5.crossroadsY),
     capture('cp-d', 'capture.mission05.depot', M5.depotY),
+    {
+      id: 'cp-beachhead',
+      nameKey: 'spawn.mission05.beachhead',
+      position: { x: 1080, y: 2370 },
+    },
   ],
   objectives: [{ id: 'm5-hq', position: { x: CX, y: M5.hqY }, radius: 64, maxHp: 900 }],
   turrets: [
+    { id: 'm5-aa-west', position: { x: CX - 110, y: M5.fuelY }, facing: Math.PI / 2 },
+    { id: 'm5-aa-east', position: { x: CX + 110, y: M5.fuelY }, facing: Math.PI / 2 },
     { id: 'm5-t1', position: { x: 360, y: M5.outerLineY }, facing: Math.PI / 2 },
     { id: 'm5-t2', position: { x: M5_W - 360, y: M5.outerLineY }, facing: Math.PI / 2 },
     { id: 'm5-t3', position: { x: 260, y: M5.checkpointY - 300 }, facing: Math.PI / 2 },
@@ -241,7 +282,13 @@ export const MISSION_05: MapDef = {
     ...mines(M5.minefieldY - 40, [1080, 1160, 1240, 1460, 1540, 1620], 'e'),
     ...mines(M5.minefieldY + 360, [400, 520, 640, 1160, 1280, 1400], 's'),
   ],
+  triggers: [{ id: 'm5-open-supply', when: { captured: 'cp-a' }, openGate: 'm5-gate-supply' }],
   gates: [
+    {
+      id: 'm5-gate-supply',
+      rect: { x: CX - 65, y: M5.checkpointY + 380, w: 130, h: 30 },
+      initiallyOpen: false,
+    },
     {
       id: 'm5-gate-checkpoint',
       rect: { x: GATE_X[0], y: M5.checkpointWallY, w: GATE_X[1] - GATE_X[0], h: 50 },

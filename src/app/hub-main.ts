@@ -6,7 +6,14 @@
  */
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
-import { HUB_DECOR, HUB_LABELS, HUB_SIGNS, type HubExitId, type HubSignId } from '../content/hub';
+import {
+  HUB_DECOR,
+  HUB_DRILL_FRAME,
+  HUB_LABELS,
+  HUB_SIGNS,
+  type HubExitId,
+  type HubSignId,
+} from '../content/hub';
 import { MISSIONS } from '../content/maps';
 import { ROLES } from '../content/roles';
 import type { SignDef } from '../content/sign-styles';
@@ -196,6 +203,15 @@ export function startHub(deps: HubDeps): void {
             },
           })),
         };
+      case 'arrivals':
+        return {
+          text: str('hub.sign.arrivals'),
+          buttons: [
+            { label: str('hub.btn.arrivals'), run: () => driver.launchArrivals() },
+            { label: str('hub.btn.arrivalsFew'), run: () => driver.launchArrivals('few') },
+            { label: str('hub.btn.arrivalsMany'), run: () => driver.launchArrivals('many') },
+          ],
+        };
       case 'training':
         return {
           text: str('hub.sign.training'),
@@ -256,6 +272,12 @@ export function startHub(deps: HubDeps): void {
         };
       },
       holdLookAhead: () => signs?.anyOpen() ?? false,
+      cameraFrame: () => {
+        const live = driver.view().soldiers.find((s) => s.id === driver.liveId);
+        return live && Math.abs(live.x - HUB_DRILL_FRAME.x) < 155 && live.y > 1920 && live.y < 2120
+          ? HUB_DRILL_FRAME
+          : null;
+      },
       overlay: {
         create: (scene: Phaser.Scene) => {
           deps.hideHud();
