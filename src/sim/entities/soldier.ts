@@ -1,10 +1,9 @@
-import { roleDef } from '../../content/roles';
 import type { Tuning, VehicleDrive } from '../../content/tuning';
 import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { ConcealmentArea, LadderDef, MapDef, Rect, SpawnPointId } from '../world/map';
-import type { RoleId } from '../../contracts/mission';
+import type { RoleId, StanceId } from '../../contracts/mission';
 import type { AiState } from '../ai/brain';
 import { moveInConcealment, type TrenchClimb } from '../world/cover-movement';
 
@@ -27,6 +26,20 @@ export interface SoldierInput {
   aimDistance?: number;
   /** (07-e) Sprint held ([D49]): faster, but no firing or throwing while it moves you. */
   sprint?: boolean;
+  /**
+   * (PHASE20, [D160]) The stance button is held (edge-triggered in the sim, like interact):
+   * a press steadies the soldier (braced on cover, prone, deployed) or stands it up.
+   */
+  stance?: boolean;
+  /** (PHASE20) The weapon button is held (edge-triggered): a Sniper swaps pistol and rifle. */
+  swap?: boolean;
+  /**
+   * (PHASE20) Stance and weapon choice done for you, the way it always was: stand still by cover
+   * (or, a Sniper, anywhere) and you settle in; move and you let go. Absent = auto: the AI and
+   * every scripted input. The player's controls send `false` unless they turned auto on.
+   */
+  autoStance?: boolean;
+  autoWeapon?: boolean;
 }
 
 export const IDLE_INPUT: SoldierInput = Object.freeze({
@@ -69,10 +82,24 @@ export interface SoldierState {
   windupAim: number;
   /** (07-c) Gun recoil, radians of extra spread; recovers every tick ([D39]). */
   recoil: number;
-  /** (07-c) Machine Gunner: ticks spent mounting on `braceId` ([D40]). */
+  /**
+   * (PHASE20, [D160]) The stance being settled into or held; absent = standing. It counts
+   * `mountTicks` up to what the stance takes (`mountTicksNeeded`); only then does it do anything.
+   */
+  stance?: StanceId;
+  /** (PHASE20) The stance fully settled into (the one that counts), or absent. */
+  settled?: StanceId;
+  /** Ticks spent settling into `stance` ([D40]). */
   mountTicks: number;
-  /** (07-c) Machine Gunner: the cover piece being mounted on, or null. */
+  /** The cover piece braced or deployed on, or null. */
   braceId: string | null;
+  /** (PHASE20) A Sniper has its pistol out (absent: the rifle). */
+  sidearm?: boolean;
+  /** (PHASE20) No firing until this tick: a weapon swap in progress. */
+  swapUntil?: Tick;
+  /** (PHASE20) The stance / weapon buttons were held last tick (they're edge-triggered). */
+  stanceHeld?: boolean;
+  swapHeld?: boolean;
   /** Earliest tick the rifle may fire again. */
   nextFireTick: Tick;
   /**
@@ -86,11 +113,6 @@ export interface SoldierState {
   lastFiredTick?: Tick;
   trenchClimb?: TrenchClimb;
   ladderClimb?: LadderClimb;
-  /**
-   * (PHASE18) Mounted MG or a Sniper with the rifle up ([D158]): walking is slow and keeps it
-   * (set by the gun's step; read by next tick's movement).
-   */
-  steady?: boolean;
   /** (PHASE16) Last tick this soldier took damage ([D133]: regeneration waits after it). */
   hurtTick?: Tick;
   /**
@@ -259,12 +281,9 @@ export function stepSoldierMovement(
   const dir = clampLength(input.move, 1);
   const walk = soldierSpeed(tuning, s.roleId) * DT;
   const sprinting = !!input.sprint && (dir.x !== 0 || dir.y !== 0);
-  const steadyMul = s.steady
-    ? roleDef(s.roleId).weapon === 'sniper'
-      ? tuning.sniper.scopedMoveMultiplier
-      : tuning.mg.mountedMoveMultiplier
-    : 1;
-  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk * steadyMul;
+  // (PHASE20) Prone, a Sniper crawls ([D160]).
+  const crawl = s.stance === 'prone' ? tuning.stance.proneMoveMultiplier : 1;
+  const step = sprinting ? walk * tuning.soldier.sprintMultiplier : walk * crawl;
   const delta = { x: dir.x * step, y: dir.y * step };
   const wasClimbing = !!(s.trenchClimb || s.ladderClimb);
   const ladderPosition = ladders?.length && climbLadder(s, dir, walk, solids, tuning, ladders);

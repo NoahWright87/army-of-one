@@ -16,7 +16,15 @@ import { launchRocket } from '../entities/rocket';
 import { throwGrenade } from '../entities/grenade';
 import type { World } from '../state';
 import { movingAimOffset } from './shots';
-import { gunOf, spreadOf, spreadOffset, stepGunner } from './guns';
+import {
+  gunOf,
+  isSettling,
+  rocketSteadiness,
+  spreadOf,
+  spreadOffset,
+  stepGunner,
+  stepStance,
+} from './guns';
 
 /** Aimed throw distance, clamped to the grenade's range (default: a mid-range throw). */
 export function aimedThrowDistance(world: World, input: SoldierInput): number {
@@ -43,6 +51,11 @@ export function soldierAttack(world: World, s: SoldierState, input: SoldierInput
   // (PHASE12-b) A vehicle fires where its turret points, not straight at the aim.
   if (s.drive) input = { ...input, aim: s.drive.turret };
   if (s.ladderClimb) input = { ...input, fire: false };
+  // (PHASE20, [D160]) Every soldier can steady itself; nobody fires while settling or swapping.
+  if (!s.drive) {
+    stepStance(world, s, input);
+    if (isSettling(world, s)) input = { ...input, fire: false };
+  }
   // (PHASE12-a) The Bazooka: aim, then launch ([D62]); (PHASE12-b) the tank's cannon too.
   const weapon = roleDef(s.roleId).weapon;
   if (weapon === 'rocket' || weapon === 'shell') {
@@ -87,7 +100,12 @@ function stepBazooka(
   const tick = world.state.tick;
   if (!input.fire || s.sprinting || tick < s.nextFireTick) return;
   const rt = world.tuning[weapon];
-  const angle = input.aim + spreadOffset(`${s.id}@${tick}:aim`, spreadOf(rt, s.moveFrac, 0));
+  const angle =
+    input.aim +
+    spreadOffset(
+      `${s.id}@${tick}:aim`,
+      spreadOf(rt, s.moveFrac, 0) * rocketSteadiness(world, s, input.aim),
+    );
   launchRocket(world, s.id, s, angle, teamOf(s) === 'enemy' ? 'enemy' : 'player', weapon);
   s.nextFireTick = tick + Math.max(1, secondsToTicks(rt.cooldownSeconds));
 }

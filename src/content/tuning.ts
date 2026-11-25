@@ -105,12 +105,11 @@ export interface Tuning {
     damage: number;
     range: number;
     cooldownSeconds: number;
+    /** (PHASE20) Seconds to deploy ([D160]); no firing meanwhile. */
     mountSeconds: number;
     /** Fire counts as "across the cover" if the aim ray enters a braced piece this close. */
     braceReach: number;
     mounted: Pick<GunSpread, 'baseSpread' | 'kick' | 'maxRecoil'>;
-    /** (PHASE18) Mounted, it can shuffle along its cover at this × walking speed and stay mounted. */
-    mountedMoveMultiplier: number;
     /** (PHASE18) Firing across cover (mounted), range × this ([D158]), like the Sniper's. */
     coverRangeMultiplier: number;
   } & GunSpread;
@@ -129,9 +128,8 @@ export interface Tuning {
     damage: number;
     range: number;
     cooldownSeconds: number;
+    /** (PHASE20) Seconds to go prone ([D160]); no firing meanwhile. */
     setupSeconds: number;
-    /** (PHASE18) Rifle up, it walks at this × walking speed and keeps it up (sprinting drops it). */
-    scopedMoveMultiplier: number;
     /** Braced on cover, firing across it: spread × this, range × `coverRangeMultiplier`. */
     coverSpreadMultiplier: number;
     coverRangeMultiplier: number;
@@ -254,10 +252,34 @@ export interface Tuning {
    */
   brace: {
     seconds: number;
+    /** (PHASE20) Per-class override of `seconds` ([D160]). */
+    secondsByRole: Partial<Record<RoleId, number>>;
     /** Base spread and kick × this. */
     spreadMultiplier: number;
     /** Fire counts as "across the cover" if the aim ray enters the piece this close. */
     reach: number;
+  };
+  /**
+   * (PHASE20) Stances ([D160]): what a soldier does by choice (the stance button) rather than by
+   * standing still. Braced on cover and Deployed (Machine Gunner) are set up by the numbers
+   * above; these are the rest.
+   */
+  stance: {
+    /** Seconds to swap a Sniper's pistol and rifle; no firing meanwhile. */
+    swapSeconds: number;
+    /**
+     * Prone (Sniper) and Deployed (Machine Gunner) with no cover to fire across: this share of
+     * the full cover bonus (spread, recoil and range), 0..1.
+     */
+    noCoverShare: { prone: number; deployed: number };
+    /** Chance a shot at a soldier in this stance misses it, like a trench ([D70]). */
+    dodge: { prone: number; deployed: number };
+    /** Prone, a Sniper crawls at this × walking speed. */
+    proneMoveMultiplier: number;
+    /** Snapping to cover: units per second the soldier slides to the cover's edge. */
+    snapSpeed: number;
+    /** …and how close to the edge (beyond the body's radius) it ends up. */
+    snapGap: number;
   };
   /** (07-c) Real-time cover ([D32]–[D34]). */
   cover: {
@@ -709,8 +731,7 @@ export const DEFAULT_TUNING: Tuning = {
     kick: 0.05, // TUNE
     maxRecoil: 0.32, // TUNE
     recoveryPerSecond: 0.4, // TUNE
-    mountSeconds: 0.6, // TUNE
-    mountedMoveMultiplier: 0.3, // TUNE (PHASE18)
+    mountSeconds: 0.5, // TUNE (PHASE20): deploying the tripod
     coverRangeMultiplier: 1.15, // TUNE (PHASE18): mounted, it outranges a rifleman's eyes
     braceReach: 60, // TUNE
     mounted: {
@@ -733,14 +754,13 @@ export const DEFAULT_TUNING: Tuning = {
     damage: 80, // TUNE: two hits kill
     range: 900, // TUNE: well past the rifle's 520
     cooldownSeconds: 1.2, // TUNE
-    setupSeconds: 0.8, // TUNE
-    scopedMoveMultiplier: 0.35, // TUNE (PHASE18)
-    baseSpread: 0.006, // TUNE
-    movingSpread: 0, // TUNE: it's only up while standing still
+    setupSeconds: 0.25, // TUNE (PHASE20): going prone
+    baseSpread: 0.02, // TUNE (PHASE20): the rifle standing; prone and braced tighten it
+    movingSpread: 0.15, // TUNE (PHASE20): the rifle on the move is a wild guess
     kick: 0.06, // TUNE
     maxRecoil: 0.06, // TUNE
     recoveryPerSecond: 0.08, // TUNE: settles by the next shot
-    coverSpreadMultiplier: 0.4, // TUNE [D59]: even more accurate on cover
+    coverSpreadMultiplier: 0.12, // TUNE [D59]: braced on cover, spread × this (prone gets a share)
     coverRangeMultiplier: 1.15, // TUNE [D59]: and a little more range
     braceReach: 60, // TUNE
     movingTargetAimError: 0.12, // TUNE [D59]: ~±7° at a walking target, more at a sprint
@@ -892,9 +912,18 @@ export const DEFAULT_TUNING: Tuning = {
     },
   },
   brace: {
-    seconds: 0.4, // TUNE (PHASE18)
+    seconds: 0.3, // TUNE (PHASE18, PHASE20)
+    secondsByRole: {}, // TUNE (PHASE20): e.g. { sniper: 0.4 }
     spreadMultiplier: 0.6, // TUNE
     reach: 60, // TUNE
+  },
+  stance: {
+    swapSeconds: 0.2, // TUNE (PHASE20)
+    noCoverShare: { prone: 0.7, deployed: 0.6 }, // TUNE (PHASE20)
+    dodge: { prone: 0.05, deployed: 0.05 }, // TUNE (PHASE20)
+    proneMoveMultiplier: 0.35, // TUNE (PHASE20)
+    snapSpeed: 240, // TUNE (PHASE20)
+    snapGap: 1, // TUNE (PHASE20)
   },
   cover: {
     materials: {

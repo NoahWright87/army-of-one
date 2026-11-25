@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { damageSoldier } from '../combat/damage';
+import { secondsToTicks } from '../core/time';
 import { currentSpread, gunOf, gunRange, isSetUp, mountTicksNeeded } from '../combat/guns';
 import { hashState } from '../core/hash';
 import { getSoldier } from '../sim';
@@ -20,25 +21,25 @@ const bags: CoverDef = {
 };
 
 describe('Sniper ([D59])', () => {
-  it('fires a pistol on the move, sets up the rifle by standing still, keeps it at a slow walk, drops it sprinting', () => {
+  it('on auto: fires a pistol on the move, sets up the rifle by standing still, lets go moving', () => {
     const w = world(arena());
     const id = soldierAt(w, { x: 100, y: 500 }, { roleId: 'sniper' });
     const moving = ofKind(run(w, 10, { [id]: { ...walk(0, 1), fire: true } }), 'shotFired');
     expect(moving.length).toBeGreaterThan(0);
     expect(moving.every((e) => e.weapon === 'pistol')).toBe(true);
     // Standing still: no cover needed.
-    run(w, mountTicksNeeded(T, 'sniper') + 1, { [id]: idle() });
+    // (PHASE20) Settling, then the swap, take a moment: no firing meanwhile ([D160]).
+    run(w, mountTicksNeeded(T, 'sniper') + secondsToTicks(T.stance.swapSeconds) + 2, {
+      [id]: idle(),
+    });
     const s = getSoldier(w, id)!;
     expect(isSetUp(T, s)).toBe(true);
     expect(gunOf(s, T)).toBe('sniper');
     const shots = ofKind(run(w, 1, { [id]: fire() }), 'shotFired');
     expect(shots[0]!.weapon).toBe('sniper');
-    // (PHASE18) Walking keeps the rifle up, slowly ([D158]); sprinting drops it.
-    const y0 = getSoldier(w, id)!.y;
-    run(w, 30, { [id]: walk(0, 1) });
-    expect(gunOf(getSoldier(w, id)!, T)).toBe('sniper');
-    expect(getSoldier(w, id)!.y - y0).toBeLessThan(T.soldier.speed * 0.5 * 0.5);
-    run(w, 2, { [id]: { ...walk(0, 1), sprint: true } });
+    // (PHASE20) On auto, moving lets go: back to the pistol ([D160]).
+    run(w, 2, { [id]: walk(0, 1) });
+    expect(getSoldier(w, id)!.stance).toBeUndefined();
     expect(gunOf(getSoldier(w, id)!, T)).toBe('pistol');
   });
 
@@ -47,11 +48,12 @@ describe('Sniper ([D59])', () => {
     const id = soldierAt(w, { x: 385, y: 500 }, { roleId: 'sniper' });
     expect(gunRange(w, 'sniper', { x: 100, y: 200 }, 0)).toBe(T.sniper.range);
     expect(T.sniper.range).toBeGreaterThan(T.rifle.range);
-    expect(gunRange(w, 'sniper', { x: 385, y: 500 }, 0)).toBeCloseTo(
+    run(w, mountTicksNeeded(T, 'sniper', 'braced') + 1, { [id]: idle() });
+    const s = getSoldier(w, id)!;
+    expect(s.settled).toBe('braced');
+    expect(gunRange(w, 'sniper', s, 0, s)).toBeCloseTo(
       T.sniper.range * T.sniper.coverRangeMultiplier,
     );
-    run(w, mountTicksNeeded(T, 'sniper') + 1, { [id]: idle() });
-    const s = getSoldier(w, id)!;
     expect(currentSpread(w, s, 0)).toBeCloseTo(
       T.sniper.baseSpread * T.sniper.coverSpreadMultiplier,
     );
