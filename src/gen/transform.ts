@@ -46,6 +46,16 @@ export function orientBlock(block: BlockDef, o: Orientation): BlockDef {
     return turned.map((r) => r.join(''));
   };
   const items = block.items.map((it): BlockItem => {
+    if (it.kind === 'ladder') {
+      // Its ends are fractions of its rect: turn them with it.
+      const rect = orientRect(it.rect, o);
+      const [x, y, w, h] = it.rect;
+      const end = ([fx, fy]: CellPoint): CellPoint => {
+        const [px, py] = orientPoint([x + fx * w, y + fy * h], o);
+        return [(px - rect[0]) / rect[2], (py - rect[1]) / rect[3]];
+      };
+      return { ...it, rect, bottom: end(it.bottom), top: end(it.top) };
+    }
     if (isRectItem(it)) return { ...it, rect: orientRect(it.rect, o) };
     const at = orientPoint(it.at, o);
     return 'facing' in it ? { ...it, at, facing: orientFacing(it.facing, o) } : { ...it, at };

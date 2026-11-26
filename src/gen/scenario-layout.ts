@@ -1,21 +1,15 @@
+/**
+ * The scenario editor's old document (before blocks and scenarios shared one editor). Still read
+ * so old drafts and downloaded files open, and the HQ / basic training templates are written in
+ * it; `layoutToBlock` turns one into the unified format.
+ */
 import { isImageKey, type ImageKey } from '../content/assets';
-import { GROUND, isGroundKind } from '../content/ground';
+import { isGroundKind } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
-import {
-  borderWalls,
-  type ConcealmentArea,
-  type CoverMaterial,
-  type MapDef,
-  type Rect,
-} from '../sim/world/map';
+import type { CoverMaterial, MapDef, Rect } from '../sim/world/map';
 import type { Vec2 } from '../sim/core/vec';
-import {
-  addPaintedBushes,
-  addPaintedTrenches,
-  maskRects,
-  solidRects,
-  waterRects,
-} from './assemble';
+import { BLOCK_VERSION, spawnBlocked, type BlockDef, type BlockItem, type CellRect } from './block';
+import { scenarioMap } from './scenario';
 
 export const SCENARIO_CELL = BLOCK_TUNING.cellSize;
 export const SCENARIO_MIN_CELLS = 3;
@@ -219,23 +213,82 @@ export function parseScenarioLayout(json: string): ScenarioLayout | null {
 export function scenarioSpawnProblem(layout: ScenarioLayout): 'missing' | 'blocked' | null {
   const at = layout.spawn;
   if (!at) return 'missing';
-  const center = { x: at.x + 0.5, y: at.y + 0.5 };
-  const tile = layout.ground[Math.floor(center.y)]?.[Math.floor(center.x)];
-  if (
-    !tile ||
-    !isGroundKind(tile) ||
-    !GROUND[tile].passable ||
-    layout.items.some(
-      (item) =>
-        (item.kind === 'wall' ||
-          item.kind === 'cover' ||
-          item.kind === 'water' ||
-          (item.kind === 'gate' && !item.open)) &&
-        insideLayoutCell(item.rect, center),
-    )
-  )
-    return 'blocked';
-  return null;
+  return spawnBlocked(layoutToBlock(layout), [at.x + 0.5, at.y + 0.5]) ? 'blocked' : null;
+}
+
+/**
+ * The unified editor's document for an old scenario layout (drafts from before blocks and
+ * scenarios shared one editor, and the HQ / basic training templates). Lossless: the map it
+ * plays is the layout's map.
+ */
+export function layoutToBlock(
+  layout: ScenarioLayout,
+  id = 'scenario-1',
+  name = 'Scenario',
+): BlockDef {
+  const cell = ({ x, y, w, h }: Rect): CellRect => [x, y, w, h];
+  const items = layout.items.map((item, i): BlockItem => {
+    const base = {
+      id: item.id ?? `layout-piece-${i}`,
+      priority: 0 as const,
+      rect: cell(item.rect),
+    };
+    switch (item.kind) {
+      case 'ladder':
+        return {
+          ...base,
+          kind: 'ladder',
+          bottom: [item.bottom.x, item.bottom.y],
+          top: [item.top.x, item.top.y],
+        };
+      case 'wall':
+        return {
+          ...base,
+          kind: 'wall',
+          ...(item.firingSurface ? { firingSurface: item.firingSurface } : {}),
+        };
+      case 'cover': {
+        const { kind, material, firingSurface, bullet, lobbed } = item;
+        return {
+          ...base,
+          kind,
+          material,
+          ...(firingSurface ? { firingSurface } : {}),
+          ...(bullet === undefined ? {} : { bullet }),
+          ...(lobbed === undefined ? {} : { lobbed }),
+        };
+      }
+      case 'gate':
+        return { ...base, kind: 'gate', open: item.open };
+      case 'prop':
+        return { ...base, kind: 'prop', image: item.image };
+      case 'target':
+        return { ...base, kind: 'target', ...(item.hp === undefined ? {} : { hp: item.hp }) };
+      default:
+        return { ...base, kind: item.kind };
+    }
+  });
+  if (layout.spawn) {
+    let spawnId = 'spawn-1';
+    for (let n = 2; items.some((i) => i.id === spawnId); n++) spawnId = `spawn-${n}`;
+    items.push({
+      id: spawnId,
+      priority: 0,
+      kind: 'spawn',
+      at: [layout.spawn.x + 0.5, layout.spawn.y + 0.5],
+    });
+  }
+  return {
+    v: BLOCK_VERSION,
+    id,
+    name,
+    kind: 'scenario',
+    ground: [...layout.ground],
+    items,
+    groups: [],
+    ...(layout.cellSize !== undefined ? { cellSize: layout.cellSize } : {}),
+    ...(layout.extent ? { extent: { ...layout.extent } } : {}),
+  };
 }
 
 export function scaleScenarioRect(rect: Rect, factor: number): Rect {
@@ -246,152 +299,12 @@ export function ladderPoint(rect: Rect, normalized: Vec2): Vec2 {
   return { x: rect.x + rect.w * normalized.x, y: rect.y + rect.h * normalized.y };
 }
 
+export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef | undefined {
+  return scenarioMap(layoutToBlock(layout), id);
+}
+
 function worldRect(rect: Rect, cellSize: number): Rect {
   const scaled = scaleScenarioRect(rect, cellSize);
   const exact = (n: number) => (Math.abs(n - Math.round(n)) <= 1e-9 ? Math.round(n) : n);
   return { x: exact(scaled.x), y: exact(scaled.y), w: exact(scaled.w), h: exact(scaled.h) };
-}
-
-export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef | undefined {
-  const at = layout.spawn;
-  if (!at || scenarioSpawnProblem(layout)) return undefined;
-  const cs = scenarioCellSize(layout);
-  const { width, height } = layoutExtent(layout);
-  const clip = (r: Rect) => ({
-    ...r,
-    w: Math.min(r.w, width - r.x),
-    h: Math.min(r.h, height - r.y),
-  });
-  const walls: MapDef['walls'] = [
-    ...(layout.extent ? [] : borderWalls(width, height)),
-    ...solidRects(layout.ground, cs).map(clip),
-  ];
-  const map = {
-    id,
-    nameKey: 'scenario.title',
-    width,
-    height,
-    ground: { cellSize: cs, rows: layout.ground },
-    walls,
-    water: [] as Rect[],
-    cover: [] as NonNullable<MapDef['cover']>,
-    concealment: [] as NonNullable<MapDef['concealment']>,
-    gates: [] as NonNullable<MapDef['gates']>,
-    raisedGround: [] as Rect[],
-    groundMist: [] as Rect[],
-    ladders: [] as NonNullable<MapDef['ladders']>,
-    scenery: [] as NonNullable<MapDef['scenery']>,
-    objectives: [] as NonNullable<MapDef['objectives']>,
-    spawnPoints: [
-      {
-        id: 'layout-start',
-        nameKey: 'scenario.spawn',
-        position: { x: (at.x + 0.5) * cs, y: (at.y + 0.5) * cs },
-        facing: -Math.PI / 2,
-        kind: 'initial' as const,
-      },
-    ],
-  };
-  const surfaces = new Map(
-    layout.items.flatMap((item) =>
-      item.kind === 'raised' && item.id ? [[item.id, worldRect(item.rect, cs)] as const] : [],
-    ),
-  );
-  for (const [index, item] of layout.items.entries()) {
-    const rect = worldRect(item.rect, cs);
-    const id = item.id ?? `layout-piece-${index}`;
-    const fireOverFrom =
-      'firingSurface' in item && item.firingSurface ? surfaces.get(item.firingSurface) : undefined;
-    switch (item.kind) {
-      case 'wall':
-        map.walls.push({ ...rect, ...(fireOverFrom ? { fireOverFrom } : {}) });
-        break;
-      case 'cover': {
-        const { material, bullet, lobbed } = item;
-        map.cover.push({
-          id,
-          rect,
-          material,
-          ...(fireOverFrom ? { fireOverFrom } : {}),
-          ...(bullet === undefined ? {} : { bullet }),
-          ...(lobbed === undefined ? {} : { lobbed }),
-        });
-        break;
-      }
-      case 'water':
-        map.water.push(rect);
-        break;
-      case 'gate':
-        map.gates.push({ id, rect, initiallyOpen: item.open });
-        break;
-      case 'raised':
-        map.raisedGround.push(rect);
-        break;
-      case 'mist':
-        map.groundMist.push(rect);
-        break;
-      case 'bush':
-      case 'trench':
-        map.concealment.push({ id, rect, kind: item.kind });
-        break;
-      case 'ladder':
-        map.ladders.push({
-          id,
-          bottom: ladderPoint(rect, item.bottom),
-          top: ladderPoint(rect, item.top),
-        });
-        break;
-      case 'target':
-        map.objectives.push({
-          id,
-          target: true,
-          position: { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 },
-          radius: Math.min(rect.w, rect.h) / 2,
-          ...(item.hp === undefined ? {} : { maxHp: item.hp }),
-        });
-        break;
-      case 'prop':
-        map.scenery.push({ image: item.image, rect });
-        break;
-    }
-  }
-  for (const painted of waterRects(layout.ground, cs).map(clip)) {
-    if (
-      !map.water.some(
-        (water) =>
-          water.x === painted.x &&
-          water.y === painted.y &&
-          water.w === painted.w &&
-          water.h === painted.h,
-      )
-    )
-      map.water.push(painted);
-  }
-  addScenarioPaintedConcealment(layout, map.concealment);
-  return map.objectives.length ? map : { ...map, objectives: undefined };
-}
-
-export function addScenarioPaintedConcealment(
-  layout: ScenarioLayout,
-  concealment: ConcealmentArea[],
-): void {
-  const cs = scenarioCellSize(layout);
-  const { width, height } = layoutExtent(layout);
-  const cols = layout.ground[0]!.length;
-  const rows = layout.ground.length;
-  const clip = (r: Rect) => ({
-    ...r,
-    w: Math.min(r.w, width - r.x),
-    h: Math.min(r.h, height - r.y),
-  });
-  if (layout.ground.some((row) => row.includes('U')))
-    addPaintedBushes(
-      maskRects(cols, rows, cs, (x, y) => layout.ground[y]?.[x] === 'U').map(clip),
-      concealment,
-    );
-  if (layout.ground.some((row) => row.includes('T')))
-    addPaintedTrenches(
-      maskRects(cols, rows, cs, (x, y) => layout.ground[y]?.[x] === 'T').map(clip),
-      concealment,
-    );
 }

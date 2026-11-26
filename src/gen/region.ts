@@ -21,6 +21,8 @@ import type { Vec2 } from '../sim/core/vec';
 import { borderWalls, type MapDef, type SpawnPointDef, type WeatherKind } from '../sim/world/map';
 import {
   addBlockContent,
+  emptyContent,
+  extraContent,
   addPaintedBushes,
   addPaintedTrenches,
   paintedMist,
@@ -220,18 +222,7 @@ export function worldLevelMap(
   let carry = 0;
   let spent = 0;
   const seed = mix(world.seed, 1000 + index);
-  const content: Content = {
-    walls,
-    cover: [],
-    concealment: [],
-    gates: [],
-    levers: [],
-    turrets: [],
-    mines: [],
-    squads: [],
-    capturePoints: [],
-    spawnPoints: [],
-  };
+  const content: Content = { ...emptyContent(), walls };
   placed.forEach((p, k) => {
     const share = shares[k]! + carry;
     const res = spendBudget(p.pb.block, Math.floor(share + 1e-6), mix(seed, k));
@@ -499,7 +490,8 @@ export function worldLevelMap(
       ? { weather: generateWeather(opts.weather, `${world.seed}:${index}`, w * cs, h * cs) }
       : {}),
     walls: content.walls,
-    water: waterRects(rows, cs),
+    water: [...waterRects(rows, cs), ...content.water],
+    ...extraContent(content),
     bounds,
     haze,
     cover: content.cover,

@@ -1,5 +1,6 @@
 /**
- * (PHASE13) `?scene=editor`: the block editor ([D88]). No Phaser here.
+ * (PHASE13) `?scene=editor` (or `?scene=scenario`): the map editor for blocks and scenarios
+ * ([D88]). No Phaser here.
  *
  * The open block is a draft (kept across reloads). Nothing goes into "My blocks" until you
  * Save: opening an official block just opens it; new blocks and edited official blocks are saved
@@ -9,7 +10,9 @@
  */
 import { OFFICIAL_BLOCKS } from '../content/blocks';
 import { str, type StringKey } from '../content/strings';
-import { blockToJson, newBlock, parseBlock, type BlockDef } from '../gen/block';
+import { blockToJson, isScenario, newBlock, parseBlock, type BlockDef } from '../gen/block';
+import { layoutToBlock, parseScenarioLayout } from '../gen/scenario-layout';
+import { scenarioTemplate, type ScenarioTemplate } from '../gen/scenario-templates';
 import { countFits, EdgeMatcher, sideProfiles } from '../gen/edges';
 import { ORIENTATIONS, orientBlock } from '../gen/transform';
 import { genMissionId } from '../gen/mission-id';
@@ -28,10 +31,14 @@ import {
   type Draft,
 } from './editor-storage';
 import { openBestStore } from './storage/indexeddb-store';
+import { SCENARIO_PREVIEW_ID } from './scenario-route';
+import { migrateScenarioDraft, saveScenarioPreview } from './scenario-storage';
 
 export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
   document.title = str('editor.title');
   const lib = readLibrary();
+  // The old scenario editor's single draft joins My blocks & scenarios (once).
+  if (migrateScenarioDraft(lib)) writeLibrary(lib);
   const officialIds = new Set(OFFICIAL_BLOCKS.map((b) => b.id));
   const official = (id: string) => OFFICIAL_BLOCKS.find((b) => b.id === id);
   const mine = (id: string) => lib.blocks.find((b) => b.id === id);
@@ -41,6 +48,11 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     if (!taken(base)) return base;
     for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
   };
+
+  const fresh = (id: string, scenario: boolean): BlockDef =>
+    scenario
+      ? { ...newBlock(id, str('editor.newScenarioName'), 16, 12), kind: 'scenario' }
+      : newBlock(id, str('editor.newName'));
 
   let draft: Draft = readDraft();
   /** What the draft is compared with to know if it has unsaved changes. */
@@ -53,7 +65,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
       const o = official(d.source.id);
       return o ? blockToJson(o) : '';
     }
-    return blockToJson(newBlock(d.source.id, str('editor.newName')));
+    return blockToJson(fresh(d.source.id, isScenario(d.block)));
   };
   let baseline = baselineOf(draft);
 
@@ -141,7 +153,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
   const matcher = new EdgeMatcher();
   let poolSides: { id: string; sides: ReturnType<typeof sideProfiles> }[] | null = null;
   const sidesOfPool = () => {
-    poolSides ??= [...OFFICIAL_BLOCKS, ...lib.blocks].flatMap((b) =>
+    poolSides ??= [...OFFICIAL_BLOCKS, ...lib.blocks.filter((b) => !isScenario(b))].flatMap((b) =>
       ORIENTATIONS.map((o) => ({ id: b.id, sides: sideProfiles(orientBlock(b, o)) })),
     );
     return poolSides;
@@ -161,7 +173,18 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     newBlock: () =>
       guard(() => {
         const id = freeId('block-1');
-        load(newBlock(id, str('editor.newName')), { kind: 'new', id });
+        load(fresh(id, false), { kind: 'new', id });
+      }),
+    newScenario: () =>
+      guard(() => {
+        const id = freeId('scenario-1');
+        load(fresh(id, true), { kind: 'new', id });
+      }),
+    openTemplate: (template: ScenarioTemplate) =>
+      guard(() => {
+        const id = freeId(template);
+        const name = str(template === 'hq' ? 'hub.name' : 'map.basic.name');
+        load(layoutToBlock(scenarioTemplate(template), id, name), { kind: 'new', id });
       }),
     download: () => {
       const blob = new Blob([blockToJson(model.block)], { type: 'application/json' });
@@ -181,7 +204,15 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     },
     upload: (file) => {
       void file.text().then((text) => {
-        const res = parseBlock(text);
+        // An old scenario editor file opens as a scenario.
+        const layout = parseScenarioLayout(text);
+        const id = layout ? freeId('scenario-1') : '';
+        const res = layout
+          ? {
+              ok: true as const,
+              block: layoutToBlock(layout, id, file.name.replace(/\.json$/i, '')),
+            }
+          : parseBlock(text);
         if (!res.ok) {
           window.alert(str(res.key as StringKey));
           return;
@@ -217,10 +248,9 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     },
     budgetChanged: (budget) => writePlayBudget(budget),
     exit: () => go({}),
-    openScenario: () => go({ scene: 'scenario' }),
     playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)), pool: 'mine' }),
     openGraph: () =>
-      openConnectionGraph([...OFFICIAL_BLOCKS, ...lib.blocks], {
+      openConnectionGraph([...OFFICIAL_BLOCKS, ...lib.blocks.filter((b) => !isScenario(b))], {
         openBlock: (id) => {
           document.querySelector('.aoo-graph')?.remove();
           guard(() => openById(id));
@@ -228,6 +258,11 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
       }),
     play: () => {
       writeDraft(draft);
+      if (isScenario(model.block)) {
+        if (saveScenarioPreview(model.block)) go({ mission: SCENARIO_PREVIEW_ID });
+        else window.alert(str('scenario.previewFailed'));
+        return;
+      }
       writePlayBudget(model.budget);
       // Old lives were recorded on the old block: start the playtest from scratch.
       void openBestStore()

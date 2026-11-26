@@ -1,17 +1,21 @@
 /**
- * (PHASE13-a) Block editor state and edits ([D88]). No DOM: the view turns pointer/keys into
- * these calls. Every edit goes through `edit()`, which keeps the undo stack; a drag is one undo
- * step (`beginGesture` … `endGesture`).
+ * (PHASE13-a) Editor state and edits for blocks and scenarios ([D88]). No DOM: the view turns
+ * pointer/keys into these calls. Every edit goes through `edit()`, which keeps the undo stack; a
+ * drag is one undo step (`beginGesture` … `endGesture`).
  */
-import { BLOCK_CELLS, type GroundKind } from '../../content/ground';
+import { type GroundKind } from '../../content/ground';
 import {
   ALWAYS_KINDS,
   MAX_MIST_COATS,
+  blockCols,
+  blockRows,
   isRectItem,
   newBlock,
+  validSide,
   type BlockDef,
   type BlockItem,
   type CellPoint,
+  type CellRect,
   type ItemKind,
   type Priority,
   type Side,
@@ -90,6 +94,22 @@ export class EditorModel {
     this.mistStroke.clear();
   }
 
+  get canUndo(): boolean {
+    return this.history.canUndo;
+  }
+
+  get canRedo(): boolean {
+    return this.history.canRedo;
+  }
+
+  get cols(): number {
+    return blockCols(this.block);
+  }
+
+  get rows(): number {
+    return blockRows(this.block);
+  }
+
   undo(): void {
     const prev = this.history.undo(this.block);
     if (!prev) return;
@@ -144,13 +164,15 @@ export class EditorModel {
 
   /** Paints one tile. Returns whether anything changed. */
   paint(col: number, row: number): boolean {
-    const n = BLOCK_CELLS;
-    if (col < 0 || row < 0 || col >= n || row >= n) return false;
+    const { cols, rows } = this;
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
     if (this.paintKind === 'mist' || this.paintKind === 'eraseMist') {
-      const key = row * n + col;
+      const key = row * cols + col;
       if (this.gesture && this.mistStroke.has(key)) return false;
       if (this.gesture) this.mistStroke.add(key);
-      const mist = this.block.mist ? [...this.block.mist] : Array<string>(n).fill('0'.repeat(n));
+      const mist = this.block.mist
+        ? [...this.block.mist]
+        : Array<string>(rows).fill('0'.repeat(cols));
       const line = mist[row]!;
       const depth = Number(line[col]);
       const next = this.paintKind === 'eraseMist' ? 0 : Math.min(MAX_MIST_COATS, depth + 1);
@@ -172,7 +194,8 @@ export class EditorModel {
    * north west→east, east north→south, south east→west, west south→north.
    */
   applyEdgePreset(side: Side, profile: string): void {
-    const n = BLOCK_CELLS;
+    const n = profile.length;
+    if (this.cols !== n || this.rows !== n) return;
     const rows = this.block.ground.map((r) => [...r]);
     for (let i = 0; i < n; i++) {
       const ch = profile[i]!;
@@ -184,8 +207,36 @@ export class EditorModel {
     this.edit({ ...this.block, ground: rows.map((r) => r.join('')) });
   }
 
-  setMeta(patch: Partial<Pick<BlockDef, 'id' | 'name' | 'role'>>): void {
-    this.edit({ ...this.block, ...patch });
+  setMeta(patch: Partial<Pick<BlockDef, 'id' | 'name' | 'role' | 'kind'>>): void {
+    const next = { ...this.block, ...patch };
+    // Absent, not undefined: keeps saved JSON and the "unsaved changes" check stable.
+    if (next.role === undefined) delete next.role;
+    if (next.kind === undefined) delete next.kind;
+    this.edit(next);
+  }
+
+  /**
+   * Changes the ground to `cols` × `rows` tiles (new tiles grass), keeping the north-west
+   * corner. False (nothing changes) when something placed would end up outside.
+   */
+  resize(cols: number, rows: number): boolean {
+    if (!validSide(cols) || !validSide(rows)) return false;
+    if (cols === this.cols && rows === this.rows) return true;
+    const fits = this.block.items.every((it) => {
+      const [x, y, w, h] = isRectItem(it) ? it.rect : [...it.at, 0, 0];
+      return (
+        x + w <= cols + 1e-8 && y + h <= rows + 1e-8 && (isRectItem(it) || (x < cols && y < rows))
+      );
+    });
+    if (!fits) return false;
+    const fit = (lines: readonly string[], pad: string) =>
+      Array.from({ length: rows }, (_, y) => (lines[y] ?? '').slice(0, cols).padEnd(cols, pad));
+    const next: BlockDef = { ...this.block, ground: fit(this.block.ground, 'G') };
+    if (this.block.mist) next.mist = fit(this.block.mist, '0');
+    // A resized map is tiles again: an exact extent only described the old edge.
+    delete next.extent;
+    this.edit(next);
+    return true;
   }
 
   // ---- Items
@@ -274,6 +325,28 @@ export class EditorModel {
     return it;
   }
 
+  /**
+   * Adds a drawn thing (the drag tools: walls, cover, areas, props…) with a fresh id and the
+   * default priority, and selects it.
+   */
+  addItem(item: DistributiveOmit<BlockItem, 'id' | 'priority'>): BlockItem {
+    const it = {
+      ...item,
+      id: this.freshId(item.kind),
+      priority: ALWAYS_KINDS.has(item.kind) || !PRICED.has(item.kind) ? 0 : 1,
+    } as BlockItem;
+    this.edit({ ...this.block, items: [...this.block.items, it] });
+    this.selected = it.id;
+    this.touch();
+    return it;
+  }
+
+  /** Deletes one thing by id. */
+  deleteItem(id: string): void {
+    if (this.selected === id) this.selected = null;
+    this.edit({ ...this.block, items: this.block.items.filter((i) => i.id !== id) });
+  }
+
   freshId(kind: ItemKind): string {
     for (let n = 1; ; n++) {
       const id = `${kind}-${n}`;
@@ -337,9 +410,12 @@ export class EditorModel {
     }
   }
 
-  /** The topmost thing under (x, y) in cells: points first (they sit on top), then rects. */
-  hitTest(x: number, y: number): BlockItem | undefined {
-    const items = [...this.block.items].reverse();
+  /**
+   * The topmost thing under (x, y) in cells: points first (they sit on top), then rects.
+   * `only` limits it to some things (the view's current layer).
+   */
+  hitTest(x: number, y: number, only?: (it: BlockItem) => boolean): BlockItem | undefined {
+    const items = [...this.block.items].reverse().filter((i) => !only || only(i));
     const pts = items.find((i) => !isRectItem(i) && Math.hypot(i.at[0] - x, i.at[1] - y) <= 0.45);
     if (pts) return pts;
     return items.find((i) => {
@@ -350,6 +426,11 @@ export class EditorModel {
     });
   }
 }
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+/** Things a budget pays for: new ones start at priority 1 ([D85]). */
+const PRICED: ReadonlySet<ItemKind> = new Set(['turret', 'mine']);
 
 /** A new item with sensible defaults (the author tweaks them in the panel). */
 export function defaultItem(
@@ -388,6 +469,28 @@ export function defaultItem(
       return { ...base, kind, at: [x, y], group: model?.activeGroup ?? 'squad-1' };
     case 'capture':
     case 'objective':
+    case 'spawn':
       return { ...base, kind, at: [x, y] };
+    case 'raised':
+    case 'water':
+    case 'mist':
+      return { ...base, priority: 0, kind, rect: rectAround(x, y, 2, 2) };
+    case 'target':
+      return { ...base, priority: 0, kind, rect: rectAround(x, y, 1, 1) };
+    case 'ladder':
+      return {
+        ...base,
+        priority: 0,
+        kind,
+        rect: rectAround(x, y, 1, 2),
+        bottom: [0.5, 0.85],
+        top: [0.5, 0.15],
+      };
+    case 'prop':
+      return { ...base, priority: 0, kind, rect: rectAround(x, y, 1, 1), image: 'hub_banner' };
   }
+}
+
+function rectAround(x: number, y: number, w: number, h: number): CellRect {
+  return [snap(x - w / 2), snap(y - h / 2), w, h];
 }

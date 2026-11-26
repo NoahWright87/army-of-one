@@ -18,14 +18,18 @@ import {
   type CoverDef,
   type ConcealmentArea,
   type GateDef,
+  type LadderDef,
   type LeverDef,
   type MapDef,
+  type ObjectiveDef,
   type MineDef,
   type Rect,
   type SpawnPointDef,
   type SquadDef,
   type TurretDef,
+  type WallDef,
 } from '../sim/world/map';
+import type { ImageKey } from '../content/assets';
 import { hash01 } from '../sim/core/hash';
 import {
   MAX_MIST_COATS,
@@ -98,6 +102,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
   }));
 
   const acc: Content = {
+    ...emptyContent(),
     walls,
     cover,
     concealment,
@@ -147,7 +152,8 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     ground: { cellSize: cs, rows: groundRows },
     ...(mist.length ? { mist } : {}),
     walls,
-    water: waterRects(groundRows, cs),
+    water: [...waterRects(groundRows, cs), ...acc.water],
+    ...extraContent(acc),
     cover,
     concealment,
     gates,
@@ -162,7 +168,7 @@ export function assembleMap(opts: AssembleOptions): MapDef {
 
 /** Everything a map collects from its blocks. */
 export interface Content {
-  walls: Rect[];
+  walls: WallDef[];
   cover: CoverDef[];
   concealment: ConcealmentArea[];
   gates: GateDef[];
@@ -172,15 +178,64 @@ export interface Content {
   squads: SquadDef[];
   capturePoints: CapturePointDef[];
   spawnPoints: SpawnPointDef[];
+  /** Placed exact areas and pieces (the scenario editor's). `water` adds to the painted water. */
+  water: Rect[];
+  raisedGround: Rect[];
+  groundMist: Rect[];
+  ladders: LadderDef[];
+  scenery: { image: ImageKey; rect: Rect }[];
+  objectives: ObjectiveDef[];
 }
+
+export function emptyContent(): Content {
+  return {
+    walls: [],
+    cover: [],
+    concealment: [],
+    gates: [],
+    levers: [],
+    turrets: [],
+    mines: [],
+    squads: [],
+    capturePoints: [],
+    spawnPoints: [],
+    water: [],
+    raisedGround: [],
+    groundMist: [],
+    ladders: [],
+    scenery: [],
+    objectives: [],
+  };
+}
+
+/** The optional `MapDef` fields from `acc` that have anything in them. */
+export function extraContent(
+  acc: Content,
+): Pick<MapDef, 'raisedGround' | 'groundMist' | 'ladders' | 'scenery' | 'objectives'> {
+  return {
+    ...(acc.raisedGround.length ? { raisedGround: acc.raisedGround } : {}),
+    ...(acc.groundMist.length ? { groundMist: acc.groundMist } : {}),
+    ...(acc.ladders.length ? { ladders: acc.ladders } : {}),
+    ...(acc.scenery.length ? { scenery: acc.scenery } : {}),
+    ...(acc.objectives.length ? { objectives: acc.objectives } : {}),
+  };
+}
+
+/** Cells → world units, snapping float noise (1.9999999) back to whole units. */
+const exact = (n: number) => (Math.abs(n - Math.round(n)) <= 1e-9 ? Math.round(n) : n);
 
 /**
  * Adds one placed block's spawned things to `acc`, the block's top-left at tile (`ox`, `oy`) of
  * the map.
  */
-export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Content): void {
-  const cs = BLOCK_TUNING.cellSize;
-  const n = BLOCK_CELLS;
+export function addBlockContent(
+  pb: PlacedBlock,
+  ox: number,
+  oy: number,
+  acc: Content,
+  cs: number = BLOCK_TUNING.cellSize,
+): void {
+  const n = pb.block.ground.length;
   const rad = (deg: number) => (deg * Math.PI) / 180;
   const {
     walls,
@@ -197,21 +252,61 @@ export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Co
   {
     const pt = ([x, y]: CellPoint): Vec2 => ({ x: (ox + x) * cs, y: (oy + y) * cs });
     const rect = ([x, y, w, h]: CellRect): Rect => ({
-      x: (ox + x) * cs,
-      y: (oy + y) * cs,
-      w: w * cs,
-      h: h * cs,
+      x: exact((ox + x) * cs),
+      y: exact((oy + y) * cs),
+      w: exact(w * cs),
+      h: exact(h * cs),
     });
     const id = (s: string) => `${pb.prefix}${s}`;
     const items = pb.block.items.filter((i) => pb.spawned.has(i.id));
+    const surface = (sid: string | undefined) => {
+      const r = sid ? items.find((i) => i.kind === 'raised' && i.id === sid) : undefined;
+      return r && 'rect' in r ? { fireOverFrom: rect(r.rect) } : {};
+    };
     for (const it of items) {
       switch (it.kind) {
         case 'wall':
-          walls.push(rect(it.rect));
+          walls.push({ ...rect(it.rect), ...surface(it.firingSurface) });
           break;
         case 'cover':
-          cover.push({ id: id(it.id), rect: rect(it.rect), material: it.material });
+          cover.push({
+            id: id(it.id),
+            rect: rect(it.rect),
+            material: it.material,
+            ...surface(it.firingSurface),
+            ...(it.bullet === undefined ? {} : { bullet: it.bullet }),
+            ...(it.lobbed === undefined ? {} : { lobbed: it.lobbed }),
+          });
           break;
+        case 'water':
+          acc.water.push(rect(it.rect));
+          break;
+        case 'raised':
+          acc.raisedGround.push(rect(it.rect));
+          break;
+        case 'mist':
+          acc.groundMist.push(rect(it.rect));
+          break;
+        case 'prop':
+          acc.scenery.push({ image: it.image, rect: rect(it.rect) });
+          break;
+        case 'ladder': {
+          const r = rect(it.rect);
+          const end = ([fx, fy]: CellPoint): Vec2 => ({ x: r.x + r.w * fx, y: r.y + r.h * fy });
+          acc.ladders.push({ id: id(it.id), bottom: end(it.bottom), top: end(it.top) });
+          break;
+        }
+        case 'target': {
+          const r = rect(it.rect);
+          acc.objectives.push({
+            id: id(it.id),
+            target: true,
+            position: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
+            radius: Math.min(r.w, r.h) / 2,
+            ...(it.hp === undefined ? {} : { maxHp: it.hp }),
+          });
+          break;
+        }
         case 'bush':
         case 'trench':
           concealment.push({ id: id(it.id), rect: rect(it.rect), kind: it.kind });
@@ -249,7 +344,7 @@ export function addBlockContent(pb: PlacedBlock, ox: number, oy: number, acc: Co
           break;
       }
     }
-    squads.push(...blockSquads(pb.block, items, pb.spawned, pt, id));
+    squads.push(...blockSquads(pb.block, items, pb.spawned, pt, id, cs));
   }
 }
 
@@ -264,9 +359,9 @@ function blockSquads(
   spawned: ReadonlySet<string>,
   pt: (p: CellPoint) => Vec2,
   id: (s: string) => string,
+  cs: number,
 ): SquadDef[] {
   const out: SquadDef[] = [];
-  const cs = BLOCK_TUNING.cellSize;
   for (const g of block.groups) {
     const rally = items.flatMap((i) => (i.kind === 'rally' && i.group === g.id ? [pt(i.at)] : []));
     if (rally.length === 0) continue;

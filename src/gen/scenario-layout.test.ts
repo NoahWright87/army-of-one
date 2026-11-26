@@ -81,10 +81,10 @@ describe('shipped layout templates', () => {
     if (original.ground) expect(preview.ground).toEqual(original.ground);
     expect(preview.cover).toEqual(original.cover);
     expect(preview.gates).toEqual(original.gates);
-    expect(preview.raisedGround).toEqual(original.raisedGround ?? []);
-    expect(preview.ladders).toEqual(original.ladders ?? []);
+    expect(preview.raisedGround ?? []).toEqual(original.raisedGround ?? []);
+    expect(preview.ladders ?? []).toEqual(original.ladders ?? []);
     expect(preview.concealment).toEqual(original.concealment);
-    expect(preview.groundMist).toEqual(original.groundMist ?? []);
+    expect(preview.groundMist ?? []).toEqual(original.groundMist ?? []);
     expect(preview.spawnPoints[0]?.position).toEqual(original.spawnPoints[0]?.position);
     expect(preview.scenery?.length).toBeGreaterThan(0);
     expect(preview.triggers).toBeUndefined();
