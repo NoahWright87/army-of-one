@@ -796,8 +796,9 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   down there, 1400 above; "levels are way bigger than this"): (1) an open field you cross east,
   seven targets spread far out so none is in your face when the door opens (auto-fire on a phone
   would blast them at once); (2) a sandbag lane you walk north, sandbags wall to wall between
-  the path and the targets, three nearer targets and four far ones at the edge of the rifle's
-  reach (about 480 from the bags, 150 HP, three hits) so you must come up to the bags, brace
+  the path and the targets, three mid-range targets and six far ones 800–870 out (far past the
+  rifle's 520: bullets lose speed and damage, and held fire loses accuracy; 150 HP, six hits), so
+  standing you mostly miss and braced on the bags you don't so you must come up to the bags, brace
   (a chosen stance now, [D160]; a painted BRACE mark teaches it) and aim; (3) live fire west
   along a long concrete wall with bushes, five machine guns spread beyond it, then north out of
   the far west door, which opens when they're dead. Stall doors open from mission rules; gate

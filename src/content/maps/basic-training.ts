@@ -46,7 +46,7 @@ export const BT_H = 6200;
 /** The northern rooms' east edge (the range below them is wider). */
 const BT_NORTH_R = 1360;
 /** The sandbag lane is the east end of its band: west of this is solid. */
-const LANE_X = 1300;
+const LANE_X = 1000;
 
 /** The west fence the sergeant walks behind. */
 export const BT_FENCE_X = 230;
@@ -186,7 +186,7 @@ export const BT_TARGETS_A = [
   'bt-a6',
   'bt-a7',
 ] as const;
-/** The sandbag lane's targets (R1B), east of the bags; the far ones take three hits. */
+/** The sandbag lane's targets (R1B), west of the bags: three mid-range, six far. */
 export const BT_TARGETS_B = [
   'bt-b1',
   'bt-b2',
@@ -195,6 +195,8 @@ export const BT_TARGETS_B = [
   'bt-b5',
   'bt-b6',
   'bt-b7',
+  'bt-b8',
+  'bt-b9',
 ] as const;
 export const BT_TARGETS = [...BT_TARGETS_A, ...BT_TARGETS_B] as const;
 /** The live-fire stall's machine gunners (R1C), behind the concrete wall. */
@@ -366,16 +368,19 @@ export const BASIC_TRAINING: MapDef = {
     { id: 'bt-a5', position: { x: 1900, y: 5600 }, radius: 18, maxHp: 50, target: true },
     { id: 'bt-a6', position: { x: 2060, y: 5200 }, radius: 18, maxHp: 50, target: true },
     { id: 'bt-a7', position: { x: 1660, y: 5060 }, radius: 18, maxHp: 50, target: true },
-    // R1B: west of the bags. Three nearer ones go down at once; four far ones sit at the edge of
-    // the rifle's reach (about 480 from where you stand at the bags) and take three hits: aim,
-    // and brace on the bags.
-    { id: 'bt-b1', position: { x: 1700, y: 4250 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-b2', position: { x: 1640, y: 4500 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-b3', position: { x: 1720, y: 4760 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-b4', position: { x: 1450, y: 4200 }, radius: 14, maxHp: 150, target: true },
-    { id: 'bt-b5', position: { x: 1445, y: 4420 }, radius: 14, maxHp: 150, target: true },
-    { id: 'bt-b6', position: { x: 1455, y: 4640 }, radius: 14, maxHp: 150, target: true },
-    { id: 'bt-b7', position: { x: 1460, y: 4860 }, radius: 14, maxHp: 150, target: true },
+    // R1B: west of the bags, in a lane 900 wide. Three mid-range ones (about 450–540 out) go down
+    // at once. Six far ones sit 800–870 out, well past the rifle's 520 (where bullets lose
+    // speed, damage and, on held fire, accuracy): standing, you hose and mostly miss; braced on
+    // the bags, held fire stays tight. Each takes six hits.
+    { id: 'bt-b1', position: { x: 1480, y: 4300 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b2', position: { x: 1400, y: 4550 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b3', position: { x: 1460, y: 4800 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b4', position: { x: 1090, y: 4190 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b5', position: { x: 1130, y: 4330 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b6', position: { x: 1070, y: 4470 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b7', position: { x: 1120, y: 4610 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b8', position: { x: 1080, y: 4750 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b9', position: { x: 1140, y: 4890 }, radius: 14, maxHp: 150, target: true },
   ],
   mines: [...BT_MINEFIELD.map((mine) => ({ ...mine, smoke: true })), ...BT_R7_MINEFIELD],
   capturePoints: [

@@ -106,11 +106,12 @@ describe('basic training (PHASE18): on rails', () => {
     for (const t of BT_TARGETS_A) expect(near(pos(t), { x: 600, y: 5680 })).toBeGreaterThan(650);
     // The lane's targets are well away from where you come in…
     for (const t of BT_TARGETS_B) expect(near(pos(t), { x: 2040, y: 4980 })).toBeGreaterThan(250);
-    // …and the far ones sit at the edge of the rifle's reach from the bags.
+    // …the mid-range ones are well out, and the far ones are far past the rifle's reach (520).
+    for (const t of BT_TARGETS_B.slice(0, 3)) {
+      expect(near(pos(t), { x: 1935, y: pos(t).y })).toBeGreaterThan(430);
+    }
     for (const t of BT_TARGETS_B.slice(3)) {
-      const d = near(pos(t), { x: 1935, y: pos(t).y });
-      expect(d).toBeGreaterThan(430);
-      expect(d).toBeLessThan(520);
+      expect(near(pos(t), { x: 1935, y: pos(t).y })).toBeGreaterThan(780);
     }
     // The machine guns are well away from the door you walk in by.
     for (const g of enemiesOf(w, BT_MG_SQUAD)) {
@@ -141,35 +142,37 @@ describe('basic training (PHASE18): on rails', () => {
     expect(w.state.missionComplete).toBeNull(); // practice targets don't win
   });
 
-  it('R1B: the far targets are weak shots from the path, and take three hits from the bags', () => {
-    const w = bt();
-    const defs = w.map.objectives!;
-    const far = defs.findIndex((o) => o.id === 'bt-b7');
-    expect(defs[far]!.maxHp).toBe(150);
-    // From back on the path (past the rifle's reach) a couple of seconds don't finish it.
-    const back = soldierAt(w, { x: 2060, y: 4860 });
-    shootAt(
-      w,
-      back,
-      () => defs[far]!.position,
-      () => false,
-      60 * 2,
-    );
-    expect(w.state.objectives[far]!.destroyed).toBe(false);
-    // Right up at the bags it's in reach, and it takes several hits.
-    getSoldier(w, back)!.x = 1936;
-    getSoldier(w, back)!.y = 4860;
-    let hits = 0;
-    let last = w.state.objectives[far]!.hp;
-    for (let i = 0; i < 60 * 30 && !w.state.objectives[far]!.destroyed; i++) {
-      const s = getSoldier(w, back)!;
-      run(w, 1, { [back]: { ...toward(s, s, { aim: defs[far]!.position }), fire: i % 6 < 4 } });
-      const hp = w.state.objectives[far]!.hp;
-      if (hp < last) hits++;
-      last = hp;
-    }
-    expect(w.state.objectives[far]!.destroyed).toBe(true);
-    expect(hits).toBeGreaterThanOrEqual(2);
+  it('R1B: held fire at the far targets mostly misses standing, and stays tight braced on the bags', () => {
+    /** Seconds of held fire to bring down the far target b7 from the bags. */
+    const ttk = (braced: boolean) => {
+      const w = bt();
+      const defs = w.map.objectives!;
+      const far = defs.findIndex((o) => o.id === 'bt-b7');
+      expect(defs[far]!.maxHp).toBe(150);
+      const me = soldierAt(w, { x: 1936, y: 4610 });
+      const aim = (fire: boolean, stance = false): SoldierInput => ({
+        move: { x: 0, y: 0 },
+        aim: Math.PI,
+        aimDistance: 1936 - defs[far]!.position.x,
+        fire,
+        interact: false,
+        autoStance: false, // a player chooses the stance (nothing happens by standing still)
+        ...(stance ? { stance: true } : {}),
+      });
+      if (braced) {
+        run(w, 1, { [me]: aim(false, true) }); // the stance button
+        run(w, 90, { [me]: aim(false) }); // settling takes a moment
+      }
+      let t = 0;
+      for (; t < 60 * 60 && !w.state.objectives[far]!.destroyed; t++) {
+        run(w, 1, { [me]: aim(true) }); // holding the trigger, like auto-fire
+      }
+      return w.state.objectives[far]!.destroyed ? t / 60 : Infinity;
+    };
+    const standing = ttk(false);
+    const braced = ttk(true);
+    expect(braced).toBeLessThan(standing * 0.7); // bracing is clearly worth doing
+    expect(standing).toBeGreaterThan(3); // ...and it isn't over in a heartbeat standing
   });
 
   it('R1B: from the bags, every target in the lane goes down and its door opens', () => {
