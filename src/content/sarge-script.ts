@@ -371,7 +371,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     rule(
       'r1b.braced',
       'in:r1b, alive, stance:braced, targetsLeft:b',
-      "That's the stance. [gold]Steady[/] means [gold]accurate[/]. Now reach out and touch the far ones.",
+      "That's the stance. [gold]Steady[/] means [gold]accurate[/]. Now reach out and take the far ones.",
     ),
     rule(
       'r1b.far',
@@ -554,7 +554,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
       say(
         "I'm your [gold]Drill Sergeant[/]. [p=300]Follow my orders and everything will be [gold]fine[/].",
       ),
-      say("Now hit [gold]DEPLOY[/], soldier! [p=200]That's the big yellow button."),
+      say('Ready when you are, soldier.'),
     ]),
     rule('rs.deploy', 'respawnOpen, hint:deploy, had:station', 'Ready when you are, soldier.'),
     rule(

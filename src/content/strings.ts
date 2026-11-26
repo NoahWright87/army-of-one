@@ -167,7 +167,7 @@ export const STRINGS = {
   'role.card.acc.detail': 'Shots land within ±{stand}° standing, ±{move}° at a run',
   'role.card.mob.detail': 'Walk {walk} · sprint {sprint}',
   'role.card.mob.vehicle': 'Top speed {walk} · turns {turn}°/s',
-  'role.card.tapHint': 'Tap a bar for the numbers',
+  'role.card.stats': 'Stats',
   'role.card.locked': 'LOCKED',
   'role.card.tooPricey': 'TOO EXPENSIVE',
   'respawn.role.title': 'Role (1–9)',

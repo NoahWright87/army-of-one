@@ -97,7 +97,17 @@ export function createRoleCard(): RoleCardEl {
   const price = el('span', 'p');
   head.append(name, price);
   const blurb = el('div', 'blurb');
-  root.append(head, blurb);
+  // The five bars (and what each means) are tucked away until asked for: the card stays short.
+  const toggle = el('button', 'rs-more', str('role.card.stats'));
+  toggle.type = 'button';
+  toggle.setAttribute('aria-expanded', 'false');
+  const body = el('div', 'rs-stats');
+  body.hidden = true;
+  toggle.addEventListener('click', () => {
+    body.hidden = !body.hidden;
+    toggle.setAttribute('aria-expanded', String(!body.hidden));
+  });
+  root.append(head, blurb, toggle, body);
 
   const slots = {} as Record<Stat, Slots>;
   for (const r of ROWS) {
@@ -113,18 +123,16 @@ export function createRoleCard(): RoleCardEl {
     meter.append(a, b, left, right);
     btn.append(label, meter);
     slots[r.id] = { a, b, left, right, btn };
-    root.append(btn);
+    body.append(btn);
   }
   const detail = el('div', 'rs-stat-d');
-  root.append(detail);
+  body.append(detail);
 
   let open: Stat | null = null;
   let texts: Record<Stat, string> | null = null;
   const paintDetail = (): void => {
     for (const r of ROWS) slots[r.id].btn.classList.toggle('open', open === r.id);
-    const t = open && texts ? texts[open] : str('role.card.tapHint');
-    detail.textContent = t;
-    detail.classList.toggle('hint', !open);
+    detail.textContent = open && texts ? texts[open] : '';
   };
   root.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-stat]');
@@ -191,7 +199,12 @@ export const ROLE_CARD_CSS = `
 .rs-stat .gl-l { left: 0; }
 .rs-stat .gl-r { right: 0; }
 .rs-stat .gl { height: 10px; width: auto; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
-.rs-stat-d { margin-top: 4px; min-height: 2.6em; color: #c9d3dc; }
-.rs-stat-d.hint { color: #6f7b88; }
+.rs-stat-d { margin-top: 4px; color: #c9d3dc; }
+.rs-stat-d:empty { display: none; }
+.rs-card .rs-more { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 0; background: none; border: 0; border-top: 1px solid #2c3640; color: #9aa6b2; font: inherit; font-size: 11px; cursor: pointer; text-align: left; }
+.rs-card .rs-more::after { content: '▾'; }
+.rs-card .rs-more[aria-expanded='true']::after { content: '▴'; }
+.rs-card .rs-stats { margin-top: 2px; }
+.rs-card .rs-stats[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .rs-stat .meter .f { transition: none; } }
 `;

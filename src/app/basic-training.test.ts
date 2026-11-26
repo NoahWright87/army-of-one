@@ -52,6 +52,19 @@ describe('basic training director', () => {
     expect(ids(bt.step(view([me(600, 5450)]), 200, sarge))).toEqual([]);
   });
 
+  it('nothing Sarge says names a button or a device (the painted instructions do that)', () => {
+    const device =
+      /\b(wasd|shift|click|clicking|button|buttons|tap|tapping|key|keys|press|mouse|touch|screen)\b/i;
+    for (const rule of DEFAULT_SARGE_SCRIPT.rules) {
+      for (const step of rule.steps) {
+        if (step.k !== 'say') continue;
+        for (const text of step.say) {
+          expect(text, `${rule.id}: "${text}"`).not.toMatch(device);
+        }
+      }
+    }
+  });
+
   it('the default script has no mistakes in it', () => {
     expect(validateScript(DEFAULT_SARGE_SCRIPT)).toEqual([]);
   });
