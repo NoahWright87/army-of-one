@@ -792,7 +792,8 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   which stay as an **auto** option.
   - **Stance icon (bottom left)**, **Z** or a tap. Always shown: a white outline round a black
     fill that rises (green, orange, red) to your health. The outline turns blue and pulses slightly while cover is in
-    reach to brace against, is cyan once settled, blue while settling.
+    reach to brace against, is cyan once settled, blue while settling, and is faint when the
+    button can do nothing.
     Standing is the default. Press near cover: **Braced**: slide up to the cover (`stance.snapSpeed`),
     settle, and the camera leans across it. Machine Gunner anywhere: **Deployed**. Sniper with no
     cover: **Prone**. Another press stands up. Running and Climbing show in the icon but aren't chosen.
@@ -809,8 +810,10 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   - **Weapon icon (bottom right)**, **Q** or a tap: everybody has one, a Sniper swaps pistol ↔
     rifle with it (starts with the rifle; prone with the pistol is allowed). A readiness meter
     on every weapon: a white outline with a black fill (no box); after a shot the fill turns
-    yellow and fades back to black over the reload, grenades, rockets and shells too. The outline is
-    cyan while the stance bonus applies, blue while swapping. Trucks show an MG, tanks a cannon. Placeholder silhouettes
+    yellow and the black wipes down over it from the top as it reloads (grenades, rockets and
+    shells too). An outline only lights up if its button can do something: the weapon's for a
+    Sniper (swap; blue while swapping), the stance icon's when it can brace, go prone, deploy or
+    stand up. Otherwise it's faint. Trucks show an MG, tanks a cannon. Placeholder silhouettes
     (`src/content/ui-icons.ts`), muzzle up.
   - **Auto**: right-click or long-press an icon: an **A** in its corner, remembered
     (`aoo:auto-stance`, `aoo:auto-weapon`). Auto is the old behaviour: still by cover (a Sniper

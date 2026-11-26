@@ -2,13 +2,13 @@
  * (PHASE20, [D160]) The stance icon (bottom left) and the weapon icon (bottom right).
  *
  * - Weapon: a silhouette, muzzle up, along the right edge: a white outline with a black fill (the
- *   outline is cyan while the stance's aim bonus applies, blue while swapping). After a shot the
- *   fill turns yellow and fades back to black over the reload. No box around it. A Sniper taps it
+ *   outline is lit only if it can swap, blue while swapping). After a shot the fill turns yellow
+ *   and the black wipes down over it from the top over the reload. No box around it. A Sniper taps it
  *   to swap guns.
  * - Stance: a soldier silhouette, always shown: a white outline round a black fill that rises
- *   green (orange, red) to your health. The outline turns blue and pulses slightly when cover is in reach to brace
- *   against, turns cyan once settled into a stance, blue while settling. Climbing and running
- *   show but aren't chosen.
+ *   green (orange, red) to your health. The outline only lights up if the button can do
+ *   something: blue and pulsing when cover is in reach to brace, blue while settling, cyan once
+ *   settled (it can stand up), white for a class's own stance. Otherwise it's faint.
  * - Right-click or long-press either one for auto (an "A" in its corner).
  * DOM only; the state comes from `LoadoutView` (pure, from the sim).
  */
@@ -59,6 +59,8 @@ body.aoo-loadout-on .aoo-touch .sprint { bottom: 198px; }
 `;
 
 const READY = '#ffffff';
+/** A button that can't do anything right now: a faint outline, no highlight. */
+const DIM = 'rgba(255,255,255,.4)';
 const FIRED = '#ffd34d';
 const BONUS = '#35e0ff';
 const SWAP = '#8fb4d8';
@@ -196,18 +198,19 @@ export class LoadoutHud {
       this.stanceBlack.innerHTML = stanceSvg(v.stance, '#000', 3.5);
       this.stanceHealth.innerHTML = stanceSvg(v.stance, 'currentColor', 3.5);
     }
+    // The outline only lights up if the button can do something: stand up (settled), brace on
+    // the cover in reach (blue, pulsing), or take the class's own stance. Otherwise it's faint.
+    const own = v.canStance && !v.coverNear;
     const pulse = v.coverNear && v.stance === 'standing' && v.stanceEnabled;
     const outline = settling
       ? SWAP
-      : v.stance === 'climbing'
-        ? FIRED
-        : v.stance === 'sprinting'
-          ? '#78beff'
-          : steady
-            ? BONUS
-            : pulse
-              ? COVER
-              : READY;
+      : steady
+        ? BONUS
+        : pulse
+          ? COVER
+          : v.stanceEnabled && v.stance === 'standing' && own
+            ? READY
+            : DIM;
     this.stanceOutline.style.color = outline;
     this.stanceOutline.className = `layer outline${settling ? ' settling' : pulse ? ' pulse' : ''}`;
     // The health fill rises from the figure's feet.
@@ -219,15 +222,21 @@ export class LoadoutHud {
       str(c.autoStance ? 'loadout.autoOn' : 'loadout.autoOff');
     this.stanceBadge.hidden = !c.autoStance;
 
-    // Weapon: a white outline round a black fill; a shot turns the fill yellow, then it fades.
+    // Weapon: a white outline round a black fill; a shot turns the fill yellow and the black
+    // wipes down over it from the top as it reloads. Only a swappable weapon (the Sniper's)
+    // has a lit outline; the stance bonus is the reticle's job, not this icon's.
     if (this.weaponKind !== v.weapon) {
       this.weaponKind = v.weapon;
       this.base.innerHTML = weaponSvg(v.weapon, '#000', 'currentColor');
       this.fill.innerHTML = weaponSvg(v.weapon, FIRED);
     }
-    this.base.style.color = v.swapping !== undefined ? SWAP : v.bonus ? BONUS : READY;
-    this.fill.style.opacity =
-      v.cooldown !== undefined ? String(Math.round(v.cooldown * 50) / 50) : '0';
+    this.base.style.color = v.swapping !== undefined ? SWAP : v.canSwap ? READY : DIM;
+    if (v.cooldown === undefined) {
+      this.fill.style.visibility = 'hidden';
+    } else {
+      this.fill.style.visibility = 'visible';
+      this.fill.style.clipPath = `inset(${Math.round((1 - v.cooldown) * 100)}% 0 0 0)`;
+    }
     this.weaponBtn.className = `weapon${v.swapping !== undefined ? ' swapping' : ''}${v.canSwap ? '' : ' fixed'}`;
     this.weaponBtn.title = v.canSwap
       ? `${str(`loadout.weapon.${v.weapon}`)} · ${str('loadout.weapon.swapKey')} · ` +
