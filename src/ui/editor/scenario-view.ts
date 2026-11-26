@@ -64,6 +64,7 @@ const css = `
 .aoo-scenario button:disabled { opacity: .45; }
 .aoo-scenario .row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
 .aoo-scenario .col, .aoo-scenario label { display: grid; gap: 4px; }
+.aoo-scenario .stage canvas.panning { cursor: grabbing !important; }
 .aoo-scenario .stage canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .aoo-scenario .stage { position: relative; min-height: 0; }
 
@@ -111,7 +112,8 @@ function itemLayer(item: LayoutItem): 'terrain' | 'structures' | 'props' | 'weat
   return 'structures';
 }
 
-type Stroke = { id: number; start: Vec2; last: Vec2; before: ScenarioLayout; client: Vec2 };
+type Stroke = { id: number; start: Vec2; last: Vec2; before: ScenarioLayout };
+type Gesture = Stroke | { id: number; client: Vec2 };
 const PROP_IMAGES: readonly { image: ImageKey; label: StringKey }[] = [
   { image: 'hub_banner', label: 'scenario.prop.banner' },
   { image: SIGN_KINDS.mapTable.post, label: 'scenario.prop.table' },
@@ -184,7 +186,7 @@ export class ScenarioView {
   private tool: Tool = 'select';
   private terrain: GroundKind = 'D';
   private material: CoverMaterial = 'sandbags';
-  private stroke: Stroke | null = null;
+  private stroke: Gesture | null = null;
   private area: AreaKind = 'raised';
   private propImage: ImageKey = 'hub_banner';
   private selected = -1;
@@ -449,6 +451,9 @@ export class ScenarioView {
         // The base textures are still available if a transition texture fails.
       });
     this.canvas.onpointerdown = (event) => this.startStroke(event);
+    this.canvas.onauxclick = (event) => {
+      if (event.button === 1) event.preventDefault();
+    };
     this.canvas.onpointermove = (event) => {
       this.hoverCell = event.pointerType === 'touch' ? null : this.cell(event, false);
       if (this.stroke) this.moveStroke(event);
@@ -894,11 +899,21 @@ export class ScenarioView {
   }
 
   private startStroke(event: PointerEvent): void {
-    if (event.button !== 0 || this.stroke) return;
+    const middle = event.button === 1;
+    if (middle) event.preventDefault();
+    if (this.stroke || (!middle && event.button !== 0)) return;
+    if (middle || this.tool === 'pan') {
+      this.stroke = { id: event.pointerId, client: { x: event.clientX, y: event.clientY } };
+      this.hoverCell = null;
+      this.canvas.classList.add('panning');
+      this.canvas.setPointerCapture(event.pointerId);
+      this.draw();
+      return;
+    }
     const point = this.point(event);
     const size = this.worldSize;
     const inside = insideLayoutCell({ x: 0, y: 0, w: size.x, h: size.y }, point);
-    if (!inside && this.tool !== 'pan') return;
+    if (!inside) return;
     const cell = this.cell(event, true)!;
     if (this.tool === 'spawn') {
       this.commit({
@@ -927,7 +942,6 @@ export class ScenarioView {
       start: at,
       last: at,
       before: this.layout,
-      client: { x: event.clientX, y: event.clientY },
     };
     this.canvas.setPointerCapture(event.pointerId);
     if (this.tool === 'paint') this.paint(cell, cell);
@@ -937,7 +951,7 @@ export class ScenarioView {
   private moveStroke(event: PointerEvent): void {
     const stroke = this.stroke;
     if (!stroke || stroke.id !== event.pointerId) return;
-    if (this.tool === 'pan') {
+    if ('client' in stroke) {
       this.pan.x += event.clientX - stroke.client.x;
       this.pan.y += event.clientY - stroke.client.y;
       stroke.client = { x: event.clientX, y: event.clientY };
@@ -1019,6 +1033,11 @@ export class ScenarioView {
     if (!stroke || stroke.id !== event.pointerId) return;
     if (!cancel) this.moveStroke(event);
     this.stroke = null;
+    if ('client' in stroke) {
+      this.canvas.classList.remove('panning');
+      this.draw();
+      return;
+    }
     if (cancel) {
       this.layout = stroke.before;
       this.refresh();
@@ -1161,12 +1180,17 @@ export class ScenarioView {
       ctx.globalAlpha = active ? 1 : 0.28;
       for (const [i, item] of this.layout.items.entries()) {
         if (!overview && (itemLayer(item) === this.tab) !== active) continue;
-        const moving = this.tool === 'select' && i === this.selected && this.stroke;
+        const moving =
+          this.tool === 'select' &&
+          i === this.selected &&
+          this.stroke &&
+          'before' in this.stroke &&
+          this.stroke;
         this.drawItem(moving ? (this.movedItem(moving) ?? item) : item, i === this.selected);
       }
     }
     ctx.globalAlpha = 1;
-    if (this.stroke) {
+    if (this.stroke && 'before' in this.stroke) {
       const item = this.placedItem(this.stroke);
       if (item) {
         ctx.globalAlpha = 0.65;
@@ -1187,7 +1211,12 @@ export class ScenarioView {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-    if (this.tab === 'terrain' && this.tool === 'paint' && this.hoverCell) {
+    if (
+      this.tab === 'terrain' &&
+      this.tool === 'paint' &&
+      this.hoverCell &&
+      !(this.stroke && 'client' in this.stroke)
+    ) {
       const { x, y, w, h } = this.brushRect(this.hoverCell);
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.5 / size;
