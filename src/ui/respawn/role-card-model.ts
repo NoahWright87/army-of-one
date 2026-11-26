@@ -4,7 +4,7 @@
  *
  *  - Survivability: bar = HP, shields = armor (1 per 20 %, the best direction), arrows = regen.
  *  - Lethality: bar = damage per second as a span (low → high: e.g. a rocket at a soldier → at a
- *    vehicle); strip = range span; reticles = accuracy; 💥 = explodes.
+ *    vehicle); range = its own span bar; accuracy = a bar; a burst glyph marks explosive weapons.
  *  - Maneuverability: bar = walk speed, lighter extension = sprint.
  *
  * Soldiers and vehicles use separate scales so the bars compare within a group.
@@ -39,8 +39,11 @@ export interface RoleCard {
     dpsShare: Span;
     range: Span;
     rangeShare: Span;
-    /** 1 (sprays) … 3 (pinpoint) reticles. */
-    accuracy: 1 | 2 | 3;
+    /** 0 (sprays) … 1 (pinpoint): an absolute scale, not relative to the group. */
+    accuracyShare: number;
+    /** Half-angle of the cone in degrees: standing still, and at a full run. */
+    spreadStandDeg: number;
+    spreadMoveDeg: number;
     explosive: boolean;
     /** Raw numbers for the tooltip. */
     detail: LethalityDetail;
@@ -70,6 +73,7 @@ const REGEN_ARROW_STEP = 2; // TUNE: HP per second per arrow
 const SHIELD_STEP = 0.2; // [user spec] 1 shield per 20 % armor
 
 const r0 = (n: number): number => Math.round(n);
+const deg = (rad: number): number => Math.round(((rad * 180) / Math.PI) * 10) / 10;
 
 function isVehicle(roleId: RoleId): boolean {
   return roleDef(roleId).vehicle !== undefined;
@@ -206,10 +210,39 @@ function rawLethality(t: Tuning, roleId: RoleId): Raw {
   }
 }
 
-function accuracyOf(spread: number): 1 | 2 | 3 {
-  if (spread <= 0.03) return 3; // TUNE: radians (half-angle)
-  if (spread <= 0.09) return 2; // TUNE
-  return 1;
+const SPREAD_WORST = 0.17; // TUNE: radians; at or past this the accuracy bar is empty
+
+function accuracyOf(spread: number): number {
+  return Math.max(0, Math.min(1, 1 - spread / SPREAD_WORST));
+}
+
+/** Spread (half-angle, radians) standing still and at a full run. */
+function spreadOf(t: Tuning, roleId: RoleId): { stand: number; move: number } {
+  const g = (x: { baseSpread: number; movingSpread: number }) => ({
+    stand: x.baseSpread,
+    move: x.baseSpread + x.movingSpread,
+  });
+  switch (roleDef(roleId).weapon) {
+    case 'rifle':
+      return g(t.rifle);
+    case 'mg':
+      return g(t.mg);
+    case 'pistol':
+      return g(t.pistol);
+    case 'sniper':
+      return g(t.sniper);
+    case 'shotgun':
+      return {
+        stand: t.shotgun.pelletSpread,
+        move: t.shotgun.pelletSpread + t.shotgun.movingSpread,
+      };
+    case 'grenade':
+      return { stand: 0, move: t.grenade.movingSpread };
+    case 'rocket':
+      return g(t.rocket);
+    case 'shell':
+      return g(t.shell);
+  }
 }
 
 /** Largest armor share in any direction, and its shield icons. */
@@ -273,7 +306,9 @@ export function roleCard(t: Tuning, roleId: RoleId): RoleCard {
       dpsShare: { min: b.raw.dps.min / dpsMax, max: b.raw.dps.max / dpsMax },
       range: { min: r0(b.raw.range.min), max: r0(b.raw.range.max) },
       rangeShare: { min: b.raw.range.min / rangeMax, max: b.raw.range.max / rangeMax },
-      accuracy: accuracyOf(b.raw.spread),
+      accuracyShare: accuracyOf(b.raw.spread),
+      spreadStandDeg: deg(spreadOf(t, roleId).stand),
+      spreadMoveDeg: deg(spreadOf(t, roleId).move),
       explosive: b.raw.explosive,
       detail: b.raw.detail,
     },

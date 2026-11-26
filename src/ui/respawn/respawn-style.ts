@@ -260,7 +260,7 @@ ${ROLE_CARD_CSS}
 .rs-rm-item .p { font-size: 11px; color: #9ee59a; }
 .rs-rm-item .k { position: absolute; top: 3px; left: 5px; font-size: 10px; color: #6f7b88; }
 .rs-rm-item.sel { border-color: #ffd34d; background: #2c2a1c; color: #ffe07a; }
-.rs-rm-item.poor { opacity: .45; cursor: default; }
+.rs-rm-item.poor { opacity: .45; }
 .rs-rm-item.poor .p { color: #ff8a80; text-decoration: line-through; }
 
 @media (max-width: 760px) {

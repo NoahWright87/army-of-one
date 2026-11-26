@@ -1,65 +1,66 @@
-/** The role card's markup (the model is `role-card-model.ts`). Text comes from strings.ts. */
+/**
+ * The role card (the model is `role-card-model.ts`). One persistent DOM tree: every row, bar and
+ * text slot is always in the same place, and `show()` only changes values, so tapping from role
+ * to role slides the bars to their new values (CSS transition). Text comes from strings.ts.
+ */
 import { roleDef } from '../../content/roles';
 import { str, type StringKey } from '../../content/strings';
 import type { Tuning } from '../../content/tuning';
 import type { RoleId } from '../../contracts/mission';
+import { el } from '../dom';
 import { roleCard, type RoleCard } from './role-card-model';
 
-const esc = (s: string): string =>
-  s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
-const pct = (n: number): string => `${Math.round(Math.max(0, Math.min(1, n)) * 100)}%`;
+const pct = (n: number): string => `${(Math.max(0, Math.min(1, n)) * 100).toFixed(1)}%`;
 const num = (n: number): string => String(Math.round(n * 10) / 10);
 
-function row(
-  id: string,
-  label: string,
-  body: string,
-  detail: string | null,
-  open: boolean,
-): string {
-  return (
-    `<button type="button" class="rs-stat${open ? ' open' : ''}" data-stat="${id}">` +
-    `<span class="l">${esc(label)}</span><span class="b">${body}</span></button>` +
-    (open && detail ? `<div class="rs-stat-d">${esc(detail)}</div>` : '')
-  );
+// Glyphs drawn inside the bars (white with a dark edge so they read on any fill).
+const SHIELD =
+  '<svg class="gl" viewBox="0 0 10 12" aria-hidden="true"><path d="M5 .6 9.4 2.1v3.8c0 2.9-2.3 4.7-4.4 5.5C2.9 10.6.6 8.8.6 5.9V2.1Z" fill="#fff"/></svg>';
+const CHEVRON =
+  '<svg class="gl" viewBox="0 0 6 10" aria-hidden="true"><path d="M1 1l4 4-4 4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const BURST = (() => {
+  const pts: string[] = [];
+  for (let i = 0; i < 16; i++) {
+    const r = i % 2 === 0 ? 6 : 2.8;
+    const a = (i / 16) * Math.PI * 2;
+    pts.push(`${(6 + r * Math.cos(a)).toFixed(2)},${(6 + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return `<svg class="gl" viewBox="0 0 12 12" aria-hidden="true"><polygon points="${pts.join(' ')}" fill="#fff"/></svg>`;
+})();
+
+type Stat = 'surv' | 'leth' | 'range' | 'acc' | 'mob';
+const ROWS: { id: Stat; label: StringKey }[] = [
+  { id: 'surv', label: 'role.card.surv' },
+  { id: 'leth', label: 'role.card.leth' },
+  { id: 'range', label: 'role.card.range' },
+  { id: 'acc', label: 'role.card.acc' },
+  { id: 'mob', label: 'role.card.mob' },
+];
+
+interface Slots {
+  a: HTMLElement;
+  b: HTMLElement;
+  left: HTMLElement;
+  right: HTMLElement;
+  btn: HTMLButtonElement;
 }
 
-function survivability(c: RoleCard): string {
+export interface RoleCardEl {
+  root: HTMLElement;
+  /** Fills the card for `roleId`; `price` is shown top right. */
+  show(tuning: Tuning, roleId: RoleId, price: string | undefined): void;
+}
+
+function setSpan(i: HTMLElement, left: number, width: number): void {
+  i.style.left = pct(left);
+  i.style.width = pct(width);
+}
+
+function details(c: RoleCard): Record<Stat, string> {
   const s = c.survivability;
-  const shields = s.shields ? `<span class="sh">${'🛡️'.repeat(s.shields)}</span>` : '';
-  const arrows = s.regenArrows ? `<span class="rg">${'›'.repeat(s.regenArrows)}</span>` : '';
-  return shields + `<span class="meter"><i style="width:${pct(s.hpShare)}"></i></span>` + arrows;
-}
-
-function lethality(c: RoleCard): string {
   const l = c.lethality;
-  const marks =
-    `<span class="acc" title="${esc(str('role.card.accuracy'))}">${'◎'.repeat(l.accuracy)}</span>` +
-    (l.explosive ? `<span class="boom" title="${esc(str('role.card.explodes'))}">💥</span>` : '');
-  return (
-    `<span class="meter"><i class="lo" style="width:${pct(l.dpsShare.min)}"></i>` +
-    `<i class="hi" style="left:${pct(l.dpsShare.min)};width:${pct(l.dpsShare.max - l.dpsShare.min)}"></i></span>` +
-    marks +
-    `<span class="meter range"><i style="left:${pct(l.rangeShare.min)};width:${pct(
-      Math.max(0.02, l.rangeShare.max - l.rangeShare.min),
-    )}"></i></span>`
-  );
-}
-
-function mobility(c: RoleCard): string {
-  const m = c.mobility;
-  return (
-    `<span class="meter"><i class="sp" style="width:${pct(m.sprintShare)}"></i>` +
-    `<i style="width:${pct(m.walkShare)}"></i></span>`
-  );
-}
-
-function details(c: RoleCard): { surv: string; leth: string; mob: string } {
-  const s = c.survivability;
-  const l = c.lethality;
-  const key =
-    `role.card.leth.${l.detail.kind === 'antiVehicle' ? 'anti' : l.detail.kind}` as StringKey;
   const d = l.detail;
+  const key = `role.card.leth.${d.kind === 'antiVehicle' ? 'anti' : d.kind}` as StringKey;
   const shield = roleDef(c.roleId).weapon === 'pistol' ? ` ${str('role.card.surv.shield')}` : '';
   return {
     surv:
@@ -74,9 +75,12 @@ function details(c: RoleCard): { surv: string; leth: string; mob: string } {
       low: Math.round(d.low),
       high: Math.round(d.high),
       every: num(d.every),
-      min: l.range.min,
-      max: l.range.max,
     }),
+    range:
+      l.range.min > 0
+        ? str('role.card.range.detail', { min: l.range.min, max: l.range.max })
+        : str('role.card.range.upTo', { max: l.range.max }),
+    acc: str('role.card.acc.detail', { stand: l.spreadStandDeg, move: l.spreadMoveDeg }),
     mob: c.vehicle
       ? str('role.card.mob.vehicle', {
           walk: c.mobility.walk,
@@ -86,52 +90,108 @@ function details(c: RoleCard): { surv: string; leth: string; mob: string } {
   };
 }
 
-/** The selected role's card: name, price, one-line job, three stat rows (tap for numbers). */
-export function roleCardHtml(
-  tuning: Tuning,
-  roleId: RoleId,
-  price: string | undefined,
-  openStat: string | null,
-): string {
-  const def = roleDef(roleId);
-  const c = roleCard(tuning, roleId);
-  const d = details(c);
-  const how =
-    roleId === 'gunner' || roleId === 'sniper'
-      ? `<div class="how">${esc(str(`role.card.how.${roleId}` as StringKey))}</div>`
-      : '';
-  return (
-    `<div class="rs-card" data-vehicle="${c.vehicle ? 1 : 0}">` +
-    `<div class="h"><b>${esc(str(def.nameKey))}</b>${price ? `<span class="p">${esc(price)}</span>` : ''}</div>` +
-    `<div class="blurb">${esc(str(def.blurbKey))}</div>${how}` +
-    row('surv', str('role.card.surv'), survivability(c), d.surv, openStat === 'surv') +
-    row('leth', str('role.card.leth'), lethality(c), d.leth, openStat === 'leth') +
-    row('mob', str('role.card.mob'), mobility(c), d.mob, openStat === 'mob') +
-    `<div class="hint">${esc(str('role.card.tapHint'))}</div></div>`
-  );
+export function createRoleCard(): RoleCardEl {
+  const root = el('div', 'rs-card');
+  const head = el('div', 'h');
+  const name = el('b');
+  const price = el('span', 'p');
+  head.append(name, price);
+  const blurb = el('div', 'blurb');
+  root.append(head, blurb);
+
+  const slots = {} as Record<Stat, Slots>;
+  for (const r of ROWS) {
+    const btn = el('button', `rs-stat r-${r.id}`);
+    btn.type = 'button';
+    btn.dataset['stat'] = r.id;
+    const label = el('span', 'l', str(r.label));
+    const meter = el('span', 'meter');
+    const a = el('i', 'f a');
+    const b = el('i', 'f b');
+    const left = el('span', 'gl-l');
+    const right = el('span', 'gl-r');
+    meter.append(a, b, left, right);
+    btn.append(label, meter);
+    slots[r.id] = { a, b, left, right, btn };
+    root.append(btn);
+  }
+  const detail = el('div', 'rs-stat-d');
+  root.append(detail);
+
+  let open: Stat | null = null;
+  let texts: Record<Stat, string> | null = null;
+  const paintDetail = (): void => {
+    for (const r of ROWS) slots[r.id].btn.classList.toggle('open', open === r.id);
+    const t = open && texts ? texts[open] : str('role.card.tapHint');
+    detail.textContent = t;
+    detail.classList.toggle('hint', !open);
+  };
+  root.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-stat]');
+    if (!b) return;
+    const id = b.dataset['stat'] as Stat;
+    open = open === id ? null : id;
+    paintDetail();
+  });
+
+  const show = (tuning: Tuning, roleId: RoleId, cost: string | undefined): void => {
+    const c = roleCard(tuning, roleId);
+    const def = roleDef(roleId);
+    name.textContent = str(def.nameKey);
+    price.textContent = cost ?? '';
+    blurb.textContent = str(def.blurbKey);
+
+    const sv = c.survivability;
+    setSpan(slots.surv.a, 0, sv.hpShare);
+    setSpan(slots.surv.b, 0, 0);
+    slots.surv.left.innerHTML = SHIELD.repeat(sv.shields);
+    slots.surv.right.innerHTML = CHEVRON.repeat(sv.regenArrows);
+
+    const l = c.lethality;
+    setSpan(slots.leth.a, 0, l.dpsShare.min);
+    setSpan(slots.leth.b, l.dpsShare.min, l.dpsShare.max - l.dpsShare.min);
+    slots.leth.right.innerHTML = l.explosive ? BURST : '';
+
+    setSpan(slots.range.a, l.rangeShare.min, Math.max(0.03, l.rangeShare.max - l.rangeShare.min));
+    setSpan(slots.range.b, 0, 0);
+
+    setSpan(slots.acc.a, 0, l.accuracyShare);
+    setSpan(slots.acc.b, 0, 0);
+
+    setSpan(slots.mob.a, 0, c.mobility.sprintShare);
+    setSpan(slots.mob.b, 0, c.mobility.walkShare);
+
+    texts = details(c);
+    paintDetail();
+  };
+  paintDetail();
+  return { root, show };
 }
 
 /** Styles for the card (shared by the respawn screen and the in-world respawn). */
 export const ROLE_CARD_CSS = `
-/* Role card (below the role grid). */
-.rs-card { margin-top: 8px; padding: 8px 10px; background: #1a2128; border: 1px solid #3a444e; border-radius: 6px; font: 12px system-ui, sans-serif; }
-.rs-card .h { display: flex; justify-content: space-between; font-size: 14px; color: #ffe07a; }
+.rs-card { margin-top: 8px; padding: 8px 10px; background: #1a2128; border: 1px solid #3a444e; border-radius: 6px; font: 12px/1.3 system-ui, sans-serif; }
+.rs-card .h { display: flex; justify-content: space-between; font-size: 14px; color: #ffe07a; min-height: 18px; }
 .rs-card .h .p { color: #9ee59a; font-weight: 600; }
-.rs-card .blurb { color: #c9d3dc; margin: 2px 0 6px; }
-.rs-card .how { color: #ffd34d; margin: -2px 0 6px; }
-.rs-stat { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 0; background: none; border: 0; color: #c9d3dc; cursor: pointer; font: inherit; text-align: left; }
-.rs-stat .l { flex: 0 0 84px; }
-.rs-stat .b { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.rs-card .blurb { color: #c9d3dc; margin: 2px 0 6px; min-height: 2.6em; }
+.rs-stat { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 0; background: none; border: 0; color: #c9d3dc; cursor: pointer; font: inherit; text-align: left; }
+.rs-stat .l { flex: 0 0 96px; font-size: 11px; white-space: nowrap; }
 .rs-stat.open .l { color: #ffe07a; }
-.rs-stat .meter { position: relative; flex: 1 1 60px; height: 10px; background: #0f1418; border: 1px solid #2c3640; border-radius: 3px; overflow: hidden; }
-.rs-stat .meter i { position: absolute; left: 0; top: 0; bottom: 0; background: #8ff0ad; }
-.rs-stat .meter i.hi { background: #ff9d57; }
-.rs-stat .meter i.sp { background: #4f7f66; }
-.rs-stat .meter.range { flex-basis: 100%; height: 5px; }
-.rs-stat .meter.range i { background: #6fb4ff; }
-.rs-stat .sh { font-size: 11px; letter-spacing: -1px; }
-.rs-stat .rg { color: #8ff0ad; font-weight: 800; letter-spacing: -1px; }
-.rs-stat .acc { color: #9fb0bf; font-size: 11px; }
-.rs-stat-d { margin: 0 0 4px 0; color: #9fb0bf; line-height: 1.3; }
-.rs-card .hint { margin-top: 4px; color: #6f7b88; font-size: 10px; }
+.rs-stat .meter { position: relative; flex: 1; height: 14px; background: #0f1418; border: 1px solid #2c3640; border-radius: 3px; overflow: hidden; }
+.rs-stat .meter .f { position: absolute; top: 0; bottom: 0; left: 0; width: 0; transition: left .3s ease, width .3s ease; }
+.rs-stat.open .meter { border-color: #6f7b88; }
+.r-surv .f.a { background: #5fcf86; }
+.r-leth .f.a { background: #ff9d57; }
+.r-leth .f.b { background: repeating-linear-gradient(135deg, #ff9d57 0 3px, #a9591f 3px 6px); }
+.r-range .f.a { background: #6fb4ff; }
+.r-acc .f.a { background: #ffd34d; }
+.r-mob .f.a { background: #3f7058; }
+.r-mob .f.b { background: #5fcf86; }
+.rs-stat .gl-l, .rs-stat .gl-r { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 1px; padding: 0 2px; pointer-events: none; }
+.rs-stat .gl-l { left: 0; }
+.rs-stat .gl-r { right: 0; }
+.rs-stat .gl { height: 10px; width: auto; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+.rs-stat-d { margin-top: 4px; min-height: 2.6em; color: #c9d3dc; }
+.rs-stat-d.hint { color: #6f7b88; }
+@media (prefers-reduced-motion: reduce) { .rs-stat .meter .f { transition: none; } }
 `;

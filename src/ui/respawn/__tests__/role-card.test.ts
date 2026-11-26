@@ -49,6 +49,14 @@ describe('role card model', () => {
     expect(card('rifleman').mobility.sprint).toBeGreaterThan(card('rifleman').mobility.walk);
   });
 
+  it('accuracy is an absolute 0..1 bar: the sniper beats the rifle, the MG and shotgun spray', () => {
+    const acc = (id: Parameters<typeof roleCard>[1]) => card(id).lethality.accuracyShare;
+    expect(acc('sniper')).toBeGreaterThan(acc('rifleman'));
+    expect(acc('rifleman')).toBeGreaterThan(acc('gunner'));
+    expect(acc('shotgun')).toBeLessThan(0.2);
+    for (const r of ROLES) expect(acc(r.id)).toBeGreaterThanOrEqual(0);
+  });
+
   it('tracks tuning', () => {
     const t = withTuning(DEFAULT_TUNING, { rifle: { damage: 50 } });
     expect(card('rifleman', t).lethality.dps.max).toBe(

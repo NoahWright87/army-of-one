@@ -12,11 +12,11 @@
  * R / Space selects the last-used spawn (a second press deploys). Everything deployed is a
  * `SpawnOption` the game controller offered: the rules are the controller's.
  */
-import { str, strDynamic } from '../../content/strings';
+import { str, strDynamic, type StringKey } from '../../content/strings';
 import { roleIconSvg } from '../../content/role-icons';
 import { ROLES } from '../../content/roles';
 import { DEFAULT_TUNING } from '../../content/tuning';
-import { ROLE_CARD_CSS, roleCardHtml } from '../respawn/role-card-view';
+import { ROLE_CARD_CSS, createRoleCard } from '../respawn/role-card-view';
 import type { RoleId, SpawnOption } from '../../contracts/mission';
 import type { TimeControls } from '../../render/time-controls';
 import { formatBattleTime, TICKS_PER_SECOND, type Tick } from '../../sim/core/time';
@@ -104,10 +104,13 @@ const CSS = `
 .aoo-iw .roles button { position: relative; height: 44px; border-radius: 6px; border: 2px solid #3c4650; background: #222a32;
   color: #e6e9ec; cursor: pointer; display: grid; place-items: center; }
 .aoo-iw .roles button.on { border-color: #ffd34d; color: #ffd34d; }
-.aoo-iw .roles button:disabled { opacity: .3; cursor: default; }
+.aoo-iw .roles button.off { opacity: .35; }
+.aoo-iw .roles button.off.on { opacity: .8; }
+.aoo-iw .go:disabled { background: #3a3f45; color: #8a96a3; cursor: default; }
 .aoo-iw .roles button small { position: absolute; bottom: 0; right: 2px; font-size: 9px; color: #9aa6b2; }
 .aoo-iw .rolecard { width: 262px; margin-bottom: 8px; }
 .aoo-iw .rolecard .rs-card { margin-top: 0; }
+.aoo-iw .rolecard .rs-card button { min-height: 0; }
 ${ROLE_CARD_CSS}
 .aoo-iw .go { width: 100%; min-height: 48px; border: 0; border-radius: 8px; background: #ffd34d; color: #1a1406;
   font: 900 18px system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; }
@@ -625,12 +628,12 @@ export class InWorldRespawn {
     x.onclick = () => this.closeCard();
     head.append(x);
     card.append(head);
-    if (o.kind === 'new' && this.props.onRole) card.append(this.rolePicker(o));
     const go = el(
       'button',
       o.kind === 'resume' ? 'go resume' : 'go',
       str(o.kind === 'resume' ? 'inworld.resume' : 'inworld.deploy'),
     );
+    if (o.kind === 'new' && this.props.onRole) card.append(this.rolePicker(o, go));
     go.onclick = () => {
       const cur = this.props.options.find((x) => optionKeyOf(x) === optionKeyOf(o)) ?? o;
       this.deploy(cur);
@@ -640,49 +643,53 @@ export class InWorldRespawn {
     this.placeCard();
   }
 
-  private rolePicker(o: SpawnOption): HTMLElement {
+  /**
+   * The role buttons and the stat card. Locked or unaffordable roles can be tapped to read their
+   * card (DEPLOY then says why it's off); picking an available role clears that.
+   */
+  private rolePicker(o: SpawnOption, go: HTMLButtonElement): HTMLElement {
     const wrap = el('div', 'roles');
+    const card = createRoleCard();
     const info = el('div', 'rolecard');
-    let statOpen: string | null = null;
-    const showCard = () => {
-      const id = this.props.roleId ?? 'rifleman';
-      info.innerHTML = roleCardHtml(
-        this.props.tuning ?? DEFAULT_TUNING,
-        id,
-        money.get(id)?.price,
-        statOpen,
-      );
-      this.placeCard();
-    };
-    info.onclick = (e) => {
-      const st = (e.target as HTMLElement).closest<HTMLElement>('[data-stat]');
-      if (!st) return;
-      statOpen = statOpen === st.dataset['stat'] ? null : (st.dataset['stat'] ?? null);
-      showCard();
-    };
+    info.append(card.root);
     const money = new Map(roleMoney(o, this.props).map((m) => [m.roleId, m]));
     const buttons: [RoleId, HTMLButtonElement][] = [];
-    const pick = (id: RoleId) => {
-      this.props = { ...this.props, roleId: id };
-      this.props.onRole?.(id);
-      for (const [rid, b] of buttons) b.classList.toggle('on', rid === id);
-      showCard();
+    const goLabel = go.textContent ?? '';
+    let shown: RoleId = this.props.roleId ?? 'rifleman';
+    const refresh = (blocked: StringKey | null) => {
+      for (const [rid, b] of buttons) b.classList.toggle('on', rid === shown);
+      card.show(this.props.tuning ?? DEFAULT_TUNING, shown, money.get(shown)?.price);
+      go.disabled = blocked !== null;
+      go.textContent = blocked ? str(blocked) : goLabel;
+    };
+    const blockOf = (id: RoleId): StringKey | null => {
+      if (roleLocked(this.props, id)) return 'role.card.locked';
+      const m = money.get(id);
+      return m && !m.affordable ? 'role.card.tooPricey' : null;
     };
     for (const r of ROLES) {
       const m = money.get(r.id);
-      const b = el('button', r.id === (this.props.roleId ?? 'rifleman') ? 'on' : '');
+      const b = el('button', blockOf(r.id) ? 'off' : '');
       b.innerHTML = roleIconSvg(r.id, 22, '');
       b.dataset['role'] = r.id;
       b.title = `${str(r.nameKey)}${m ? ` · ${m.price}` : ''}`;
-      b.disabled = roleLocked(this.props, r.id) || (m ? !m.affordable : false);
       if (m && m.price && this.moneyShown()) b.append(el('small', '', m.price));
-      b.onclick = () => pick(r.id);
+      b.onclick = () => {
+        shown = r.id;
+        const blocked = blockOf(r.id);
+        if (!blocked) {
+          this.props = { ...this.props, roleId: r.id };
+          this.props.onRole?.(r.id);
+        }
+        refresh(blocked);
+        this.placeCard();
+      };
       buttons.push([r.id, b]);
       wrap.append(b);
     }
     const both = el('div', 'rolepick');
     both.append(wrap, info);
-    showCard();
+    refresh(blockOf(shown));
     return both;
   }
 
