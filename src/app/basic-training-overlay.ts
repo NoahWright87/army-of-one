@@ -6,8 +6,7 @@
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
 import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
-import { BT_CHEVRONS, BT_H, BT_W } from '../content/maps/basic-training';
-import type { SignDef } from '../content/sign-styles';
+import { BT_CHEVRONS, BT_H, BT_SIGNS, BT_W } from '../content/maps/basic-training';
 import { str } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
 import type { Vec2 } from '../sim/core/vec';
@@ -29,13 +28,6 @@ const GHOST_TINT = 0xbfe3ff;
 /** Tagging along: he stays about here from you (behind-left), and only moves when you leave it. */
 const FOLLOW_OFFSET = { dx: -90, dy: 70 }; // TUNE
 const FOLLOW_SLACK = 70; // TUNE
-
-export const BT_SIGNS: readonly SignDef[] = [
-  { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
-  { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
-  { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
-  { id: 'bt-s-sniper', x: 520, y: 450, kind: 'plate', textKey: 'bt.sign.sniper', size: 44 },
-];
 
 /**
  * The drill sergeant is a ghost outside the timelines: he can't be hurt, nothing collides with

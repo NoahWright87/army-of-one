@@ -876,6 +876,19 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   - **Touch**: braced or deployed can't walk, so the first finger is the reticle (aims, fires while
     held) and swings across the cover when you settle; the stance icon is how you leave.
   - Echoes replay the stance (a `stance` action in the recording) so range and who-hits-whom match.
+- **[D161] Enemies sense, they don't read minds** (owner, 2026-11): "It's like shooting at
+  Spider-Man: they dodge before anybody realistically could react." Reacting to a bullet isn't
+  instant: taking damage ~0.05 s, a bullet whizzing past ~0.15 s (`tuning.ai.hurtReactSeconds`,
+  `nearMissReactSeconds`); a whizz gives a direction, not a position (the guess is off by up to
+  `nearMissBearingError`, so farther shooters are guessed worse); and the near-miss radius is
+  smaller (0.9 m). Direction, longer term: a full senses system, sight and hearing, with
+  things making noise (shots, impacts, shouts), soldiers hearing within a range, a "heat" that
+  rises with suspicious/dangerous sights and sounds and fades over time, and visible chatter
+  ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE21-senses.md`.
+  Built: step 1 (reaction delays, fuzzy direction, smaller radius) and steps 2–3 (sounds,
+  hearing, heat; `src/sim/ai/senses.ts`, `tuning.senses`); step 4: soldiers say what they notice ("?", "!", "Contact!", "Whoa!", "Must have been nothing"), driven by an alert level in the view.
+  **Distances are written in metres** (`src/content/units.ts`: 1 m = 44 world units, a soldier is
+  ~0.5 m across); all gameplay numbers live in `src/content/tuning.ts`.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
   they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
 
@@ -1017,6 +1030,19 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
 ## Open questions
 
 _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
+
+- **[Q71] Senses (PHASE21, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
+  now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
+  raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows
+  what it senses with a "!" or a bark. Open: the exact heat thresholds and decay, which sounds
+  count as "dangerous", and how loud each one is (all tuning, see the phase doc). Built as
+  proposed: a rifle shot is heard out to 40 m, a sniper's 70 m, a pistol's 20 m, an explosion's
+  70 m; heat wakes at 0.35, sends soldiers to look at 0.6, alarms the squad at 0.85, and fades
+  in ten seconds. **Answered (owner, 2026-11-26):** prone gives the slight miss chance it already had
+  (`stance.dodge.prone`) and makes a soldier a little harder to see (`concealment.proneVisibility`
+  0.75, "not as much as a bush", which is 0.28); bracing against cover doesn't affect visibility
+  and shouldn't (nor does deploying); sprinting is already more visible (`sprintBonus`) and is now
+  also loud (`senses.sounds.footsteps`, a step sound three times a second).
 
 - **[Q5] Traffic behind a wreck (PHASE02-a).** When a vehicle is shot into a wreck, what do the
   vehicles behind it do? Implemented as `tuning.vehicle.blockedBehavior`:

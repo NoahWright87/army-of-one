@@ -10,7 +10,7 @@
 export const BLOCK_CELLS = 15;
 
 /** One letter per tile type, so a block's ground stays readable as JSON rows. */
-export type GroundKind = 'G' | 'D' | 'R' | 'S' | 'C' | 'W' | 'K' | 'X' | 'B' | 'T';
+export type GroundKind = 'G' | 'D' | 'R' | 'S' | 'C' | 'W' | 'K' | 'X' | 'B' | 'T' | 'U';
 
 export interface GroundDef {
   /** strings.ts key for the editor palette. */
@@ -34,6 +34,7 @@ export const GROUND: Readonly<Record<GroundKind, GroundDef>> = {
   W: { nameKey: 'ground.water', color: 0x2c5f8a, passable: false, solid: false },
   K: { nameKey: 'ground.rocks', color: 0x6e6259, passable: false, solid: true },
   X: { nameKey: 'ground.wall', color: 0x3a3d42, passable: false, solid: true },
+  U: { nameKey: 'ground.bush', color: 0x354d2d, passable: true, solid: false },
   T: { nameKey: 'ground.trench', color: 0x49372b, passable: true, solid: false },
   B: { nameKey: 'ground.bridge', color: 0x8a6a3d, passable: true, solid: false, generated: true },
 };

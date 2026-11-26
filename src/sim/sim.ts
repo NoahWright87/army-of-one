@@ -10,6 +10,7 @@ import { stepGrenades } from './entities/grenade';
 import { stepRockets } from './entities/rocket';
 import { stepRunOver } from './entities/run-over';
 import { spawnSquads, stepAi } from './ai/brain';
+import { alertOf } from './ai/senses';
 import { bridgeRaised, createBridges, stepBridges } from './entities/bridge';
 import {
   CAPTURE_FULL,
@@ -413,6 +414,7 @@ export function getView(world: World): WorldView {
       ...(s.deathCause ? { deathCause: s.deathCause } : {}),
       ...(s.deathDirection !== undefined ? { deathDirection: s.deathDirection } : {}),
       ...(s.roleId ? { roleId: s.roleId } : {}),
+      ...(s.ai && alertOf(world, s, s.ai) ? { alert: alertOf(world, s, s.ai)! } : {}),
       ...(s.drive ? { turret: s.drive.turret } : {}),
       // (PHASE18, [D159]) The Grenadier's reload fills the ring where it's aiming.
       ...(roleDef(s.roleId).weapon === 'grenade' && reloadProgress(world, s) !== null

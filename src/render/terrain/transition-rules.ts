@@ -13,6 +13,7 @@ export const TERRAIN_LAYERS: readonly GroundKind[] = [
   'X',
   'B',
   'T',
+  'U',
 ];
 const rank = (kind: GroundKind) => TERRAIN_LAYERS.indexOf(kind);
 export const NEIGHBOURS = [

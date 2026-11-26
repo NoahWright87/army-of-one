@@ -2,6 +2,7 @@ import type { GroundKind } from './ground';
 /** Runtime texture keys, independent of terrain collision rules. */
 export const TERRAIN_ART = {
   G: 'terrain_grass',
+  U: 'terrain_grass',
   T: 'terrain_dirt',
   D: 'terrain_dirt',
   R: 'terrain_road',

@@ -110,6 +110,10 @@ export function assembleMap(opts: AssembleOptions): MapDef {
     spawnPoints,
   };
   for (const pb of opts.placed) addBlockContent(pb, pb.col * n, pb.row * n, acc);
+  addPaintedBushes(
+    tileRects(groundRows, cs, (kind) => kind === 'U'),
+    concealment,
+  );
   addPaintedTrenches(
     tileRects(groundRows, cs, (kind) => kind === 'T'),
     concealment,
@@ -291,6 +295,15 @@ function blockSquads(
     });
   }
   return out;
+}
+
+export function addPaintedBushes(rects: readonly Rect[], concealment: ConcealmentArea[]): void {
+  const used = new Set(concealment.map(({ id }) => id));
+  let next = 0;
+  for (const rect of rects) {
+    while (used.has(`painted-bush-${next}`)) next++;
+    concealment.push({ id: `painted-bush-${next++}`, kind: 'bush', rect });
+  }
 }
 
 export function addPaintedTrenches(rects: readonly Rect[], concealment: ConcealmentArea[]): void {

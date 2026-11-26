@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { MISSION_03 } from '../../content/maps/mission-03';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import { BASIC_TRAINING } from '../../content/maps/basic-training';
-import { firstDrift } from '../tape/drift';
+import { firstStrictDrift } from '../tape/drift';
 import { ArmyBuilder } from '../bots/army';
 import { Tape, type TapeFrame } from '../tape/tape';
 import type { WorldView } from '../view';
@@ -82,7 +82,7 @@ describe('battle tape', () => {
       });
       army.growTo(12);
       expect(tape.all().some((f) => f.view.soldiers.some((s) => s.role === 'enemy'))).toBe(true);
-      expect(firstDrift(tape, map, DEFAULT_TUNING, army.records)).toBeNull();
+      expect(firstStrictDrift(tape, map, DEFAULT_TUNING, army.records)).toBeNull();
     }
   }, 60000);
 });

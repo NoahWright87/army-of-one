@@ -18,6 +18,7 @@ import { mainEntrySide } from '../gen/region';
 import { fitTurns, rotateMap } from '../gen/rotate-map';
 import { blockToPreviewMap } from '../gen/preview';
 import type { MapDef } from '../sim/world/map';
+import { SCENARIO_PREVIEW_ID } from './scenario-route';
 
 export const EDITOR_PREVIEW_ID = 'editor-preview';
 const LIBRARY_KEY = 'army-of-one.editor.library.v1';
@@ -207,7 +208,10 @@ export function generatedMap(
 /** Runtime maps resolve on the main thread: the background worker can't see them. */
 export function isRuntimeMission(id: string): boolean {
   return (
-    id === EDITOR_PREVIEW_ID || parseGenMissionId(id) !== null || parseWorldMissionId(id) !== null
+    id === EDITOR_PREVIEW_ID ||
+    id === SCENARIO_PREVIEW_ID ||
+    parseGenMissionId(id) !== null ||
+    parseWorldMissionId(id) !== null
   );
 }
 

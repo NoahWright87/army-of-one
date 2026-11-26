@@ -284,9 +284,6 @@ export interface BulletEntity {
   passed?: string[];
 }
 
-/** (PHASE17) How close a bullet passes to count as shooting at someone ([D146]). */
-export const NEAR_MISS_RADIUS = 70;
-
 export interface ShotResult {
   hitX: number;
   hitY: number;
@@ -503,7 +500,9 @@ export function stepBullets(world: World): void {
 /** (PHASE17) Enemy soldiers this bullet just whizzed past (not the one it hit) ([D146]). */
 function nearMisses(world: World, b: BulletEntity, x0: number, y0: number, hitId?: string): void {
   const team = b.shot.team;
-  const r2 = NEAR_MISS_RADIUS * NEAR_MISS_RADIUS;
+  // (PHASE21) How close counts as shot at is tuning.ai.nearMissRadius.
+  const radius = world.tuning.ai.nearMissRadius;
+  const r2 = radius * radius;
   const sx = b.x - x0;
   const sy = b.y - y0;
   const len2 = sx * sx + sy * sy;
