@@ -77,6 +77,8 @@ describe('shipped layout templates', () => {
     expect(() => validateMap(preview)).not.toThrow();
     expect([preview.width, preview.height]).toEqual([original.width, original.height]);
     expect(preview.walls).toEqual(original.walls);
+    expect(preview.water).toEqual(original.water);
+    if (original.ground) expect(preview.ground).toEqual(original.ground);
     expect(preview.cover).toEqual(original.cover);
     expect(preview.gates).toEqual(original.gates);
     expect(preview.raisedGround).toEqual(original.raisedGround ?? []);
@@ -92,7 +94,7 @@ describe('shipped layout templates', () => {
   it('moves a firing surface independently of its attached cover artwork', () => {
     const draft = scenarioTemplate('hq');
     const tower = draft.items.find((item) => item.id === 'surface-0')!;
-    tower.rect.x += 1 / BLOCK_TUNING.cellSize;
+    tower.rect.x += 1 / draft.cellSize!;
     const preview = scenarioPreviewMap(draft, 'draft')!;
     expect(preview.raisedGround?.[0]?.x).toBe(1131);
     expect(preview.cover?.[0]?.fireOverFrom?.x).toBe(1131);

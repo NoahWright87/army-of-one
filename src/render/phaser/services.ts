@@ -5,6 +5,7 @@ import type { SoldierInput } from '../../sim/entities/soldier';
 import type { SoldierId, World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import type { CountdownOverlay } from '../../ui/hud/countdown-overlay';
+import type { PauseOverlay } from '../../ui/hud/pause-overlay';
 import type { DebugOverlay, Hud } from '../../ui/hud/hud';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import type { InputSource } from '../input/input-source';
@@ -30,6 +31,7 @@ export interface BattleSession {
   overlay?: SessionOverlay;
   /** (PHASE18) While true the look-ahead holds still (an HQ sign is open: its buttons mustn't slide). */
   holdLookAhead?: () => boolean;
+  cameraFrame?: () => { x: number; y: number; width: number; height: number } | null;
 }
 
 /** (PHASE18) Scene-side extras of a session: created with the scene, updated every frame. */
@@ -47,6 +49,16 @@ export interface SessionOverlay {
   destroy?(): void;
 }
 
+export interface PendingArrival {
+  id: string;
+  spawnPointId: string;
+  spawnTick: number;
+  roleId?: RoleId;
+  team?: 'enemy';
+  position?: Vec2;
+  passenger?: number;
+}
+
 /** What the scene needs from a driven battle (app/live-run.ts implements it). */
 export interface SessionDriver {
   /** One fixed step with the input read this tick. Returns true if the world advanced. */
@@ -60,13 +72,8 @@ export interface SessionDriver {
   readonly ended: boolean;
   /** Camera position until the live soldier exists (its spawn point). */
   readonly cameraHome: Vec2;
-  /** (PHASE13-d) Echoes still to spawn: their run-ins are drawn ([D112]). */
-  arrivals?: () => readonly {
-    id: string;
-    spawnPointId: string;
-    spawnTick: number;
-    roleId?: RoleId;
-  }[];
+  /** Units still to spawn: their entrances are rendered before they become interactive. */
+  arrivals?: () => readonly PendingArrival[];
   /** Selected infantry sculpt for the live pre-spawn run-in. */
   readonly previewRoleId?: RoleId;
   /** (PHASE11) Money for the HUD; absent/null = not shown. */
@@ -87,6 +94,8 @@ export interface SceneServices {
   leadInHint?: { set(on: boolean): void };
   hud: Hud;
   countdown: CountdownOverlay;
+  /** Pause button + card (live battles). */
+  pauseUi?: PauseOverlay;
   debug: DebugOverlay;
   createSession(): BattleSession;
   commands: SceneCommands;

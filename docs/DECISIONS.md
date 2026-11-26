@@ -504,12 +504,14 @@ objectives.
 
 ## Spawning in (owner session 2026-11, PHASE13-d)
 
-- **[D112] New soldiers run in during the lead-in, for show.** Instead of appearing out of thin
-  air when the countdown ends ([D25]), the soldier runs in along its spawn point's approach (from
-  the start edge, through the crossing from a level you hold, along the road at a taken exit, or
-  from your entries to a forward post) and the camera follows; you take control at GO, where it
-  arrived. Echoes run in the same way before their spawn. The sim, recordings and saves are
-  unchanged: nobody can be killed while spawning.
+- **[D112] Reinforcements arrive during the lead-in.** Infantry parachute onto the deployment
+  point when there is no authored entrance. At a road reinforcement point a captured checkpoint
+  opens the supply door, and a truck backs in to unload infantry. At an AA-controlled drop zone,
+  destroying the defending guns secures the point. Capturing a beachhead opens a landing craft
+  route to shore. These approaches start after the unlock.
+  Trucks and tanks stay on the ground. Echoes use the same arrival animations. Troops become
+  interactive at touchdown or dismount, when the countdown ends. The southern HQ range runs a
+  repeatable reinforcement drill with enemy practice targets using the same three entrances.
 - **[D113] Neighbouring ground on screen is walkable.** No invisible walls: a level's map shows
   some of the levels around it (with a light haze) and you can walk there; only ground beyond
   that margin is the map's edge. Levels on the start edge get a strip of ground beyond the board

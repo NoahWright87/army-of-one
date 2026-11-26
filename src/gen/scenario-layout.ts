@@ -38,6 +38,7 @@ export interface ScenarioLayout {
   format: 'scenario-layout';
   version: 1;
   ground: string[];
+  cellSize?: number;
   items: LayoutItem[];
   /** Exact world dimensions for maps whose edges fall between grid lines. Their walls are explicit. */
   extent?: { width: number; height: number };
@@ -59,11 +60,16 @@ export function validScenarioSize(size: number): boolean {
   return Number.isInteger(size) && size >= SCENARIO_MIN_CELLS && size <= SCENARIO_MAX_CELLS;
 }
 
+export function scenarioCellSize(layout: ScenarioLayout): number {
+  return layout.cellSize ?? SCENARIO_CELL;
+}
+
 export function layoutExtent(layout: ScenarioLayout) {
+  const size = scenarioCellSize(layout);
   return (
     layout.extent ?? {
-      width: layout.ground[0]!.length * SCENARIO_CELL,
-      height: layout.ground.length * SCENARIO_CELL,
+      width: layout.ground[0]!.length * size,
+      height: layout.ground.length * size,
     }
   );
 }
@@ -140,22 +146,26 @@ export function parseScenarioLayout(json: string): ScenarioLayout | null {
 
     const rows = layout.ground.length;
     const cols = layout.ground[0].length;
+    const cs = scenarioCellSize(layout);
+    if (
+      !Number.isSafeInteger(cs) ||
+      cs < 1 ||
+      (layout.cellSize !== undefined && layout.cellSize !== cs)
+    )
+      return null;
     const { width, height } = layoutExtent(layout);
     if (
       layout.extent === null ||
       !Number.isSafeInteger(width) ||
       !Number.isSafeInteger(height) ||
-      Math.ceil(width / SCENARIO_CELL) !== cols ||
-      Math.ceil(height / SCENARIO_CELL) !== rows ||
+      Math.ceil(width / cs) !== cols ||
+      Math.ceil(height / cs) !== rows ||
       !layout.ground.every(
         (row) => typeof row === 'string' && row.length === cols && [...row].every(isGroundKind),
       )
     )
       return null;
-    if (
-      !layout.items.every((item) => validItem(item, width / SCENARIO_CELL, height / SCENARIO_CELL))
-    )
-      return null;
+    if (!layout.items.every((item) => validItem(item, width / cs, height / cs))) return null;
     const ids = layout.items.map((item, i) => item.id ?? `layout-piece-${i}`);
     if (new Set(ids).size !== ids.length) return null;
     if (
@@ -164,7 +174,7 @@ export function parseScenarioLayout(json: string): ScenarioLayout | null {
         !Number.isFinite(layout.spawn.x) ||
         !Number.isFinite(layout.spawn.y) ||
         !insideLayoutCell(
-          { x: 0, y: 0, w: width / SCENARIO_CELL, h: height / SCENARIO_CELL },
+          { x: 0, y: 0, w: width / cs, h: height / cs },
           { x: layout.spawn.x + 0.5, y: layout.spawn.y + 0.5 },
         ))
     )
@@ -205,10 +215,16 @@ export function ladderPoint(rect: Rect, normalized: Vec2): Vec2 {
   return { x: rect.x + rect.w * normalized.x, y: rect.y + rect.h * normalized.y };
 }
 
+function worldRect(rect: Rect, cellSize: number): Rect {
+  const scaled = scaleScenarioRect(rect, cellSize);
+  const exact = (n: number) => (Math.abs(n - Math.round(n)) <= 1e-9 ? Math.round(n) : n);
+  return { x: exact(scaled.x), y: exact(scaled.y), w: exact(scaled.w), h: exact(scaled.h) };
+}
+
 export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef | undefined {
   const at = layout.spawn;
   if (!at || scenarioSpawnProblem(layout)) return undefined;
-  const cs = SCENARIO_CELL;
+  const cs = scenarioCellSize(layout);
   const { width, height } = layoutExtent(layout);
   const clip = (r: Rect) => ({
     ...r,
@@ -226,7 +242,7 @@ export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef |
     height,
     ground: { cellSize: cs, rows: layout.ground },
     walls,
-    water: waterRects(layout.ground, cs).map(clip),
+    water: [] as Rect[],
     cover: [] as NonNullable<MapDef['cover']>,
     concealment: [] as NonNullable<MapDef['concealment']>,
     gates: [] as NonNullable<MapDef['gates']>,
@@ -247,13 +263,11 @@ export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef |
   };
   const surfaces = new Map(
     layout.items.flatMap((item) =>
-      item.kind === 'raised' && item.id
-        ? [[item.id, scaleScenarioRect(item.rect, cs)] as const]
-        : [],
+      item.kind === 'raised' && item.id ? [[item.id, worldRect(item.rect, cs)] as const] : [],
     ),
   );
   for (const [index, item] of layout.items.entries()) {
-    const rect = scaleScenarioRect(item.rect, cs);
+    const rect = worldRect(item.rect, cs);
     const id = item.id ?? `layout-piece-${index}`;
     const fireOverFrom =
       'firingSurface' in item && item.firingSurface ? surfaces.get(item.firingSurface) : undefined;
@@ -309,6 +323,18 @@ export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef |
         map.scenery.push({ image: item.image, rect });
         break;
     }
+  }
+  for (const painted of waterRects(layout.ground, cs).map(clip)) {
+    if (
+      !map.water.some(
+        (water) =>
+          water.x === painted.x &&
+          water.y === painted.y &&
+          water.w === painted.w &&
+          water.h === painted.h,
+      )
+    )
+      map.water.push(painted);
   }
   addPaintedTrenches(
     maskRects(

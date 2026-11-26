@@ -10,7 +10,7 @@ import {
   AREA_KINDS,
   ladderPoint,
   layoutExtent,
-  SCENARIO_CELL,
+  scenarioCellSize,
   insideLayout,
   insideLayoutCell,
   parseScenarioLayout,
@@ -394,9 +394,13 @@ export class ScenarioView {
     this.commit(layout);
   }
 
+  private get cellSize(): number {
+    return scenarioCellSize(this.layout);
+  }
+
   private get worldSize(): Vec2 {
     const { width, height } = layoutExtent(this.layout);
-    return { x: width / SCENARIO_CELL, y: height / SCENARIO_CELL };
+    return { x: width / this.cellSize, y: height / this.cellSize };
   }
 
   private fit(): void {
@@ -483,7 +487,7 @@ export class ScenarioView {
       const option = el(
         'option',
         '',
-        `${this.itemName(piece)} · ${Math.round(x * SCENARIO_CELL)}, ${Math.round(y * SCENARIO_CELL)}`,
+        `${this.itemName(piece)} · ${Math.round(x * this.cellSize)}, ${Math.round(y * this.cellSize)}`,
       );
       option.value = String(index);
       picker.append(option);
@@ -521,11 +525,11 @@ export class ScenarioView {
       const input = el('input');
       input.type = 'number';
       input.step = 'any';
-      input.value = String(Math.round(item.rect[axis] * SCENARIO_CELL * 100) / 100);
+      input.value = String(Math.round(item.rect[axis] * this.cellSize * 100) / 100);
       input.onchange = () => {
         this.updateSelected({
           ...item,
-          rect: { ...item.rect, [axis]: input.valueAsNumber / SCENARIO_CELL },
+          rect: { ...item.rect, [axis]: input.valueAsNumber / this.cellSize },
         });
       };
       field.append(input);
@@ -608,8 +612,8 @@ export class ScenarioView {
       ...(this.layout.extent
         ? {
             extent: {
-              width: cols === this.cols ? this.layout.extent.width : cols * SCENARIO_CELL,
-              height: rows === this.rows ? this.layout.extent.height : rows * SCENARIO_CELL,
+              width: cols === this.cols ? this.layout.extent.width : cols * this.cellSize,
+              height: rows === this.rows ? this.layout.extent.height : rows * this.cellSize,
             },
           }
         : {}),
@@ -779,7 +783,7 @@ export class ScenarioView {
     if (!item) return undefined;
     const size = this.worldSize;
     const delta = (axis: 'x' | 'y') =>
-      Math.round((stroke.last[axis] - stroke.start[axis]) * SCENARIO_CELL) / SCENARIO_CELL;
+      Math.round((stroke.last[axis] - stroke.start[axis]) * this.cellSize) / this.cellSize;
     const x = Math.max(0, Math.min(size.x - item.rect.w, item.rect.x + delta('x')));
     const y = Math.max(0, Math.min(size.y - item.rect.h, item.rect.y + delta('y')));
     return x === item.rect.x && y === item.rect.y

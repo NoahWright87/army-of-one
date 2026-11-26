@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HUB_EXITS, HUB_MAP } from '../content/hub';
+import { HUB_ARRIVAL_SPAWNS, HUB_EXITS, HUB_MAP } from '../content/hub';
 import { DEFAULT_TUNING } from '../content/tuning';
 import { gunRange, mountTicksNeeded } from '../sim/combat/guns';
 import { secondsToTicks } from '../sim/core/time';
@@ -30,6 +30,70 @@ describe('HQ', () => {
     s.deathTick = d.world.state.tick;
     idle(d, secondsToTicks(HUB_TARGET_RESPAWN_S) + 1);
     expect(getSoldier(d.world, t.id)!.alive).toBe(true);
+  });
+
+  it('drills all three enemy entrances and can replay them without adding targets', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const initialCount = d.view().soldiers.length;
+    const lead = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
+    d.launchArrivals();
+    expect(d.arrivals().map((arrival) => arrival.spawnPointId)).toEqual(
+      HUB_ARRIVAL_SPAWNS.slice(0, 3).map((spawn) => spawn.id),
+    );
+    expect(d.arrivals().every((arrival) => arrival.team === 'enemy')).toBe(true);
+    idle(d, lead - 1);
+    expect(d.view().soldiers).toHaveLength(initialCount);
+    idle(d, 1);
+    expect(d.arrivals()).toHaveLength(0);
+    const ids = d
+      .view()
+      .soldiers.slice(initialCount)
+      .map((soldier) => soldier.id);
+    expect(ids).toHaveLength(3);
+    d.launchArrivals();
+    expect(d.view().soldiers).toHaveLength(initialCount);
+    idle(d, lead);
+    expect(
+      d
+        .view()
+        .soldiers.slice(initialCount)
+        .map((soldier) => soldier.id),
+    ).toEqual(ids);
+    expect(d.world.state.soldiers).toHaveLength(initialCount + 3);
+  });
+
+  it('loads multiple transports and spreads a large wave into distinct landing spots', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const initialCount = d.view().soldiers.length;
+    const lead = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
+    d.launchArrivals('many');
+    const arrivals = d.arrivals();
+    expect(arrivals).toHaveLength(24);
+    expect(arrivals.filter((a) => a.spawnPointId.startsWith('range-boat'))).toHaveLength(8);
+    expect(arrivals.filter((a) => a.spawnPointId.startsWith('range-truck'))).toHaveLength(8);
+    expect(new Set(arrivals.map((a) => JSON.stringify(a.position))).size).toBe(24);
+    idle(d, lead);
+    expect(d.view().soldiers).toHaveLength(initialCount + 24);
+    d.launchArrivals('few');
+    idle(d, lead);
+    expect(d.view().soldiers).toHaveLength(initialCount + 6);
+    expect(d.world.state.soldiers).toHaveLength(initialCount + 24);
+  });
+
+  it('routes a fallen drill target back through its entrance', () => {
+    const d = new HubDriver(DEFAULT_TUNING, () => {});
+    const lead = secondsToTicks(DEFAULT_TUNING.spawn.leadInSeconds);
+    d.launchArrivals();
+    idle(d, lead);
+    const target = d.world.state.soldiers.find((soldier) => soldier.spawnPointId === 'range-boat')!;
+    target.alive = false;
+    target.hp = 0;
+    target.deathTick = d.world.state.tick;
+    idle(d, secondsToTicks(HUB_TARGET_RESPAWN_S));
+    expect(d.arrivals().map((arrival) => arrival.spawnPointId)).toEqual(['range-boat']);
+    expect(target.alive).toBe(false);
+    idle(d, lead);
+    expect(target.alive).toBe(true);
   });
 
   it('the class rack swaps your role in place', () => {

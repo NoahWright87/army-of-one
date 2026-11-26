@@ -86,6 +86,27 @@ export function stepCapturePoints(world: World): void {
   for (let i = 0; i < defs.length; i++) {
     const def = defs[i]!;
     const cp = st.capturePoints[i]!;
+    if (def.antiAirTurrets) {
+      if (
+        cp.stage !== 'ours' &&
+        def.antiAirTurrets.every((id) =>
+          st.turrets.some((turret) => turret.id === id && turret.mode === 'destroyed'),
+        )
+      ) {
+        cp.stage = 'ours';
+        cp.capturedTick = st.tick;
+        cp.progress = 0;
+        emit(world, {
+          kind: 'captureStageChanged',
+          tick: st.tick,
+          id: cp.id,
+          stage: 'ours',
+          contributors: [],
+        });
+        if (def.objective) completeIfAllObjectivesDone(world, []);
+      }
+      continue;
+    }
     const r = captureRadius(def, t);
     const r2 = r * r;
     const ids: string[] = [];

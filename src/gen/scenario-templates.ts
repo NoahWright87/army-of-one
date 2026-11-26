@@ -14,8 +14,6 @@ import {
 
 export type ScenarioTemplate = 'hq' | 'basic-training';
 
-const cs = SCENARIO_CELL;
-const cells = (rect: Rect) => scaleScenarioRect(rect, 1 / cs);
 const centered = (at: Vec2, w: number, h: number): Rect => ({
   x: at.x - w / 2,
   y: at.y - h / 2,
@@ -23,14 +21,21 @@ const centered = (at: Vec2, w: number, h: number): Rect => ({
   h,
 });
 
-function prop(at: Vec2, image: ImageKey, size: number, id?: string): LayoutItem {
+function prop(cs: number, at: Vec2, image: ImageKey, size: number, id?: string): LayoutItem {
   const scale = size / fitPx(image);
   const { w, h } = imageAsset(image).size;
-  return { kind: 'prop', id, image, rect: cells(centered(at, w * scale, h * scale)) };
+  return {
+    kind: 'prop',
+    id,
+    image,
+    rect: scaleScenarioRect(centered(at, w * scale, h * scale), 1 / cs),
+  };
 }
 
 function geometry(map: MapDef): ScenarioLayout {
   const { width, height } = map;
+  const cs = map.ground?.cellSize ?? SCENARIO_CELL;
+  const cells = (rect: Rect) => scaleScenarioRect(rect, 1 / cs);
   const raised = map.raisedGround ?? [];
   const surface = (rect?: Rect) => {
     if (!rect) return {};
@@ -42,7 +47,10 @@ function geometry(map: MapDef): ScenarioLayout {
   const spawn = map.spawnPoints.find((sp) => sp.kind === 'initial')?.position;
   return {
     ...newScenarioLayout(),
-    ground: Array.from({ length: Math.ceil(height / cs) }, () => 'G'.repeat(Math.ceil(width / cs))),
+    cellSize: cs,
+    ground:
+      map.ground?.rows.slice() ??
+      Array.from({ length: Math.ceil(height / cs) }, () => 'G'.repeat(Math.ceil(width / cs))),
     extent: { width, height },
     spawn: spawn ? { x: spawn.x / cs - 0.5, y: spawn.y / cs - 0.5 } : null,
     items: [
@@ -101,9 +109,13 @@ function geometry(map: MapDef): ScenarioLayout {
 export function scenarioTemplate(template: ScenarioTemplate): ScenarioLayout {
   if (template === 'hq') {
     const layout = geometry(HUB_MAP);
+    const cs = layout.cellSize ?? SCENARIO_CELL;
+    const cells = (rect: Rect) => scaleScenarioRect(rect, 1 / cs);
     layout.items.push(
-      ...HUB_DECOR.map((d) => prop(d, d.image, d.w)),
-      ...HUB_SIGNS.map((sign) => prop(sign, SIGN_KINDS[sign.kind].post, sign.size ?? 30, sign.id)),
+      ...HUB_DECOR.map((d) => prop(cs, d, d.image, d.w)),
+      ...HUB_SIGNS.map((sign) =>
+        prop(cs, sign, SIGN_KINDS[sign.kind].post, sign.size ?? 30, sign.id),
+      ),
       ...HUB_TARGETS.map((at): LayoutItem => ({
         kind: 'target',
         rect: cells(centered(at, 40, 40)),
@@ -112,8 +124,10 @@ export function scenarioTemplate(template: ScenarioTemplate): ScenarioLayout {
     return layout;
   }
   const layout = geometry(BASIC_TRAINING);
+  const cs = layout.cellSize ?? SCENARIO_CELL;
+  const cells = (rect: Rect) => scaleScenarioRect(rect, 1 / cs);
   layout.items.push(
-    ...BT_SIGNS.map((sign) => prop(sign, SIGN_KINDS[sign.kind].post, sign.size ?? 30, sign.id)),
+    ...BT_SIGNS.map((sign) => prop(cs, sign, SIGN_KINDS[sign.kind].post, sign.size ?? 30, sign.id)),
     ...(BASIC_TRAINING.objectives ?? []).map(
       ({ id, position, radius = 18, maxHp }): LayoutItem => ({
         id,
@@ -122,10 +136,12 @@ export function scenarioTemplate(template: ScenarioTemplate): ScenarioLayout {
         hp: maxHp,
       }),
     ),
-    ...(BASIC_TRAINING.levers ?? []).map((lever) => prop(lever.position, 'lever_a', 32, lever.id)),
-    ...(BASIC_TRAINING.mines ?? []).map((mine) => prop(mine.position, 'mine', 32, mine.id)),
+    ...(BASIC_TRAINING.levers ?? []).map((lever) =>
+      prop(cs, lever.position, 'lever_a', 32, lever.id),
+    ),
+    ...(BASIC_TRAINING.mines ?? []).map((mine) => prop(cs, mine.position, 'mine', 32, mine.id)),
     ...(BASIC_TRAINING.capturePoints ?? []).map((flag) =>
-      prop(flag.position, 'capture_base', 110, flag.id),
+      prop(cs, flag.position, 'capture_base', 110, flag.id),
     ),
   );
   return layout;

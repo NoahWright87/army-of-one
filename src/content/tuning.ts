@@ -1313,3 +1313,19 @@ export const CAMPAIGN_CAMERA = {
   registerMs: 320, // TUNE
   blendMs: 160, // TUNE fallback for views without a terrain projection
 } as const;
+
+// TUNE: cosmetic entrance distances and timing within the deploy countdown.
+export const ENTRANCE = {
+  parachuteTouchdownFraction: 0.76,
+  parachuteDiameter: 1.65,
+  parachuteShadowOffset: 24,
+  parachuteDrift: 15,
+  truckUnloadFraction: 0.7,
+  boatUnloadFraction: 0.65,
+  boatLength: 240,
+  truckJumpHeight: 14,
+  truckLength: 220,
+  roadWidth: 120,
+  vehicleArtScale: 2.25,
+  passengerSpacing: 42,
+} as const;
