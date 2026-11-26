@@ -82,3 +82,18 @@ Owner session 2026-11-21 (after the in-world respawn POC, `todos/POC-inworld-res
   time, phone pinch tested only by code (not on a device). Basic training's coach was checked in
   the browser for the first deploy and the first respawn; the resume and new-class lessons were
   not played through.
+
+### Drift guarantee (follow-up)
+
+A fresh re-sim from 0:00 does **not** reproduce the tape exactly, and isn't meant to. The tape is
+stitched from runs that start at snapshots of earlier runs and, before control, are only glued to
+the tape (`alignToFrame`: pose, facing, HP). Hidden state (enemy AI memory, bullets in flight,
+recoil) is whatever the previous run left, and a live soldier's physics differs slightly from the
+same soldier replayed as an echo. Found with a wider near-miss radius: the re-sim fired the same
+shots at angles ~0.03 rad apart (bullets inherited from a snapshot), a bullet hit S1 at tick 302 in
+the re-sim and missed on the tape. The sim itself is deterministic; no gap to fix.
+
+- `firstDrift` (tests) re-simulates glued to the tape and fails only on what the glue can't fix:
+  alive/dead, gates, flags, destroyed objectives, one-frame pose error. HP is not compared.
+- `firstStrictDrift` (`__aoo.checkDrift()`, pure-echo tests) is the exact comparison: a diagnostic.
+- The handoff check in `tape-flow.test.ts` allows an enemy to be nudged ≤ 10 px, nobody else.

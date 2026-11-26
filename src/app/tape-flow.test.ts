@@ -34,10 +34,19 @@ describe('battle tape through the game flow', () => {
       p.seek(p.input.endTick);
       expect(p.view().missionComplete).not.toBeNull();
     }
+    // Re-simulated from 0:00 and glued to the tape like every real run (see `firstDrift`): nothing
+    // the glue can't fix (who lives, gates, flags, objectives, where a soldier goes in one frame).
     expect(firstDrift(tape, MISSION_03, DEFAULT_TUNING, h.game.mission.soldiers)).toBeNull();
     expect(resumes).toBeGreaterThan(0);
-    // Every handoff (the tick the player took control) agreed with the tape.
-    expect(h.logs.filter((m) => m.startsWith('Handoff'))).toEqual([]);
+    // Every handoff (the tick the player took control) agreed with the tape. Only an enemy (AI
+    // memory and bullets in flight aren't on the tape, so how it reacts can differ a little) may
+    // be nudged back onto its tape pose, and only by a few px; anyone else is a determinism bug.
+    const nudge =
+      /^Handoff at tick \d+: the sim differs from the tape: E\d+ \(enemy\) is ([\d.]+) px off$/;
+    const stray = h.logs.filter(
+      (m) => m.startsWith('Handoff') && !(nudge.test(m) && Number(nudge.exec(m)![1]) <= 10),
+    );
+    expect(stray).toEqual([]);
   }, 120000);
 
   it('the tape is saved with the mission and survives a reload untouched', async () => {

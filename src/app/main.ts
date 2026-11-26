@@ -61,7 +61,7 @@ import type { TimeControls } from '../render/time-controls';
 import { createWorld } from '../sim/sim';
 import { IDLE_INPUT } from '../sim/entities/soldier';
 import { leadInStart, spawnRules } from '../timeline/spawn-options';
-import { firstDrift } from '../sim/tape/drift';
+import { firstStrictDrift } from '../sim/tape/drift';
 import { knownThings, RevealGrid, revealOptions } from '../timeline/reveal';
 import {
   isRespawnSetting,
@@ -1534,7 +1534,7 @@ async function startGame(): Promise<void> {
      * looked wrong.
      */
     checkDrift: () =>
-      firstDrift(controller.tape, MISSION, controller.tuning, controller.mission.soldiers),
+      firstStrictDrift(controller.tape, MISSION, controller.tuning, controller.mission.soldiers),
   });
 
   const spec = params.get('autoplay');
