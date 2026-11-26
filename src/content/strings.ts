@@ -65,6 +65,15 @@ export const STRINGS = {
   'pause.hint': 'Esc or P',
   'pause.button': 'Pause',
 
+  'emote.button': 'Soldier emotes',
+  'emote.countdown': '3, 2, 1, Go!',
+  'emote.three': '3',
+  'emote.two': '2',
+  'emote.one': '1',
+  'emote.go': 'Go!',
+  'emote.ready': 'Ready!',
+  'emote.hold': 'Hold!',
+
   // Game flow (PHASE04)
   'title.name': 'Army of One',
   'title.tagline': 'One soldier at a time. Every life you lose fights beside you.',

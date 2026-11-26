@@ -3,6 +3,7 @@ import type { Tick } from '../sim/core/time';
 export type SoldierId = string; // "S1", "S2", ... allocated in spawn order
 export type SpawnPointId = string;
 export type MissionId = string;
+export type EmoteId = 'countdown' | 'ready' | 'hold';
 /**
  * (07-c) A soldier's role, picked per new soldier on the respawn screen ([D36]). A resumed
  * soldier keeps theirs. Absent on a record means 'rifleman' (records from before 07-c).
@@ -38,6 +39,7 @@ export interface Waypoint {
 
 /** Discrete recorded actions. Outcomes (hits, damage, deaths) are NOT recorded: they're re-simulated [E3]. */
 export type RecordedAction =
+  | { kind: 'emote'; t: Tick; emote: EmoteId }
   | {
       kind: 'shot';
       t: Tick;

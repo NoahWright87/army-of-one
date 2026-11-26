@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { RoleId } from '../../contracts/mission';
+import type { EmoteId, RoleId } from '../../contracts/mission';
 import { advance, catchUpCap, createFixedStepper, type FixedStepper } from '../../app/fixed-step';
 import { hashState } from '../../sim/core/hash';
 import { TICKS_PER_SECOND } from '../../sim/core/time';
@@ -68,6 +68,7 @@ export class BattleScene extends Phaser.Scene {
   private renderMs: number | null = null;
   private frame = 0;
   private hash = '';
+  private pendingEmote: EmoteId | undefined;
   private lastInput: SoldierInput = IDLE_INPUT;
   /** (07-b) The aim the camera looks ahead along (eased under auto-aim). */
   private lookAim: number | null = null;
@@ -146,6 +147,8 @@ export class BattleScene extends Phaser.Scene {
     // Pause: Esc / P / the on-screen button, and automatically when the player looks away
     // (tab hidden, phone locked, app switched, window loses focus).
     this.pauseModel.reset();
+    const emoteUi = this.services.emoteUi;
+    if (emoteUi) emoteUi.onSelect = (emote) => (this.pendingEmote = emote);
     const pauseUi = this.services.pauseUi;
     if (pauseUi) {
       pauseUi.onPause = () => this.requestPause();
@@ -180,6 +183,10 @@ export class BattleScene extends Phaser.Scene {
         pauseUi.setAvailable(false);
         pauseUi.render('running', null);
       }
+      if (emoteUi) {
+        emoteUi.setAvailable(false);
+        emoteUi.onSelect = () => {};
+      }
       this.source.destroy();
       this.sounds.destroy();
       this.services.countdown.update(null);
@@ -194,6 +201,7 @@ export class BattleScene extends Phaser.Scene {
   private requestPause(): void {
     if (this.rs || this.session.driver?.ended || this.pauseModel.holding) return;
     this.pauseModel.pause();
+    this.services.emoteUi?.setAvailable(false);
     this.sound.pauseAll();
     this.input.setDefaultCursor('default');
     this.services.pauseUi?.render('paused', null);
@@ -254,6 +262,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     this.firstFrame = true;
+    this.pendingEmote = undefined;
     this.lookAim = null;
     this.hudView = null;
     this.money = null;
@@ -301,15 +310,18 @@ export class BattleScene extends Phaser.Scene {
       const live = this.view.soldiers.find((s) => s.id === this.liveId);
       // Read every tick, also during the lead-in (previewed; applied from GO on, [D5]).
       const input = this.source.read(live ?? this.cam);
+      const emote = this.pendingEmote;
+      this.pendingEmote = undefined;
+      const stepInput = emote ? { ...input, emote } : input;
       this.lastInput = input;
       const t0 = performance.now();
       if (driver) {
-        if (!driver.step(input)) continue; // frozen pre-battle hold: the world doesn't advance
+        if (!driver.step(stepInput)) continue; // frozen pre-battle hold: the world doesn't advance
         this.prevView = this.view;
         this.view = driver.view();
       } else {
         this.prevView = this.view;
-        step(this.world, new Map([[this.liveId, input]]));
+        step(this.world, new Map([[this.liveId, stepInput]]));
         this.view = getView(this.world);
       }
       const dt = performance.now() - t0;
@@ -372,6 +384,15 @@ export class BattleScene extends Phaser.Scene {
     cam.centerOn(this.cam.x, this.cam.y);
     this.simFrameMs = ema(this.simFrameMs, simThisFrame, 0.05);
     const frozen = driver?.ended ?? false;
+    const emoteUi = this.services.emoteUi;
+    if (emoteUi) {
+      emoteUi.setAvailable(
+        !frozen &&
+          !this.pauseModel.holding &&
+          (driver?.willHonorInput ?? true) &&
+          this.view.soldiers.some((s) => s.id === this.liveId && s.alive),
+      );
+    }
     const r0 = performance.now();
     this.worldRenderer.render({
       alpha: frozen ? 1 : alpha,
@@ -476,6 +497,8 @@ export class BattleScene extends Phaser.Scene {
     };
     this.services.hud.setVisible(false);
     this.services.pauseUi?.setAvailable(false);
+    this.services.emoteUi?.setAvailable(false);
+    this.worldRenderer.speech.resetEmotes();
     this.services.countdown.update(null);
     this.services.leadInHint?.set(false);
     this.ghost.clear();
@@ -624,6 +647,7 @@ export class BattleScene extends Phaser.Scene {
     if (f !== rs.pairTick) {
       // Effects and sounds play at normal-ish speeds going forward; a fast trip is silent.
       const quiet = rs.clock.speedNow() > 150 || !(f > rs.pairTick);
+      if (quiet) this.worldRenderer.speech.resetEmotes();
       const a = rs.tape.viewAt(f, f) ?? this.view;
       const b = rs.tape.viewAt(f + 1, quiet ? f + 1 : Math.max(rs.lastEvent, f)) ?? a;
       rs.lastEvent = f + 1;
