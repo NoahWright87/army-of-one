@@ -27,7 +27,13 @@ export type BarkCategory =
   | 'spawn'
   | 'echoSpawn'
   | 'ghostShot'
-  | 'corpseShot';
+  | 'corpseShot'
+  // (PHASE21) What the AI is thinking, out loud ([D161]).
+  | 'whoa'
+  | 'uneasy'
+  | 'contact'
+  | 'alarm'
+  | 'standDown';
 
 interface CategoryRule {
   /** A warning: always allowed (within the on-screen limit), wherever the speaker is. */
@@ -56,6 +62,12 @@ export const CATEGORY_RULES: Record<BarkCategory, CategoryRule> = {
   echoSpawn: { calmOnly: true, chance: 0.2 },
   ghostShot: { chance: 0.25, cooldownMs: 8000 },
   corpseShot: { chance: 0.5, cooldownMs: 8000 },
+  // (PHASE21) Showing what a soldier notices must get through, even mid-fight, but not as a wall.
+  whoa: { info: true, cooldownMs: 600 },
+  uneasy: { info: true, cooldownMs: 1200 },
+  contact: { info: true, cooldownMs: 350 },
+  alarm: { info: true, cooldownMs: 1500 },
+  standDown: { chance: 0.7, cooldownMs: 4000 },
 };
 
 export interface BarkRequest {
@@ -97,6 +109,8 @@ export class BarkDirector {
   /** Recent fighting (ms + where) for hot / calm. */
   private readonly fighting: { atMs: number; x: number; y: number }[] = [];
   private readonly queued: { dueMs: number; req: BarkRequest }[] = [];
+  /** (PHASE21) Each soldier's alert level at the last step, to speak when it changes. */
+  private readonly alerts = new Map<string, number>();
 
   constructor(
     public tuning: BarkTuning,
@@ -173,6 +187,8 @@ export class BarkDirector {
           break;
         }
         case 'nearMiss':
+          // Caught off guard: a bullet past someone who wasn't worked up yet.
+          if (!this.alerts.get(e.target)) want('whoa', e.target);
           this.addPressure(e.target, now, f, want);
           break;
         case 'damaged': {
@@ -232,6 +248,7 @@ export class BarkDirector {
           break;
       }
     }
+    this.alertChanges(f, want);
     // Forget old fighting.
     while (this.fighting.length && now - this.fighting[0]!.atMs > t.hotMs) this.fighting.shift();
 
@@ -242,6 +259,26 @@ export class BarkDirector {
       }
     }
     return this.gate(wants, f, soldiers);
+  }
+
+  /**
+   * (PHASE21) Soldiers say what they've noticed when their alert level rises ("?", "!", an
+   * alarm) and, a while after a false alarm, that it was nothing.
+   */
+  private alertChanges(f: BarkFrame, want: (c: BarkCategory, s: string) => void): void {
+    for (const s of f.view.soldiers) {
+      const before = this.alerts.get(s.id) ?? 0;
+      const now = s.alive ? (s.alert ?? 0) : 0;
+      if (now === before) continue;
+      if (now === 0) this.alerts.delete(s.id);
+      else this.alerts.set(s.id, now);
+      if (now > before) {
+        // Skipping a level (a firefight starts at "contact") says the stronger thing only.
+        want(now === 3 ? 'alarm' : now === 2 ? 'contact' : 'uneasy', s.id);
+      } else if (now === 0 && before === 1) {
+        want('standDown', s.id);
+      }
+    }
   }
 
   /** Lines that pass the noise budget, in priority order (warnings first). */

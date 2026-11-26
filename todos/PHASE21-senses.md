@@ -52,14 +52,23 @@ the AI is thinking.
 - [ ] The headless "naive player" version through a real mission (does a player who shoots from
       far away now wake the base too early?). Needs a playtest.
 
-## Step 4: make the thinking visible
+## Step 4: make the thinking visible (built, first pass)
 
-- [ ] A "!" (or "?" when only suspicious) over a soldier's head when its heat crosses a threshold;
-      barks on noticing ("Contact!", "Whoa!", "Where'd that come from?", "He's over there!").
-      Strings in `strings.ts` (`bark.*`), within the noise budget of [D150]; not recorded ([D151]).
-- [ ] More chatter in general (owner: "I'd love more chatter during the game"): idle, reloading,
-      suppressed, a friend down, calling targets.
+- [x] The view carries each AI soldier's alert level (`SoldierView.alert`: 1 uneasy, 2 contact,
+      3 alarm; `alertOf` in `senses.ts`), so replays and the tape show it too.
+- [x] The bark director speaks when it rises (`BarkDirector.alertChanges`): `uneasy` ("?",
+      "Did you hear that?"), `contact` ("!", "Enemy!", "There he is!"), `alarm` ("CONTACT!!",
+      "Wake up!"), `whoa` (a bullet past someone calm), `standDown` after a false alarm ("Must
+      have been nothing."). All `info` lines except `standDown`, so they get through a fight but
+      are rate-limited per category (`CATEGORY_RULES`). Lines in `strings.ts` (`bark.<category>.<n>`),
+      enemies' words are tinted red as before ([D148]); not recorded ([D151]).
+- [x] Checked in the browser: scripted Breach life with enemies on, five enemies reach contact,
+      "ENEMY!" / "THERE HE IS!" show over their heads.
+- [ ] More chatter in general (owner: "I'd love more chatter"): idle, reloading, suppressed,
+      calling targets, a friend hurt nearby. Add categories + lines the same way.
 - [ ] Optional debug overlay: heat bars and the last heard/seen positions (F2 → Display).
+- [ ] Look at how it reads with many enemies at once (the per-category cooldown means a group
+      spotting you together shows one or two "!", not a wall of them): tune `cooldownMs`.
 
 ## Later
 

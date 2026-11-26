@@ -181,4 +181,51 @@ describe('BarkDirector', () => {
     );
     expect(d.step(frame(v, 1000, { activeLines: 99 }))).toEqual([]);
   });
+
+  describe('what the AI notices (PHASE21)', () => {
+    const enemy = (alert?: 1 | 2 | 3) =>
+      sol('e1', 300, 0, { role: 'enemy', ...(alert ? { alert } : {}) });
+    const say = (
+      d: BarkDirector,
+      alert: 1 | 2 | 3 | undefined,
+      nowMs: number,
+      ev: SimEvent[] = [],
+    ) => d.step(frame(view([sol('p1', 0, 0), enemy(alert)], ev), nowMs)).map((r) => r.category);
+
+    it('says something when it gets uneasy, again when it makes contact, and on alarm', () => {
+      const d = director();
+      expect(say(d, undefined, 0)).toEqual([]);
+      expect(say(d, 1, 1000)).toEqual(['uneasy']);
+      expect(say(d, 1, 1100)).toEqual([]); // unchanged: quiet
+      expect(say(d, 2, 3000)).toEqual(['contact']);
+      expect(say(d, 3, 6000)).toEqual(['alarm']);
+    });
+
+    it('a firefight that starts with contact says contact only, not "uneasy" first', () => {
+      const d = director();
+      expect(say(d, 2, 1000)).toEqual(['contact']);
+    });
+
+    it('says it was nothing only after a false alarm (uneasy, then calm)', () => {
+      const d = director();
+      say(d, 1, 1000);
+      expect(say(d, undefined, 9000)).toEqual(['standDown']);
+      const d2 = director();
+      say(d2, 2, 1000);
+      expect(say(d2, undefined, 9000)).toEqual([]);
+    });
+
+    it('a bullet past someone who was calm makes them say whoa', () => {
+      const d = director();
+      const miss: SimEvent = {
+        kind: 'nearMiss',
+        tick: 0,
+        target: 'e1',
+        by: 'p1',
+        fromX: 0,
+        fromY: 0,
+      };
+      expect(say(d, undefined, 1000, [miss])).toContain('whoa');
+    });
+  });
 });

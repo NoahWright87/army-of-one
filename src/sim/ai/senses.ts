@@ -215,3 +215,26 @@ export function noteSeen(world: World, ai: { heat?: HeatState }, foes: number): 
   if (!t.enabled || foes <= 0) return;
   addHeat(world, ai, t.heat.seenPerThink * foes, world.state.tick, undefined, false);
 }
+
+/** How worked up a soldier looks, for the renderer ("?" / "!" / "!!", and its chatter). */
+export type AlertLevel = 1 | 2 | 3;
+
+/**
+ * What a soldier is showing: 1 uneasy (heard or half-saw something), 2 contact (has a foe in
+ * view now), 3 alarm (so much heat its squad is up). Undefined: calm. Read-only (the view).
+ */
+export function alertOf(
+  world: World,
+  s: SoldierState,
+  ai: { heat?: HeatState; targetId: string | null; lastSeen: { tick: Tick } | null },
+): AlertLevel | undefined {
+  if (!s.alive) return undefined;
+  const t = world.tuning.senses;
+  const tick = world.state.tick;
+  const h = heatNow(world, ai.heat, tick);
+  if (h >= t.heat.alarm) return 3;
+  if (ai.targetId && ai.lastSeen && tick - ai.lastSeen.tick <= secondsToTicks(t.contactSeconds)) {
+    return 2;
+  }
+  return h >= t.heat.uneasy ? 1 : undefined;
+}

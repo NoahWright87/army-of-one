@@ -832,7 +832,7 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   rises with suspicious/dangerous sights and sounds and fades over time, and visible chatter
   ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE21-senses.md`.
   Built: step 1 (reaction delays, fuzzy direction, smaller radius) and steps 2–3 (sounds,
-  hearing, heat; `src/sim/ai/senses.ts`, `tuning.senses`); step 4 (the "!" and chatter) is next.
+  hearing, heat; `src/sim/ai/senses.ts`, `tuning.senses`); step 4: soldiers say what they notice ("?", "!", "Contact!", "Whoa!", "Must have been nothing"), driven by an alert level in the view.
   **Distances are written in metres** (`src/content/units.ts`: 1 m = 44 world units, a soldier is
   ~0.5 m across); all gameplay numbers live in `src/content/tuning.ts`.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:

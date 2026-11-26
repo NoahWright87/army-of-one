@@ -358,6 +358,8 @@ export interface Tuning {
     hearingScale: number;
     /** Seconds from hearing something to acting on it. */
     reactSeconds: number;
+    /** How long after last seeing a foe a soldier still counts as in contact (shows a "!"). */
+    contactSeconds: number;
     /** Where a sound seemed to come from: ± this many radians, plus this much per metre, capped. */
     bearingErrorBase: number;
     bearingErrorPerMeter: number;
@@ -376,6 +378,8 @@ export interface Tuning {
       { audibleMeters: number; heat: number }
     >;
     heat: {
+      /** From this much heat a soldier shows unease (a "?" and a word), well below acting on it. */
+      uneasy: number;
       /** A dormant soldier wakes at this much heat. */
       wake: number;
       /** An idle soldier goes to look at where it heard something at this much heat. */
@@ -1030,6 +1034,7 @@ export const DEFAULT_TUNING: Tuning = {
     enabled: true,
     hearingScale: 1, // TUNE
     reactSeconds: 0.25, // TUNE [D161]: a sound takes a beat to register
+    contactSeconds: 0.6, // TUNE [D161]
     bearingErrorBase: 0.1, // TUNE [D161]: about ±6° right next to it…
     bearingErrorPerMeter: 0.012, // TUNE [D161]: …and 0.7° worse for every metre
     bearingErrorMax: 1.2, // TUNE [D161]: about ±70°: "somewhere over there"
@@ -1047,6 +1052,7 @@ export const DEFAULT_TUNING: Tuning = {
       shout: { audibleMeters: 15, heat: 0.12 },
     },
     heat: {
+      uneasy: 0.08, // TUNE [D161]: one shot close by is enough for a "?"
       wake: 0.35, // TUNE [D161]
       investigate: 0.6, // TUNE [D161]
       alarm: 0.85, // TUNE [D161]
