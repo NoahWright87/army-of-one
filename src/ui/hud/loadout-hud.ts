@@ -6,7 +6,7 @@
  *   fill turns yellow and fades back to black over the reload. No box around it. A Sniper taps it
  *   to swap guns.
  * - Stance: a soldier silhouette, always shown: a white outline round a black fill that rises
- *   green (orange, red) to your health. The outline pulses when cover is in reach to brace
+ *   green (orange, red) to your health. The outline turns blue and pulses slightly when cover is in reach to brace
  *   against, turns cyan once settled into a stance, blue while settling. Climbing and running
  *   show but aren't chosen.
  * - Right-click or long-press either one for auto (an "A" in its corner).
@@ -34,7 +34,7 @@ const CSS = `
 .aoo-loadout .stance .layer svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .aoo-loadout .stance .outline.pulse { animation: aoo-pulse .7s ease-in-out infinite alternate; }
 .aoo-loadout .stance .outline.settling { animation: aoo-pulse .25s ease-in-out infinite alternate; }
-@keyframes aoo-pulse { from { opacity: .4; } to { opacity: 1; } }
+@keyframes aoo-pulse { from { opacity: .75; } to { opacity: 1; } }
 .aoo-loadout .weapon { right: 14px; width: 48px; height: 88px; border-color: transparent; background: none; }
 .aoo-loadout .weapon.fixed { pointer-events: none; }
 .aoo-loadout .weapon .wp { position: absolute; inset: 6px 8px; }
@@ -62,6 +62,8 @@ const READY = '#ffffff';
 const FIRED = '#ffd34d';
 const BONUS = '#35e0ff';
 const SWAP = '#8fb4d8';
+/** Cover is in reach to brace against. */
+const COVER = '#4da3ff';
 
 export class LoadoutHud {
   readonly root = el('div', 'aoo-loadout');
@@ -194,6 +196,7 @@ export class LoadoutHud {
       this.stanceBlack.innerHTML = stanceSvg(v.stance, '#000', 3.5);
       this.stanceHealth.innerHTML = stanceSvg(v.stance, 'currentColor', 3.5);
     }
+    const pulse = v.coverNear && v.stance === 'standing' && v.stanceEnabled;
     const outline = settling
       ? SWAP
       : v.stance === 'climbing'
@@ -202,9 +205,10 @@ export class LoadoutHud {
           ? '#78beff'
           : steady
             ? BONUS
-            : READY;
+            : pulse
+              ? COVER
+              : READY;
     this.stanceOutline.style.color = outline;
-    const pulse = v.coverNear && v.stance === 'standing' && v.stanceEnabled;
     this.stanceOutline.className = `layer outline${settling ? ' settling' : pulse ? ' pulse' : ''}`;
     // The health fill rises from the figure's feet.
     const hp = Math.max(0, Math.min(1, hpFraction));
