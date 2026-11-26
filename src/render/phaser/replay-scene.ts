@@ -168,6 +168,7 @@ export class ReplayScene extends Phaser.Scene implements ReplayControls {
     this.skipQuiet = on;
   }
   seek(tick: Tick): void {
+    this.worldRenderer.speech.resetEmotes();
     this.player.seek(tick);
     this.view = this.player.view();
     this.prevView = this.view;
