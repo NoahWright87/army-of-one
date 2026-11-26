@@ -1,1 +1,0 @@
-function e(e,t){if(document.getElementById(e))return;let n=document.createElement(`style`);n.id=e,n.textContent=t,document.head.appendChild(n)}function t(e,t,n){let r=document.createElement(e);return t&&(r.className=t),n!==void 0&&(r.textContent=n),r}function n(e,t){e.textContent!==t&&(e.textContent=t)}export{e as n,n as r,t};
