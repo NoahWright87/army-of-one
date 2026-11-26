@@ -33,7 +33,12 @@ export type BarkCategory =
   | 'uneasy'
   | 'contact'
   | 'alarm'
-  | 'standDown';
+  | 'standDown'
+  // (PHASE21) More chatter: friends hit, rockets and mines, cover going.
+  | 'allyHit'
+  | 'rocketWarn'
+  | 'mineBoom'
+  | 'coverBlown';
 
 interface CategoryRule {
   /** A warning: always allowed (within the on-screen limit), wherever the speaker is. */
@@ -68,6 +73,10 @@ export const CATEGORY_RULES: Record<BarkCategory, CategoryRule> = {
   contact: { info: true, cooldownMs: 350 },
   alarm: { info: true, cooldownMs: 1500 },
   standDown: { chance: 0.7, cooldownMs: 4000 },
+  allyHit: { chance: 0.35, cooldownMs: 2500 },
+  rocketWarn: { info: true, cooldownMs: 1000 },
+  mineBoom: { chance: 0.8, cooldownMs: 2500 },
+  coverBlown: { chance: 0.5, cooldownMs: 4000 },
 };
 
 export interface BarkRequest {
@@ -168,9 +177,31 @@ export class BarkDirector {
         }
         case 'grenadeExploded':
         case 'rocketExploded':
-        case 'mineDetonated':
           this.fighting.push({ atMs: now, x: e.x, y: e.y });
           break;
+        case 'mineDetonated': {
+          this.fighting.push({ atMs: now, x: e.x, y: e.y });
+          const near = nearestOf(e.x, e.y, (s) => s.id !== f.liveId, t.hearRadius);
+          if (near) want('mineBoom', near.id);
+          break;
+        }
+        case 'coverDestroyed': {
+          const near = nearestOf(e.x, e.y, (s) => s.id !== f.liveId, t.hearRadius);
+          if (near) want('coverBlown', near.id);
+          break;
+        }
+        case 'rocketLaunched': {
+          // The soldier the rocket is heading for (nearest foe roughly along its line) shouts.
+          const shooter = soldiers.get(e.by);
+          const victim = nearestOf(
+            e.fromX + Math.cos(e.angle) * 300,
+            e.fromY + Math.sin(e.angle) * 300,
+            (s) => !shooter || teamOf(s) !== teamOf(shooter),
+            t.grenadeWarnRadius * 2,
+          );
+          if (victim) want('rocketWarn', victim.id);
+          break;
+        }
         case 'grenadeThrown': {
           const thrower = soldiers.get(e.by);
           if (!thrower) break;
@@ -196,6 +227,16 @@ export class BarkDirector {
           if (e.by) this.hurtBy.set(e.target, { by: e.by, atMs: now });
           if (target) this.fighting.push({ atMs: now, x: target.x, y: target.y });
           this.addPressure(e.target, now, f, want);
+          if (target?.alive && target.id !== f.liveId) {
+            // A friend nearby sees it ("{theirName}'s hit!").
+            const friend = nearestOf(
+              target.x,
+              target.y,
+              (s) => teamOf(s) === teamOf(target) && s.id !== target.id && s.id !== f.liveId,
+              t.hearRadius,
+            );
+            if (friend) want('allyHit', friend.id, target.id);
+          }
           if (target?.alive && target.maxHp > 0) {
             const after = target.hp / target.maxHp;
             const before = (target.hp + e.amount) / target.maxHp;

@@ -228,4 +228,43 @@ describe('BarkDirector', () => {
       expect(say(d, undefined, 1000, [miss])).toContain('whoa');
     });
   });
+
+  describe('more chatter (PHASE21)', () => {
+    it('a friend nearby says someone is hit; the one hit and the player do not', () => {
+      const d = director();
+      const v = view(
+        [sol('a', 0, 0), sol('b', 100, 0), sol('c', 150, 0, { role: 'enemy' })],
+        [{ kind: 'damaged', tick: 0, target: 'a', amount: 5, by: 'c' }],
+      );
+      const out = d.step(frame(v, 1000, { liveId: 'zz' }));
+      expect(out).toEqual([
+        expect.objectContaining({ category: 'allyHit', speakerId: 'b', aboutId: 'a' }),
+      ]);
+    });
+
+    it('the soldier a rocket is heading for shouts', () => {
+      const d = director();
+      const v = view(
+        [sol('p', 0, 0), sol('e', 300, 0, { role: 'enemy' })],
+        [{ kind: 'rocketLaunched', tick: 0, id: 'r', by: 'p', fromX: 0, fromY: 0, angle: 0 }],
+      );
+      expect(d.step(frame(v, 1000)).map((r) => [r.category, r.speakerId])).toEqual([
+        ['rocketWarn', 'e'],
+      ]);
+    });
+
+    it('a mine going off and cover breaking get a word from whoever is close', () => {
+      const d = director();
+      const v = view(
+        [sol('a', 0, 0)],
+        [{ kind: 'mineDetonated', tick: 0, id: 'm', x: 50, y: 0, radius: 10 }],
+      );
+      expect(d.step(frame(v, 1000)).map((r) => r.category)).toEqual(['mineBoom']);
+      const v2 = view(
+        [sol('a', 0, 0)],
+        [{ kind: 'coverDestroyed', tick: 0, id: 'c', x: 50, y: 0 }],
+      );
+      expect(d.step(frame(v2, 9000)).map((r) => r.category)).toEqual(['coverBlown']);
+    });
+  });
 });

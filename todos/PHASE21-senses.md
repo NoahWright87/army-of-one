@@ -64,8 +64,11 @@ the AI is thinking.
       enemies' words are tinted red as before ([D148]); not recorded ([D151]).
 - [x] Checked in the browser: scripted Breach life with enemies on, five enemies reach contact,
       "ENEMY!" / "THERE HE IS!" show over their heads.
-- [ ] More chatter in general (owner: "I'd love more chatter"): idle, reloading, suppressed,
-      calling targets, a friend hurt nearby. Add categories + lines the same way.
+- [x] More chatter, first batch (owner: "I'd love more chatter"): a friend nearby says who is hit
+      (`allyHit`), the soldier a rocket or shell is heading for shouts (`rocketWarn`), a mine going
+      off (`mineBoom`) and cover breaking (`coverBlown`) get a word from whoever is close.
+- [ ] More chatter, later: reloading and suppressed (the sim has no event for either yet), calling
+      targets, idle talk. Add categories + lines the same way.
 - [ ] Optional debug overlay: heat bars and the last heard/seen positions (F2 → Display).
 - [ ] Look at how it reads with many enemies at once (the per-category cooldown means a group
       spotting you together shows one or two "!", not a wall of them): tune `cooldownMs`.
