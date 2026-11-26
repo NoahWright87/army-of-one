@@ -90,9 +90,10 @@ the AI is thinking.
   the AI from events the sim already emits, so the sim, the tape and recordings are untouched
   (no new recorded data). Pacing bots are within the noise of step 1 (the bots rarely stand and
   shoot from afar); the army benchmark is unchanged (~0.4 ms per tick with 200 echoes).
-- **Stances**: nothing in senses depends on stance yet. The AI's own stance is still auto. A
-  prone or braced soldier is harder to *hit* ([D160]), not harder to *spot* or *hear*; see
-  [Q71] before changing that. What does carry over: the weapon a Sniper actually fires (rifle
-  or the swapped-to pistol) decides how loud the shot is.
+- **Stances** ([Q71], answered by the owner): prone is a little harder to see
+  (`concealment.proneVisibility`, on top of the 5% miss chance it already had); braced and
+  deployed don't change visibility. Sprinting is loud as well as visible (`footsteps` sound).
+  The weapon a Sniper actually fires (rifle or the swapped-to pistol) decides how loud the shot
+  is. The AI's own stance is still auto.
 - Known: `src/app/tape-flow.test.ts` pins `nearMissRadius` to the old 70 units because a fresh
   re-simulation drifts from the tape at other radii (it does on the old code too). Task filed.

@@ -109,6 +109,8 @@ export function soldierVisibility(world: World, s: SoldierState): number {
   if (!s.alive) return 1;
   const t = world.tuning.concealment;
   let visibility = onRaisedGround(world, s) ? world.tuning.ladder.visibility : 1;
+  // (PHASE21) Lying prone is a little harder to see ([D161]); bracing against cover isn't.
+  if (s.settled === 'prone') visibility *= t.proneVisibility;
   if (!s.drive) {
     if (trenchAt(world.map.concealment, s)) visibility *= t.trench.visibility;
     for (const area of world.map.concealment ?? []) {

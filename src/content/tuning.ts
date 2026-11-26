@@ -238,6 +238,11 @@ export interface Tuning {
   };
   concealment: {
     minVisibility: number;
+    /**
+     * (PHASE21) Lying prone (settled) makes a soldier this much × as visible: a little harder to
+     * see, nothing like a bush. Braced and deployed don't change visibility.
+     */
+    proneVisibility: number;
     sprintBonus: number;
     firingBonus: number;
     firingSeconds: number;
@@ -374,7 +379,8 @@ export interface Tuning {
       | 'shell'
       | 'explosion'
       | 'impact'
-      | 'shout',
+      | 'shout'
+      | 'footsteps',
       { audibleMeters: number; heat: number }
     >;
     heat: {
@@ -955,6 +961,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   concealment: {
     minVisibility: 0.1, // TUNE
+    proneVisibility: 0.75, // TUNE [D161]: a bush is 0.28, a trench 0.55
     sprintBonus: 0.3, // TUNE: added to the terrain-adjusted visibility
     firingBonus: 0.65, // TUNE
     firingSeconds: 0.8, // TUNE
@@ -1050,6 +1057,8 @@ export const DEFAULT_TUNING: Tuning = {
       explosion: { audibleMeters: 70, heat: 0.4 },
       impact: { audibleMeters: 12, heat: 0.04 },
       shout: { audibleMeters: 15, heat: 0.12 },
+      // A sprinting soldier is heard three times a second ([D161]): only a runner close by gains more than the heat fades.
+      footsteps: { audibleMeters: 12, heat: 0.08 },
     },
     heat: {
       uneasy: 0.08, // TUNE [D161]: one shot close by is enough for a "?"

@@ -984,9 +984,11 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   count as "dangerous", and how loud each one is (all tuning, see the phase doc). Built as
   proposed: a rifle shot is heard out to 40 m, a sniper's 70 m, a pistol's 20 m, an explosion's
   70 m; heat wakes at 0.35, sends soldiers to look at 0.6, alarms the squad at 0.85, and fades
-  in ten seconds. **Open:** should a prone or braced soldier be harder to *spot* or *hear*
-  (stances only make them harder to hit today, [D160])? Should the enemy hear *our* soldiers'
-  footsteps (sprinting)? Not built: both are new rules.
+  in ten seconds. **Answered (owner, 2026-11-26):** prone gives the slight miss chance it already had
+  (`stance.dodge.prone`) and makes a soldier a little harder to see (`concealment.proneVisibility`
+  0.75, "not as much as a bush", which is 0.28); bracing against cover doesn't affect visibility
+  and shouldn't (nor does deploying); sprinting is already more visible (`sprintBonus`) and is now
+  also loud (`senses.sounds.footsteps`, a step sound three times a second).
 
 - **[Q5] Traffic behind a wreck (PHASE02-a).** When a vehicle is shot into a wreck, what do the
   vehicles behind it do? Implemented as `tuning.vehicle.blockedBehavior`:

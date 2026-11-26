@@ -32,7 +32,8 @@ export type SoundKind =
   | 'shell'
   | 'explosion'
   | 'impact'
-  | 'shout';
+  | 'shout'
+  | 'footsteps';
 
 export const SOUND_KINDS: readonly SoundKind[] = [
   'rifle',
@@ -45,6 +46,7 @@ export const SOUND_KINDS: readonly SoundKind[] = [
   'explosion',
   'impact',
   'shout',
+  'footsteps',
 ];
 
 export interface Sound {
@@ -134,6 +136,20 @@ export function soundsOf(world: World, events: readonly SimEvent[]): Sound[] {
   return out;
 }
 
+/** Ticks between the footsteps of a sprinting soldier. */
+const FOOTSTEP_EVERY = 20;
+
+/** (PHASE21) Sprinting is loud: one footstep sound every `FOOTSTEP_EVERY` ticks per runner. */
+function footsteps(world: World): Sound[] {
+  if (world.state.tick % FOOTSTEP_EVERY !== 0) return [];
+  const out: Sound[] = [];
+  for (const s of world.state.soldiers) {
+    if (!s.alive || !s.sprinting || s.drive) continue;
+    out.push({ kind: 'footsteps', x: s.x, y: s.y, by: s.id, team: teamOf(s) });
+  }
+  return out;
+}
+
 /** Shouts are heard by the shouter's own side; everything else by the other one (and mines by all). */
 function suspicious(sound: Sound, hearer: SoldierState): boolean {
   if (sound.by === hearer.id) return false;
@@ -180,8 +196,8 @@ export function addHeat(
  */
 export function listen(world: World, events: readonly SimEvent[]): void {
   const t = world.tuning.senses;
-  if (!t.enabled || events.length === 0) return;
-  const sounds = soundsOf(world, events);
+  if (!t.enabled) return;
+  const sounds = [...soundsOf(world, events), ...footsteps(world)];
   if (sounds.length === 0) return;
   const tick = world.state.tick;
   for (const s of world.state.soldiers) {
