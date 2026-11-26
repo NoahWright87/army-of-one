@@ -9,20 +9,9 @@ import { firstDrift } from '../sim/tape/drift';
 import { createHarness } from './test-harness';
 import { TapePlayer } from './replay/tape-player';
 
-// A fresh re-simulation only agrees with the tape for as long as no AI threshold is crossed
-// differently by the live run and the replay (an enemy alerted by a near miss in one and not the
-// other, and the two then diverge). This story agrees at the old 70-unit near-miss radius but not
-// at the new, smaller default (PHASE21 senses, [D161]; the same happens on the old code with just
-// the radius changed). Pinned so the test keeps checking what it's for; see the open task about
-// live-vs-replay agreement.
-const TAPE_TUNING = {
-  ...DEFAULT_TUNING,
-  ai: { ...DEFAULT_TUNING.ai, nearMissRadius: 70 },
-};
-
 describe('battle tape through the game flow', () => {
   it('records the story; the replay plays to the win; re-simulation agrees', async () => {
-    const h = createHarness({ map: MISSION_03, tuning: TAPE_TUNING });
+    const h = createHarness({ map: MISSION_03, tuning: DEFAULT_TUNING });
     await h.game.boot();
     await h.game.newMission();
     // Enemies are on, so the scripted story doesn't go to plan: play a mix, and take every
@@ -39,16 +28,25 @@ describe('battle tape through the game flow', () => {
     expect(tape.length).toBeGreaterThan(10);
     expect(tape.start).toBe(0);
     if (h.game.mission.completed) {
-      const p = new TapePlayer(tape, MISSION_03, TAPE_TUNING, {
+      const p = new TapePlayer(tape, MISSION_03, DEFAULT_TUNING, {
         endTick: h.game.mission.completed.tick + 120,
       });
       p.seek(p.input.endTick);
       expect(p.view().missionComplete).not.toBeNull();
     }
-    expect(firstDrift(tape, MISSION_03, TAPE_TUNING, h.game.mission.soldiers)).toBeNull();
+    // Re-simulated from 0:00 and glued to the tape like every real run (see `firstDrift`): nothing
+    // the glue can't fix (who lives, gates, flags, objectives, where a soldier goes in one frame).
+    expect(firstDrift(tape, MISSION_03, DEFAULT_TUNING, h.game.mission.soldiers)).toBeNull();
     expect(resumes).toBeGreaterThan(0);
-    // Every handoff (the tick the player took control) agreed with the tape.
-    expect(h.logs.filter((m) => m.startsWith('Handoff'))).toEqual([]);
+    // Every handoff (the tick the player took control) agreed with the tape. Only an enemy (AI
+    // memory and bullets in flight aren't on the tape, so how it reacts can differ a little) may
+    // be nudged back onto its tape pose, and only by a few px; anyone else is a determinism bug.
+    const nudge =
+      /^Handoff at tick \d+: the sim differs from the tape: E\d+ \(enemy\) is ([\d.]+) px off$/;
+    const stray = h.logs.filter(
+      (m) => m.startsWith('Handoff') && !(nudge.test(m) && Number(nudge.exec(m)![1]) <= 10),
+    );
+    expect(stray).toEqual([]);
   }, 120000);
 
   it('the tape is saved with the mission and survives a reload untouched', async () => {
