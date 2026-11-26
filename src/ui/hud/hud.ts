@@ -149,9 +149,10 @@ export class Hud {
     }, 60);
   }
 
-  setVisible(v: boolean): void {
+  /** `keepLoadout`: hide the text and bars but leave the stance and weapon icons (the HQ). */
+  setVisible(v: boolean, keepLoadout = false): void {
     this.root.style.display = v ? '' : 'none';
-    this.loadout.setAllowed(v);
+    this.loadout.setAllowed(v || keepLoadout);
   }
 }
 
