@@ -100,7 +100,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [18](PHASE18.md) | HQ, basic training, words in the world, touch and look rework ([D147]–[D159]) | 17 | — | Built |
 | [19](PHASE19-tape.md) | Battle tape and one continuous view (in-world respawn) | 18 | — | Built |
 | [20](PHASE20-stances.md) | **Stances and the weapon swap**: manual braced / prone / deployed, weapon icon ([D160]) | 19 | — | Built |
-| [21](PHASE21-senses.md) | **Enemy senses**: noise, hearing, heat, reaction delays, visible chatter ([D161]) | 17 | — | Step 1 built |
+| [21](PHASE21-senses.md) | **Enemy senses**: noise, hearing, heat, reaction delays, visible chatter ([D161]) | 17 | — | Steps 1–3 built; 4 (visible chatter) next |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

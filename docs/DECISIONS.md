@@ -831,6 +831,8 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   things making noise (shots, impacts, shouts), soldiers hearing within a range, a "heat" that
   rises with suspicious/dangerous sights and sounds and fades over time, and visible chatter
   ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE21-senses.md`.
+  Built: step 1 (reaction delays, fuzzy direction, smaller radius) and steps 2–3 (sounds,
+  hearing, heat; `src/sim/ai/senses.ts`, `tuning.senses`); step 4 (the "!" and chatter) is next.
   **Distances are written in metres** (`src/content/units.ts`: 1 m = 44 world units, a soldier is
   ~0.5 m across); all gameplay numbers live in `src/content/tuning.ts`.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
@@ -979,7 +981,12 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
   now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
   raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows
   what it senses with a "!" or a bark. Open: the exact heat thresholds and decay, which sounds
-  count as "dangerous", and how loud each one is (all tuning, see the phase doc).
+  count as "dangerous", and how loud each one is (all tuning, see the phase doc). Built as
+  proposed: a rifle shot is heard out to 40 m, a sniper's 70 m, a pistol's 20 m, an explosion's
+  70 m; heat wakes at 0.35, sends soldiers to look at 0.6, alarms the squad at 0.85, and fades
+  in ten seconds. **Open:** should a prone or braced soldier be harder to *spot* or *hear*
+  (stances only make them harder to hit today, [D160])? Should the enemy hear *our* soldiers'
+  footsteps (sprinting)? Not built: both are new rules.
 
 - **[Q5] Traffic behind a wreck (PHASE02-a).** When a vehicle is shot into a wreck, what do the
   vehicles behind it do? Implemented as `tuning.vehicle.blockedBehavior`:

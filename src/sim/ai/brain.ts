@@ -54,6 +54,7 @@ import type { SquadDef } from '../world/map';
 import { findPath, isWalkable } from '../world/nav';
 import type { SimEvent } from '../events';
 import { soldierIndex } from '../soldier-index';
+import { heatNow, listen, noteSeen, type HeatState } from './senses';
 
 export type Behavior =
   | 'protect'
@@ -128,6 +129,8 @@ export interface AiState {
    * dodge before anyone could have noticed). `x`/`y`: where it thinks the shot came from.
    */
   heard?: { at: Tick; by: string; x: number; y: number; guessed: boolean };
+  /** (PHASE21) Suspicion from what it heard and saw; fades. See `senses.ts`. */
+  heat?: HeatState;
 }
 
 const BEHAVIOR_ARRIVE = 10;
@@ -234,6 +237,8 @@ export function stepAi(
     // (PHASE17) A bullet whizzing past: it knows roughly where it came from ([D146]).
     else if (e.kind === 'nearMiss') queueHear(world, e.target, e.by, { x: e.fromX, y: e.fromY });
   }
+  // (PHASE21) Gunfire, blasts and cries raise heat on whoever is in earshot.
+  listen(world, lastEvents);
   if (st.tick % 60 === 0) {
     checkRouts(world);
     checkRegroups(world); // (PHASE17) [D138]
@@ -248,6 +253,7 @@ export function stepAi(
       ai.heard = undefined;
       hearHit(world, s.id, h.by, { x: h.x, y: h.y }, h.guessed);
     }
+    if (ai.heat?.reactAt !== undefined && st.tick >= ai.heat.reactAt) respondToHeat(world, s, ai);
     updateDormancy(world, s, ai, foes);
     if (!ai.awake) {
       // (PHASE13) Asleep but on rally points: keep wandering, cheaply (no perception).
@@ -282,11 +288,15 @@ function updateDormancy(
   const r = ai.awake ? t.sleepRadius : t.wakeRadius;
   const r2 = r * r;
   const near = ours.some((o) => distanceSq(o, s) <= r2);
+  // (PHASE21) Heard something and still worked up: it doesn't go back to sleep yet.
+  const worked =
+    ai.awake && heatNow(world, ai.heat, world.state.tick) > world.tuning.senses.heat.sleepBelow;
   if (near && !ai.awake) {
     ai.awake = true;
     ai.nextThink = world.state.tick + stagger(salt(world) + s.id, secondsToTicks(t.thinkSeconds));
   } else if (
     !near &&
+    !worked &&
     ai.awake &&
     (!!squadOf(world, ai)?.rally?.length || distance(s, ai.home) < 24)
   ) {
@@ -349,6 +359,8 @@ function perceive(
     ai.lastSeen = { x: target.x, y: target.y, tick };
     shareWithSquad(world, s, ai);
   }
+  // (PHASE21) Seeing opposition raises heat as well.
+  noteSeen(world, ai, visible.length);
   const memory = secondsToTicks(t.memorySeconds);
   const remembered = ai.lastSeen && tick - ai.lastSeen.tick <= memory ? ai.lastSeen : null;
   if (!target && !remembered) ai.targetId = null;
@@ -976,6 +988,32 @@ function hearHit(world: World, targetId: string, byId: string, from: Vec2, guess
     oa.protectAlly = victim.id;
     oa.protectTick = tick;
   }
+}
+
+/**
+ * (PHASE21) It reacts to what it heard, a beat after hearing it: enough heat wakes a dormant
+ * soldier; more sends an idle one to where the sound seemed to come from; a lot raises its squad.
+ * What it heard is only a guess, so none of this is a sighting (no target, no shot at it).
+ */
+function respondToHeat(world: World, s: SoldierState, ai: AiState): void {
+  const heat = ai.heat;
+  if (!heat) return;
+  heat.reactAt = undefined;
+  const t = world.tuning.senses;
+  const tick = world.state.tick;
+  const h = heatNow(world, heat, tick);
+  if (h >= t.heat.wake && !ai.awake) {
+    ai.awake = true;
+    ai.nextThink = tick + 1 + stagger(salt(world) + s.id, 10);
+  }
+  if (!ai.awake) return;
+  const spot = heat.spot;
+  if (h >= t.heat.investigate && spot && !spot.used && !ai.targetId) {
+    spot.used = true;
+    ai.lastSeen = { x: spot.x, y: spot.y, tick };
+    ai.nextThink = Math.min(ai.nextThink, tick + 1);
+  }
+  if (h >= t.heat.alarm) shareWithSquad(world, s, ai);
 }
 
 /** Share of a squad's starting strength still standing (HP of everyone it started with). */
