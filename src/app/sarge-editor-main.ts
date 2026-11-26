@@ -1,5 +1,5 @@
 /**
- * (PHASE18) `?scene=sarge`: the Sarge script editor ([D160]). Plain DOM, no Phaser. It edits the
+ * (PHASE18) `?scene=sarge`: the Sarge script editor ([D161]). Plain DOM, no Phaser. It edits the
  * drill sergeant's script (kept in this browser on top of the repo default); "Play from here"
  * opens basic training at a station with it, and the game's "← Sarge editor" comes back.
  */

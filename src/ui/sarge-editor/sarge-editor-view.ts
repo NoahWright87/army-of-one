@@ -1,5 +1,5 @@
 /**
- * (PHASE18) The Sarge editor page ([D160]): a list on the left, the course on a canvas in the
+ * (PHASE18) The Sarge editor page ([D161]): a list on the left, the course on a canvas in the
  * middle, and a plain form for whatever is selected on the right. Zones are rectangles you draw on
  * the map; a rule says WHEN (conditions in sentences) and DO (say, wait, set a flag); Sarge's
  * position says where he likes to stand. Nothing here touches the game: it edits a script and

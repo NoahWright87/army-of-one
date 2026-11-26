@@ -91,6 +91,11 @@ export class TouchControls {
   get fireHeld(): boolean {
     return this.firing.size > 0 || (this.tap !== null && this.tapFires);
   }
+  /**
+   * (PHASE20) Braced or deployed ([D160]): the soldier can't move, so the first finger is the
+   * reticle (aiming, and firing while held) instead of the move stick.
+   */
+  private aimOnly = false;
   /** (07-e) Sprint button held ([D49]). */
   private sprintBtnHeld = false;
   /** (PHASE17) The move stick pushed out to its outer ring ([D144]). */
@@ -173,6 +178,13 @@ export class TouchControls {
     if (!on && this.right) this.endStick('right');
   }
 
+  /** (PHASE20) Braced or deployed: no move stick; the first finger aims and fires. */
+  setAimOnly(on: boolean): void {
+    if (this.aimOnly === on) return;
+    this.aimOnly = on;
+    if (on) this.endStick('left');
+  }
+
   setInteractVisible(on: boolean): void {
     if (this.interactBtn.hidden === on) this.interactBtn.hidden = !on;
   }
@@ -214,9 +226,10 @@ export class TouchControls {
         const free = this.tapPointer === null;
         const r = free ? this.nearReticle(e.clientX, e.clientY) : null;
         const moving = this.left !== null;
-        if (r || (free && moving)) {
+        // (PHASE20) Braced: the first finger is the reticle and fires while held ([D160]).
+        if (r || (free && (moving || this.aimOnly))) {
           this.tapPointer = e.pointerId;
-          this.tapFires = moving;
+          this.tapFires = moving || this.aimOnly;
           this.tap = { x: e.clientX, y: e.clientY };
           this.tapEl = el('div', 'tapmark');
           this.root.append(this.tapEl);
@@ -233,6 +246,7 @@ export class TouchControls {
         }
       }
       if (side === 'right' && !this.aimStickOn) return;
+      if (side === 'left' && this.aimOnly) return; // nowhere to walk
       if (this[side]) return;
       e.preventDefault();
       zone.setPointerCapture?.(e.pointerId);

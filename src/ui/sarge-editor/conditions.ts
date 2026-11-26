@@ -1,5 +1,5 @@
 /**
- * (PHASE18) The Sarge editor's friendly names for the script's condition tokens ([D160]). A
+ * (PHASE18) The Sarge editor's friendly names for the script's condition tokens ([D161]). A
  * condition is a sentence with blanks ("you enter [zone]"); this turns a token string
  * ("enter:r1, !in:bags") into rows of those sentences and back. Pure data and functions.
  */

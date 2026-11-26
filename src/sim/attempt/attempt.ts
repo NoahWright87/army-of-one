@@ -299,7 +299,10 @@ export class Attempt {
     if (controlled) inputs.set(live.id, input);
 
     const events = step(this.world, inputs, this.hooks);
-    if (this.recorder && controlled) this.recorder.recordEvents(events, this.world);
+    if (this.recorder && controlled) {
+      this.recorder.recordEvents(events, this.world);
+      this.recorder.recordStance(live);
+    }
     this.obs.ingest(this.world, events);
     this.echoes.syncDeaths(this.world);
     this.betweenSteps();
@@ -465,6 +468,9 @@ export class Attempt {
     s.kinematic = false;
     s.minHp = 0;
     s.interactHeld = false;
+    s.stanceHeld = false;
+    s.swapHeld = false;
+    // A lead-in echo may be mid-stance: carry on from where it is ([D160]).
     this.controlling = true;
     this.recorder = new Recorder(live.soldierId);
   }

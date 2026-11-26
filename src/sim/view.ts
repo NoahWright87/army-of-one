@@ -12,6 +12,30 @@ import type { CoverArc } from './world/cover';
 import type { SightSettings, SmokeView } from './world/concealment';
 import type { RoleId } from '../contracts/mission';
 
+/** (PHASE20) What the live soldier's stance and weapon icons show ([D160]). */
+export interface LoadoutView {
+  /** Sprinting and climbing are shown as stances too, though they're not chosen. */
+  stance: 'standing' | 'braced' | 'prone' | 'deployed' | 'climbing' | 'sprinting';
+  /** Settling into a stance: 0..1 while it takes its moment; absent otherwise. */
+  settling?: number;
+  /** The stance icon is shown: the class has a stance of its own, or cover is in reach. */
+  canStance: boolean;
+  /** Cover is in reach to brace against (the stance icon's outline pulses). */
+  coverNear: boolean;
+  /** …and it works now (not mid-climb, not driving). */
+  stanceEnabled: boolean;
+  /** The weapon in hand (a silhouette each). `cannon`: the tank's turret. */
+  weapon: 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'grenade' | 'rocket' | 'cannon';
+  /** Time left until it can fire again, 0..1 (1 = just fired); absent when ready. */
+  cooldown?: number;
+  /** Swapping weapons: 0..1; absent otherwise. */
+  swapping?: number;
+  /** The weapon button swaps guns (a Sniper's). */
+  canSwap: boolean;
+  /** The stance's aim bonus applies right now (the silhouette and reticle turn cyan). */
+  bonus: boolean;
+}
+
 /** (07-d) 'enemy': an AI-driven soldier of the other team ([D44]). */
 export type SoldierRole = 'live' | 'echo' | 'static' | 'interrupted' | 'enemy';
 
@@ -57,6 +81,15 @@ export interface SoldierView {
   mounted?: boolean;
   /** (PHASE18) Live soldier, any class: braced on cover (aim bonus, looks further, [D158]). */
   braced?: boolean;
+  /**
+   * (PHASE20) Live soldier: settled into a stance (any: braced, prone, deployed). The camera
+   * looks further and a scope zooms ([D160]).
+   */
+  steady?: boolean;
+  /** (PHASE20) Live soldier braced on cover: the direction across it, to aim and look that way. */
+  braceAim?: number;
+  /** (PHASE20) Live soldier: the stance and weapon icons ([D160]). */
+  loadout?: LoadoutView;
 }
 
 /** (07-c) A grenade in flight ([D37]). */

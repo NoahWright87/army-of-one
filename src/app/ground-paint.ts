@@ -1,5 +1,5 @@
 /**
- * (PHASE18) Instructions "spray-painted" on the ground in basic training ([D160]): a picture of
+ * (PHASE18) Instructions "spray-painted" on the ground in basic training ([D161]): a picture of
  * the keys (or, on a touch screen, the thumbstick) with one word. The words are device-neutral so
  * the drill sergeant can stay in-universe and never name a button. Plain Phaser drawing.
  */

@@ -1,5 +1,5 @@
 /**
- * (PHASE18) Basic training's drill sergeant, as a script ([D160]). Plain data: the Sarge editor
+ * (PHASE18) Basic training's drill sergeant, as a script ([D161]). Plain data: the Sarge editor
  * (`?scene=sarge`) changes anything here and plays it again. This file is the default; local
  * edits are layered on top and kept in localStorage.
  *

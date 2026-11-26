@@ -1,5 +1,5 @@
 /**
- * (PHASE18) "Start here" for basic training ([D160]): each station is the course as it stands when
+ * (PHASE18) "Start here" for basic training ([D161]): each station is the course as it stands when
  * you reach it, so the script can be tried from that point without playing everything before it.
  * Everything before the station is done: flags held, gates open, classes unlocked, and the
  * script's `had:` things marked as having happened. Used with `?mission=basic-training&station=<id>`.

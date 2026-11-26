@@ -1,5 +1,5 @@
 /**
- * (PHASE18) Basic training's drill sergeant ([D155], [D160]): watches each sim step and decides
+ * (PHASE18) Basic training's drill sergeant ([D155], [D161]): watches each sim step and decides
  * what he says (by running his script, `src/content/sarge-script.ts`, through `sarge-engine.ts`),
  * where he stands, which classes are unlocked, and which hint the respawn view shows. The game's
  * own rules stay here in code (unlocks, what counts as a death); the words and when he says them
@@ -170,7 +170,7 @@ export class BasicTraining {
   }
 
   /**
-   * Begin partway through ([D160]'s "start here"): everything before this station has happened.
+   * Begin partway through ([D161]'s "start here"): everything before this station has happened.
    * `had` are the edges that have fired, `roles` the classes unlocked by then.
    */
   startAt(had: string[], roles: RoleId[]): void {

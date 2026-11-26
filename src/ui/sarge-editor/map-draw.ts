@@ -1,5 +1,5 @@
 /**
- * (PHASE18) Draws basic training's map for the Sarge editor ([D160]): plain rectangles on a 2D
+ * (PHASE18) Draws basic training's map for the Sarge editor ([D161]): plain rectangles on a 2D
  * canvas, enough to see where things are. Nothing here is the game's renderer.
  */
 import { BASIC_TRAINING, BT_H, BT_ROOM_RECTS, BT_W } from '../../content/maps/basic-training';

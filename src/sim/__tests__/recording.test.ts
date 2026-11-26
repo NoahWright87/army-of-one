@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../content/tuning';
 import type { SoldierRecord } from '../../contracts/mission';
 import { FACING_QUANTUM, POSITION_QUANTUM } from '../../contracts/quantize';
+import { startAttempt } from '../attempt/attempt';
+import { IDLE_INPUT } from '../entities/soldier';
 import { SnapshotStore, type WorldSnapshot } from '../attempt/snapshots';
 import { addSegment, nextSoldierId } from '../recording/records';
 import { buildSchedule, poseAt, validateRecord } from '../recording/schedule';
@@ -12,6 +14,23 @@ import { arena } from './helpers';
 const isMultiple = (v: number, q: number) => Number.isInteger(v / q);
 
 describe('recorder', () => {
+  it('records a callout once and replays it at the same tick as an echo', () => {
+    const setup = { map: arena(), tuning: DEFAULT_TUNING, from: { kind: 'start' } as const };
+    const live = { mode: 'new', soldierId: 'S1', spawnPointId: 'a', entryTick: 0 } as const;
+    const run = startAttempt({ ...setup, soldiers: [], attempt: 1, live });
+    const { tick, events } = run.step({ ...IDLE_INPUT, emote: 'countdown' });
+    const callout = { kind: 'emote', tick, by: 'S1', emote: 'countdown' };
+    expect(events).toContainEqual(callout);
+    expect(run.step().events).not.toContainEqual(expect.objectContaining({ kind: 'emote' }));
+
+    const segment = run.finish('suspended').liveSegment!;
+    expect(segment.actions).toEqual([{ kind: 'emote', t: tick, emote: 'countdown' }]);
+    const soldiers = addSegment([], live, segment);
+    const replay = startAttempt({ ...setup, soldiers, attempt: 2, live: null });
+    expect(replay.step().events).toContainEqual(callout);
+    expect(replay.step().events).not.toContainEqual(expect.objectContaining({ kind: 'emote' }));
+  });
+
   it('records one quantized waypoint per tick plus shots and interacts', () => {
     const map = arena({
       gates: [{ id: 'g', rect: { x: 600, y: 300, w: 20, h: 100 }, initiallyOpen: false }],

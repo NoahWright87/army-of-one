@@ -502,7 +502,7 @@ describe('basic training (PHASE18): on rails', () => {
       expect(f.braceId).toBe('bt-r7-trench');
       expect(mountBonus(w, f, Math.PI)).toBe(true);
       const gun = f.roleId === 'sniper' ? 'sniper' : 'mg';
-      expect(gunRange(w, gun, f, Math.PI)).toBeGreaterThan(w.tuning[gun].range);
+      expect(gunRange(w, gun, f, Math.PI, f)).toBeGreaterThan(w.tuning[gun].range);
     }
   });
 

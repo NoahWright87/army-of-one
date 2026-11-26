@@ -55,6 +55,7 @@ import {
   type TitleLibraryItem,
 } from '../ui/flow/flow-screens';
 import { CountdownOverlay } from '../ui/hud/countdown-overlay';
+import { EmoteOverlay } from '../ui/hud/emote-overlay';
 import { PauseOverlay } from '../ui/hud/pause-overlay';
 import { DebugOverlay, Hud } from '../ui/hud/hud';
 import { Minimap } from '../ui/minimap/minimap';
@@ -352,6 +353,7 @@ const uiRoot = document.getElementById('ui-root') ?? document.body;
 const hud = new Hud(uiRoot);
 const countdown = new CountdownOverlay(uiRoot);
 const pauseUi = new PauseOverlay(uiRoot);
+const emoteUi = new EmoteOverlay(uiRoot);
 const leadInHint = new LeadInHint(uiRoot);
 const debug = new DebugOverlay(uiRoot);
 const caption = new Caption(uiRoot);
@@ -561,6 +563,7 @@ const services: SceneServices = {
   hud,
   countdown,
   pauseUi,
+  emoteUi,
   debug,
   commands: {},
   leadInHint,
@@ -660,7 +663,7 @@ if (mode === 'hub' && sceneParam === null && !sentToTraining()) {
     assetsReady,
     makeInput: (scene, liveId) =>
       makeControls(scene, HUB_MAP, gameTuning(), liveId, { autoAim: false }),
-    hideHud: () => hud.setVisible(false),
+    setHudVisible: (on) => hud.setVisible(on),
     missionNameKey: libraryNameKey,
   });
 }

@@ -1,5 +1,5 @@
 /**
- * (PHASE18) The interpreter for Sarge's script (`src/content/sarge-script.ts`, [D160]): turns the
+ * (PHASE18) The interpreter for Sarge's script (`src/content/sarge-script.ts`, [D161]): turns the
  * text of a rule's `when` into checks, runs the steps of the rules that fire, and says where he
  * likes to stand. No Phaser, no DOM, no clock of its own: everything it knows comes in through
  * `SargeCtx`.

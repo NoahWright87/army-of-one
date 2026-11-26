@@ -158,7 +158,7 @@ describe('HQ', () => {
     expect(s.y).toBe(atBags);
     expect(s.braceId).toBe('range-sandbags');
     expect(d.view().soldiers.find((soldier) => soldier.id === d.liveId)?.mounted).toBe(true);
-    expect(gunRange(d.world, 'mg', s, aim)).toBeGreaterThan(d.world.tuning.mg.range);
+    expect(gunRange(d.world, 'mg', s, aim, s)).toBeGreaterThan(d.world.tuning.mg.range);
   });
 
   it('reaches the tower from the lobby, mounts on the parapet and climbs back down', () => {

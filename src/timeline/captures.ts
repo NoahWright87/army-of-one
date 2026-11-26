@@ -4,12 +4,7 @@
  * simulated window changes, [D9] a capture inside an observed window that isn't re-observed no
  * longer happens). Pure.
  */
-import type {
-  CaptureChange,
-  CaptureTruth,
-  SoldierId,
-  WorldObservation,
-} from '../contracts/mission';
+import type { CaptureChange, CaptureTruth, WorldObservation } from '../contracts/mission';
 import type { Tick } from '../sim/core/time';
 
 const byTick = (a: CaptureTruth, b: CaptureTruth) =>
@@ -77,9 +72,4 @@ export function captureChanges(
     if (x !== y) out.push({ pointId, before: x, after: y });
   }
   return out;
-}
-
-/** The soldiers credited with capturing a point (its 'ours' entry), or []. */
-export function captors(truth: readonly CaptureTruth[], pointId: string): SoldierId[] {
-  return captureOf(truth, pointId)?.by ?? [];
 }
