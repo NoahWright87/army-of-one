@@ -807,9 +807,9 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
     Scope zoom, and the extra look reach, only while settled in a stance.
   - **Weapon icon (bottom right)**, **Q** or a tap: everybody has one, a Sniper swaps pistol ↔
     rifle with it (starts with the rifle; prone with the pistol is allowed). A readiness meter
-    on every weapon: after a shot the silhouette turns yellow and drains, black wiping down from
-    the top over the reload; grenades, rockets and shells too. Cyan while the stance bonus
-    applies, blue while swapping. Trucks show an MG, tanks a cannon. Placeholder silhouettes
+    on every weapon: a white outline with a black fill (no box); after a shot the fill turns
+    yellow and fades back to black over the reload, grenades, rockets and shells too. The outline is
+    cyan while the stance bonus applies, blue while swapping. Trucks show an MG, tanks a cannon. Placeholder silhouettes
     (`src/content/ui-icons.ts`), muzzle up.
   - **Auto**: right-click or long-press an icon: an **A** in its corner, remembered
     (`aoo:auto-stance`, `aoo:auto-weapon`). Auto is the old behaviour: still by cover (a Sniper

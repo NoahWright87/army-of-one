@@ -1,9 +1,10 @@
 /**
  * (PHASE20, [D160]) The stance icon (bottom left) and the weapon icon (bottom right).
  *
- * - Weapon: a silhouette, muzzle up, along the right edge. Ready: white (cyan while the stance's
- *   aim bonus applies). After a shot it turns yellow and drains: the top goes black and the black
- *   wipes downward over the reload. Swapping: blue. A Sniper taps it to swap guns.
+ * - Weapon: a silhouette, muzzle up, along the right edge: a white outline with a black fill (the
+ *   outline is cyan while the stance's aim bonus applies, blue while swapping). After a shot the
+ *   fill turns yellow and fades back to black over the reload. No box around it. A Sniper taps it
+ *   to swap guns.
  * - Stance: a soldier silhouette; shown only when the class has a stance of its own or cover is
  *   in reach. A ring fills while settling. Climbing and running are shown but not chosen.
  * - Right-click or long-press either one for auto (an "A" in its corner).
@@ -32,12 +33,11 @@ const CSS = `
 .aoo-loadout .stance.settling { color: #8fb4d8; border-color: #8fb4d8; }
 .aoo-loadout .stance.climbing { color: #ffd34d; border-color: rgba(255,211,77,.7); }
 .aoo-loadout .stance.sprinting { color: #78beff; border-color: rgba(120,190,255,.7); }
-.aoo-loadout .weapon { right: 14px; width: 48px; height: 88px; }
+.aoo-loadout .weapon { right: 14px; width: 48px; height: 88px; border-color: transparent; background: none; }
 .aoo-loadout .weapon.fixed { pointer-events: none; }
 .aoo-loadout .weapon .wp { position: absolute; inset: 6px 8px; }
 .aoo-loadout .weapon .wp > div { position: absolute; inset: 0; }
 .aoo-loadout .weapon .wp svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.aoo-loadout .weapon .wp .wipe { color: #000; }
 .aoo-loadout .weapon.swapping .wp { animation: aoo-swap .35s ease-in-out infinite alternate; }
 @keyframes aoo-swap { from { opacity: .55; } to { opacity: 1; } }
 .aoo-loadout .ring { position: absolute; inset: -2px; border-radius: 10px; pointer-events: none;
@@ -56,7 +56,7 @@ body.aoo-loadout-on .aoo-touch .interact { bottom: 118px; }
 body.aoo-loadout-on .aoo-touch .sprint { bottom: 198px; }
 `;
 
-const READY = '#e8ecef';
+const READY = '#ffffff';
 const FIRED = '#ffd34d';
 const BONUS = '#35e0ff';
 const SWAP = '#8fb4d8';
@@ -69,7 +69,7 @@ export class LoadoutHud {
   private readonly weaponBadge = el('span', 'badge', str('loadout.auto'));
   private readonly wp = el('div', 'wp');
   private readonly base = el('div');
-  private readonly wipe = el('div', 'wipe');
+  private readonly fill = el('div', 'fill');
   private controls: LoadoutControls | null = null;
   private key = '';
   private weaponKind = '';
@@ -83,7 +83,7 @@ export class LoadoutHud {
     this.stanceBtn.append(this.stanceBadge, el('span', 'key', 'Z'));
     this.stanceBadge.textContent = 'A';
     this.weaponBadge.textContent = 'A';
-    this.wp.append(this.base, this.wipe);
+    this.wp.append(this.base, this.fill);
     this.weaponBtn.append(this.wp, this.weaponBadge, el('span', 'key', 'Q'));
     this.stanceBtn.type = 'button';
     this.weaponBtn.type = 'button';
@@ -188,19 +188,15 @@ export class LoadoutHud {
       ? `conic-gradient(rgba(143,180,216,.5) ${Math.round((v.settling ?? 0) * 360)}deg, rgba(0,0,0,.45) 0)`
       : '';
 
-    // Weapon.
+    // Weapon: a white outline round a black fill; a shot turns the fill yellow, then it fades.
     if (this.weaponKind !== v.weapon) {
       this.weaponKind = v.weapon;
-      this.base.innerHTML = weaponSvg(v.weapon);
-      this.wipe.innerHTML = weaponSvg(v.weapon);
+      this.base.innerHTML = weaponSvg(v.weapon, '#000', 'currentColor');
+      this.fill.innerHTML = weaponSvg(v.weapon, FIRED);
     }
-    const fired = v.cooldown !== undefined;
-    const color = v.swapping !== undefined ? SWAP : fired ? FIRED : v.bonus ? BONUS : READY;
-    this.base.style.color = color;
-    // The yellow drains: black grows from the top down over the reload.
-    const black = fired ? Math.round((1 - v.cooldown!) * 100) : 0;
-    this.wipe.style.clipPath = `inset(0 0 ${100 - black}% 0)`;
-    this.wipe.style.visibility = fired ? 'visible' : 'hidden';
+    this.base.style.color = v.swapping !== undefined ? SWAP : v.bonus ? BONUS : READY;
+    this.fill.style.opacity =
+      v.cooldown !== undefined ? String(Math.round(v.cooldown * 50) / 50) : '0';
     this.weaponBtn.className = `weapon${v.swapping !== undefined ? ' swapping' : ''}${v.canSwap ? '' : ' fixed'}`;
     this.weaponBtn.title = v.canSwap
       ? `${str(`loadout.weapon.${v.weapon}`)} · ${str('loadout.weapon.swapKey')} · ` +

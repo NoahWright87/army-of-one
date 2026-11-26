@@ -24,5 +24,5 @@ weapon controls, with the old behaviour kept as an auto option.
   fire on the move now, badly. Prone is a 70 % share of `coverSpreadMultiplier` (0.12).
 - Removed: the MG's shuffle along its cover and the Sniper's slow scoped walk (static stances).
 - Auto mode: the very first look at an auto Sniper picks its gun without a swap delay.
-- The readiness meter drains yellow→black from the top and returns to white when ready: one
-  reading of "the fill drains, the top becoming black and wiping downwards"; `loadout-hud.ts`.
+- The readiness meter (owner's second pass): white outline, black fill; a shot turns the fill
+  yellow and it fades out over the reload (`loadout-hud.ts`).

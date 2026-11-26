@@ -22,8 +22,10 @@ const WEAPON_PATHS: Record<WeaponIcon, string> = {
   cannon: 'M10 0h4v8h-4zM11 8h2v22h-2zM3 28h18v6l2 4v18l-2 4H3l-2-4V38l2-4z',
 };
 
-export function weaponSvg(kind: WeaponIcon, fill = 'currentColor'): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 64" aria-hidden="true"><path d="${WEAPON_PATHS[kind]}" fill="${fill}"/></svg>`;
+export function weaponSvg(kind: WeaponIcon, fill = 'currentColor', stroke = 'none'): string {
+  const outline =
+    stroke === 'none' ? '' : ` stroke="${stroke}" stroke-width="1.4" stroke-linejoin="round"`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 64" aria-hidden="true"><path d="${WEAPON_PATHS[kind]}" fill="${fill}"${outline}/></svg>`;
 }
 
 /**
