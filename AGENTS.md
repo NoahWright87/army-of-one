@@ -42,7 +42,10 @@ The most important thing in this repo is how it feels to a real player. Design, 
   question to the "Open questions" section of `docs/DECISIONS.md` and mention it in your PR. Truly
   obvious things ("should bombs explode?") don't need asking.
 - **Tuning numbers are not decisions.** Speeds, HP, radii, timings, etc. go in
-  `src/content/tuning.ts` with a `// TUNE` comment. Pick something sensible and move on.
+  `src/content/tuning.ts` with a `// TUNE` comment. Pick something sensible and move on. No
+  gameplay numbers hidden as constants in `src/sim/` (move strays into tuning when you touch
+  them). Write distances in metres with `meters()` (`src/content/units.ts`: 1 m = 44 world
+  units, a soldier is ~0.5 m across); the sim itself stays in world units.
 - **Art, audio and copy are placeholders.** See "Placeholder content" below. Don't spend effort on polish.
 - **Stay inside your phase's file ownership.** Parallel phases (`PHASE03-a`, `PHASE03-b`, …)
   list the directories they own. If you must touch a shared file, keep the change minimal and

@@ -785,6 +785,17 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   grenade to where you aim); the old wind-up time moved into the reload, and the ring fills while
   it reloads. Holding fire fires again each time it's ready. Gun users no longer get their
   shots off first just because they don't wind up.
+- **[D160] Enemies sense, they don't read minds** (owner, 2026-11): "It's like shooting at
+  Spider-Man: they dodge before anybody realistically could react." Reacting to a bullet isn't
+  instant: taking damage ~0.05 s, a bullet whizzing past ~0.15 s (`tuning.ai.hurtReactSeconds`,
+  `nearMissReactSeconds`); a whizz gives a direction, not a position (the guess is off by up to
+  `nearMissBearingError`, so farther shooters are guessed worse); and the near-miss radius is
+  smaller (0.9 m). Direction, longer term: a full senses system, sight and hearing, with
+  things making noise (shots, impacts, shouts), soldiers hearing within a range, a "heat" that
+  rises with suspicious/dangerous sights and sounds and fades over time, and visible chatter
+  ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE20-senses.md`.
+  **Distances are written in metres** (`src/content/units.ts`: 1 m = 44 world units, a soldier is
+  ~0.5 m across); all gameplay numbers live in `src/content/tuning.ts`.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
   they won't read much, they want fun fast, they aren't perfect. See AGENTS.md.
 
@@ -926,6 +937,12 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
 ## Open questions
 
 _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
+
+- **[Q67] Senses (PHASE20, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
+  now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
+  raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows
+  what it senses with a "!" or a bark. Open: the exact heat thresholds and decay, which sounds
+  count as "dangerous", and how loud each one is (all tuning, see the phase doc).
 
 - **[Q5] Traffic behind a wreck (PHASE02-a).** When a vehicle is shot into a wreck, what do the
   vehicles behind it do? Implemented as `tuning.vehicle.blockedBehavior`:

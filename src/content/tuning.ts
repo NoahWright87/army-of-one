@@ -1,5 +1,6 @@
 import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
+import { meters } from './units';
 
 /**
  * (07-c) A gun's spread ([D39]): every shot goes out at a random angle within ± the current
@@ -397,6 +398,22 @@ export interface Tuning {
     suppressSeconds: number;
     suppressReach: number;
     suppressAimError: number;
+    /**
+     * Senses, step 1 (see `todos/PHASE20-senses.md`). A bullet passing within `nearMissRadius`
+     * (world units; `meters()` in tuning.ts) of a soldier is "shot at" even if it was never seen.
+     */
+    nearMissRadius: number;
+    /**
+     * Seconds between a stimulus and the soldier reacting to it: taking damage (it felt it), a
+     * bullet whizzing past, or a squadmate alerting it. Whole ticks, never 0.
+     */
+    hurtReactSeconds: number;
+    nearMissReactSeconds: number;
+    /**
+     * A sound gives a direction, not a position: the guessed spot is off by up to this many
+     * radians at the soldier's end (so farther shooters are guessed worse). 0: exact.
+     */
+    nearMissBearingError: number;
     /** (PHASE17) How far a Machine Gunner looks for cover to dig in at. */
     digInRadius: number;
     /** (PHASE17) A Shield screens friends within this radius, this far ahead of the front one. */
@@ -966,6 +983,10 @@ export const DEFAULT_TUNING: Tuning = {
     suppressSeconds: 5, // TUNE [D146]
     suppressReach: 1.8, // TUNE [D146]: about where its bullets land
     suppressAimError: 0.12, // TUNE [D146]: ±7°, firing at a place, not a person
+    nearMissRadius: meters(0.9), // TUNE [D160]: was 70 units (1.6 m)
+    hurtReactSeconds: 0.05, // TUNE [D160]: it felt it, so nearly instant
+    nearMissReactSeconds: 0.15, // TUNE [D160]: a whizz takes a beat to register
+    nearMissBearingError: 0.35, // TUNE [D160]: about ±20°
     screenRadius: 500, // TUNE
     screenAhead: 70, // TUNE
     regroupHp: 0.9, // TUNE [D138]

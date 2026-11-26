@@ -92,6 +92,7 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [16 art](PHASE16-miniatures.md) | **Miniature pieces**: layered gold/silver-base soldiers and vehicles ([A116]–[A127]); art brief in `docs/art/` | 12-b | art delivery | All 49 files delivered; layers integrated; combat/terrain/UI continuation in docs/art/COMBAT-ENVIRONMENT.md |
 | [16](PHASE16.md) | **Pacing & difficulty**: shorter levels, weaker AI, regen, Easy/Normal/Hard, pacing benchmark ([D127]–[D135]) | 14-a | 14-b, 14-c | Planned |
 | [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | Built |
+| [20](PHASE20-senses.md) | **Enemy senses**: noise, hearing, heat, reaction delays, visible chatter ([D160]) | 17 | — | Step 1 built |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

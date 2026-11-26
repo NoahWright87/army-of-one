@@ -124,6 +124,11 @@ export interface AiState {
   protectTick?: Tick;
   /** The squad it started in (it may join another when its own routs). */
   origSquad?: string;
+  /**
+   * (PHASE20) A hit or a whizzing bullet it will react to at tick `at`, not before (people don't
+   * dodge before anyone could have noticed). `x`/`y`: where it thinks the shot came from.
+   */
+  heard?: { at: Tick; by: string; x: number; y: number; guessed: boolean };
 }
 
 const BEHAVIOR_ARRIVE = 10;
@@ -226,9 +231,9 @@ export function stepAi(
   const theirs = st.soldiers.filter((o) => o.team === 'enemy' && isEligible(o));
   // (PHASE13) A hit tells the soldier (and its squad) where the shot came from.
   for (const e of lastEvents) {
-    if (e.kind === 'damaged' && e.by) hearHit(world, e.target, e.by);
+    if (e.kind === 'damaged' && e.by) queueHear(world, e.target, e.by);
     // (PHASE17) A bullet whizzing past: it knows roughly where it came from ([D146]).
-    else if (e.kind === 'nearMiss') hearHit(world, e.target, e.by, { x: e.fromX, y: e.fromY });
+    else if (e.kind === 'nearMiss') queueHear(world, e.target, e.by, { x: e.fromX, y: e.fromY });
   }
   if (st.tick % 60 === 0) {
     checkRouts(world);
@@ -238,6 +243,12 @@ export function stepAi(
     const ai = s.ai;
     if (!ai || !s.alive) continue;
     const foes = s.team === 'enemy' ? ours : theirs;
+    // (PHASE20) The reaction to a hit or whizz lands after its delay.
+    if (ai.heard && st.tick >= ai.heard.at) {
+      const h = ai.heard;
+      ai.heard = undefined;
+      hearHit(world, s.id, h.by, { x: h.x, y: h.y }, h.guessed);
+    }
     updateDormancy(world, s, ai, foes);
     if (!ai.awake) {
       // (PHASE13) Asleep but on rally points: keep wandering, cheaply (no perception).
@@ -907,10 +918,42 @@ export function retreatSpot(
 // ---------- hits and routs (PHASE13) ----------
 
 /**
- * One of ours hit an AI soldier: it now knows where the shot came from (and wakes), its squad
- * hears about it, and squadmates nearby may come to protect it.
+ * (PHASE20) Something hit, or whizzed past, an AI soldier: it will react after a short delay
+ * (`tuning.ai.hurtReactSeconds` / `nearMissReactSeconds`), not on the same tick. A whizz gives a
+ * direction rather than a position: the guessed spot is off by up to `nearMissBearingError`
+ * radians as seen from the soldier. Overwritten only by something sooner.
  */
-function hearHit(world: World, targetId: string, byId: string, from?: Vec2): void {
+function queueHear(world: World, targetId: string, byId: string, from?: Vec2): void {
+  const idx = soldierIndex(world.state.soldiers);
+  const victim = idx.get(targetId);
+  const by = idx.get(byId);
+  const ai = victim?.ai;
+  if (!victim || !ai || !victim.alive || !by || by.team === victim.team) return;
+  const t = world.tuning.ai;
+  const tick = world.state.tick;
+  const at = tick + Math.max(1, secondsToTicks(from ? t.nearMissReactSeconds : t.hurtReactSeconds));
+  if (ai.heard && ai.heard.at <= at) return;
+  if (!from) {
+    ai.heard = { at, by: byId, x: by.x, y: by.y, guessed: false };
+    return;
+  }
+  const d = distance(victim, from);
+  const err = (hash01(`${salt(world)}${victim.id}@${tick}:whizz`) * 2 - 1) * t.nearMissBearingError;
+  const bearing = Math.atan2(from.y - victim.y, from.x - victim.x) + err;
+  ai.heard = {
+    at,
+    by: byId,
+    x: victim.x + Math.cos(bearing) * d,
+    y: victim.y + Math.sin(bearing) * d,
+    guessed: true,
+  };
+}
+
+/**
+ * The reaction itself (see `queueHear`): it now knows where the shot came from (and wakes), its
+ * squad hears about it, and squadmates nearby may come to protect it.
+ */
+function hearHit(world: World, targetId: string, byId: string, from: Vec2, guessed: boolean): void {
   const idx = soldierIndex(world.state.soldiers);
   const victim = idx.get(targetId);
   const by = idx.get(byId);
@@ -919,8 +962,10 @@ function hearHit(world: World, targetId: string, byId: string, from?: Vec2): voi
   if (!victim || !ai || !victim.alive || !by || by.team === victim.team) return;
   const tick = world.state.tick;
   ai.hurtTick = tick;
-  const at = from ?? by;
-  ai.lastSeen = { x: at.x, y: at.y, tick };
+  // A guess never replaces a fresh sighting of the real thing.
+  const sighted =
+    ai.lastSeen && tick - ai.lastSeen.tick <= secondsToTicks(world.tuning.ai.thinkSeconds * 2);
+  if (!(guessed && sighted)) ai.lastSeen = { x: from.x, y: from.y, tick };
   if (!ai.awake) ai.awake = true;
   ai.nextThink = Math.min(ai.nextThink, tick + 1);
   shareWithSquad(world, victim, ai);
