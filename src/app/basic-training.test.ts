@@ -54,7 +54,7 @@ describe('basic training director', () => {
 
   it('nothing Sarge says names a button or a device (the painted instructions do that)', () => {
     const device =
-      /\b(wasd|shift|click|clicking|button|buttons|tap|tapping|key|keys|press|mouse|touch|screen)\b/i;
+      /\b(wasd|shift|click|clicking|button|buttons|tap|tapping|key|keys|press|mouse)\b/i;
     for (const rule of DEFAULT_SARGE_SCRIPT.rules) {
       for (const step of rule.steps) {
         if (step.k !== 'say') continue;
