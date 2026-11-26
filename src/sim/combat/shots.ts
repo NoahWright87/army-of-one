@@ -185,6 +185,11 @@ export function castRay(
         )
           return;
       }
+      // (PHASE20) Prone and deployed soldiers are a little harder to hit ([D160]).
+      if (opts.bulletOrigin && opts.coverKey !== undefined && s.settled && s.settled !== 'braced') {
+        const dodge = tuning.stance.dodge[s.settled];
+        if (coverStops(opts.coverKey, `stance:${s.id}`, dodge)) return;
+      }
       consider(t, { kind: 'soldier', id: s.id, index });
     });
   }

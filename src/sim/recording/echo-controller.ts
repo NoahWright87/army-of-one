@@ -465,6 +465,17 @@ export class EchoController {
     const tol = this.tuning.echo.actionTolerance;
     let pellet = 0;
     for (const a of actions) {
+      // (PHASE20) A stance isn't placed: the echo just takes it up or stands ([D160]).
+      if (a.kind === 'stance') {
+        if (a.stance) {
+          s.stance = a.stance;
+          s.settled = a.stance;
+        } else {
+          delete s.stance;
+          delete s.settled;
+        }
+        continue;
+      }
       if (a.kind === 'emote') {
         emit(world, { kind: 'emote', tick: t, by: s.id, emote: a.emote });
         continue;
@@ -488,7 +499,16 @@ export class EchoController {
           (a.gun !== 'rocket' && a.gun !== 'shell' ? a.gun : undefined) ??
           gunOf(s, this.tuning) ??
           'rifle';
-        fireGun(world, s.id, s, a.angle, gun, 'player', gun === 'shotgun' ? pellet++ : undefined);
+        fireGun(
+          world,
+          s.id,
+          s,
+          a.angle,
+          gun,
+          'player',
+          gun === 'shotgun' ? pellet++ : undefined,
+          s,
+        );
         s.nextFireTick = t + gunCooldownTicks(this.tuning, gun);
       } else if (a.kind === 'throw') {
         // (07-c) Same throw from where the echo is now ([D37]).

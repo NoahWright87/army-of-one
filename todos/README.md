@@ -8,6 +8,11 @@ Read `AGENTS.md` and `docs/DECISIONS.md` before starting any phase.
 
 ## Start here (for a fresh session)
 
+**Latest (2026-11-25):** the phases below the stacked-PR list are long built. The newest are
+PHASE18 (HQ, basic training, touch and look rework), PHASE19 ([battle tape](PHASE19-tape.md) and
+the in-world respawn) and [PHASE20](PHASE20-stances.md) (stances and the weapon swap). The status
+paragraphs below are history; `docs/DECISIONS.md` is the truth.
+
 **Status (2026-10-31):** phases 01–06 are built, plus the single-mission change ([D31]). They sit
 in a stack of PRs on GitHub, each based on the previous one and each with a GitHub Pages preview
 (`.github/workflows/pr-preview.yml`):
@@ -92,6 +97,9 @@ the player wants**. Combat is deliberately simple. Polish waits.
 | [16 art](PHASE16-miniatures.md) | **Miniature pieces**: layered gold/silver-base soldiers and vehicles ([A116]–[A127]); art brief in `docs/art/` | 12-b | art delivery | All 49 files delivered; layers integrated; combat/terrain/UI continuation in docs/art/COMBAT-ENVIRONMENT.md |
 | [16](PHASE16.md) | **Pacing & difficulty**: shorter levels, weaker AI, regen, Easy/Normal/Hard, pacing benchmark ([D127]–[D135]) | 14-a | 14-b, 14-c | Planned |
 | [17](PHASE17.md) | **Making fights matter**: aggressive AI, dev arena, win rule, icon HUD, tech points, touch, flying bullets ([D137]–[D145]) | 16 | — | Built |
+| [18](PHASE18.md) | HQ, basic training, words in the world, touch and look rework ([D147]–[D159]) | 17 | — | Built |
+| [19](PHASE19-tape.md) | Battle tape and one continuous view (in-world respawn) | 18 | — | Built |
+| [20](PHASE20-stances.md) | **Stances and the weapon swap**: manual braced / prone / deployed, weapon icon ([D160]) | 19 | — | Built |
 
 Later phases are intentionally thin. Flesh out phase N+1 when phase N lands, using its
 "Notes from implementation".

@@ -138,8 +138,10 @@ function rawLethality(t: Tuning, roleId: RoleId): Raw {
           t.sniper.damage,
           t.sniper.cooldownSeconds,
           t.sniper.range,
-          t.sniper.baseSpread,
-          t.sniper.movingSpread,
+          // The card shows the Sniper settled (prone), which is what it's for ([D160]).
+          t.sniper.baseSpread *
+            (1 - t.stance.noCoverShare.prone * (1 - t.sniper.coverSpreadMultiplier)),
+          0,
         ),
         explosive: false,
       };
