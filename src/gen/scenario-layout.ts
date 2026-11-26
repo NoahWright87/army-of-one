@@ -1,7 +1,13 @@
 import { isImageKey, type ImageKey } from '../content/assets';
 import { GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
-import { borderWalls, type CoverMaterial, type MapDef, type Rect } from '../sim/world/map';
+import {
+  borderWalls,
+  type ConcealmentArea,
+  type CoverMaterial,
+  type MapDef,
+  type Rect,
+} from '../sim/world/map';
 import type { Vec2 } from '../sim/core/vec';
 import {
   addPaintedBushes,
@@ -361,23 +367,31 @@ export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef |
     )
       map.water.push(painted);
   }
-  addPaintedBushes(
-    maskRects(
-      layout.ground[0]!.length,
-      layout.ground.length,
-      cs,
-      (x, y) => layout.ground[y]?.[x] === 'U',
-    ).map(clip),
-    map.concealment,
-  );
-  addPaintedTrenches(
-    maskRects(
-      layout.ground[0]!.length,
-      layout.ground.length,
-      cs,
-      (x, y) => layout.ground[y]?.[x] === 'T',
-    ).map(clip),
-    map.concealment,
-  );
+  addScenarioPaintedConcealment(layout, map.concealment);
   return map.objectives.length ? map : { ...map, objectives: undefined };
+}
+
+export function addScenarioPaintedConcealment(
+  layout: ScenarioLayout,
+  concealment: ConcealmentArea[],
+): void {
+  const cs = scenarioCellSize(layout);
+  const { width, height } = layoutExtent(layout);
+  const cols = layout.ground[0]!.length;
+  const rows = layout.ground.length;
+  const clip = (r: Rect) => ({
+    ...r,
+    w: Math.min(r.w, width - r.x),
+    h: Math.min(r.h, height - r.y),
+  });
+  if (layout.ground.some((row) => row.includes('U')))
+    addPaintedBushes(
+      maskRects(cols, rows, cs, (x, y) => layout.ground[y]?.[x] === 'U').map(clip),
+      concealment,
+    );
+  if (layout.ground.some((row) => row.includes('T')))
+    addPaintedTrenches(
+      maskRects(cols, rows, cs, (x, y) => layout.ground[y]?.[x] === 'T').map(clip),
+      concealment,
+    );
 }

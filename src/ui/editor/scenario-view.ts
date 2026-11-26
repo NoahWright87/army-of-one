@@ -9,11 +9,15 @@ import {
   type TerrainAtlas,
 } from '../../render/terrain/transition-atlas';
 import { terrainEdges } from '../../render/terrain/transition-rules';
+import { drawConcealment, drawTrenchRims } from '../../render/terrain/concealment-art';
+import { canvasConcealmentPainter } from '../../render/terrain/concealment-canvas';
 import { coverArtLayout } from '../../render/cover-art';
 import { scenarioTemplate, type ScenarioTemplate } from '../../gen/scenario-templates';
 import { GROUND, GROUND_KINDS, PAINT_KINDS, type GroundKind } from '../../content/ground';
 import { str, strDynamic, type StringKey } from '../../content/strings';
 import {
+  addScenarioPaintedConcealment,
+  scaleScenarioRect,
   ladderPoint,
   layoutExtent,
   scenarioCellSize,
@@ -30,7 +34,7 @@ import {
   type ScenarioLayout,
 } from '../../gen/scenario-layout';
 import type { Vec2 } from '../../sim/core/vec';
-import type { CoverMaterial, Rect } from '../../sim/world/map';
+import type { ConcealmentArea, CoverMaterial, Rect } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import { EditHistory } from './edit-history';
 import { coverTiles, terrainTiles, tileStamp, wallTile } from './scenario-tiles';
@@ -128,11 +132,8 @@ const PROP_IMAGES: readonly { image: ImageKey; label: StringKey }[] = [
   { image: 'mine', label: 'editor.kind.mine' },
   { image: 'capture_base', label: 'scenario.prop.flag' },
 ];
-const AREA_COLORS: Record<AreaKind, string> = {
-  water: '#4385ad',
+const AREA_COLORS: Record<Exclude<AreaKind, 'bush' | 'trench' | 'water'>, string> = {
   raised: '#937d5e',
-  bush: '#354d2d',
-  trench: '#775741',
   mist: '#d1d9c47a',
 };
 
@@ -173,6 +174,8 @@ export class ScenarioView {
   private readonly playButton: HTMLButtonElement;
   private readonly selection = el('div', 'inspector');
   private readonly canvasWrap = el('div', 'stage');
+  private readonly concealmentPainter = canvasConcealmentPainter(this.ctx);
+  private paintedConcealment: { layout: ScenarioLayout; areas: ConcealmentArea[] } | null = null;
   private terrainAtlas: TerrainAtlas | null = null;
   private readonly images = new Map<ImageKey, HTMLImageElement>();
   private readonly tools = new Map<HTMLButtonElement, () => boolean>();
@@ -319,7 +322,11 @@ export class ScenarioView {
       swatch.className = 'swatch';
       const icon = tileStamp(terrainTiles[kind]);
       icon.setAttribute('aria-hidden', 'true');
-      swatch.prepend(kind === 'U' || kind === 'T' ? icon : this.thumbnail(TERRAIN_ART[kind], icon));
+      swatch.prepend(
+        kind === 'U' || kind === 'T'
+          ? this.concealmentThumbnail(kind === 'U' ? 'bush' : 'trench')
+          : this.thumbnail(TERRAIN_ART[kind], icon),
+      );
       paint.append(swatch);
       this.tools.set(swatch, () => this.tool === 'paint' && this.terrain === kind);
     }
@@ -506,6 +513,16 @@ export class ScenarioView {
     const pending = validScenarioSize(width) && validScenarioSize(height) && changed;
     this.resizeButton.disabled = !pending;
     this.resizeButton.classList.toggle('pending', pending);
+  }
+
+  private concealmentThumbnail(kind: 'bush' | 'trench'): HTMLCanvasElement {
+    const canvas = el('canvas');
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.width = canvas.height = 80;
+    const ctx = canvas.getContext('2d')!;
+    const rect = { x: 12, y: 12, w: 56, h: 56 };
+    drawConcealment(canvasConcealmentPainter(ctx), { id: kind, kind, rect });
+    return canvas;
   }
 
   private thumbnail(key: ImageKey, fallback?: HTMLCanvasElement): HTMLElement {
@@ -1148,13 +1165,41 @@ export class ScenarioView {
             if (frame)
               ctx.drawImage(atlas.canvas, frame.x, frame.y, frame.w, frame.h, col, row, 1, 1);
           }
-        const ground = this.layout.ground[row]?.[col];
-        if (ground === 'U' || ground === 'T') {
-          ctx.globalAlpha = 0.55;
-          ctx.drawImage(this.terrainStamps.get(ground)!, col, row, 1, 1);
-          ctx.globalAlpha = 1;
-        }
       }
+    }
+    const cs = this.cellSize;
+    if (this.paintedConcealment?.layout !== this.layout) {
+      const areas: ConcealmentArea[] = this.layout.items.flatMap((item, index) =>
+        item.kind === 'trench' || item.kind === 'bush'
+          ? [
+              {
+                kind: item.kind,
+                rect: scaleScenarioRect(item.rect, cs),
+                id: item.id ?? `layout-piece-${index}`,
+              },
+            ]
+          : [],
+      );
+      const firstPainted = areas.length;
+      addScenarioPaintedConcealment(this.layout, areas);
+      this.paintedConcealment = { layout: this.layout, areas: areas.slice(firstPainted) };
+    }
+    if (this.paintedConcealment.areas.length) {
+      ctx.save();
+      ctx.scale(1 / cs, 1 / cs);
+      for (const area of this.paintedConcealment.areas) {
+        const { x, y, w, h } = area.rect;
+        if (
+          x + w < (left - 1) * cs ||
+          x > (right + 1) * cs ||
+          y + h < (top - 1) * cs ||
+          y > (bottom + 1) * cs
+        )
+          continue;
+        drawConcealment(this.concealmentPainter, area);
+      }
+      drawTrenchRims(this.concealmentPainter, this.layout.ground, cs, { left, top, right, bottom });
+      ctx.restore();
     }
     if (size >= 12) {
       ctx.beginPath();
@@ -1186,7 +1231,7 @@ export class ScenarioView {
           this.stroke &&
           'before' in this.stroke &&
           this.stroke;
-        this.drawItem(moving ? (this.movedItem(moving) ?? item) : item, i === this.selected);
+        this.drawItem(moving ? (this.movedItem(moving) ?? item) : item, i === this.selected, i);
       }
     }
     ctx.globalAlpha = 1;
@@ -1194,7 +1239,7 @@ export class ScenarioView {
       const item = this.placedItem(this.stroke);
       if (item) {
         ctx.globalAlpha = 0.65;
-        this.drawItem(item, false);
+        this.drawItem(item, false, this.layout.items.length);
         ctx.globalAlpha = 1;
       }
     }
@@ -1225,7 +1270,7 @@ export class ScenarioView {
     ctx.restore();
   }
 
-  private drawItem(item: LayoutItem, selected: boolean): void {
+  private drawItem(item: LayoutItem, selected: boolean, index: number): void {
     const ctx = this.ctx;
     const {
       rect: { x, y, w, h },
@@ -1251,6 +1296,16 @@ export class ScenarioView {
         ctx.restore();
         image = undefined;
       } else image = this.coverStamps.get(item.material);
+    } else if (item.kind === 'bush' || item.kind === 'trench') {
+      ctx.save();
+      ctx.scale(1 / this.cellSize, 1 / this.cellSize);
+      drawConcealment(this.concealmentPainter, {
+        kind: item.kind,
+        id: item.id ?? `layout-piece-${index}`,
+        rect: scaleScenarioRect(item.rect, this.cellSize),
+      });
+      ctx.restore();
+      if (!selected) return;
     } else if (item.kind === 'water') {
       image = this.art(TERRAIN_ART.W) ?? this.terrainStamps.get('W');
     } else if (item.kind === 'wall') {
