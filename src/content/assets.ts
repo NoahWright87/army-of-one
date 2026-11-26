@@ -792,6 +792,10 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   ...Object.entries(SOUND_ASSETS).map(([key, def]) => ({ ...def, key: key as AssetKey })),
 ];
 
+export function isImageKey(key: string): key is ImageKey {
+  return Object.prototype.hasOwnProperty.call(IMAGE_ASSETS, key);
+}
+
 export function imageAsset(key: ImageKey): ImageAssetDef {
   return IMAGE_ASSETS[key];
 }

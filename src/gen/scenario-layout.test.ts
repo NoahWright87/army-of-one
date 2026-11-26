@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { HUB_MAP } from '../content/hub';
+import { BASIC_TRAINING } from '../content/maps/basic-training';
+import { scenarioTemplate } from './scenario-templates';
 import { BLOCK_TUNING } from '../content/tuning';
 import { validateMap } from '../sim/world/map';
 import {
@@ -59,5 +62,40 @@ describe('scenario layout preview', () => {
       expect(scenarioSpawnProblem(blocked)).toBe('blocked');
       expect(scenarioPreviewMap(blocked, 'draft')).toBeUndefined();
     }
+  });
+});
+
+describe('shipped layout templates', () => {
+  it.each([
+    ['hq', HUB_MAP],
+    ['basic-training', BASIC_TRAINING],
+  ] as const)('round-trips the exact %s floor plan and physical props', (name, original) => {
+    const draft = scenarioTemplate(name);
+    const reopened = parseScenarioLayout(JSON.stringify(draft));
+    expect(reopened).toEqual(draft);
+    const preview = scenarioPreviewMap(reopened!, 'draft')!;
+    expect(() => validateMap(preview)).not.toThrow();
+    expect([preview.width, preview.height]).toEqual([original.width, original.height]);
+    expect(preview.walls).toEqual(original.walls);
+    expect(preview.cover).toEqual(original.cover);
+    expect(preview.gates).toEqual(original.gates);
+    expect(preview.raisedGround).toEqual(original.raisedGround ?? []);
+    expect(preview.ladders).toEqual(original.ladders ?? []);
+    expect(preview.concealment).toEqual(original.concealment);
+    expect(preview.groundMist).toEqual(original.groundMist ?? []);
+    expect(preview.spawnPoints[0]?.position).toEqual(original.spawnPoints[0]?.position);
+    expect(preview.scenery?.length).toBeGreaterThan(0);
+    expect(preview.triggers).toBeUndefined();
+    expect(preview.squads).toBeUndefined();
+  });
+
+  it('moves a firing surface independently of its attached cover artwork', () => {
+    const draft = scenarioTemplate('hq');
+    const tower = draft.items.find((item) => item.id === 'surface-0')!;
+    tower.rect.x += 1 / BLOCK_TUNING.cellSize;
+    const preview = scenarioPreviewMap(draft, 'draft')!;
+    expect(preview.raisedGround?.[0]?.x).toBe(1131);
+    expect(preview.cover?.[0]?.fireOverFrom?.x).toBe(1131);
+    expect(HUB_MAP.raisedGround?.[0]?.x).toBe(1130);
   });
 });

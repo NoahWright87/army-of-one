@@ -1,5 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import type { RoleId } from '../../contracts/mission';
+import type { ImageKey } from '../../content/assets';
 import type { Tuning } from '../../content/tuning';
 
 /** Axis-aligned rectangle; (x, y) is the top-left corner. */
@@ -216,6 +217,8 @@ export interface LadderDef {
 }
 
 export interface MapDef {
+  /** Visual props drawn at their authored bounds. */
+  scenery?: { image: ImageKey; rect: Rect }[];
   ladders?: LadderDef[];
   /** Walkable elevated surfaces, with a movement-only barrier at their perimeter. */
   raisedGround?: Rect[];

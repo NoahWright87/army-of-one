@@ -326,7 +326,7 @@ export class WorldRenderer {
       .tileSprite(0, 0, map.width, map.height, TERRAIN_ART.G)
       .setOrigin(0)
       .setDepth(DEPTH.ground);
-    if (map.ground) drawGround(scene, map.ground);
+    if (map.ground) drawGround(scene, map);
     for (const w of map.water) {
       if (isPaintedRect(map.ground, w, ['W'])) continue;
       scene.add.tileSprite(w.x, w.y, w.w, w.h, TERRAIN_ART.W).setOrigin(0).setDepth(DEPTH.water);
@@ -437,6 +437,13 @@ export class WorldRenderer {
       }
     }
     this.drawPaintedTrenchRims();
+    for (const { image, rect } of map.scenery ?? []) {
+      scene.add
+        .image(rect.x, rect.y, image)
+        .setOrigin(0)
+        .setDisplaySize(rect.w, rect.h)
+        .setDepth(DEPTH.decals);
+    }
 
     // Tiled sections retain material proportions at every authored length/orientation.
     for (const c of map.cover ?? []) {

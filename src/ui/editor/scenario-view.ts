@@ -1,6 +1,16 @@
+import { imageAsset, type ImageKey } from '../../content/assets';
+import { SIGN_KINDS } from '../../content/sign-styles';
+import { TERRAIN_ART } from '../../content/terrain-art';
+import { assetUrl } from '../../render/assets/asset-urls';
+import { coverArtLayout } from '../../render/cover-art';
+import { scenarioTemplate, type ScenarioTemplate } from '../../gen/scenario-templates';
 import { GROUND, GROUND_KINDS, PAINT_KINDS, type GroundKind } from '../../content/ground';
 import { str, strDynamic, type StringKey } from '../../content/strings';
 import {
+  AREA_KINDS,
+  ladderPoint,
+  layoutExtent,
+  SCENARIO_CELL,
   insideLayout,
   insideLayoutCell,
   parseScenarioLayout,
@@ -9,6 +19,7 @@ import {
   SCENARIO_MIN_CELLS,
   scenarioSpawnProblem,
   validScenarioSize,
+  type AreaKind,
   type LayoutItem,
   type ScenarioLayout,
 } from '../../gen/scenario-layout';
@@ -35,10 +46,14 @@ const css = `
 .aoo-scenario .row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
 .aoo-scenario .col, .aoo-scenario label { display: grid; gap: 4px; }
 .aoo-scenario .stage canvas { width: 100%; height: 100%; display: block; touch-action: none; }
-.aoo-scenario .stage { min-height: 0; }
+.aoo-scenario .stage { position: relative; min-height: 0; }
+.aoo-scenario .view-controls { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.aoo-scenario .inspector select { width: 100%; }
+.aoo-scenario .inspector label { margin-bottom: 4px; }
 .aoo-scenario .warning { color: #f0b37e; }
 .aoo-scenario .swatch { display: flex; gap: 5px; align-items: center; text-align: left; }
-.aoo-scenario .swatch canvas { width: 16px; height: 16px; flex: none; image-rendering: pixelated; }
+.aoo-scenario .thumbnail { width: 22px; height: 18px; display: inline-flex; flex: none; }
+.aoo-scenario .thumbnail > * { width: 100%; height: 100%; object-fit: contain; }
 @media (max-width: 640px) {
   .aoo-scenario { grid-template: minmax(0, 54%) minmax(0, 1fr) / minmax(0, 1fr); }
   .aoo-scenario .stage { grid-row: 1; }
@@ -47,8 +62,41 @@ const css = `
 }
 `;
 
-type Tool = 'paint' | 'wall' | 'cover' | 'spawn' | 'erase';
-type Stroke = { id: number; start: Vec2; last: Vec2; before: ScenarioLayout };
+type Tool =
+  | 'select'
+  | 'pan'
+  | 'area'
+  | 'prop'
+  | 'target'
+  | 'gate'
+  | 'ladder'
+  | 'paint'
+  | 'wall'
+  | 'cover'
+  | 'spawn'
+  | 'erase';
+type Stroke = { id: number; start: Vec2; last: Vec2; before: ScenarioLayout; client: Vec2 };
+const PROP_IMAGES: readonly { image: ImageKey; label: StringKey }[] = [
+  { image: 'hub_banner', label: 'scenario.prop.banner' },
+  { image: SIGN_KINDS.mapTable.post, label: 'scenario.prop.table' },
+  { image: SIGN_KINDS.tv.post, label: 'scenario.prop.tv' },
+  { image: SIGN_KINDS.trophy.post, label: 'scenario.prop.trophy' },
+  { image: SIGN_KINDS.guns.post, label: 'scenario.prop.guns' },
+  { image: SIGN_KINDS.clipboard.post, label: 'scenario.prop.clipboard' },
+  { image: SIGN_KINDS.wood.post, label: 'scenario.prop.sign' },
+  { image: SIGN_KINDS.plain.post, label: 'scenario.prop.plain' },
+  { image: SIGN_KINDS.plate.post, label: 'scenario.prop.plate' },
+  { image: 'lever_a', label: 'editor.kind.lever' },
+  { image: 'mine', label: 'editor.kind.mine' },
+  { image: 'capture_base', label: 'scenario.prop.flag' },
+];
+const AREA_COLORS: Record<AreaKind, string> = {
+  water: '#4385ad',
+  raised: '#937d5e',
+  bush: '#354d2d',
+  trench: '#775741',
+  mist: '#d1d9c47a',
+};
 
 interface ScenarioActions {
   save(layout: ScenarioLayout): boolean;
@@ -77,6 +125,9 @@ export class ScenarioView {
   private readonly undoButton: HTMLButtonElement;
   private readonly redoButton: HTMLButtonElement;
   private readonly playButton: HTMLButtonElement;
+  private readonly selection = el('div', 'inspector');
+  private readonly canvasWrap = el('div', 'stage');
+  private readonly images = new Map<ImageKey, HTMLImageElement>();
   private readonly tools = new Map<HTMLButtonElement, () => boolean>();
   private readonly terrainStamps = new Map(
     GROUND_KINDS.map((kind) => [kind, tileStamp(terrainTiles[kind])]),
@@ -89,6 +140,11 @@ export class ScenarioView {
   private terrain: GroundKind = 'D';
   private material: CoverMaterial = 'sandbags';
   private stroke: Stroke | null = null;
+  private area: AreaKind = 'raised';
+  private propImage: ImageKey = 'hub_banner';
+  private selected = -1;
+  private zoom = 1;
+  private pan = { x: 0, y: 0 };
   private grid = { x: 0, y: 0, size: 1 };
 
   constructor(
@@ -99,7 +155,7 @@ export class ScenarioView {
     injectStyle('aoo-scenario', css);
     const root = el('div', 'aoo-scenario');
     const sidebar = el('aside');
-    const stage = el('div', 'stage');
+    const stage = this.canvasWrap;
     stage.append(this.canvas);
     root.append(sidebar, stage);
     host.append(root);
@@ -109,6 +165,14 @@ export class ScenarioView {
       this.button('editor.title', actions.openBlocks),
       el('h1', '', str('scenario.title')),
     );
+    const templates = el('div', 'row');
+    for (const [id, title] of [
+      ['hq', 'hub.name'],
+      ['basic-training', 'map.basic.name'],
+    ] as const) {
+      templates.append(this.button(title, () => this.openTemplate(id)));
+    }
+    sidebar.append(el('h2', '', str('scenario.templates')), templates);
     const size = el('form', 'col');
     const dimensions = el('div', 'row');
     dimensions.append(
@@ -134,14 +198,19 @@ export class ScenarioView {
       swatch.className = 'swatch';
       const icon = tileStamp(terrainTiles[kind]);
       icon.setAttribute('aria-hidden', 'true');
-      swatch.prepend(icon);
+      swatch.prepend(this.thumbnail(TERRAIN_ART[kind], icon));
       paint.append(swatch);
       this.tools.set(swatch, () => this.tool === 'paint' && this.terrain === kind);
     }
 
     const objects = el('div', 'row');
     for (const [tool, label] of [
+      ['select', 'scenario.select'],
+      ['pan', 'scenario.pan'],
       ['wall', 'editor.kind.wall'],
+      ['gate', 'editor.kind.gate'],
+      ['ladder', 'scenario.ladder'],
+      ['target', 'scenario.target'],
       ['spawn', 'scenario.spawn'],
       ['erase', 'scenario.erase'],
     ] as const) {
@@ -150,7 +219,7 @@ export class ScenarioView {
         button.className = 'swatch';
         const icon = tileStamp(wallTile);
         icon.setAttribute('aria-hidden', 'true');
-        button.prepend(icon);
+        button.prepend(this.thumbnail(TERRAIN_ART.X, icon));
       }
       objects.append(button);
       this.tools.set(button, () => this.tool === tool);
@@ -164,18 +233,50 @@ export class ScenarioView {
       button.className = 'swatch';
       const icon = tileStamp(coverTiles[material]);
       icon.setAttribute('aria-hidden', 'true');
-      button.prepend(icon);
+      button.prepend(
+        this.thumbnail(
+          coverArtLayout({ id: '', material, rect: { x: 0, y: 0, w: 1, h: 1 } }, false).key,
+          icon,
+        ),
+      );
       covers.append(button);
       this.tools.set(button, () => this.tool === 'cover' && this.material === material);
     }
+    const areas = this.toolPicker(
+      'scenario.area',
+      AREA_KINDS.map((area) => ({ value: area, label: `scenario.area.${area}` as const })),
+      (area) => {
+        this.area = area;
+        this.useTool('area');
+      },
+    );
+    const props = this.toolPicker(
+      'scenario.props',
+      PROP_IMAGES.map(({ image, label }) => ({ value: image, label })),
+      (image) => {
+        this.propImage = image;
+        this.useTool('prop');
+      },
+    );
     sidebar.append(
       paint,
       el('h2', '', str('editor.place')),
       objects,
+      areas,
+      props,
       el('h2', '', str('editor.kind.cover')),
       covers,
       this.toolHelp,
+      this.selection,
     );
+
+    const viewControls = el('div', 'view-controls');
+    viewControls.append(
+      this.button('scenario.zoomOut', () => this.zoomAt(1 / 1.4)),
+      this.button('scenario.fit', () => this.fit()),
+      this.button('scenario.zoomIn', () => this.zoomAt(1.4)),
+    );
+    stage.append(viewControls);
 
     const history = el('div', 'row');
     this.undoButton = this.button('scenario.undo', () => this.undo());
@@ -209,16 +310,254 @@ export class ScenarioView {
     this.canvas.onpointerdown = (event) => this.startStroke(event);
     this.canvas.onpointermove = (event) => this.moveStroke(event);
     this.canvas.onpointerup = (event) => this.finishStroke(event);
+    this.canvas.addEventListener(
+      'wheel',
+      (event) => {
+        event.preventDefault();
+        const box = this.canvas.getBoundingClientRect();
+        this.zoomAt(event.deltaY < 0 ? 1.18 : 1 / 1.18, {
+          x: event.clientX - box.left,
+          y: event.clientY - box.top,
+        });
+      },
+      { passive: false },
+    );
     this.canvas.onlostpointercapture = (event) => this.finishStroke(event, true);
     window.addEventListener('keydown', (event) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
         return;
+      if (event.key === 'Delete' && this.selected >= 0) this.deleteSelected();
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         this.undo(event.shiftKey);
       }
     });
     this.refresh();
+  }
+
+  private thumbnail(key: ImageKey, fallback: HTMLCanvasElement): HTMLElement {
+    const thumb = el('span', 'thumbnail');
+    thumb.setAttribute('aria-hidden', 'true');
+    const image = el('img');
+    image.alt = '';
+    image.onerror = () => image.replaceWith(fallback);
+    image.src = assetUrl(key);
+    thumb.append(image);
+    return thumb;
+  }
+
+  private art(key: ImageKey): HTMLImageElement | undefined {
+    let image = this.images.get(key);
+    if (!image) {
+      image = new Image();
+      image.onload = () => this.draw();
+      image.src = assetUrl(key);
+      this.images.set(key, image);
+    }
+    return image.complete && image.naturalWidth ? image : undefined;
+  }
+
+  private toolPicker<T extends string>(
+    label: StringKey,
+    options: readonly { label: StringKey; value: T }[],
+    choose: (value: T) => void,
+  ): HTMLElement {
+    const row = el('div', 'row');
+    const select = el('select');
+    select.setAttribute('aria-label', str(label));
+    for (const entry of options) {
+      const option = el('option', '', str(entry.label));
+      option.value = entry.value;
+      select.append(option);
+    }
+    const activate = () => {
+      const entry = options[select.selectedIndex];
+      if (entry) choose(entry.value);
+    };
+    select.onchange = activate;
+    row.append(select, this.button(label, activate));
+    return row;
+  }
+
+  private openTemplate(id: ScenarioTemplate): void {
+    if (this.stroke) return;
+    const hasWork =
+      this.layout.extent ||
+      this.layout.spawn ||
+      this.layout.items.length ||
+      this.layout.ground.some((row) => /[^G]/.test(row));
+    if (hasWork && !window.confirm(str('scenario.replaceDraft'))) return;
+    const layout = scenarioTemplate(id);
+    this.tool = 'select';
+    this.selected = -1;
+    this.fit();
+    this.commit(layout);
+  }
+
+  private get worldSize(): Vec2 {
+    const { width, height } = layoutExtent(this.layout);
+    return { x: width / SCENARIO_CELL, y: height / SCENARIO_CELL };
+  }
+
+  private fit(): void {
+    this.zoom = 1;
+    this.pan = { x: 0, y: 0 };
+    this.draw();
+  }
+
+  private zoomAt(
+    factor: number,
+    at = { x: this.canvas.clientWidth / 2, y: this.canvas.clientHeight / 2 },
+  ): void {
+    if (this.stroke) return;
+    const next = Math.max(1, Math.min(32, this.zoom * factor));
+    const ratio = next / this.zoom;
+    if (next === 1) {
+      this.fit();
+      return;
+    }
+    this.pan = {
+      x:
+        (this.pan.x + this.canvas.clientWidth / 2 - at.x) * ratio -
+        this.canvas.clientWidth / 2 +
+        at.x,
+      y:
+        (this.pan.y + this.canvas.clientHeight / 2 - at.y) * ratio -
+        this.canvas.clientHeight / 2 +
+        at.y,
+    };
+    this.zoom = next;
+    this.draw();
+  }
+
+  private itemName(item: LayoutItem): string {
+    switch (item.kind) {
+      case 'cover':
+        return str(`editor.material.${item.material}`);
+      case 'wall':
+      case 'gate':
+        return str(`editor.kind.${item.kind}`);
+      case 'prop': {
+        const found = PROP_IMAGES.find((p) => p.image === item.image);
+        return found ? str(found.label) : item.image;
+      }
+      case 'ladder':
+      case 'target':
+        return str(`scenario.${item.kind}`);
+      default:
+        return str(`scenario.area.${item.kind}`);
+    }
+  }
+
+  private updateSelected(item: LayoutItem): void {
+    const size = this.worldSize;
+    if (!insideLayout(item.rect, size.x, size.y)) {
+      this.showStatus('scenario.pieceBounds');
+      this.renderSelection();
+      return;
+    }
+    this.commit({
+      ...this.layout,
+      items: this.layout.items.map((old, index) => (index === this.selected ? item : old)),
+    });
+  }
+
+  private deleteSelected(): void {
+    if (this.selected < 0 || this.stroke) return;
+    const items = this.layout.items.filter((_, i) => i !== this.selected);
+    this.selected = -1;
+    this.commit({ ...this.layout, items });
+  }
+
+  private renderSelection(): void {
+    const item = this.layout.items[this.selected];
+    this.selection.replaceChildren();
+    if (this.tool !== 'select') return;
+    const picker = el('select');
+    picker.setAttribute('aria-label', str('scenario.pieces'));
+    const empty = el('option', '', str('scenario.pieces'));
+    empty.value = '-1';
+    picker.append(empty);
+    this.layout.items.forEach((piece, index) => {
+      const { x, y } = piece.rect;
+      const option = el(
+        'option',
+        '',
+        `${this.itemName(piece)} · ${Math.round(x * SCENARIO_CELL)}, ${Math.round(y * SCENARIO_CELL)}`,
+      );
+      option.value = String(index);
+      picker.append(option);
+    });
+    picker.value = String(this.selected);
+    picker.onchange = () => {
+      this.selected = Number(picker.value);
+      const piece = this.layout.items[this.selected];
+      if (piece) {
+        this.zoom = Math.max(this.zoom, 2);
+        const world = this.worldSize;
+        const size =
+          Math.min(
+            (this.canvas.clientWidth - 24) / world.x,
+            (this.canvas.clientHeight - 24) / world.y,
+          ) * this.zoom;
+        this.pan = {
+          x: (world.x / 2 - piece.rect.x - piece.rect.w / 2) * size,
+          y: (world.y / 2 - piece.rect.y - piece.rect.h / 2) * size,
+        };
+      }
+      this.refresh();
+    };
+    this.selection.append(picker);
+    if (!item) return;
+    const label = el('h2', '', this.itemName(item));
+    const fields = el('div', 'row');
+    for (const [axis, key] of [
+      ['x', 'scenario.x'],
+      ['y', 'scenario.y'],
+      ['w', 'scenario.width'],
+      ['h', 'scenario.height'],
+    ] as const) {
+      const field = el('label', '', str(key));
+      const input = el('input');
+      input.type = 'number';
+      input.step = 'any';
+      input.value = String(Math.round(item.rect[axis] * SCENARIO_CELL * 100) / 100);
+      input.onchange = () => {
+        this.updateSelected({
+          ...item,
+          rect: { ...item.rect, [axis]: input.valueAsNumber / SCENARIO_CELL },
+        });
+      };
+      field.append(input);
+      fields.append(field);
+    }
+    this.selection.append(label, fields);
+    if (item.kind === 'cover') {
+      const field = el('label', '', str('editor.prop.material'));
+      const material = el('select');
+      for (const choice of SCENARIO_MATERIALS) {
+        const option = el('option', '', str(`editor.material.${choice}`));
+        option.value = choice;
+        material.append(option);
+      }
+      material.value = item.material;
+      material.onchange = () => {
+        const choice = SCENARIO_MATERIALS[material.selectedIndex];
+        if (choice) this.updateSelected({ ...item, material: choice });
+      };
+      field.append(material);
+      this.selection.append(field);
+    }
+    if (item.kind === 'gate') {
+      const field = el('label', '', str('editor.prop.open'));
+      const toggle = el('input');
+      toggle.type = 'checkbox';
+      toggle.checked = item.open;
+      toggle.onchange = () => this.updateSelected({ ...item, open: toggle.checked });
+      field.prepend(toggle);
+      this.selection.append(field);
+    }
+    this.selection.append(this.button('editor.delete', () => this.deleteSelected()));
   }
 
   private get cols(): number {
@@ -258,13 +597,22 @@ export class ScenarioView {
     const { items, spawn, ground } = this.layout;
     if (
       items.some(({ rect }) => !insideLayout(rect, cols, rows)) ||
-      (spawn && !insideLayout({ ...spawn, w: 1, h: 1 }, cols, rows))
+      (spawn &&
+        !insideLayoutCell({ x: 0, y: 0, w: cols, h: rows }, { x: spawn.x + 0.5, y: spawn.y + 0.5 }))
     ) {
       this.showStatus('scenario.resizeBlocked');
       return;
     }
     this.commit({
       ...this.layout,
+      ...(this.layout.extent
+        ? {
+            extent: {
+              width: cols === this.cols ? this.layout.extent.width : cols * SCENARIO_CELL,
+              height: rows === this.rows ? this.layout.extent.height : rows * SCENARIO_CELL,
+            },
+          }
+        : {}),
       ground: Array.from({ length: rows }, (_, y) =>
         (ground[y] ?? '').slice(0, cols).padEnd(cols, 'G'),
       ),
@@ -278,8 +626,11 @@ export class ScenarioView {
         this.showStatus('scenario.importChanged');
         return;
       }
-      if (layout) this.commit(layout);
-      else this.showStatus('scenario.badFile');
+      if (layout) {
+        this.selected = -1;
+        this.fit();
+        this.commit(layout);
+      } else this.showStatus('scenario.badFile');
     } catch {
       this.showStatus('scenario.badFile');
     }
@@ -319,12 +670,14 @@ export class ScenarioView {
     const next = redo ? this.history.redo(this.layout) : this.history.undo(this.layout);
     if (!next) return;
     this.layout = next;
+    this.selected = -1;
     this.persist();
   }
 
   private useTool(tool: Tool): void {
     if (this.stroke) return;
     this.tool = tool;
+    if (tool !== 'select') this.selected = -1;
     this.refresh();
   }
 
@@ -339,6 +692,7 @@ export class ScenarioView {
     const problem = scenarioSpawnProblem(this.layout);
     this.problem.textContent = problem ? str(`scenario.problem.${problem}`) : '';
     this.playButton.disabled = problem !== null;
+    this.renderSelection();
     this.draw();
   }
 
@@ -354,31 +708,133 @@ export class ScenarioView {
     return x >= 0 && x < this.cols && y >= 0 && y < this.rows ? { x, y } : null;
   }
 
+  private point(event: PointerEvent): Vec2 {
+    const box = this.canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - box.left - this.grid.x) / this.grid.size,
+      y: (event.clientY - box.top - this.grid.y) / this.grid.size,
+    };
+  }
+
   private startStroke(event: PointerEvent): void {
     if (event.button !== 0 || this.stroke) return;
-    const at = this.cell(event, false);
-    if (!at) return;
+    const point = this.point(event);
+    const size = this.worldSize;
+    const inside = insideLayoutCell({ x: 0, y: 0, w: size.x, h: size.y }, point);
+    if (!inside && this.tool !== 'pan') return;
+    const cell = this.cell(event, true)!;
     if (this.tool === 'spawn') {
-      this.commit({ ...this.layout, spawn: at });
+      this.commit({
+        ...this.layout,
+        spawn: {
+          x: Math.min(cell.x, size.x - 0.51),
+          y: Math.min(cell.y, size.y - 0.51),
+        },
+      });
       return;
     }
     if (this.tool === 'erase') {
-      this.erase(at);
+      this.erase(point);
       return;
     }
-    this.stroke = { id: event.pointerId, start: at, last: at, before: this.layout };
+    if (this.tool === 'select') {
+      this.selected = this.layout.items
+        .map(({ rect }) => insideLayoutCell(rect, point))
+        .lastIndexOf(true);
+      this.refresh();
+      if (this.selected < 0) return;
+    }
+    const at = this.tool === 'paint' ? cell : point;
+    this.stroke = {
+      id: event.pointerId,
+      start: at,
+      last: at,
+      before: this.layout,
+      client: { x: event.clientX, y: event.clientY },
+    };
     this.canvas.setPointerCapture(event.pointerId);
-    if (this.tool === 'paint') this.paint(at, at);
+    if (this.tool === 'paint') this.paint(cell, cell);
     this.draw();
   }
 
   private moveStroke(event: PointerEvent): void {
     const stroke = this.stroke;
     if (!stroke || stroke.id !== event.pointerId) return;
-    const at = this.cell(event, true)!;
-    if (this.tool === 'paint') this.paint(stroke.last, at);
-    stroke.last = at;
+    if (this.tool === 'pan') {
+      this.pan.x += event.clientX - stroke.client.x;
+      this.pan.y += event.clientY - stroke.client.y;
+      stroke.client = { x: event.clientX, y: event.clientY };
+    } else if (this.tool === 'paint') {
+      const at = this.cell(event, true)!;
+      this.paint(stroke.last, at);
+      stroke.last = at;
+    } else {
+      stroke.last = this.point(event);
+    }
     this.draw();
+  }
+
+  private movedItem(stroke: Stroke): LayoutItem | undefined {
+    const item = stroke.before.items[this.selected];
+    if (!item) return undefined;
+    const size = this.worldSize;
+    const delta = (axis: 'x' | 'y') =>
+      Math.round((stroke.last[axis] - stroke.start[axis]) * SCENARIO_CELL) / SCENARIO_CELL;
+    const x = Math.max(0, Math.min(size.x - item.rect.w, item.rect.x + delta('x')));
+    const y = Math.max(0, Math.min(size.y - item.rect.h, item.rect.y + delta('y')));
+    return x === item.rect.x && y === item.rect.y
+      ? undefined
+      : { ...item, rect: { ...item.rect, x, y } };
+  }
+
+  private placedItem(stroke: Stroke): LayoutItem | undefined {
+    const size = this.worldSize;
+    const cell = (p: Vec2) => ({
+      x: Math.max(0, Math.min(this.cols - 1, Math.floor(p.x))),
+      y: Math.max(0, Math.min(this.rows - 1, Math.floor(p.y))),
+    });
+    const footprint = cellRect(cell(stroke.start), cell(stroke.last));
+    const rect = {
+      ...footprint,
+      w: Math.min(footprint.w, size.x - footprint.x),
+      h: Math.min(footprint.h, size.y - footprint.y),
+    };
+    switch (this.tool) {
+      case 'wall':
+        return { kind: 'wall', rect };
+      case 'cover':
+        return { kind: 'cover', rect, material: this.material };
+      case 'area':
+        return { kind: this.area, rect };
+      case 'gate':
+        return { kind: 'gate', rect, open: false };
+      case 'target':
+        return { kind: 'target', rect };
+      case 'prop': {
+        const { w, h } = imageAsset(this.propImage).size;
+        const height = Math.min(rect.h, (rect.w * h) / w);
+        const width = (height * w) / h;
+        return {
+          kind: 'prop',
+          image: this.propImage,
+          rect: {
+            x: rect.x + (rect.w - width) / 2,
+            y: rect.y + (rect.h - height) / 2,
+            w: width,
+            h: height,
+          },
+        };
+      }
+      case 'ladder': {
+        const up = stroke.start.y >= stroke.last.y;
+        return {
+          kind: 'ladder',
+          rect,
+          bottom: { x: 0.5, y: up ? 0.85 : 0.15 },
+          top: { x: 0.5, y: up ? 0.15 : 0.85 },
+        };
+      }
+    }
   }
 
   private finishStroke(event: PointerEvent, cancel = false): void {
@@ -391,14 +847,15 @@ export class ScenarioView {
       this.refresh();
       return;
     }
-    if (this.tool === 'wall' || this.tool === 'cover') {
-      const rect = cellRect(stroke.start, stroke.last);
-      const item: LayoutItem =
-        this.tool === 'wall'
-          ? { kind: 'wall', rect }
-          : { kind: 'cover', rect, material: this.material };
-      this.commit({ ...this.layout, items: [...this.layout.items, item] });
-    } else if (this.layout !== stroke.before) {
+    if (this.tool === 'select') {
+      const item = this.movedItem(stroke);
+      if (item) this.updateSelected(item);
+      else this.draw();
+      return;
+    }
+    const item = this.placedItem(stroke);
+    if (item) this.commit({ ...this.layout, items: [...this.layout.items, item] });
+    else if (this.layout !== stroke.before) {
       this.history.record(stroke.before);
       this.persist();
     }
@@ -407,7 +864,8 @@ export class ScenarioView {
   private erase(at: Vec2): void {
     const { items, spawn } = this.layout;
     const index = items.map(({ rect }) => insideLayoutCell(rect, at)).lastIndexOf(true);
-    if (spawn?.x === at.x && spawn.y === at.y) this.commit({ ...this.layout, spawn: null });
+    if (spawn && insideLayoutCell({ ...spawn, w: 1, h: 1 }, at))
+      this.commit({ ...this.layout, spawn: null });
     else if (index !== -1) {
       this.commit({ ...this.layout, items: items.filter((_, i) => i !== index) });
     }
@@ -435,60 +893,126 @@ export class ScenarioView {
     const dpr = window.devicePixelRatio;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-    const size = Math.max(
-      1,
-      Math.floor(Math.min((width - 24) / this.cols, (height - 24) / this.rows)),
-    );
-    const x = Math.floor((width - size * this.cols) / 2);
-    const y = Math.floor((height - size * this.rows) / 2);
+    const world = this.worldSize;
+    const fit = Math.min((width - 24) / world.x, (height - 24) / world.y);
+    const size = Math.max(0.1, fit * this.zoom);
+    this.pan.x = Math.max((-world.x * size) / 2, Math.min((world.x * size) / 2, this.pan.x));
+    this.pan.y = Math.max((-world.y * size) / 2, Math.min((world.y * size) / 2, this.pan.y));
+    const x = Math.floor((width - size * world.x) / 2 + this.pan.x);
+    const y = Math.floor((height - size * world.y) / 2 + this.pan.y);
     this.grid = { x, y, size };
     ctx.setTransform(dpr * size, 0, 0, dpr * size, dpr * x, dpr * y);
-    ctx.imageSmoothingEnabled = false;
-    for (const [row, ground] of this.layout.ground.entries()) {
-      for (const [col, kind] of [...ground].entries()) {
-        ctx.drawImage(this.terrainStamps.get(kind as GroundKind)!, col, row, 1, 1);
-      }
-    }
+    ctx.save();
     ctx.beginPath();
-    for (let col = 0; col <= this.cols; col++) {
-      ctx.moveTo(col, 0);
-      ctx.lineTo(col, this.rows);
-    }
-    for (let row = 0; row <= this.rows; row++) {
-      ctx.moveTo(0, row);
-      ctx.lineTo(this.cols, row);
-    }
-    ctx.lineWidth = 1 / size;
-    ctx.strokeStyle = '#11141888';
-    ctx.stroke();
-    const drawObject = ({ x, y, w, h }: Rect, stamp: HTMLCanvasElement) => {
-      for (let row = y; row < y + h; row++) {
-        for (let col = x; col < x + w; col++) {
-          ctx.drawImage(stamp, col, row, 1, 1);
-        }
+    ctx.rect(0, 0, world.x, world.y);
+    ctx.clip();
+    const left = Math.max(0, Math.floor(-x / size));
+    const top = Math.max(0, Math.floor(-y / size));
+    const right = Math.min(this.cols, Math.ceil((width - x) / size));
+    const bottom = Math.min(this.rows, Math.ceil((height - y) / size));
+    for (let row = top; row < bottom; row++) {
+      for (let col = left; col < right; col++) {
+        const kind = this.layout.ground[row]![col] as GroundKind;
+        const image = this.art(TERRAIN_ART[kind]) ?? this.terrainStamps.get(kind)!;
+        if (
+          image instanceof HTMLImageElement &&
+          image.naturalWidth >= 128 &&
+          image.naturalHeight >= 128
+        ) {
+          ctx.drawImage(image, (col & 1) * 64, (row & 1) * 64, 64, 64, col, row, 1, 1);
+        } else ctx.drawImage(image, col, row, 1, 1);
       }
-      ctx.strokeStyle = '#e7e9ec88';
-      ctx.strokeRect(x, y, w, h);
-    };
-    for (const item of this.layout.items) {
-      const stamp = item.kind === 'wall' ? this.wallStamp : this.coverStamps.get(item.material)!;
-      drawObject(item.rect, stamp);
     }
-    if (this.stroke && (this.tool === 'wall' || this.tool === 'cover')) {
-      const stamp = this.tool === 'wall' ? this.wallStamp : this.coverStamps.get(this.material)!;
-      ctx.globalAlpha = 0.65;
-      drawObject(cellRect(this.stroke.start, this.stroke.last), stamp);
-      ctx.globalAlpha = 1;
+    if (size >= 12) {
+      ctx.beginPath();
+      for (let col = left; col <= right; col++) {
+        ctx.moveTo(col, top);
+        ctx.lineTo(col, bottom);
+      }
+      for (let row = top; row <= bottom; row++) {
+        ctx.moveTo(left, row);
+        ctx.lineTo(right, row);
+      }
+      ctx.lineWidth = 1 / size;
+      ctx.strokeStyle = '#11141866';
+      ctx.stroke();
+    }
+    for (const [i, item] of this.layout.items.entries()) {
+      const moving = this.tool === 'select' && i === this.selected && this.stroke;
+      this.drawItem(moving ? (this.movedItem(moving) ?? item) : item, i === this.selected);
+    }
+    if (this.stroke) {
+      const item = this.placedItem(this.stroke);
+      if (item) {
+        ctx.globalAlpha = 0.65;
+        this.drawItem(item, false);
+        ctx.globalAlpha = 1;
+      }
     }
     if (this.layout.spawn) {
       const spawn = this.layout.spawn;
+      const r = Math.max(0.31, 3 / size);
       ctx.fillStyle = scenarioSpawnProblem(this.layout) ? '#ff8b74' : '#a4e7f9';
       ctx.beginPath();
-      ctx.moveTo(spawn.x + 0.5, spawn.y + 0.18);
-      ctx.lineTo(spawn.x + 0.82, spawn.y + 0.79);
-      ctx.lineTo(spawn.x + 0.18, spawn.y + 0.79);
+      ctx.moveTo(spawn.x + 0.5, spawn.y + 0.5 - r);
+      ctx.lineTo(spawn.x + 0.5 + r, spawn.y + 0.5 + r);
+      ctx.lineTo(spawn.x + 0.5 - r, spawn.y + 0.5 + r);
       ctx.closePath();
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  private drawItem(item: LayoutItem, selected: boolean): void {
+    const ctx = this.ctx;
+    const {
+      rect: { x, y, w, h },
+    } = item;
+    let image: CanvasImageSource | undefined;
+    if (item.kind === 'cover') {
+      const art = coverArtLayout({ id: '', rect: item.rect, material: item.material }, false);
+      image = this.art(art.key);
+      if (image instanceof HTMLImageElement) {
+        ctx.save();
+        ctx.translate(art.x, art.y);
+        ctx.rotate(art.rotation);
+        const pattern = ctx.createPattern(image, 'repeat-x');
+        if (pattern) {
+          pattern.setTransform(
+            new DOMMatrix()
+              .translate(-art.width / 2, -art.height / 2)
+              .scale(art.tileScale, art.height / image.naturalHeight),
+          );
+          ctx.fillStyle = pattern;
+          ctx.fillRect(-art.width / 2, -art.height / 2, art.width, art.height);
+        }
+        ctx.restore();
+        image = undefined;
+      } else image = this.coverStamps.get(item.material);
+    } else if (item.kind === 'water') {
+      image = this.art(TERRAIN_ART.W) ?? this.terrainStamps.get('W');
+    } else if (item.kind === 'wall') {
+      image = this.art(TERRAIN_ART.X) ?? this.wallStamp;
+    } else if (item.kind === 'gate') {
+      image = this.art(item.open ? 'gate_open' : 'gate_closed');
+    } else if (item.kind === 'prop' || item.kind === 'target') {
+      image = this.art(item.kind === 'prop' ? item.image : 'target_dummy');
+    } else if (item.kind === 'ladder') {
+      const a = ladderPoint(item.rect, item.bottom);
+      const b = ladderPoint(item.rect, item.top);
+      ctx.lineWidth = Math.max(0.08, 2 / this.grid.size);
+      ctx.strokeStyle = '#f0ce99';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = AREA_COLORS[item.kind];
+      ctx.fillRect(x, y, w, h);
+    }
+    if (image) ctx.drawImage(image, x, y, w, h);
+    ctx.strokeStyle = selected ? '#77dfff' : item.kind === 'wall' ? '#bac6cd' : '#e7e9ec88';
+    ctx.lineWidth = (selected ? 2 : 0.9) / this.grid.size;
+    ctx.strokeRect(x, y, w, h);
   }
 }
