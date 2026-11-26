@@ -465,6 +465,10 @@ export class EchoController {
     const tol = this.tuning.echo.actionTolerance;
     let pellet = 0;
     for (const a of actions) {
+      if (a.kind === 'emote') {
+        emit(world, { kind: 'emote', tick: t, by: s.id, emote: a.emote });
+        continue;
+      }
       const d = Math.hypot(s.x - a.x, s.y - a.y);
       if (d > tol) {
         emit(world, { kind: 'echoDivergence', tick: t, id: s.id, action: a.kind, distance: d });

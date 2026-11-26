@@ -1,6 +1,8 @@
 import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
 
+export const EMOTE_COUNTDOWN_BEAT_SECONDS = 1; // TUNE
+
 /**
  * (07-c) A gun's spread ([D39]): every shot goes out at a random angle within ± the current
  * spread (half-angle, radians) = baseSpread + movingSpread × (share of full speed moved) + recoil.
