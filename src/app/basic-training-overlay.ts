@@ -145,6 +145,38 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
     speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
   };
 
+  /**
+   * Where Sarge should stand on the respawn view so the card doesn't cover his words (world
+   * units), or null if there's no card. He takes the free side of it (left, then right); if
+   * neither is wide enough for a line of speech, the free band above or below it.
+   */
+  const beside = (view: { x: number; y: number; width: number; height: number }) => {
+    const card = document.querySelector('.aoo-iw .cards .card')?.getBoundingClientRect();
+    if (!card || card.width < 5) return null;
+    const cv = scene.game.canvas.getBoundingClientRect();
+    const bar = document.querySelector('.aoo-iw .bar')?.getBoundingClientRect();
+    const floorY = (bar ? bar.top : cv.bottom) - 12;
+    const need = look.speech.maxWidthPx + 60;
+    const left = card.left - cv.left;
+    const right = cv.right - card.right;
+    const above = card.top - cv.top;
+    const below = floorY - card.bottom;
+    // Beside the card, low enough that his words (drawn above him) clear the top.
+    const midY = Math.max(cv.top + 170, Math.min(card.top + card.height / 2, floorY - 40));
+    let sx: number;
+    let sy: number;
+    if (left >= need) [sx, sy] = [cv.left + left / 2, midY];
+    else if (right >= need) [sx, sy] = [card.right + right / 2, midY];
+    else if (above >= 150) [sx, sy] = [(cv.left + cv.right) / 2, card.top - 30];
+    else if (below >= 70)
+      [sx, sy] = [(cv.left + cv.right) / 2, floorY - 30]; // (words go above him)
+    else return null;
+    return {
+      x: view.x + ((sx - cv.left) / cv.width) * view.width,
+      y: view.y + ((sy - cv.top) / cv.height) * view.height,
+    };
+  };
+
   return {
     create(s, id, display, w) {
       scene = s;
@@ -216,6 +248,9 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
         const t = Math.min(1, hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
         goal = { x: cx + dx * t, y: cy + dy * t };
       }
+      // The card (class, stats, DEPLOY) sits over the spawn: he stands beside it so he's read.
+      const aside = beside(view);
+      if (aside) goal = aside;
       move(nowMs, dt, goal, g ? g.face : null);
       talk(nowMs);
     },
