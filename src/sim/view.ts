@@ -62,6 +62,11 @@ export interface SoldierView {
   deathDirection?: number;
   /** (07-c) Role ([D36]); absent = 'rifleman'. */
   roleId?: RoleId;
+  /**
+   * (PHASE21) AI soldiers only: how worked up it is, 1 uneasy / 2 contact / 3 alarm; absent when
+   * calm ([D161]). Drives the "?" / "!" and the chatter.
+   */
+  alert?: 1 | 2 | 3;
   /** (07-c) Grenadier winding up a throw: 0..1 of the ring ([D37]). */
   windup?: number;
   /** (07-c) While winding up: the aimed throw distance (where the ring's throw would land). */

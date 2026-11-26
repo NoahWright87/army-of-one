@@ -1,5 +1,6 @@
 import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
+import { meters } from './units';
 
 export const EMOTE_COUNTDOWN_BEAT_SECONDS = 1; // TUNE
 
@@ -237,6 +238,11 @@ export interface Tuning {
   };
   concealment: {
     minVisibility: number;
+    /**
+     * (PHASE21) Lying prone (settled) makes a soldier this much × as visible: a little harder to
+     * see, nothing like a bush. Braced and deployed don't change visibility.
+     */
+    proneVisibility: number;
     sprintBonus: number;
     firingBonus: number;
     firingSeconds: number;
@@ -344,6 +350,56 @@ export interface Tuning {
     fragmentRange: number;
     fragmentDamage: number;
   };
+  /**
+   * (PHASE21, step 2) Enemy hearing and heat ([D161], [Q71]; `src/sim/ai/senses.ts`). Distances
+   * here are metres (`src/content/units.ts`). Every sound has an audible range and a heat; a
+   * soldier within range gains heat × (1 − distance / range). Heat fades; it wakes sleepers,
+   * sends idle soldiers to investigate and, very high, alarms the squad.
+   */
+  senses: {
+    /** Off: the AI hears nothing (it still reacts to hits and near misses). */
+    enabled: boolean;
+    /** Everyone's hearing range × this (a difficulty knob). */
+    hearingScale: number;
+    /** Seconds from hearing something to acting on it. */
+    reactSeconds: number;
+    /** How long after last seeing a foe a soldier still counts as in contact (shows a "!"). */
+    contactSeconds: number;
+    /** Where a sound seemed to come from: ± this many radians, plus this much per metre, capped. */
+    bearingErrorBase: number;
+    bearingErrorPerMeter: number;
+    bearingErrorMax: number;
+    sounds: Record<
+      | 'rifle'
+      | 'mg'
+      | 'pistol'
+      | 'sniper'
+      | 'shotgun'
+      | 'rocket'
+      | 'shell'
+      | 'explosion'
+      | 'impact'
+      | 'shout'
+      | 'footsteps',
+      { audibleMeters: number; heat: number }
+    >;
+    heat: {
+      /** From this much heat a soldier shows unease (a "?" and a word), well below acting on it. */
+      uneasy: number;
+      /** A dormant soldier wakes at this much heat. */
+      wake: number;
+      /** An idle soldier goes to look at where it heard something at this much heat. */
+      investigate: number;
+      /** At this much it raises its whole squad. */
+      alarm: number;
+      /** Heat lost per second. */
+      decayPerSecond: number;
+      /** Heat gained for each foe it sees, at every decision. */
+      seenPerThink: number;
+      /** A soldier woken by heat won't go back to sleep until it has cooled to this. */
+      sleepBelow: number;
+    };
+  };
   /** (07-d) Enemy soldier AI ([D44]–[D47]). Role personalities live in roles.ts (`ai`). */
   ai: {
     /** Spawn the maps' enemy squads (tests of older stories turn this off). */
@@ -421,6 +477,22 @@ export interface Tuning {
     suppressSeconds: number;
     suppressReach: number;
     suppressAimError: number;
+    /**
+     * Senses, step 1 (see `todos/PHASE21-senses.md`). A bullet passing within `nearMissRadius`
+     * (world units; `meters()` in tuning.ts) of a soldier is "shot at" even if it was never seen.
+     */
+    nearMissRadius: number;
+    /**
+     * Seconds between a stimulus and the soldier reacting to it: taking damage (it felt it), a
+     * bullet whizzing past, or a squadmate alerting it. Whole ticks, never 0.
+     */
+    hurtReactSeconds: number;
+    nearMissReactSeconds: number;
+    /**
+     * A sound gives a direction, not a position: the guessed spot is off by up to this many
+     * radians at the soldier's end (so farther shooters are guessed worse). 0: exact.
+     */
+    nearMissBearingError: number;
     /** (PHASE17) How far a Machine Gunner looks for cover to dig in at. */
     digInRadius: number;
     /** (PHASE17) A Shield screens friends within this radius, this far ahead of the front one. */
@@ -889,6 +961,7 @@ export const DEFAULT_TUNING: Tuning = {
   },
   concealment: {
     minVisibility: 0.1, // TUNE
+    proneVisibility: 0.75, // TUNE [D161]: a bush is 0.28, a trench 0.55
     sprintBonus: 0.3, // TUNE: added to the terrain-adjusted visibility
     firingBonus: 0.65, // TUNE
     firingSeconds: 0.8, // TUNE
@@ -964,6 +1037,39 @@ export const DEFAULT_TUNING: Tuning = {
     fragmentRange: 240, // TUNE [D71]: … reaching a lot further …
     fragmentDamage: 18, // TUNE [D71]: … a little damage each, 0 % pierce
   },
+  senses: {
+    enabled: true,
+    hearingScale: 1, // TUNE
+    reactSeconds: 0.25, // TUNE [D161]: a sound takes a beat to register
+    contactSeconds: 0.6, // TUNE [D161]
+    bearingErrorBase: 0.1, // TUNE [D161]: about ±6° right next to it…
+    bearingErrorPerMeter: 0.012, // TUNE [D161]: …and 0.7° worse for every metre
+    bearingErrorMax: 1.2, // TUNE [D161]: about ±70°: "somewhere over there"
+    sounds: {
+      // TUNE [D161]: how far each can be heard (metres) and how suspicious it is up close.
+      rifle: { audibleMeters: 40, heat: 0.12 },
+      mg: { audibleMeters: 50, heat: 0.1 },
+      pistol: { audibleMeters: 20, heat: 0.08 },
+      sniper: { audibleMeters: 70, heat: 0.25 },
+      shotgun: { audibleMeters: 35, heat: 0.15 },
+      rocket: { audibleMeters: 60, heat: 0.3 },
+      shell: { audibleMeters: 80, heat: 0.35 },
+      explosion: { audibleMeters: 70, heat: 0.4 },
+      impact: { audibleMeters: 12, heat: 0.04 },
+      shout: { audibleMeters: 15, heat: 0.12 },
+      // A sprinting soldier is heard three times a second ([D161]): only a runner close by gains more than the heat fades.
+      footsteps: { audibleMeters: 12, heat: 0.08 },
+    },
+    heat: {
+      uneasy: 0.08, // TUNE [D161]: one shot close by is enough for a "?"
+      wake: 0.35, // TUNE [D161]
+      investigate: 0.6, // TUNE [D161]
+      alarm: 0.85, // TUNE [D161]
+      decayPerSecond: 0.1, // TUNE [D161]: full heat cools in ten seconds
+      seenPerThink: 0.1, // TUNE [D161]
+      sleepBelow: 0.1, // TUNE [D161]
+    },
+  },
   ai: {
     enabled: true,
     wakeRadius: 900, // TUNE: about a screen and a half
@@ -997,6 +1103,10 @@ export const DEFAULT_TUNING: Tuning = {
     suppressSeconds: 5, // TUNE [D146]
     suppressReach: 1.8, // TUNE [D146]: about where its bullets land
     suppressAimError: 0.12, // TUNE [D146]: ±7°, firing at a place, not a person
+    nearMissRadius: meters(0.9), // TUNE [D161]: was 70 units (1.6 m)
+    hurtReactSeconds: 0.05, // TUNE [D161]: it felt it, so nearly instant
+    nearMissReactSeconds: 0.15, // TUNE [D161]: a whizz takes a beat to register
+    nearMissBearingError: 0.35, // TUNE [D161]: about ±20°
     screenRadius: 500, // TUNE
     screenAhead: 70, // TUNE
     regroupHp: 0.9, // TUNE [D138]

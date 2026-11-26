@@ -27,7 +27,18 @@ export type BarkCategory =
   | 'spawn'
   | 'echoSpawn'
   | 'ghostShot'
-  | 'corpseShot';
+  | 'corpseShot'
+  // (PHASE21) What the AI is thinking, out loud ([D161]).
+  | 'whoa'
+  | 'uneasy'
+  | 'contact'
+  | 'alarm'
+  | 'standDown'
+  // (PHASE21) More chatter: friends hit, rockets and mines, cover going.
+  | 'allyHit'
+  | 'rocketWarn'
+  | 'mineBoom'
+  | 'coverBlown';
 
 interface CategoryRule {
   /** A warning: always allowed (within the on-screen limit), wherever the speaker is. */
@@ -56,6 +67,16 @@ export const CATEGORY_RULES: Record<BarkCategory, CategoryRule> = {
   echoSpawn: { calmOnly: true, chance: 0.2 },
   ghostShot: { chance: 0.25, cooldownMs: 8000 },
   corpseShot: { chance: 0.5, cooldownMs: 8000 },
+  // (PHASE21) Showing what a soldier notices must get through, even mid-fight, but not as a wall.
+  whoa: { info: true, cooldownMs: 600 },
+  uneasy: { info: true, cooldownMs: 1200 },
+  contact: { info: true, cooldownMs: 350 },
+  alarm: { info: true, cooldownMs: 1500 },
+  standDown: { chance: 0.7, cooldownMs: 4000 },
+  allyHit: { chance: 0.35, cooldownMs: 2500 },
+  rocketWarn: { info: true, cooldownMs: 1000 },
+  mineBoom: { chance: 0.8, cooldownMs: 2500 },
+  coverBlown: { chance: 0.5, cooldownMs: 4000 },
 };
 
 export interface BarkRequest {
@@ -97,6 +118,8 @@ export class BarkDirector {
   /** Recent fighting (ms + where) for hot / calm. */
   private readonly fighting: { atMs: number; x: number; y: number }[] = [];
   private readonly queued: { dueMs: number; req: BarkRequest }[] = [];
+  /** (PHASE21) Each soldier's alert level at the last step, to speak when it changes. */
+  private readonly alerts = new Map<string, number>();
 
   constructor(
     public tuning: BarkTuning,
@@ -154,9 +177,31 @@ export class BarkDirector {
         }
         case 'grenadeExploded':
         case 'rocketExploded':
-        case 'mineDetonated':
           this.fighting.push({ atMs: now, x: e.x, y: e.y });
           break;
+        case 'mineDetonated': {
+          this.fighting.push({ atMs: now, x: e.x, y: e.y });
+          const near = nearestOf(e.x, e.y, (s) => s.id !== f.liveId, t.hearRadius);
+          if (near) want('mineBoom', near.id);
+          break;
+        }
+        case 'coverDestroyed': {
+          const near = nearestOf(e.x, e.y, (s) => s.id !== f.liveId, t.hearRadius);
+          if (near) want('coverBlown', near.id);
+          break;
+        }
+        case 'rocketLaunched': {
+          // The soldier the rocket is heading for (nearest foe roughly along its line) shouts.
+          const shooter = soldiers.get(e.by);
+          const victim = nearestOf(
+            e.fromX + Math.cos(e.angle) * 300,
+            e.fromY + Math.sin(e.angle) * 300,
+            (s) => !shooter || teamOf(s) !== teamOf(shooter),
+            t.grenadeWarnRadius * 2,
+          );
+          if (victim) want('rocketWarn', victim.id);
+          break;
+        }
         case 'grenadeThrown': {
           const thrower = soldiers.get(e.by);
           if (!thrower) break;
@@ -173,6 +218,8 @@ export class BarkDirector {
           break;
         }
         case 'nearMiss':
+          // Caught off guard: a bullet past someone who wasn't worked up yet.
+          if (!this.alerts.get(e.target)) want('whoa', e.target);
           this.addPressure(e.target, now, f, want);
           break;
         case 'damaged': {
@@ -180,6 +227,16 @@ export class BarkDirector {
           if (e.by) this.hurtBy.set(e.target, { by: e.by, atMs: now });
           if (target) this.fighting.push({ atMs: now, x: target.x, y: target.y });
           this.addPressure(e.target, now, f, want);
+          if (target?.alive && target.id !== f.liveId) {
+            // A friend nearby sees it ("{theirName}'s hit!").
+            const friend = nearestOf(
+              target.x,
+              target.y,
+              (s) => teamOf(s) === teamOf(target) && s.id !== target.id && s.id !== f.liveId,
+              t.hearRadius,
+            );
+            if (friend) want('allyHit', friend.id, target.id);
+          }
           if (target?.alive && target.maxHp > 0) {
             const after = target.hp / target.maxHp;
             const before = (target.hp + e.amount) / target.maxHp;
@@ -232,6 +289,7 @@ export class BarkDirector {
           break;
       }
     }
+    this.alertChanges(f, want);
     // Forget old fighting.
     while (this.fighting.length && now - this.fighting[0]!.atMs > t.hotMs) this.fighting.shift();
 
@@ -242,6 +300,26 @@ export class BarkDirector {
       }
     }
     return this.gate(wants, f, soldiers);
+  }
+
+  /**
+   * (PHASE21) Soldiers say what they've noticed when their alert level rises ("?", "!", an
+   * alarm) and, a while after a false alarm, that it was nothing.
+   */
+  private alertChanges(f: BarkFrame, want: (c: BarkCategory, s: string) => void): void {
+    for (const s of f.view.soldiers) {
+      const before = this.alerts.get(s.id) ?? 0;
+      const now = s.alive ? (s.alert ?? 0) : 0;
+      if (now === before) continue;
+      if (now === 0) this.alerts.delete(s.id);
+      else this.alerts.set(s.id, now);
+      if (now > before) {
+        // Skipping a level (a firefight starts at "contact") says the stronger thing only.
+        want(now === 3 ? 'alarm' : now === 2 ? 'contact' : 'uneasy', s.id);
+      } else if (now === 0 && before === 1) {
+        want('standDown', s.id);
+      }
+    }
   }
 
   /** Lines that pass the noise budget, in priority order (warnings first). */
