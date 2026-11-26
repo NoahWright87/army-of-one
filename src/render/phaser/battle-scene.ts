@@ -16,6 +16,7 @@ import type { InputSource } from '../input/input-source';
 import { lerpAngle, smoothFollow } from '../interp';
 import type { BattleSession, SceneServices } from './services';
 import { SoundBank } from './sound-bank';
+import { LoadoutControls } from '../input/loadout-controls';
 import { WorldRenderer } from './world-renderer';
 import { arrivalPose, spawnAt } from '../run-in';
 import { ENTRANCE } from '../../content/tuning';
@@ -70,6 +71,8 @@ export class BattleScene extends Phaser.Scene {
   private hash = '';
   private pendingEmote: EmoteId | undefined;
   private lastInput: SoldierInput = IDLE_INPUT;
+  /** (PHASE20) Stance and weapon buttons, and whether they're left to auto ([D160]). */
+  private readonly loadout = new LoadoutControls(safeLocalStorage());
   /** (07-b) The aim the camera looks ahead along (eased under auto-aim). */
   private lookAim: number | null = null;
   private ghost!: Phaser.GameObjects.Graphics;
@@ -136,6 +139,16 @@ export class BattleScene extends Phaser.Scene {
     };
     this.services.commands.playCountdown = startCountdown;
     this.input.keyboard?.on('keydown-F4', startCountdown);
+    // (PHASE20) Z: stance. Q: weapon ([D160]).
+    this.services.hud.loadout.bind(this.loadout);
+    const onStance = (e: KeyboardEvent) => {
+      if (!e.repeat && !this.pauseModel.holding) this.loadout.pressStance();
+    };
+    const onSwap = (e: KeyboardEvent) => {
+      if (!e.repeat && !this.pauseModel.holding) this.loadout.pressSwap();
+    };
+    this.input.keyboard?.on('keydown-Z', onStance);
+    this.input.keyboard?.on('keydown-Q', onSwap);
     this.services.countdown.onCue = (cue) =>
       this.sounds.play(
         cue === 'go' ? 'sfx_resume_go' : 'sfx_countdown_tick',
@@ -176,6 +189,8 @@ export class BattleScene extends Phaser.Scene {
       window.removeEventListener('blur', onAway);
       this.input.keyboard?.off('keydown-ESC', onKey);
       this.input.keyboard?.off('keydown-P', onKey);
+      this.input.keyboard?.off('keydown-Z', onStance);
+      this.input.keyboard?.off('keydown-Q', onSwap);
       this.pauseModel.reset();
       if (pauseUi) {
         pauseUi.onPause = () => {};
@@ -309,7 +324,8 @@ export class BattleScene extends Phaser.Scene {
       if (driver?.ended) break;
       const live = this.view.soldiers.find((s) => s.id === this.liveId);
       // Read every tick, also during the lead-in (previewed; applied from GO on, [D5]).
-      const input = this.source.read(live ?? this.cam);
+      // (PHASE20) Stance and weapon buttons ride along with the move/aim/fire input ([D160]).
+      const input = { ...this.source.read(live ?? this.cam), ...this.loadout.read() };
       const emote = this.pendingEmote;
       this.pendingEmote = undefined;
       const stepInput = emote ? { ...input, emote } : input;
@@ -419,6 +435,12 @@ export class BattleScene extends Phaser.Scene {
         this.money = driver.money();
       }
       hud.update(buildHudModel(this.view, this.liveId, this.money));
+      // (PHASE20) The stance and weapon icons follow the live soldier ([D160]).
+      const liveView = this.view.soldiers.find((s) => s.id === this.liveId);
+      hud.loadout.update(
+        liveView?.loadout,
+        liveView ? liveView.hp / Math.max(1, liveView.maxHp) : 1,
+      );
     }
     if (driver) {
       const left = driver.countdown();
@@ -496,6 +518,7 @@ export class BattleScene extends Phaser.Scene {
       pinch: null,
     };
     this.services.hud.setVisible(false);
+    this.services.hud.loadout.update(undefined);
     this.services.pauseUi?.setAvailable(false);
     this.services.emoteUi?.setAvailable(false);
     this.worldRenderer.speech.resetEmotes();
@@ -712,8 +735,11 @@ export class BattleScene extends Phaser.Scene {
         range,
         look: CLASS_LOOK[live.roleId ?? 'rifleman'],
         still: move.x === 0 && move.y === 0,
-        braced: !!live.braced,
-        setUp: !!live.mounted || live.gun === 'sniper',
+        // (PHASE20) Any settled stance looks further and zooms its scope ([D160]).
+        braced: !!live.steady,
+        setUp: !!live.steady,
+        scope: !!live.steady,
+        ...(live.braceAim !== undefined ? { braceAim: live.braceAim } : {}),
         aim,
         ...(aimDistance !== undefined ? { aimDistance } : {}),
         viewW: cam.width,
@@ -957,5 +983,14 @@ export class BattleScene extends Phaser.Scene {
     } else if (c.type === 'liveDamaged' && display.incomingFire) {
       hud.flashDamage(Math.min(1, 0.4 + c.amount / 40));
     }
+  }
+}
+
+/** `localStorage` if the browser lets us (private windows and blocked storage throw). */
+function safeLocalStorage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
   }
 }

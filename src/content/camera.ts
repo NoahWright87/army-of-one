@@ -34,6 +34,8 @@ export const CAMERA = {
   /** Look reach bonus standing still, and braced on cover (any class). */
   stillBonus: 0.07, // TUNE
   braceBonus: 0.15, // TUNE
+  /** (PHASE20) Braced on cover, the camera leans this far toward the way you're facing (units). */
+  braceShift: 70, // TUNE
   /** Zooming in starts this far out (share of the look reach). */
   zoomFrom: 0.55, // TUNE
   /**

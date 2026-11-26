@@ -27,6 +27,12 @@ export type RoleId =
  */
 export type ShotWeapon = 'rifle' | 'mg' | 'pistol' | 'sniper' | 'shotgun' | 'rocket' | 'shell';
 
+/**
+ * (PHASE20) A stance a soldier has settled into ([D160]); standing is the absence of one.
+ * Braced: steadied on cover. Prone: a Sniper lying down. Deployed: a Machine Gunner's tripod.
+ */
+export type StanceId = 'braced' | 'prone' | 'deployed';
+
 // ---------- Recording (produced by 03-a, stored by 03-c, read by 03-b for extents) ----------
 
 /** Position + facing the soldier must be at, at tick t. Sorted by t. */
@@ -51,6 +57,11 @@ export type RecordedAction =
     }
   /** (07-c) A grenade throw: where it left from, its final angle and throw distance ([D37]). */
   | { kind: 'throw'; t: Tick; x: number; y: number; angle: number; distance: number }
+  /**
+   * (PHASE20) The soldier settled into a stance, or (absent) stood up ([D160]). Echoes need it
+   * for what it does to them (a prone soldier is harder to hit) and to their shots' range.
+   */
+  | { kind: 'stance'; t: Tick; x: number; y: number; stance?: StanceId }
   | {
       kind: 'interact';
       t: Tick;

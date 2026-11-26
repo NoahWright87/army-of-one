@@ -49,9 +49,18 @@ import { separateSoldiers } from './world/separation';
 import { coverArcs, resolveCover, standingCover, type CoverArc } from './world/cover';
 import { dynamicBlockers } from './world/blockers';
 import { reloadProgress } from './combat/weapons';
-import { currentSpread, gunOf, mountBonus, mountTicksNeeded } from './combat/guns';
+import {
+  braceAim,
+  braceCover,
+  currentSpread,
+  gunCooldownTicks,
+  gunOf,
+  mountTicksNeeded,
+  stanceBonus,
+  swapProgress,
+} from './combat/guns';
 import { simPerf } from './perf';
-import type { SoldierView, WorldView } from './view';
+import type { LoadoutView, SoldierView, WorldView } from './view';
 import { roleDef } from '../content/roles';
 import { sightSettings, smokeView, soldierVisibility, trenchAt } from './world/concealment';
 
@@ -567,6 +576,9 @@ function aimView(
   mount?: number;
   mounted?: boolean;
   braced?: boolean;
+  steady?: boolean;
+  braceAim?: number;
+  loadout?: LoadoutView;
   gun?: SoldierView['gun'];
 } {
   const live =
@@ -580,25 +592,84 @@ function aimView(
     aimSpread: currentSpread(world, s, s.facing),
     ...(gun ? { gun } : weapon === 'rocket' ? { gun: 'rocket' as const } : {}),
   };
-  if (weapon === 'sniper') {
-    // (PHASE12-a) Set-up ring with or without cover; cyan when the cover bonus applies ([D59]).
-    if (s.mountTicks > 0) {
-      out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
-      out.mounted = mountBonus(world, s, s.facing);
-    }
-  } else if (weapon === 'rocket' || weapon === 'shell') {
+  const loadout = loadoutView(world, s, weapon, gun);
+  if (loadout) out.loadout = loadout;
+  if (weapon === 'rocket' || weapon === 'shell') {
     // (PHASE18, [D159]) The Bazooka's / tank's reload fills the same ring.
     const r = reloadProgress(world, s);
     if (r !== null) out.mount = r;
-  } else if (s.braceId !== null && s.mountTicks > 0) {
-    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId));
-    out.mounted = mountBonus(world, s, s.facing);
+  } else if (s.stance !== undefined && s.settled === undefined) {
+    // (PHASE20) Settling into a stance ([D160]): the ring around the reticle fills.
+    out.mount = Math.min(1, s.mountTicks / mountTicksNeeded(world.tuning, s.roleId, s.stance));
   }
-  // (PHASE18) Braced on cover, any class ([D158]): the camera looks further.
-  if (s.braceId !== null && s.mountTicks >= mountTicksNeeded(world.tuning, s.roleId)) {
-    out.braced = true;
+  // The aim bonus applies: the reticle goes cyan ([D40]).
+  if (stanceBonus(world, s, s.facing) > 0) out.mounted = true;
+  if (s.settled !== undefined) {
+    out.steady = true;
+    // (PHASE18) Braced on cover ([D158]): the camera looks further.
+    if (s.braceId !== null) {
+      out.braced = true;
+      const across = braceAim(world, s);
+      if (across !== null) out.braceAim = across;
+    }
   }
   return out;
+}
+
+/** (PHASE20) The stance and weapon icons' state for the live soldier ([D160]). */
+function loadoutView(
+  world: World,
+  s: SoldierState,
+  weapon: ReturnType<typeof roleDef>['weapon'],
+  gun: SoldierView['gun'] | null,
+): LoadoutView | undefined {
+  const t = world.tuning;
+  const kind: LoadoutView['weapon'] =
+    gun === 'shell' || weapon === 'shell'
+      ? 'cannon'
+      : gun === 'rocket' || weapon === 'rocket'
+        ? 'rocket'
+        : (gun ?? (weapon === 'grenade' ? 'grenade' : 'rifle'));
+  const total =
+    weapon === 'grenade' || weapon === 'rocket' || weapon === 'shell'
+      ? secondsToTicks(t[weapon].cooldownSeconds)
+      : gun && gun !== 'rocket' && gun !== 'shell'
+        ? gunCooldownTicks(t, gun)
+        : 1;
+  const left = s.nextFireTick - world.state.tick;
+  const cooldown = left > 0 ? Math.min(1, left / Math.max(1, total)) : undefined;
+  const swapping = swapProgress(world, s);
+  const own = weapon === 'mg' || weapon === 'sniper';
+  const stance: LoadoutView['stance'] =
+    s.trenchClimb || s.ladderClimb
+      ? 'climbing'
+      : (s.stance ?? (s.sprinting ? 'sprinting' : 'standing'));
+  const driving = !!s.drive;
+  const coverNear =
+    !driving &&
+    braceCover(world, s, {
+      angle: s.facing,
+      reach:
+        weapon === 'sniper'
+          ? t.sniper.braceReach
+          : weapon === 'mg'
+            ? t.mg.braceReach
+            : t.brace.reach,
+    }) !== null;
+  return {
+    stance,
+    ...(s.stance !== undefined && s.settled === undefined
+      ? { settling: Math.min(1, s.mountTicks / mountTicksNeeded(t, s.roleId, s.stance)) }
+      : {}),
+    coverNear,
+    canStance: !driving && (own || s.stance !== undefined || coverNear),
+    stanceEnabled: !driving && !s.trenchClimb && !s.ladderClimb,
+    weapon: kind,
+    ...(cooldown !== undefined ? { cooldown } : {}),
+    ...(swapping !== null ? { swapping } : {}),
+    canSwap: weapon === 'sniper',
+    bonus: stanceBonus(world, s, s.facing) > 0,
+  };
 }
 
 /** (07-c) Cover arcs around the live soldier ([D34]): partial cover, walls and closed gates. */
