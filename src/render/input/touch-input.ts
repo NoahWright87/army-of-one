@@ -29,6 +29,8 @@ export class TouchInput implements InputSource {
   /** A finger was aiming last read. */
   private aiming = false;
   private view: WorldView | null = null;
+  /** (PHASE20) Settled into a stance last view (so a new one turns the reticle across cover). */
+  private wasSteady = false;
 
   constructor(
     private readonly controls: TouchControls,
@@ -67,8 +69,10 @@ export class TouchInput implements InputSource {
       this.aimDistance = DEFAULT_AIM_DISTANCE;
     }
     this.updateInteract(soldierPos);
+    // (PHASE20) Braced or deployed, a soldier doesn't walk ([D160]).
+    const still = this.holdsStill();
     return {
-      move: { x: c.move.x, y: c.move.y },
+      move: still ? { x: 0, y: 0 } : { x: c.move.x, y: c.move.y },
       aim: this.aim,
       aimDistance: this.aimDistance,
       fire: c.fireHeld || aLen >= AIM_FIRE,
@@ -88,6 +92,25 @@ export class TouchInput implements InputSource {
 
   observe(view: WorldView): void {
     this.view = view;
+    const live = this.liveSoldier();
+    this.controls.setAimOnly(this.holdsStill());
+    // (PHASE20) Just braced on cover: the reticle swings across it, where you'd be shooting.
+    const steady = !!live?.steady;
+    if (steady && !this.wasSteady && live?.braceAim !== undefined) {
+      this.aim = live.braceAim;
+      this.aimDistance = DEFAULT_AIM_DISTANCE;
+    }
+    this.wasSteady = steady;
+  }
+
+  /** Braced on cover or deployed (settling too): no walking. */
+  private holdsStill(): boolean {
+    const st = this.liveSoldier()?.loadout?.stance;
+    return st === 'braced' || st === 'deployed';
+  }
+
+  private liveSoldier() {
+    return this.view?.soldiers.find((s) => s.role === 'live');
   }
 
   destroy(): void {

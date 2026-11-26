@@ -1,5 +1,5 @@
 /**
- * (PHASE20, step 1) Being shot at isn't instant, and isn't exact: a hit or a whizzing bullet is
+ * (PHASE21, step 1) Being shot at isn't instant, and isn't exact: a hit or a whizzing bullet is
  * reacted to after a short delay, a whizz only gives a direction (the guessed spot is off), and
  * how close counts as a near miss is tuning in metres.
  */

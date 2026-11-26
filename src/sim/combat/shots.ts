@@ -185,6 +185,11 @@ export function castRay(
         )
           return;
       }
+      // (PHASE20) Prone and deployed soldiers are a little harder to hit ([D160]).
+      if (opts.bulletOrigin && opts.coverKey !== undefined && s.settled && s.settled !== 'braced') {
+        const dodge = tuning.stance.dodge[s.settled];
+        if (coverStops(opts.coverKey, `stance:${s.id}`, dodge)) return;
+      }
       consider(t, { kind: 'soldier', id: s.id, index });
     });
   }
@@ -495,7 +500,7 @@ export function stepBullets(world: World): void {
 /** (PHASE17) Enemy soldiers this bullet just whizzed past (not the one it hit) ([D146]). */
 function nearMisses(world: World, b: BulletEntity, x0: number, y0: number, hitId?: string): void {
   const team = b.shot.team;
-  // (PHASE20) How close counts as shot at is tuning.ai.nearMissRadius.
+  // (PHASE21) How close counts as shot at is tuning.ai.nearMissRadius.
   const radius = world.tuning.ai.nearMissRadius;
   const r2 = radius * radius;
   const sx = b.x - x0;

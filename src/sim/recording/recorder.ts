@@ -21,6 +21,8 @@ export class Recorder {
   readonly soldierId: SoldierId;
   private readonly waypoints: Waypoint[] = [];
   private readonly actions: RecordedAction[] = [];
+  /** (PHASE20) The stance last recorded, so only changes are ([D160]). */
+  private stance: SoldierState['settled'];
 
   constructor(soldierId: SoldierId) {
     this.soldierId = soldierId;
@@ -47,12 +49,32 @@ export class Recorder {
     this.waypoints.push({ t, x: s.x, y: s.y, facing: s.facing });
   }
 
+  /**
+   * (PHASE20) Notes when the soldier settled into a stance or stood up ([D160]); call after the
+   * tick's step, so an echo takes it up on the very tick the live soldier did (it matters to
+   * who hits whom). Echoes need it for what it does to them and to their shots' range.
+   */
+  recordStance(s: SoldierState): void {
+    const pose = this.waypoints[this.waypoints.length - 1];
+    if (!pose || s.settled === this.stance) return;
+    this.stance = s.settled;
+    this.actions.push({
+      kind: 'stance',
+      t: pose.t,
+      x: pose.x,
+      y: pose.y,
+      ...(s.settled ? { stance: s.settled } : {}),
+    });
+  }
+
   /** Picks this soldier's shots and interacts out of a tick's events (after `recordPose`). */
   recordEvents(events: readonly SimEvent[], world?: World): void {
     const pose = this.waypoints[this.waypoints.length - 1];
     for (const e of events) {
       if (!pose || e.tick !== pose.t) continue;
-      if (e.kind === 'shotFired' && e.by === this.soldierId) {
+      if (e.kind === 'emote' && e.by === this.soldierId) {
+        this.actions.push({ kind: 'emote', t: e.tick, emote: e.emote });
+      } else if (e.kind === 'shotFired' && e.by === this.soldierId) {
         // (PHASE12-a) The weapon, when it isn't a plain rifle/MG shot: a Sniper fires a pistol
         // or a rifle; each shotgun pellet is its own shot ([D59], [D61]).
         const gun = e.weapon && e.weapon !== 'rifle' && e.weapon !== 'mg' ? e.weapon : undefined;

@@ -95,4 +95,27 @@ describe('camera look-ahead (06-a)', () => {
     expect(phoneFitZoom(390, 844)).toBeLessThan(0.7);
     expect(phoneFitZoom(1280, 760)).toBe(1);
   });
+
+  it('(PHASE20) a scope only zooms while steady; braced, the camera leans across the cover', () => {
+    const v = {
+      range: 900,
+      look: CLASS_LOOK.sniper,
+      still: true,
+      braced: true,
+      setUp: true,
+      aim: 0,
+      aimDistance: 1e5,
+      viewW: 1000,
+      viewH: 640,
+      baseZoom: 1,
+    };
+    expect(lookView({ ...v, scope: false }).zoom).toBe(1);
+    expect(lookView({ ...v, scope: true }).zoom).toBeGreaterThan(2);
+    // Aiming up with the cover to the right: the camera leans right; across the aim, it doesn't.
+    const level = { ...v, scope: false, aimDistance: 100, aim: -Math.PI / 2 };
+    const plain = lookView(level).offset;
+    const leaning = lookView({ ...level, braceAim: -Math.PI / 2 }).offset;
+    expect(leaning.y).toBeLessThan(plain.y);
+    expect(lookView({ ...level, braceAim: Math.PI / 2 }).offset.y).toBe(plain.y);
+  });
 });

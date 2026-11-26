@@ -36,7 +36,6 @@ import { hasLineOfSight } from '../combat/shots';
 import { attackKind, currentSpread, gunOf } from '../combat/guns';
 import { damageShare, WORTH_SHOOTING } from '../combat/armor';
 import {
-  IDLE_INPUT,
   isEligible,
   isOurEligible,
   soldierMaxHp,
@@ -125,7 +124,7 @@ export interface AiState {
   /** The squad it started in (it may join another when its own routs). */
   origSquad?: string;
   /**
-   * (PHASE20) A hit or a whizzing bullet it will react to at tick `at`, not before (people don't
+   * (PHASE21) A hit or a whizzing bullet it will react to at tick `at`, not before (people don't
    * dodge before anyone could have noticed). `x`/`y`: where it thinks the shot came from.
    */
   heard?: { at: Tick; by: string; x: number; y: number; guessed: boolean };
@@ -243,7 +242,7 @@ export function stepAi(
     const ai = s.ai;
     if (!ai || !s.alive) continue;
     const foes = s.team === 'enemy' ? ours : theirs;
-    // (PHASE20) The reaction to a hit or whizz lands after its delay.
+    // (PHASE21) The reaction to a hit or whizz lands after its delay.
     if (ai.heard && st.tick >= ai.heard.at) {
       const h = ai.heard;
       ai.heard = undefined;
@@ -918,7 +917,7 @@ export function retreatSpot(
 // ---------- hits and routs (PHASE13) ----------
 
 /**
- * (PHASE20) Something hit, or whizzed past, an AI soldier: it will react after a short delay
+ * (PHASE21) Something hit, or whizzed past, an AI soldier: it will react after a short delay
  * (`tuning.ai.hurtReactSeconds` / `nearMissReactSeconds`), not on the same tick. A whizz gives a
  * direction rather than a position: the guessed spot is off by up to `nearMissBearingError`
  * radians as seen from the soldier. Overwritten only by something sooner.
@@ -1545,6 +1544,3 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
     ...(aimDistance !== undefined ? { aimDistance } : {}),
   };
 }
-
-/** For tests/debug: idle input for a dormant soldier. */
-export const DORMANT_INPUT = IDLE_INPUT;

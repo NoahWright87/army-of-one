@@ -1,6 +1,6 @@
-# PHASE20: Enemy senses
+# PHASE21: Enemy senses
 
-Owner session 2026-11-26 ([D160], [Q67]). Trigger: "enemies dodge the moment I fire, even though
+Owner session 2026-11-26 ([D161], [Q71]). Trigger: "enemies dodge the moment I fire, even though
 they couldn't see me": the AI reacted to the bullet (a geometric near-miss test) on the very next
 tick, with the shooter's exact position. The aim: soldiers that notice things the way a person
 would (hear, see, get suspicious, react after a beat) and show it, so the player can *see* what

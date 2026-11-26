@@ -153,19 +153,12 @@ describe('MG mount ([D40])', () => {
     expect(isMounted(w, getSoldier(w, id)!)).toBe(false);
   });
 
-  it('(PHASE18) a mounted MG shuffles slowly along its cover and stays mounted ([D158])', () => {
+  it('(PHASE20) on auto, a mounted MG that moves lets go at once ([D160])', () => {
     const w = world(arena({ cover: [bags] }));
     const id = soldierAt(w, { x: 385, y: 500 }, { roleId: 'gunner' });
     run(w, N + 1, { [id]: idle() });
-    const y0 = getSoldier(w, id)!.y;
-    run(w, 30, { [id]: walk(0, 1) });
-    const s = getSoldier(w, id)!;
-    expect(isMounted(w, s)).toBe(true);
-    // Slow: well under a half-second's walk.
-    expect(s.y - y0).toBeLessThan((T.soldier.speed * 0.5) / 2);
-    expect(s.y - y0).toBeGreaterThan(0);
-    // Sprinting unmounts.
-    run(w, 1, { [id]: { ...walk(0, 1), sprint: true } });
+    expect(isMounted(w, getSoldier(w, id)!)).toBe(true);
+    run(w, 1, { [id]: walk(0, 1) });
     expect(isMounted(w, getSoldier(w, id)!)).toBe(false);
   });
 

@@ -7,6 +7,7 @@ import { str } from '../../content/strings';
 import { helmetSvg } from '../../content/ui-icons';
 import { el, injectStyle, setText } from '../dom';
 import { formatDebugLines, type DebugStats } from './debug-model';
+import { LoadoutHud } from './loadout-hud';
 import type { HudModel } from './hud-model';
 
 const HUD_CSS = `
@@ -42,7 +43,7 @@ const HUD_CSS = `
 .aoo-hud .banner { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 44px;
   color: #ffd34d; letter-spacing: .04em; }
 .aoo-hud .banner[hidden] { display: none; }
-.aoo-debug { position: fixed; left: 12px; bottom: 12px; z-index: 11; pointer-events: none;
+.aoo-debug { position: fixed; left: 12px; bottom: 90px; z-index: 11; pointer-events: none;
   font: 12px/1.35 ui-monospace, monospace; color: #b8f5c8; background: rgba(0,0,0,.6);
   padding: 6px 8px; border-radius: 3px; white-space: pre; }
 .aoo-debug[hidden] { display: none; }
@@ -50,6 +51,8 @@ const HUD_CSS = `
 
 export class Hud {
   readonly root: HTMLDivElement;
+  /** (PHASE20) The stance and weapon icons ([D160]). */
+  readonly loadout: LoadoutHud;
   private readonly who = el('div', 'who');
   private readonly fill = el('div', 'fill');
   private readonly hpNum = el('span', 'num');
@@ -86,6 +89,7 @@ export class Hud {
     this.icons.hidden = true;
     this.root.append(this.vignette, tl, this.obj, this.icons, this.clock, this.banner);
     parent.appendChild(this.root);
+    this.loadout = new LoadoutHud(parent);
   }
 
   update(m: HudModel): void {
@@ -147,6 +151,7 @@ export class Hud {
 
   setVisible(v: boolean): void {
     this.root.style.display = v ? '' : 'none';
+    this.loadout.setAllowed(v);
   }
 }
 

@@ -160,7 +160,7 @@ revise with justification in a PR).
   The MG's recoil is much larger than the rifle's, except when mounted. **The reticle is the
   cone:** the reticle itself grows to fit the current spread at its distance, so it grows when
   you aim further away, when you move, and during sustained fire ([D43]).
-- **[D40] Machine Gunner.** A third role with an MG: fast fire, big spread and recoil. Standing
+- **[D40] Machine Gunner.** _(PHASE20: mounting is now a chosen Deployed stance, [D160].)_ A third role with an MG: fast fire, big spread and recoil. Standing
   still right next to non-solid cover mounts it: a ring fills around the reticle (0.6 s), then
   the spread and recoil drop sharply and the reticle turns cyan. The bonus only applies when
   firing **across** the cover you're braced on. Moving unmounts at once. No ammo or reloading
@@ -252,7 +252,7 @@ revise with justification in a PR).
 
 ## More roles (PHASE12-a, owner session 2026-11)
 
-- **[D59] Sniper.** A pistol while moving. Standing still swaps to a long rifle (after a short
+- **[D59] Sniper.** _(PHASE20: the rifle/pistol swap and Prone are chosen, [D160].)_ A pistol while moving. Standing still swaps to a long rifle (after a short
   set-up, with or without cover) that aims further than average. Cover makes it even more
   accurate and adds a little range. Like the Machine Gunner's mount ([D40]), but it doesn't need
   cover. Balance: auto-aim (the player's and the AI's) is very bad against moving targets with
@@ -756,7 +756,7 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   straighter and stop near where they land; flags take ~25 % less time. The minefield is
   simply dense: staggered rows from halfway up the chute to the wall past its exit, no gaps.
   Money: the map just starts you with $9,999,999 and no income.
-- **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
+- **[D158] How far you can look and aim** (owner, 2026-11; PHASE20 [D160] made bracing a chosen stance and dropped the mounted shuffle / scoped walk): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across
   cover, like the Sniper's); the Sniper much further, most of all braced. Looking far out zooms
@@ -785,7 +785,44 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   grenade to where you aim); the old wind-up time moved into the reload, and the ring fills while
   it reloads. Holding fire fires again each time it's ready. Gun users no longer get their
   shots off first just because they don't wind up.
-- **[D160] Enemies sense, they don't read minds** (owner, 2026-11): "It's like shooting at
+- **[D160] Stances and the weapon swap are chosen, not automatic** (owner, 2026-11, PHASE20):
+  "Snipers and MGs are both severely hampered by a lack of cover… the automatic transition from
+  mounted to unmounted or scoped vs pistol is confusing and sometimes frustrating." Manual
+  controls replace standing-still-to-mount and standing-still-to-scope ([D40], [D59], [D158]),
+  which stay as an **auto** option.
+  - **Stance icon (bottom left)**, **Z** or a tap. Always shown: a white outline round a black
+    fill that rises (green, orange, red) to your health. The outline turns blue and pulses slightly while cover is in
+    reach to brace against, is cyan once settled, blue while settling, and is faint when the
+    button can do nothing.
+    Standing is the default. Press near cover: **Braced**: slide up to the cover (`stance.snapSpeed`),
+    settle, and the camera leans across it. Machine Gunner anywhere: **Deployed**. Sniper with no
+    cover: **Prone**. Another press stands up. Running and Climbing show in the icon but aren't chosen.
+  - **Settling takes a moment and nobody fires meanwhile**, any class, any weapon: braced
+    `brace.seconds` (per class in `brace.secondsByRole`), prone 0.25 s, deployed 0.5 s, a weapon
+    swap 0.2 s. Moving lets go of braced and deployed (keyboard: just walk away). A prone Sniper
+    crawls at 0.35 × speed; sprinting stands it up. Climbing (trench, ladder) drops any stance.
+  - **What it gives**: braced, firing across its cover: the full cover bonus (spread/recoil for
+    everyone, the MG's `mounted` numbers, the Sniper's `coverSpreadMultiplier`, range ×1.15 for
+    Sniper and MG), nothing aimed off it. Prone: 70 % of the Sniper's bonus anywhere, plus a 5 %
+    chance a shot at you misses (like a trench). Deployed with no cover at all: 60 % of the MG's
+    bonus and 5 % dodge; on cover, the whole of it across the cover. (Numbers: `tuning.stance`.)
+    Scope zoom, and the extra look reach, only while settled in a stance.
+  - **Weapon icon (bottom right)**, **Q** or a tap: everybody has one, a Sniper swaps pistol ↔
+    rifle with it (starts with the rifle; prone with the pistol is allowed). A readiness meter
+    on every weapon: a white outline with a black fill (no box); after a shot the fill turns
+    yellow and the black wipes down over it from the top as it reloads (grenades, rockets and
+    shells too). An outline only lights up if its button can do something: the weapon's for a
+    Sniper (swap; blue while swapping), the stance icon's when it can brace, go prone, deploy or
+    stand up. Otherwise it's faint. Trucks show an MG, tanks a cannon. Placeholder silhouettes
+    (`src/content/ui-icons.ts`), muzzle up.
+  - **Auto**: right-click or long-press an icon: an **A** in its corner, remembered
+    (`aoo:auto-stance`, `aoo:auto-weapon`). Auto is the old behaviour: still by cover (a Sniper
+    anywhere) settles in, moving lets go; the Sniper carries the rifle while settled. The AI and
+    scripted inputs are auto for now.
+  - **Touch**: braced or deployed can't walk, so the first finger is the reticle (aims, fires while
+    held) and swings across the cover when you settle; the stance icon is how you leave.
+  - Echoes replay the stance (a `stance` action in the recording) so range and who-hits-whom match.
+- **[D161] Enemies sense, they don't read minds** (owner, 2026-11): "It's like shooting at
   Spider-Man: they dodge before anybody realistically could react." Reacting to a bullet isn't
   instant: taking damage ~0.05 s, a bullet whizzing past ~0.15 s (`tuning.ai.hurtReactSeconds`,
   `nearMissReactSeconds`); a whizz gives a direction, not a position (the guess is off by up to
@@ -793,7 +830,7 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   smaller (0.9 m). Direction, longer term: a full senses system, sight and hearing, with
   things making noise (shots, impacts, shouts), soldiers hearing within a range, a "heat" that
   rises with suspicious/dangerous sights and sounds and fades over time, and visible chatter
-  ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE20-senses.md`.
+  ("!", "whoa!") so the player can *see* what the AI is thinking. Plan: `todos/PHASE21-senses.md`.
   **Distances are written in metres** (`src/content/units.ts`: 1 m = 44 world units, a soldier is
   ~0.5 m across); all gameplay numbers live in `src/content/tuning.ts`.
 - **Player experience first** (owner, 2026-11): design and test for the player coming in cold:
@@ -938,7 +975,7 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
 
 _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 
-- **[Q67] Senses (PHASE20, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
+- **[Q71] Senses (PHASE21, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
   now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
   raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows
   what it senses with a "!" or a bark. Open: the exact heat thresholds and decay, which sounds
@@ -1213,3 +1250,12 @@ _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 
 - **[AQ59] Resolved** by [A122]: the owner accepted the proposed role-to-base mapping.
 - **[AQ60] Resolved** by [A123]: the owner accepted the proposed miniature states.
+- **[Q67] Should enemy AI choose stances (PHASE20)?** For now the AI is on auto ([D160]): it
+  settles in by itself when still, as before. A real stance brain (go prone to snipe, deploy at a
+  chokepoint, swap guns) is an Issue.
+- **[Q68] The weapon readiness meter on fast guns (PHASE20).** Shown on every weapon ([D160]), so a
+  rifle at ~7 shots/s flickers. Owner: wants to see it first; may restrict it to slow weapons.
+- **[Q69] Basic training teaches the old auto mounting (PHASE20).** R5/R7 still work (training
+  players are manual now, so they must press Z to mount); the lessons need rewriting for stances
+  ([D160]: "we'll fix it later").
+- **[Q70] A prone soldier looks standing (PHASE20).** The sprite doesn't change with stance yet.
