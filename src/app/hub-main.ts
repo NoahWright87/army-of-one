@@ -4,6 +4,7 @@
  * there is to do. Signs with choices carry buttons; picking a skirmish or a campaign opens a gate
  * you walk out of.
  */
+import { buildInfo, formatBuildTime, formatBuildUtc } from './build-info';
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
 import {
@@ -236,6 +237,18 @@ export function startHub(deps: HubDeps): void {
             { label: str('hub.btn.oldMenu'), run: () => go({ scene: 'title' }) },
           ],
         };
+      case 'build': {
+        const b = buildInfo();
+        return {
+          text: str('hub.sign.build', {
+            version: b.version,
+            sha: b.sha,
+            branch: b.branch,
+            time: formatBuildTime(b.time),
+            utc: formatBuildUtc(b.time),
+          }),
+        };
+      }
       default:
         return null;
     }

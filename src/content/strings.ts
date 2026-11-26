@@ -927,6 +927,8 @@ export const STRINGS = {
   'hub.sign.guns': 'PICK A CLASS',
   'hub.sign.range': 'RANGE\n[small]Targets · Reinforcement drill ↓[/]',
   'hub.sign.dev': 'DEV CORNER\n[small]Tools, tests, toys[/]',
+  'hub.sign.build':
+    'BUILD\n[small]v{version} · {sha}[/]\n[small]{branch}[/]\n[small]{time}[/]\n[small]{utc}[/]',
   'hub.btn.random': 'Random mission',
   'hub.btn.continue': 'Continue campaign',
   'hub.btn.new': 'New campaign',

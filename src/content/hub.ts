@@ -251,6 +251,7 @@ export type HubSignId =
   | 'guns'
   | 'range'
   | 'dev'
+  | 'build'
   | 'training'
   | 'arrivals';
 
@@ -282,6 +283,8 @@ export const HUB_SIGNS: readonly (SignDef & { id: HubSignId })[] = [
   { id: 'range', x: 1400, y: 1262, kind: 'wood', textKey: 'hub.sign.range', size: 48 },
   { id: 'arrivals', x: 1200, y: 2010, kind: 'clipboard', textKey: 'hub.sign.arrivals', size: 48 },
   { id: 'dev', x: 1200, y: 420, kind: 'plain', textKey: 'hub.sign.dev', size: 48 },
+  // (PHASE20) Which build is this? Version, commit, branch, when built.
+  { id: 'build', x: 1000, y: 420, kind: 'plain', textKey: 'hub.sign.build', size: 48 },
 ];
 
 /** Pictures on the walls and floor (no collision). */

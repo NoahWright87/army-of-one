@@ -171,6 +171,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   time glides, deploying continues in the same scene (`adopt`). `__aoo.checkDrift()` re-simulates
   and reports the first difference with the tape. Share links are hidden (`?share=1`). Basic
   training uses it too (its coach points at the chevrons, the card's classes and DEPLOY).
+- Which build is this? The HQ's **BUILD** sign (dev corner, next to DEV) shows version, commit,
+  branch and build time (`vite.config.ts` stamps `__AOO_BUILD__`; `src/app/build-info.ts`).
 - Stances and the weapon swap (PHASE20, [D160]): manual by default. **Z** (stance icon, bottom
   left) braces on cover / goes prone (Sniper) / deploys (Machine Gunner) / stands up; **Q** (weapon
   icon, bottom right) swaps a Sniper's pistol and rifle and shows every weapon's reload. Nobody
