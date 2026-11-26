@@ -1,0 +1,1 @@
+var e={G:`terrain_grass`,T:`terrain_dirt`,D:`terrain_dirt`,R:`terrain_road`,S:`terrain_sand`,C:`terrain_concrete`,W:`terrain_water`,K:`terrain_rocks`,X:`terrain_wall`,B:`terrain_bridge`};export{e as t};
