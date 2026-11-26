@@ -790,8 +790,9 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   mounted to unmounted or scoped vs pistol is confusing and sometimes frustrating." Manual
   controls replace standing-still-to-mount and standing-still-to-scope ([D40], [D59], [D158]),
   which stay as an **auto** option.
-  - **Stance icon (bottom left)**, **Z** or a tap. Shown for classes with a stance of their own
-    (Sniper, Machine Gunner) and, for anyone, while cover is in reach or a stance is held.
+  - **Stance icon (bottom left)**, **Z** or a tap. Always shown: a white outline round a black
+    fill that rises (green, orange, red) to your health. The outline pulses while cover is in reach
+    to brace against, is cyan once settled, blue while settling.
     Standing is the default. Press near cover: **Braced**: slide up to the cover (`stance.snapSpeed`),
     settle, and the camera leans across it. Machine Gunner anywhere: **Deployed**. Sniper with no
     cover: **Prone**. Another press stands up. Running and Climbing show in the icon but aren't chosen.

@@ -26,3 +26,5 @@ weapon controls, with the old behaviour kept as an auto option.
 - Auto mode: the very first look at an auto Sniper picks its gun without a swap delay.
 - The readiness meter (owner's second pass): white outline, black fill; a shot turns the fill
   yellow and it fades out over the reload (`loadout-hud.ts`).
+- The stance icon (owner's second pass): always shown, outline-only like the weapon; its fill is a
+  health gauge and its outline pulses when cover is in reach (my reading of "turn play": pulse).

@@ -415,7 +415,11 @@ export class BattleScene extends Phaser.Scene {
       }
       hud.update(buildHudModel(this.view, this.liveId, this.money));
       // (PHASE20) The stance and weapon icons follow the live soldier ([D160]).
-      hud.loadout.update(this.view.soldiers.find((s) => s.id === this.liveId)?.loadout);
+      const liveView = this.view.soldiers.find((s) => s.id === this.liveId);
+      hud.loadout.update(
+        liveView?.loadout,
+        liveView ? liveView.hp / Math.max(1, liveView.maxHp) : 1,
+      );
     }
     if (driver) {
       const left = driver.countdown();

@@ -20,6 +20,8 @@ export interface LoadoutView {
   settling?: number;
   /** The stance icon is shown: the class has a stance of its own, or cover is in reach. */
   canStance: boolean;
+  /** Cover is in reach to brace against (the stance icon's outline pulses). */
+  coverNear: boolean;
   /** …and it works now (not mid-climb, not driving). */
   stanceEnabled: boolean;
   /** The weapon in hand (a silhouette each). `cannon`: the tank's turret. */

@@ -5,8 +5,10 @@
  *   outline is cyan while the stance's aim bonus applies, blue while swapping). After a shot the
  *   fill turns yellow and fades back to black over the reload. No box around it. A Sniper taps it
  *   to swap guns.
- * - Stance: a soldier silhouette; shown only when the class has a stance of its own or cover is
- *   in reach. A ring fills while settling. Climbing and running are shown but not chosen.
+ * - Stance: a soldier silhouette, always shown: a white outline round a black fill that rises
+ *   green (orange, red) to your health. The outline pulses when cover is in reach to brace
+ *   against, turns cyan once settled into a stance, blue while settling. Climbing and running
+ *   show but aren't chosen.
  * - Right-click or long-press either one for auto (an "A" in its corner).
  * DOM only; the state comes from `LoadoutView` (pure, from the sim).
  */
@@ -27,12 +29,12 @@ const CSS = `
   color: #e8ecef; cursor: pointer; }
 .aoo-loadout button[hidden] { display: none; }
 .aoo-loadout button:disabled { opacity: .45; cursor: default; }
-.aoo-loadout .stance { left: 14px; width: 64px; height: 64px; }
-.aoo-loadout .stance svg { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
-.aoo-loadout .stance.braced, .aoo-loadout .stance.prone, .aoo-loadout .stance.deployed { color: #35e0ff; border-color: #35e0ff; }
-.aoo-loadout .stance.settling { color: #8fb4d8; border-color: #8fb4d8; }
-.aoo-loadout .stance.climbing { color: #ffd34d; border-color: rgba(255,211,77,.7); }
-.aoo-loadout .stance.sprinting { color: #78beff; border-color: rgba(120,190,255,.7); }
+.aoo-loadout .stance { left: 14px; width: 64px; height: 64px; border-color: transparent; background: none; }
+.aoo-loadout .stance .layer { position: absolute; inset: 4px; }
+.aoo-loadout .stance .layer svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.aoo-loadout .stance .outline.pulse { animation: aoo-pulse .7s ease-in-out infinite alternate; }
+.aoo-loadout .stance .outline.settling { animation: aoo-pulse .25s ease-in-out infinite alternate; }
+@keyframes aoo-pulse { from { opacity: .4; } to { opacity: 1; } }
 .aoo-loadout .weapon { right: 14px; width: 48px; height: 88px; border-color: transparent; background: none; }
 .aoo-loadout .weapon.fixed { pointer-events: none; }
 .aoo-loadout .weapon .wp { position: absolute; inset: 6px 8px; }
@@ -74,13 +76,22 @@ export class LoadoutHud {
   private key = '';
   private weaponKind = '';
   private stanceKind = '';
+  private readonly stanceOutline = el('div', 'layer outline');
+  private readonly stanceBlack = el('div', 'layer');
+  private readonly stanceHealth = el('div', 'layer');
   private shown = false;
   private hasView = false;
   private allowed = true;
 
   constructor(parent: HTMLElement) {
     injectStyle('aoo-loadout-css', CSS);
-    this.stanceBtn.append(this.stanceBadge, el('span', 'key', 'Z'));
+    this.stanceBtn.append(
+      this.stanceOutline,
+      this.stanceBlack,
+      this.stanceHealth,
+      this.stanceBadge,
+      el('span', 'key', 'Z'),
+    );
     this.stanceBadge.textContent = 'A';
     this.weaponBadge.textContent = 'A';
     this.wp.append(this.base, this.fill);
@@ -149,7 +160,7 @@ export class LoadoutHud {
   }
 
   /** `undefined`: no live soldier (hidden). */
-  update(v: LoadoutView | undefined): void {
+  update(v: LoadoutView | undefined, hpFraction = 1): void {
     this.hasView = !!v;
     this.show();
     if (!v || !this.controls) return;
@@ -158,6 +169,7 @@ export class LoadoutHud {
       v.stance,
       v.settling !== undefined ? Math.round(v.settling * 20) : '',
       v.canStance,
+      v.coverNear,
       v.stanceEnabled,
       v.weapon,
       v.cooldown !== undefined ? Math.round(v.cooldown * 50) : '',
@@ -166,27 +178,42 @@ export class LoadoutHud {
       v.bonus,
       c.autoStance,
       c.autoWeapon,
+      Math.round(hpFraction * 50),
     ].join('|');
     if (key === this.key) return;
     this.key = key;
 
-    // Stance.
-    this.stanceBtn.hidden = !v.canStance && v.stance === 'standing';
+    // Stance: always there. White outline, black fill that rises with your health.
     this.stanceBtn.disabled = !v.stanceEnabled;
     const settling = v.settling !== undefined;
-    this.stanceBtn.className = `stance ${v.stance}${settling ? ' settling' : ''}`;
+    const steady = v.stance === 'braced' || v.stance === 'prone' || v.stance === 'deployed';
+    this.stanceBtn.className = `stance ${v.stance}`;
     if (this.stanceKind !== v.stance) {
       this.stanceKind = v.stance;
-      this.stanceBtn.querySelector('svg')?.remove();
-      this.stanceBtn.insertAdjacentHTML('afterbegin', stanceSvg(v.stance));
+      this.stanceOutline.innerHTML = stanceSvg(v.stance, 'currentColor', 7.5);
+      this.stanceBlack.innerHTML = stanceSvg(v.stance, '#000', 3.5);
+      this.stanceHealth.innerHTML = stanceSvg(v.stance, 'currentColor', 3.5);
     }
+    const outline = settling
+      ? SWAP
+      : v.stance === 'climbing'
+        ? FIRED
+        : v.stance === 'sprinting'
+          ? '#78beff'
+          : steady
+            ? BONUS
+            : READY;
+    this.stanceOutline.style.color = outline;
+    const pulse = v.coverNear && v.stance === 'standing' && v.stanceEnabled;
+    this.stanceOutline.className = `layer outline${settling ? ' settling' : pulse ? ' pulse' : ''}`;
+    // The health fill rises from the figure's feet.
+    const hp = Math.max(0, Math.min(1, hpFraction));
+    this.stanceHealth.style.clipPath = `inset(${Math.round((1 - hp) * 100)}% -20% -20% -20%)`;
+    this.stanceHealth.style.color = hp <= 0.25 ? '#ff3b30' : hp <= 0.5 ? '#ff9f0a' : '#4cd964';
     this.stanceBtn.title =
       `${str(`loadout.stance.${v.stance}`)} · ${str('loadout.stance.hintKey')} · ` +
       str(c.autoStance ? 'loadout.autoOn' : 'loadout.autoOff');
     this.stanceBadge.hidden = !c.autoStance;
-    this.stanceBtn.style.background = settling
-      ? `conic-gradient(rgba(143,180,216,.5) ${Math.round((v.settling ?? 0) * 360)}deg, rgba(0,0,0,.45) 0)`
-      : '';
 
     // Weapon: a white outline round a black fill; a shot turns the fill yellow, then it fades.
     if (this.weaponKind !== v.weapon) {

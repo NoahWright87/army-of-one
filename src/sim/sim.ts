@@ -660,6 +660,7 @@ function loadoutView(
     ...(s.stance !== undefined && s.settled === undefined
       ? { settling: Math.min(1, s.mountTicks / mountTicksNeeded(t, s.roleId, s.stance)) }
       : {}),
+    coverNear,
     canStance: !driving && (own || s.stance !== undefined || coverNear),
     stanceEnabled: !driving && !s.trenchClimb && !s.ladderClimb,
     weapon: kind,

@@ -49,6 +49,11 @@ const STANCE_SHAPES: Record<StanceIcon, string> = {
     '<circle cx="24" cy="8" r="4" fill="currentColor"/><path d="M22 13l-4 12M22 15l7 4M22 15l-8 1M18 25l8 4l3 8M18 25l-7 3l-6 6"/>',
 };
 
-export function stanceSvg(kind: StanceIcon): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STANCE_SHAPES[kind]}</svg>`;
+/**
+ * One layer of the stance icon: the figure in `color` with strokes `width` wide (so a thick white
+ * layer under a thinner black one reads as a white outline round a black fill). The head is a
+ * disc with the same stroke.
+ */
+export function stanceSvg(kind: StanceIcon, color = 'currentColor', width = 3): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STANCE_SHAPES[kind].replaceAll('fill="currentColor"', `fill="${color}"`).replaceAll(' stroke="none"', '')}</svg>`;
 }
