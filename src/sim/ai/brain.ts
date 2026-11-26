@@ -36,7 +36,6 @@ import { hasLineOfSight } from '../combat/shots';
 import { attackKind, currentSpread, gunOf } from '../combat/guns';
 import { damageShare, WORTH_SHOOTING } from '../combat/armor';
 import {
-  IDLE_INPUT,
   isEligible,
   isOurEligible,
   soldierMaxHp,
@@ -1500,6 +1499,3 @@ function execute(world: World, s: SoldierState, ai: AiState): SoldierInput {
     ...(aimDistance !== undefined ? { aimDistance } : {}),
   };
 }
-
-/** For tests/debug: idle input for a dormant soldier. */
-export const DORMANT_INPUT = IDLE_INPUT;

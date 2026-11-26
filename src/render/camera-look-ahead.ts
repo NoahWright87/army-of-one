@@ -13,7 +13,6 @@ import { CAMERA, type ClassLook } from '../content/camera';
 import type { Vec2 } from '../sim/core/vec';
 
 export type LookAheadMode = 'off' | 'up' | 'aim' | 'upAim';
-export const LOOK_AHEAD_MODES: readonly LookAheadMode[] = ['off', 'up', 'aim', 'upAim'];
 
 /**
  * How far the camera pans toward the cursor, as a share of the cursor's distance from the

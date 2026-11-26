@@ -35,13 +35,6 @@ export function circleOverlapsRect(center: Vec2, radius: number, r: Rect): boole
   return dx * dx + dy * dy < radius * radius;
 }
 
-export function circlesOverlap(a: Vec2, ra: number, b: Vec2, rb: number): boolean {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  const r = ra + rb;
-  return dx * dx + dy * dy < r * r;
-}
-
 /**
  * Moves a circle by `delta`, sliding along any solid rects. Sub-steps so fast movers can't tunnel
  * through thin walls. Deterministic: rects are resolved in array order.
