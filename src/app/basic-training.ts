@@ -107,6 +107,18 @@ const startSpawn = () => BASIC_TRAINING.spawnPoints.find((x) => x.id === 'bt-sta
 const fill = (text: string, params: Record<string, string>) =>
   text.replace(/\{(\w+)\}/g, (m, k: string) => params[k] ?? m);
 
+/** The target groups a script can ask about: the field, the lane, and the lane's near / far ones. */
+const STALL_TARGETS: Record<string, readonly string[]> = {
+  a: BT_TARGETS_A,
+  b: BT_TARGETS_B,
+  bnear: BT_TARGETS_B.slice(0, 3),
+  bfar: BT_TARGETS_B.slice(3),
+};
+
+/** Shots through Sarge that count as shooting at him: this many within this long (ms). */
+const SUSTAINED_SHOTS = 6; // TUNE
+const SUSTAINED_MS = 4000; // TUNE
+
 export class BasicTraining {
   progress: BtProgress;
   script: SargeScript;
@@ -127,6 +139,8 @@ export class BasicTraining {
   private lastMoveMs = 0;
   private lastPos: { x: number; y: number } | null = null;
   private readonly targetHp = new Map<string, number>();
+  /** When shots last passed through Sarge (a stray one is nothing; a burst is a reaction). */
+  private nearShots: number[] = [];
   /** When each flag was set (ms; a flag set before this page loaded counts from its first look). */
   private readonly flagSince = new Map<string, number>();
   /** The respawn view: where he's walking, and what it asks of the script. */
@@ -208,8 +222,10 @@ export class BasicTraining {
     this.hitsHere = 0;
     this.lastFireMs = nowMs;
     this.lastMoveMs = nowMs;
-    this.lastPos = null;
     this.targetHp.clear();
+    this.nearShots = [];
+    const first = view.soldiers.find((x) => x.id === liveId);
+    this.lastPos = first ? { x: first.x, y: first.y } : null;
     this.progress.lives++;
     // You start in whatever zones you stand in: that's an "enter" for each.
     const edges = new Set(['lifeStart']);
@@ -305,12 +321,18 @@ export class BasicTraining {
             edges.add('fired');
             this.shotsHere++;
             this.lastFireMs = nowMs;
-            if (passesNear(e, sarge, 40)) edges.add('shotAtSarge');
+            if (passesNear(e, sarge, 40)) this.nearShots.push(nowMs);
           }
           break;
         default:
           break;
       }
+    }
+    // Only sustained fire through him gets a reaction (auto-fire sweeps past him all the time).
+    this.nearShots = this.nearShots.filter((t) => nowMs - t <= SUSTAINED_MS);
+    if (this.nearShots.length >= SUSTAINED_SHOTS) {
+      edges.add('shotAtSarge');
+      this.nearShots = [];
     }
     const out = this.say(this.ctx(view, nowMs, edges));
     if (out.length || edges.size) this.save();
@@ -443,14 +465,11 @@ export class BasicTraining {
       gateOpen: (id) => view?.gates.find((g) => g.id === id)?.open ?? false,
       nextTarget: view ? (this.nextTarget(view)?.id ?? null) : null,
       targetsLeft: (stall) => {
-        const ids = stall === 'a' ? BT_TARGETS_A : stall === 'b' ? BT_TARGETS_B : [];
-        return (
-          !!view &&
-          (ids as readonly string[]).some(
-            (id) => !view.objectives.find((o) => o.id === id)?.destroyed,
-          )
-        );
+        const ids = STALL_TARGETS[stall] ?? [];
+        return !!view && ids.some((id) => !view.objectives.find((o) => o.id === id)?.destroyed);
       },
+      stance: me?.loadout?.stance ?? 'standing',
+      coverNear: !!me?.loadout?.coverNear,
       holdFireS: Math.max(0, (nowMs - Math.max(this.lastFireMs, this.roomSince)) / 1000),
       stillS: Math.max(0, (nowMs - this.lastMoveMs) / 1000),
       misses: Math.max(0, this.shotsHere - this.hitsHere),

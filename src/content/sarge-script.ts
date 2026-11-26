@@ -37,7 +37,8 @@
  *                          has run (had:r1.bags); had:station: started partway ("start here")
  *     gate:<gate>          the gate is open now
  *     nextTarget:<id>      that's the next range target to shoot
- *     targetsLeft:<a|b>    that stall still has targets up
+ *     targetsLeft:<a|b|bnear|bfar>  that stall (or the lane's near / far targets) still has targets up
+ *     stance:<braced|standing|prone|deployed>  your stance        coverNear  cover is in reach to brace on
  *     misses>n             you've fired more than n shots here than hit a target
  *     still:<seconds>      you haven't moved for that long
  *     holdFire:<seconds>   you haven't fired for that long (counted from walking into the room)
@@ -185,8 +186,8 @@ const rule = (
 export const DEFAULT_SARGE_SCRIPT: SargeScript = {
   version: 2,
   timing: {
-    holdMs: 900,
-    holdPerCharMs: 45,
+    holdMs: 600,
+    holdPerCharMs: 30,
     wordMs: 110,
     wordPerCharMs: 18,
     lineGapMs: 250,
@@ -194,8 +195,8 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     speed: 400,
   },
   zones: [
-    { id: 'bags', name: 'By the sandbags', x: 820, y: 4020, w: 104, h: 540 },
-    { id: 'wall', name: 'By the concrete wall', x: 905, y: 3440, w: 60, h: 540 },
+    { id: 'bags', name: 'By the sandbags', x: 1850, y: 4080, w: 114, h: 880 },
+    { id: 'wall', name: 'By the concrete wall', x: 560, y: 3844, w: 1380, h: 50 },
   ],
   flags: [],
   gateDelays: { 'bt-g2': 6 },
@@ -203,32 +204,32 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     {
       id: 'lead-start',
       when: 'in:r0, alive',
-      at: { kind: 'point', x: 600, y: 5150 },
+      at: { kind: 'point', x: 600, y: 5730 },
       face: -90,
     },
     {
       id: 'lead-field',
       when: 'in:r1, alive, !targetsLeft:a',
-      at: { kind: 'point', x: 600, y: 4620 },
+      at: { kind: 'point', x: 2040, y: 5010 },
       face: -90,
     },
     {
       id: 'bags',
       when: 'in:r1b, alive, targetsLeft:b',
-      at: { kind: 'nextTarget', x: 830 },
+      at: { kind: 'nextTarget', x: 1960 },
       face: 0,
     },
     {
       id: 'lead-lane',
       when: 'in:r1b, alive, !targetsLeft:b',
-      at: { kind: 'point', x: 820, y: 4050 },
+      at: { kind: 'point', x: 2040, y: 4110 },
       face: -90,
     },
     {
       id: 'live-fire',
       when: 'in:r1c, alive, !had:mgsDown',
-      at: { kind: 'point', x: 930, y: 3900 },
-      face: -90,
+      at: { kind: 'point', x: 1800, y: 3890 },
+      face: 180,
     },
     {
       id: 'lead-exit',
@@ -272,7 +273,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     ),
     rule(
       'r0.heckle',
-      'in:r0, alive, still:5, waited:5',
+      'in:r0, alive, still:1.5, waited:2',
       [
         say(
           "C'mon, follow me maggot!",
@@ -318,7 +319,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     }),
     rule(
       'r1.hesitate',
-      'in:r1, alive, targetsLeft:a, holdFire:7, waited:5',
+      'in:r1, alive, targetsLeft:a, holdFire:4, waited:2',
       [
         say(
           "Thank God these targets ain't shootin' back.",
@@ -352,7 +353,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
           'Get right up [gold]next to[/] those bags, trainee!',
         ),
       ],
-      { repeat: true, cooldownS: 6 },
+      { repeat: true, cooldownS: 3 },
     ),
     rule(
       'r1b.near',
@@ -361,12 +362,25 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     ),
     rule(
       'r1b.brace',
-      'in:r1b, alive, in:bags, still:1.5, targetsLeft:b',
-      'Now hold still. [gold]Steady the rifle on the bags[/]. The far ones need it.',
+      'in:r1b, alive, in:bags, coverNear, !stance:braced, still:1, targetsLeft:b',
+      'Now [gold]settle in[/] against the bags. A braced rifle is a [gold]steady[/] rifle.',
+      {
+        note: 'The stance button (Z / tap) is taught by the painted icon and its pulsing outline.',
+      },
+    ),
+    rule(
+      'r1b.braced',
+      'in:r1b, alive, stance:braced, targetsLeft:b',
+      "That's the stance. [gold]Steady[/] means [gold]accurate[/]. Now reach out and touch the far ones.",
+    ),
+    rule(
+      'r1b.far',
+      'in:r1b, alive, !targetsLeft:bnear, targetsLeft:bfar',
+      'Just the far ones left. [gold]Aim[/], trainee. Do not spray.',
     ),
     rule(
       'r1b.aim',
-      'in:r1b, alive, in:bags, targetsLeft:b, misses>6',
+      'in:r1b, alive, in:bags, !targetsLeft:bnear, targetsLeft:bfar, misses>5',
       [
         say(
           'Slow down, trainee. [gold]Make every shot count.[/]',
@@ -374,7 +388,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
           "They're not going anywhere. [gold]Aim.[/]",
         ),
       ],
-      { repeat: true, cooldownS: 12 },
+      { repeat: true, cooldownS: 7 },
     ),
     rule('r1b.done', 'stallDone:b', [
       say('Good shooting. [p=200]Follow me.'),
@@ -504,11 +518,24 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
       'Taking the [wave]scenic route[/], are we?!',
       { repeat: true, cooldownS: 15 },
     ),
-    rule('shotAt', 'shotAtSarge', '[big][shake]DID YOU JUST SHOOT AT ME?!', {
-      repeat: true,
-      cooldownS: 15,
-      urgent: true,
-    }),
+    rule(
+      'shotAt',
+      'shotAtSarge',
+      [
+        say(
+          '[big][shake]DID YOU JUST SHOOT AT ME?!',
+          'Watch where you point that thing, trainee!',
+          "I'm on [gold]YOUR[/] side, maggot!",
+          'Aim at the [gold]TARGETS[/], not the drill sergeant!',
+        ),
+      ],
+      {
+        repeat: true,
+        cooldownS: 12,
+        urgent: true,
+        note: 'Only after sustained fire through him (about six shots in a few seconds), not a stray one.',
+      },
+    ),
     rule(
       'nag',
       'alive, !in:r0, !in:r1, !in:r1b, !in:r1c, !in:r7, inRoom:40, quiet:40',
@@ -559,7 +586,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     ),
     rule(
       'rs.heckle.first',
-      'respawn, hint:deploy, quiet:8',
+      'respawn, hint:deploy, quiet:2',
       [
         say(
           'Any day now, trainee!',
@@ -572,7 +599,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     ),
     rule(
       'rs.heckle',
-      'respawn, !hint:deploy, quiet:10',
+      'respawn, !hint:deploy, quiet:3',
       [
         say(
           'Over here, [shake]numbnuts[/]!',

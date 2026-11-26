@@ -791,21 +791,24 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   editor" back. Your copy is kept in localStorage over the repo default (download it to commit).
   Exception to "all text in strings.ts": Sarge's words live in his script. Open: pacing (speech
   vs. how fast you move) and what he does when you outrun a line; tune these in the editor.
-- **[D162] The range is three stalls; Sarge never names a button** (owner, 2026-11). The old
-  one-room range is replaced by three, zig-zagging up the screen, so there's time to see what's
-  happening and Sarge has room to talk: (1) an open field of seven targets, just to shoot ("LIGHT
-  'EM UP!"; teases you if you hesitate); (2) a sandbag lane: sandbags wall to wall between the
-  path and the targets, near targets and far ones that take three hits and are past the rifle's
-  reach from back on the path, so you must get next to the bags, shoot over them and steady the
-  rifle ("Get to cover, numbnuts!" if you shoot from back); (3) live fire: five machine guns
-  behind a concrete wall (it stops most shots; bushes hide you), the path bending west to the
-  exit; the door opens when they're dead. "Walk it off" plays any time you're hurt (it's a
-  regenerating rule). The three stalls are inserted at the south end; everything north of the
-  flag room is unchanged. Instructions are painted on the ground (WASD, or a thumbstick on a
-  touch screen, plus MOVE / SPRINT / FIRE) instead of signs, and Sarge's lines stay in-universe
-  and device-neutral. At spawn he charges ahead ("Follow me, trainee!") and nags if you stand
-  still; on the first screen he nags if you don't deploy. Tuned by level design with real stats
-  ([D157]); the MG count and their spots are the knobs for how hard stall 3 is.
+- **[D162] The range is three big stalls that zig-zag; Sarge never names a button** (owner,
+  2026-11). The one-room range is replaced by three, using lots of space (the map is 2200 wide
+  down there, 1400 above; "levels are way bigger than this"): (1) an open field you cross east,
+  seven targets spread far out so none is in your face when the door opens (auto-fire on a phone
+  would blast them at once); (2) a sandbag lane you walk north, sandbags wall to wall between
+  the path and the targets, three nearer targets and four far ones at the edge of the rifle's
+  reach (about 480 from the bags, 150 HP, three hits) so you must come up to the bags, brace
+  (a chosen stance now, [D160]; a painted BRACE mark teaches it) and aim; (3) live fire west
+  along a long concrete wall with bushes, five machine guns spread beyond it, then north out of
+  the far west door, which opens when they're dead. Stall doors open from mission rules; gate
+  delays are in Sarge's script. "Walk it off" plays any time you're hurt. Instructions are
+  painted on the ground (WASD, or a thumbstick on a touch screen; MOVE / SPRINT / FIRE / BRACE)
+  instead of signs, and Sarge's lines stay in-universe and device-neutral. He charges ahead at
+  spawn ("Follow me, trainee!") and nags every couple of seconds if you stand still; on the first
+  screen he nags if you don't deploy. He only reacts to being shot at after *sustained* fire
+  through him (six shots within four seconds), with varied lines: a stray shot, or auto-fire
+  sweeping past, is nothing. Real stats ([D157]); the MG count, spots and the far targets'
+  distance are the knobs.
 - **[D158] How far you can look and aim** (owner, 2026-11; PHASE20 [D160] made bracing a chosen stance and dropped the mounted shuffle / scoped walk): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

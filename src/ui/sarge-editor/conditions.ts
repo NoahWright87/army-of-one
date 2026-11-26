@@ -19,6 +19,7 @@ export type ParamKind =
   | 'spawn'
   | 'target'
   | 'stall'
+  | 'stance'
   | 'happened'
   | 'cause'
   | 'hint'
@@ -107,6 +108,10 @@ export const COND_TYPES: readonly CondType[] = [
   }),
   T('misses>', 'state', ["you've missed more than ", 0, ' shots here'], ['num'], {
     notLabel: ["you've missed ", 0, ' shots or fewer here'],
+  }),
+  T('stance', 'state', ["you're ", 0], ['stance'], { notLabel: ["you're not ", 0] }),
+  T('coverNear', 'state', ['cover is within reach'], [], {
+    notLabel: ['no cover is within reach'],
   }),
   T('nextTarget', 'state', ['the next target to shoot is ', 0], ['target'], {
     notLabel: ["the next target isn't ", 0],
@@ -256,10 +261,19 @@ export function paramOptions(kind: ParamKind, script: SargeScript): Option[] {
       }));
     case 'target':
       return BT_TARGETS.map((t) => ({ value: t, label: targetName(t) }));
+    case 'stance':
+      return [
+        { value: 'standing', label: 'standing' },
+        { value: 'braced', label: 'braced on cover' },
+        { value: 'prone', label: 'prone' },
+        { value: 'deployed', label: 'deployed' },
+      ];
     case 'stall':
       return [
         { value: 'a', label: 'the open field' },
         { value: 'b', label: 'the sandbag lane' },
+        { value: 'bnear', label: 'the lane’s near targets' },
+        { value: 'bfar', label: 'the lane’s far targets' },
       ];
     case 'happened':
       return [

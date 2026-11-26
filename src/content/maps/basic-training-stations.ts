@@ -38,7 +38,7 @@ export const BT_STATIONS: readonly BtStation[] = [
   {
     id: 'start',
     label: 'The start',
-    start: { x: 600, y: 5450 },
+    start: { x: 600, y: 6040 },
     flags: [],
     gates: [],
     had: [],
@@ -47,7 +47,7 @@ export const BT_STATIONS: readonly BtStation[] = [
   {
     id: 'r1',
     label: 'Range 1: open field',
-    start: { x: 600, y: 5000 },
+    start: { x: 600, y: 5600 },
     flags: [],
     gates: [],
     had: [],
@@ -56,7 +56,7 @@ export const BT_STATIONS: readonly BtStation[] = [
   {
     id: 'r1b',
     label: 'Range 2: sandbag lane',
-    start: { x: 600, y: 4500 },
+    start: { x: 2040, y: 4920 },
     flags: [],
     gates: ['bt-g1a'],
     had: FIELD_DONE,
@@ -65,7 +65,7 @@ export const BT_STATIONS: readonly BtStation[] = [
   {
     id: 'r1c',
     label: 'Range 3: live fire',
-    start: { x: 810, y: 3990 },
+    start: { x: 2040, y: 4050 },
     flags: [],
     gates: ['bt-g1a', 'bt-g1b'],
     had: LANE_DONE,

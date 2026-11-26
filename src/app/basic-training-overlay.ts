@@ -41,7 +41,7 @@ export const BT_SIGNS: readonly SignDef[] = [
  * The drill sergeant is a ghost outside the timelines: he can't be hurt, nothing collides with
  * him, and he's not in the sim or the tape. The same man between lives: one per page.
  */
-const sarge = { x: 520, y: 5500 };
+const sarge = { x: 520, y: 6100 };
 
 export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let scene: Phaser.Scene;

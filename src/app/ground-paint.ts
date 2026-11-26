@@ -10,13 +10,14 @@ import { str, type StringKey } from '../content/strings';
 export interface Paint {
   x: number;
   y: number;
-  kind: 'move' | 'sprint' | 'fire';
+  kind: 'move' | 'sprint' | 'fire' | 'brace';
 }
 
 /** Where the paint is (world units; the text under each picture is in strings.ts). */
 export const BT_PAINT: readonly Paint[] = [
-  { x: 600, y: 5330, kind: 'move' },
-  { x: 600, y: 4990, kind: 'fire' },
+  { x: 600, y: 5900, kind: 'move' },
+  { x: 640, y: 5540, kind: 'fire' },
+  { x: 2042, y: 4850, kind: 'brace' },
   { x: 860, y: 2925, kind: 'sprint' },
 ];
 
@@ -24,6 +25,7 @@ const WORD: Record<Paint['kind'], StringKey> = {
   move: 'bt.paint.move',
   sprint: 'bt.paint.sprint',
   fire: 'bt.paint.fire',
+  brace: 'bt.paint.brace',
 };
 
 const PAINT = 0xf3efe0;
@@ -107,6 +109,18 @@ export function drawGroundPaint(
         key(x, y, 130, 46, 'SHIFT');
       }
       text(x, y + 56, str(WORD.sprint), 34);
+    } else if (m.kind === 'brace') {
+      // Settle in against cover: the stance key, or (touch) a tap on the stance icon.
+      if (touch) {
+        g.lineStyle(5, PAINT, ALPHA);
+        g.strokeCircle(x, y, 30);
+        g.strokeCircle(x, y, 44);
+        g.fillStyle(PAINT, ALPHA);
+        g.fillCircle(x, y, 8);
+      } else {
+        key(x, y, 56, 56, 'Z');
+      }
+      text(x, y + 62, str(WORD.brace), 34);
     } else {
       // Fire: a mouse with its left button filled, or a fingertip.
       g.lineStyle(5, PAINT, ALPHA);

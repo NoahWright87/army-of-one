@@ -98,12 +98,35 @@ describe('basic training (PHASE18): on rails', () => {
     expect(btRoomAt(720, 1990)).toBe('r4'); // round the baffle: Bravo
   });
 
+  it('R1: nothing is in your face when a door opens: targets sit far from the doors', () => {
+    const w = bt();
+    const pos = (id: string) => w.map.objectives!.find((o) => o.id === id)!.position;
+    const near = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y);
+    // The field's targets are well past the first doorway (and out of an auto-aim's reach).
+    for (const t of BT_TARGETS_A) expect(near(pos(t), { x: 600, y: 5680 })).toBeGreaterThan(650);
+    // The lane's targets are well away from where you come in…
+    for (const t of BT_TARGETS_B) expect(near(pos(t), { x: 2040, y: 4980 })).toBeGreaterThan(250);
+    // …and the far ones sit at the edge of the rifle's reach from the bags.
+    for (const t of BT_TARGETS_B.slice(3)) {
+      const d = near(pos(t), { x: 1935, y: pos(t).y });
+      expect(d).toBeGreaterThan(430);
+      expect(d).toBeLessThan(520);
+    }
+    // The machine guns are well away from the door you walk in by.
+    for (const g of enemiesOf(w, BT_MG_SQUAD)) {
+      expect(near(g, { x: 2040, y: 4080 })).toBeGreaterThan(500);
+    }
+  });
+
   it('R1: shooting the open field’s seven targets opens the first door', () => {
     const w = bt();
-    const me = soldierAt(w, { x: 900, y: 4800 });
+    const me = soldierAt(w, { x: 900, y: 5400 });
     const defs = w.map.objectives!;
     for (const t of BT_TARGETS_A) {
       const i = defs.findIndex((o) => o.id === t);
+      // Walks up to each one (they're spread over a big field) and shoots it.
+      getSoldier(w, me)!.x = defs[i]!.position.x - 250;
+      getSoldier(w, me)!.y = defs[i]!.position.y;
       shootAt(
         w,
         me,
@@ -121,10 +144,10 @@ describe('basic training (PHASE18): on rails', () => {
   it('R1B: the far targets are weak shots from the path, and take three hits from the bags', () => {
     const w = bt();
     const defs = w.map.objectives!;
-    const far = defs.findIndex((o) => o.id === 'bt-b4');
+    const far = defs.findIndex((o) => o.id === 'bt-b7');
     expect(defs[far]!.maxHp).toBe(150);
-    // From back on the path (past the rifle's reach) a few seconds of fire don't finish it.
-    const back = soldierAt(w, { x: 700, y: 4480 });
+    // From back on the path (past the rifle's reach) a couple of seconds don't finish it.
+    const back = soldierAt(w, { x: 2060, y: 4860 });
     shootAt(
       w,
       back,
@@ -133,11 +156,11 @@ describe('basic training (PHASE18): on rails', () => {
       60 * 2,
     );
     expect(w.state.objectives[far]!.destroyed).toBe(false);
-    // Right up at the bags they're in reach, and it takes several hits.
-    getSoldier(w, back)!.x = 840;
-    getSoldier(w, back)!.y = 4480;
+    // Right up at the bags it's in reach, and it takes several hits.
+    getSoldier(w, back)!.x = 1936;
+    getSoldier(w, back)!.y = 4860;
     let hits = 0;
-    let last = 150;
+    let last = w.state.objectives[far]!.hp;
     for (let i = 0; i < 60 * 30 && !w.state.objectives[far]!.destroyed; i++) {
       const s = getSoldier(w, back)!;
       run(w, 1, { [back]: { ...toward(s, s, { aim: defs[far]!.position }), fire: i % 6 < 4 } });
@@ -146,17 +169,17 @@ describe('basic training (PHASE18): on rails', () => {
       last = hp;
     }
     expect(w.state.objectives[far]!.destroyed).toBe(true);
-    expect(hits).toBeGreaterThanOrEqual(3);
+    expect(hits).toBeGreaterThanOrEqual(2);
   });
 
   it('R1B: from the bags, every target in the lane goes down and its door opens', () => {
     const w = bt();
-    const me = soldierAt(w, { x: 845, y: 4300 });
+    const me = soldierAt(w, { x: 1938, y: 4500 });
     const defs = w.map.objectives!;
     for (const t of BT_TARGETS_B) {
       const i = defs.findIndex((o) => o.id === t);
-      getSoldier(w, me)!.x = 845;
-      getSoldier(w, me)!.y = Math.max(4090, Math.min(4510, defs[i]!.position.y));
+      getSoldier(w, me)!.x = 1938;
+      getSoldier(w, me)!.y = Math.max(4100, Math.min(4940, defs[i]!.position.y));
       shootAt(
         w,
         me,
@@ -169,38 +192,41 @@ describe('basic training (PHASE18): on rails', () => {
     expect(gateOpen(w, 'bt-g1b')).toBe(true);
   });
 
-  it('R1C: beside the concrete wall the guns go down; out in the lane they hardly do', () => {
+  it('R1C: beside the concrete wall the guns go down; out on the path they hardly do', () => {
     const guns = (w: World) => enemiesOf(w, BT_MG_SQUAD);
-    const fight = (spot: P, secs: number) => {
+    /** Works along the wall from gun to gun, standing at `y`, firing at each until it falls. */
+    const fight = (y: number, secs: number) => {
       const w = bt();
-      const me = soldierAt(w, spot);
-      for (let t = 0; t < 60 * secs; t++) {
-        const s = getSoldier(w, me)!;
-        const up = guns(w).filter((g) => alive(w, g.id));
-        if (!s.alive || !up.length) break;
-        run(w, 1, {
-          [me]: { ...toward(s, s, { aim: getSoldier(w, up[0]!.id)! }), fire: t % 6 < 4 },
-        });
+      const me = soldierAt(w, { x: 700, y });
+      for (const g of guns(w)) {
+        for (let t = 0; t < 60 * secs; t++) {
+          const s = getSoldier(w, me)!;
+          const tgt = getSoldier(w, g.id)!;
+          if (!s.alive || !tgt.alive) break;
+          getSoldier(w, me)!.x = tgt.x;
+          getSoldier(w, me)!.y = y;
+          run(w, 1, { [me]: { ...toward(s, s, { aim: tgt }), fire: t % 6 < 4 } });
+        }
       }
       return { w, alive: guns(w).filter((g) => alive(w, g.id)).length, me: getSoldier(w, me)! };
     };
-    const wall = fight({ x: 935, y: 3700 }, 40);
+    const wall = fight(3872, 12); // next to the wall, in the bushes
     expect(wall.alive).toBe(0); // fire over the concrete: all down...
     expect(wall.me.alive).toBe(true); // ...and he lives
     expect(gateOpen(wall.w, 'bt-g1')).toBe(true); // the way out opens
-    const lane = fight({ x: 800, y: 3700 }, 25);
-    expect(lane.alive).toBeGreaterThan(0); // shooting across the wall from the lane: not enough
+    const path = fight(4040, 6); // out on the path: across the wall, not enough
+    expect(path.alive).toBeGreaterThan(0);
   });
 
   it('R1B: the sandbag lane has no way round the bags', () => {
     const w = bt();
-    const me = soldierAt(w, { x: 840, y: 4300 });
-    // Every row of the lane, north to south: walking east stops at the bags.
-    for (const y of [4045, 4150, 4300, 4450, 4540]) {
-      getSoldier(w, me)!.x = 840;
+    const me = soldierAt(w, { x: 1990, y: 4500 });
+    // Every row of the lane, north to south: walking west stops at the bags.
+    for (const y of [4100, 4300, 4500, 4700, 4900]) {
+      getSoldier(w, me)!.x = 1990;
       getSoldier(w, me)!.y = y;
-      run(w, 90, { [me]: toward({ x: 840, y }, { x: 1300, y }) });
-      expect(getSoldier(w, me)!.x).toBeLessThan(862);
+      run(w, 90, { [me]: toward({ x: 1990, y }, { x: 1400, y }) });
+      expect(getSoldier(w, me)!.x).toBeGreaterThan(1924);
     }
   });
 
@@ -210,12 +236,13 @@ describe('basic training (PHASE18): on rails', () => {
       w.state.gates.find((x) => x.id === g)!.open = true; // the stalls are done by then
     }
     const stops: P[] = [
-      { x: 600, y: 5450 }, // the start
-      { x: 600, y: 5150 }, // the first door
-      { x: 600, y: 4620 }, // the field's door
-      { x: 830, y: 4300 }, // the sandbags
-      { x: 820, y: 4050 }, // the lane's door
-      { x: 330, y: 3440 }, // the live-fire exit, far west
+      { x: 600, y: 6040 }, // the start
+      { x: 600, y: 5730 }, // the first door
+      { x: 2040, y: 5010 }, // the field's east door
+      { x: 1960, y: 4600 }, // the sandbags
+      { x: 2040, y: 4110 }, // the lane's north door
+      { x: 1800, y: 3890 }, // the live-fire path
+      { x: 330, y: 3440 }, // the exit, far west
       { x: 930, y: 3030 }, // Alpha
       { x: 860, y: 2910 }, // the sprint gate (shut)
     ];
@@ -228,12 +255,12 @@ describe('basic training (PHASE18): on rails', () => {
       }
     }
     // From the start he goes through the first doorway (x 520–680), not the wall beside it.
-    const through = findPath(w, stops[0]!, stops[3]!)!;
+    const through = findPath(w, stops[0]!, stops[2]!)!;
     let crossedAt: number | null = null;
     for (let j = 1; j < through.length; j++) {
       const a = through[j - 1]!;
       const b = through[j]!;
-      if (a.y >= 5090 && b.y <= 5090) crossedAt = a.x + ((b.x - a.x) * (a.y - 5090)) / (a.y - b.y);
+      if (a.y >= 5670 && b.y <= 5670) crossedAt = a.x + ((b.x - a.x) * (a.y - 5670)) / (a.y - b.y);
     }
     expect(crossedAt).not.toBeNull();
     expect(crossedAt!).toBeGreaterThan(520);

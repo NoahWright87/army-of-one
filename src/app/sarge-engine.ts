@@ -41,6 +41,9 @@ export interface SargeCtx {
   firedSinceS?: (rule: string) => number | null;
   gateOpen: (id: string) => boolean;
   nextTarget: string | null;
+  /** Your stance (standing, braced, prone, deployed, …) and whether cover is in reach to brace on. */
+  stance: string;
+  coverNear: boolean;
   /** Does that range stall ('a' or 'b') still have targets up? */
   targetsLeft: (stall: string) => boolean;
   /** Seconds since you last fired (from walking into the room, if later). */
@@ -156,8 +159,13 @@ function makeTok(raw: string): Tok | string {
       return state((c) => c.gateOpen(arg));
     case 'nextTarget':
       return state((c) => c.nextTarget === arg);
+    case 'stance':
+      if (!arg) return need('a stance (standing, braced, prone, deployed)');
+      return state((c) => c.stance === arg);
+    case 'coverNear':
+      return state((c) => c.coverNear);
     case 'targetsLeft':
-      if (arg !== 'a' && arg !== 'b') return need('a stall (a or b)');
+      if (!['a', 'b', 'bnear', 'bfar'].includes(arg)) return need('a stall (a, b, bnear or bfar)');
       return state((c) => c.targetsLeft(arg));
     case 'holdFire':
       if (num(arg) === null) return need('seconds');
