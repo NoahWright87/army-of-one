@@ -825,8 +825,9 @@ export const STRINGS = {
 
   // Basic training: the course's signs and coach. Sarge's own words are in sarge-script.ts.
   'bt.sarge.name': 'DRILL SGT.',
-  'bt.sign.move': 'BASIC TRAINING\n[small]WASD: move · SHIFT: sprint[/]',
-  'bt.sign.range': 'RANGE\n[small]Click to fire.\nRight up at cover, you fire over it.[/]',
+  'bt.paint.move': 'MOVE',
+  'bt.paint.sprint': 'SPRINT',
+  'bt.paint.fire': 'FIRE',
   'bt.sign.flag': 'FLAGS\n[small]Stand on one to take it.\nTaken flags are spawn points.[/]',
   'bt.sign.mg': 'MACHINE GUN\n[small]Stand still at cover to mount it.\nThen aim it yourself.[/]',
   'bt.sign.sniper':

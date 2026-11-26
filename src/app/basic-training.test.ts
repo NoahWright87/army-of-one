@@ -27,8 +27,8 @@ const view = (soldiers: SoldierView[], events: SimEvent[] = []): WorldView =>
     events,
     gates: [{ id: 'bt-g2', open: false }],
     objectives: [
-      { id: 'bt-t1', x: 1150, y: 3500, destroyed: false },
-      { id: 'bt-t2', x: 1270, y: 3600, destroyed: false },
+      { id: 'bt-a1', x: 420, y: 4700, hp: 50, destroyed: false, target: true },
+      { id: 'bt-b1', x: 1010, y: 4500, hp: 50, destroyed: false, target: true },
     ],
     tick: 0,
   }) as unknown as WorldView;
@@ -47,14 +47,9 @@ describe('basic training director', () => {
   it('greets the first life, then each room once', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
-    expect(ids(bt.startLife('S1', view([me(600, 4250)]), 0))).toEqual([
-      'intro',
-      'intro',
-      'intro',
-      'intro',
-    ]);
-    expect(ids(bt.step(view([me(600, 3700)]), 100, sarge))).toEqual(['r1.enter']);
-    expect(ids(bt.step(view([me(600, 3650)]), 200, sarge))).toEqual([]);
+    expect(ids(bt.startLife('S1', view([me(600, 5450)]), 0))).toEqual(['intro', 'intro']);
+    expect(ids(bt.step(view([me(600, 5000)]), 100, sarge))).toEqual(['r1.enter', 'r1.enter']);
+    expect(ids(bt.step(view([me(600, 4950)]), 200, sarge))).toEqual([]);
   });
 
   it('the default script has no mistakes in it', () => {
@@ -152,40 +147,85 @@ describe('basic training director', () => {
     expect(says.find((x) => x.id === 'shotAt')!.urgent).toBe(true);
   });
 
-  it('R1: Sarge runs to the sandbags and heckles you if you ignore him', () => {
+  it('start: Sarge charges ahead to the door, and heckles if you stand there', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
-    bt.startLife('S1', view([me(600, 4250)]), 0);
-    expect(ids(bt.step(view([me(600, 3700)]), 100, sarge))).toEqual(['r1.enter']);
-    const at600 = view([me(600, 3700)]);
-    expect(bt.guide(at600)?.at?.x).toBeLessThan(880); // by the bags, on your side
-    expect(bt.guide(at600)?.at?.y).toBe(3500); // opposite the next target
-    expect(ids(bt.step(at600, 600, sarge))).toEqual([]); // gives you a moment
-    expect(ids(bt.step(at600, 1200, sarge))).toEqual(['r1.bags']); // then asks
-    expect(bt.step(at600, 5000, sarge)).toEqual([]);
-    expect(bt.step(at600, 12100, sarge)[0]!.id).toBe('r1.heckle'); // seven quiet seconds on
-    expect(bt.step(at600, 12200, sarge)).toEqual([]);
-    expect(bt.step(at600, 19200, sarge)[0]!.text).toContain('numbnuts'); // the next variant
+    bt.startLife('S1', view([me(600, 5450)]), 0);
+    const g = bt.guide(view([me(600, 5450)]))!;
+    expect(g.at!.y).toBeLessThan(5450); // ahead of you, at the first door
+    expect(g.at!.y).toBeGreaterThan(5100);
+    const still = view([me(600, 5450)]);
+    bt.step(still, 1000, sarge);
+    expect(bt.step(still, 6500, sarge)).toEqual([]); // still for 5 s: now the clock starts
+    const says = bt.step(still, 11600, sarge);
+    expect(ids(says)).toEqual(['r0.heckle']);
+    expect(says[0]!.text).toContain("C'mon, follow me maggot"); // the first of his four
   });
 
-  it('R1: at the bags Sarge stops heckling and names the cover the target is in', () => {
+  it('R1: an open field of targets: he cheers you on, and teases you if you hesitate', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
-    bt.startLife('S1', view([me(600, 4250)]), 0);
-    bt.step(view([me(600, 3700)]), 100, sarge);
-    const near = view([me(860, 3500)]);
-    expect(ids(bt.step(near, 300, sarge))).toEqual(['r1.near', 'r1.t1']);
-    expect(bt.step(near, 9000, sarge)).toEqual([]);
+    bt.startLife('S1', view([me(600, 5450)]), 0);
+    const field = view([me(600, 4950)]);
+    expect(ids(bt.step(field, 100, sarge))).toEqual(['r1.enter', 'r1.enter']);
+    expect(bt.step(field, 4000, sarge)).toEqual([]);
+    expect(bt.step(field, 7200, sarge)).toEqual([]); // 7 s without firing: the clock starts
+    expect(ids(bt.step(field, 12400, sarge))).toEqual(['r1.hesitate']);
   });
 
-  it('start: Sarge runs ahead to the door and heckles if you stand there', () => {
+  it('R1: lots of misses earn some gentle advice', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
-    bt.startLife('S1', view([me(600, 4250)]), 0);
-    expect(bt.guide(view([me(600, 4250)]))?.at?.y).toBeLessThan(4250); // ahead of you, at the door
-    expect(bt.guide(view([me(600, 4250)]))?.at?.y).toBeGreaterThan(3900);
-    bt.step(view([me(600, 4250)]), 1000, sarge);
-    expect(ids(bt.step(view([me(600, 4250)]), 20000, sarge))).toEqual(['r0.heckle']);
+    bt.startLife('S1', view([me(600, 5450)]), 0);
+    const shot = (n: number): SimEvent[] =>
+      Array.from({ length: n }, (_, i) => ({
+        kind: 'shotFired',
+        tick: i,
+        by: 'S1',
+        fromX: 600,
+        fromY: 4950,
+        angle: 0,
+        hitX: 1100,
+        hitY: 4950,
+      })) as SimEvent[];
+    bt.step(view([me(600, 4950)]), 100, sarge);
+    expect(ids(bt.step(view([me(600, 4950)], shot(5)), 500, sarge))).toEqual([]);
+    expect(ids(bt.step(view([me(600, 4950)], shot(5)), 900, sarge))).toEqual(['r1.aim']); // 10 misses
+  });
+
+  it('R1B: shooting from back on the path gets "get to cover"; next to the bags he explains', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(600, 4500)]), 0);
+    const shot = (x: number): SimEvent[] => [
+      {
+        kind: 'shotFired',
+        tick: 1,
+        by: 'S1',
+        fromX: x,
+        fromY: 4400,
+        angle: 0,
+        hitX: 900,
+        hitY: 4400,
+      } as SimEvent,
+    ];
+    bt.step(view([me(640, 4400)]), 100, sarge); // walks into the lane
+    const back = bt.step(view([me(640, 4400)], shot(640)), 600, sarge);
+    expect(ids(back)).toEqual(['r1b.back']);
+    expect(bt.step(view([me(640, 4400)], shot(640)), 1000, sarge)).toEqual([]); // not every shot
+    const at = view([me(845, 4400)]);
+    const says = bt.step(at, 8000, sarge);
+    expect(ids(says)).toContain('r1b.near');
+    expect(bt.guide(at)!.at!.x).toBeLessThan(860); // he's at the bags, on your side
+  });
+
+  it('being hurt, anywhere, gets a "walk it off"', () => {
+    const bt = new BasicTraining(memory());
+    bt.reset();
+    bt.startLife('S1', view([me(1000, 3700)]), 0);
+    expect(bt.step(view([me(1000, 3700)]), 100, sarge)).toEqual([]);
+    const says = bt.step(view([me(1000, 3700, { hp: 60 })]), 200, sarge);
+    expect(ids(says)).toContain('hurt');
   });
 
   it('sprint: after the flag he waits at the gate and says it will open; then he runs ahead', () => {
@@ -264,22 +304,22 @@ describe('basic training director', () => {
     bt.respawnSays(10);
     bt.spoke(14000); // still talking at 14 s
     expect(bt.respawnSays(20000)).toEqual([]); // 6 s of quiet isn't enough
-    expect(ids(bt.respawnSays(24500))).toEqual(['rs.heckle']);
+    expect(ids(bt.respawnSays(24500))).toEqual(['rs.heckle.first']);
   });
 
   it('an edited script takes effect at once, and a beat can be switched off', () => {
     const bt = new BasicTraining(memory());
     bt.reset();
-    bt.startLife('S1', view([me(600, 4250)]), 0);
+    bt.startLife('S1', view([me(600, 5450)]), 0);
     const script = structuredClone(bt.script);
     script.rules.find((x) => x.id === 'r1.enter')!.steps = [
       { k: 'say', say: ['Hello, [gold]private[/].'] },
     ];
-    script.rules.find((x) => x.id === 'r1.bags')!.off = true;
+    script.rules.find((x) => x.id === 'r1.hesitate')!.off = true;
     bt.setScript(script);
-    const says = bt.step(view([me(600, 3700)]), 100, sarge);
+    const says = bt.step(view([me(600, 4950)]), 100, sarge);
     expect(says[0]!.text).toBe('Hello, [gold]private[/].');
-    expect(ids(bt.step(view([me(600, 3700)]), 2000, sarge))).toEqual([]);
+    expect(ids(bt.step(view([me(600, 4950)]), 20000, sarge))).toEqual([]);
   });
 
   it('a zone from the script: entering and leaving it are moments rules can use', () => {
@@ -292,8 +332,8 @@ describe('basic training director', () => {
       { id: 'long', when: 'inFor:bags:3', steps: [{ k: 'say', say: ['3s!'] }], repeat: true },
     ];
     bt.setScript(script);
-    bt.startLife('S1', view([me(600, 3800)]), 0);
-    const bags = (x: number, t: number) => ids(bt.step(view([me(x, 3600)]), t, sarge));
+    bt.startLife('S1', view([me(600, 4300)]), 0);
+    const bags = (x: number, t: number) => ids(bt.step(view([me(x, 4300)]), t, sarge));
     expect(bags(700, 100)).toEqual([]); // outside
     expect(bags(860, 200)).toEqual(['in']); // walks into the sandbag zone
     expect(bags(860, 2000)).toEqual([]);
@@ -331,7 +371,10 @@ describe('the script engine', () => {
     flagSinceS: (() => null) as (f: string) => number | null,
     gateOpen: () => false,
     nextTarget: null,
-    targetsLeft: false,
+    targetsLeft: (() => false) as (stall: string) => boolean,
+    holdFireS: 0,
+    stillS: 0,
+    misses: 0,
     inCorridor: false,
     atSpawn: () => false,
     respawn: null,

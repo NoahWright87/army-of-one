@@ -21,7 +21,11 @@ export interface BtStation {
   roles: RoleId[];
 }
 
-const R1_DONE = ['targetsDown', 'gateOpened:bt-g1'];
+const FIELD_DONE = ['stallDone:a', 'gateOpened:bt-g1a'];
+const LANE_DONE = [...FIELD_DONE, 'stallDone:b', 'gateOpened:bt-g1b'];
+const R1_DONE = [...LANE_DONE, 'mgsDown', 'gateOpened:bt-g1'];
+/** The range gates open once the stalls are done. */
+const RANGE_GATES = ['bt-g1a', 'bt-g1b', 'bt-g1'];
 const CHUTE_DONE = [...R1_DONE, 'captured:bt-a', 'gateOpened:bt-g2', 'minesShot'];
 const BRAVO_DONE = [...CHUTE_DONE, 'captured:bt-b', 'gateOpened:bt-g4', 'nestCleared'];
 const LEVER_DONE = [...BRAVO_DONE, 'gateOpened:bt-g5'];
@@ -34,7 +38,7 @@ export const BT_STATIONS: readonly BtStation[] = [
   {
     id: 'start',
     label: 'The start',
-    start: { x: 600, y: 4250 },
+    start: { x: 600, y: 5450 },
     flags: [],
     gates: [],
     had: [],
@@ -42,19 +46,37 @@ export const BT_STATIONS: readonly BtStation[] = [
   },
   {
     id: 'r1',
-    label: 'Range: sandbags and targets',
-    start: { x: 600, y: 3800 },
+    label: 'Range 1: open field',
+    start: { x: 600, y: 5000 },
     flags: [],
     gates: [],
     had: [],
     roles: [],
   },
   {
+    id: 'r1b',
+    label: 'Range 2: sandbag lane',
+    start: { x: 600, y: 4500 },
+    flags: [],
+    gates: ['bt-g1a'],
+    had: FIELD_DONE,
+    roles: [],
+  },
+  {
+    id: 'r1c',
+    label: 'Range 3: live fire',
+    start: { x: 810, y: 3990 },
+    flags: [],
+    gates: ['bt-g1a', 'bt-g1b'],
+    had: LANE_DONE,
+    roles: [],
+  },
+  {
     id: 'r2',
     label: 'Flag, then the sprint gate',
-    start: { x: 600, y: 3300 },
+    start: { x: 330, y: 3300 },
     flags: [],
-    gates: ['bt-g1'],
+    gates: RANGE_GATES,
     had: R1_DONE,
     roles: [],
   },
@@ -63,7 +85,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'The chute: MG and mines',
     start: { x: 860, y: 3110 },
     flags: ['bt-a'],
-    gates: ['bt-g1', 'bt-g2'],
+    gates: [...RANGE_GATES, 'bt-g2'],
     had: [...R1_DONE, 'captured:bt-a', 'gateOpened:bt-g2'],
     roles: [],
   },
@@ -72,7 +94,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'Bravo flag and the Shield',
     start: { x: 650, y: 1900 },
     flags: ['bt-a'],
-    gates: ['bt-g1', 'bt-g2'],
+    gates: [...RANGE_GATES, 'bt-g2'],
     had: CHUTE_DONE,
     roles: [],
   },
@@ -81,7 +103,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'Charlie flag',
     start: { x: 600, y: 1460 },
     flags: ['bt-a', 'bt-b'],
-    gates: ['bt-g1', 'bt-g2', 'bt-g4', 'bt-g5'],
+    gates: [...RANGE_GATES, 'bt-g2', 'bt-g4', 'bt-g5'],
     had: LEVER_DONE,
     roles: ['shield'],
   },
@@ -90,7 +112,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'Riflemen ambush (Machine Gunner)',
     start: { x: 600, y: 1360 },
     flags: ['bt-a', 'bt-b', 'bt-c'],
-    gates: ['bt-g1', 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b'],
+    gates: [...RANGE_GATES, 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b'],
     had: CHARLIE_DONE,
     roles: ['shield'],
   },
@@ -99,7 +121,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'Parapet (Grenadier)',
     start: { x: 600, y: 850 },
     flags: ['bt-a', 'bt-b', 'bt-c', 'bt-d'],
-    gates: ['bt-g1', 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b', 'bt-g6', 'bt-g7'],
+    gates: [...RANGE_GATES, 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b', 'bt-g6', 'bt-g7'],
     had: DELTA_DONE,
     roles: ['shield', 'gunner'],
   },
@@ -108,7 +130,7 @@ export const BT_STATIONS: readonly BtStation[] = [
     label: 'Sniper range',
     start: { x: 340, y: 340 },
     flags: ['bt-a', 'bt-b', 'bt-c', 'bt-d'],
-    gates: ['bt-g1', 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b', 'bt-g6', 'bt-g7', 'bt-g8'],
+    gates: [...RANGE_GATES, 'bt-g2', 'bt-g4', 'bt-g5', 'bt-g5b', 'bt-g6', 'bt-g7', 'bt-g8'],
     had: PARAPET_DONE,
     roles: ['shield', 'gunner', 'grenadier'],
   },

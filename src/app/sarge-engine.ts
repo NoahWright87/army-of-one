@@ -41,7 +41,14 @@ export interface SargeCtx {
   firedSinceS?: (rule: string) => number | null;
   gateOpen: (id: string) => boolean;
   nextTarget: string | null;
-  targetsLeft: boolean;
+  /** Does that range stall ('a' or 'b') still have targets up? */
+  targetsLeft: (stall: string) => boolean;
+  /** Seconds since you last fired (from walking into the room, if later). */
+  holdFireS: number;
+  /** Seconds since you last moved. */
+  stillS: number;
+  /** Shots fired in this room that hit nothing. */
+  misses: number;
   inCorridor: boolean;
   atSpawn: (id: string) => boolean;
   respawn: null | {
@@ -78,6 +85,11 @@ function makeTok(raw: string): Tok | string {
     const n = Number(gt[1]);
     return tok(raw, neg, 'deaths>', [gt[1]!], false, (c) => c.deaths > n);
   }
+  const ms = /^misses>(\d+)$/.exec(text);
+  if (ms) {
+    const n = Number(ms[1]);
+    return tok(raw, neg, 'misses>', [ms[1]!], false, (c) => c.misses > n);
+  }
   const parts = text.split(':');
   const name = parts[0]!;
   const args = parts.slice(1);
@@ -92,13 +104,17 @@ function makeTok(raw: string): Tok | string {
   switch (name) {
     // Events.
     case 'lifeStart':
-    case 'targetsDown':
+    case 'mgsDown':
+    case 'fired':
     case 'minesShot':
     case 'nestCleared':
     case 'rangeCleared':
     case 'shotAtSarge':
     case 'respawnOpen':
       return edge((c) => c.edges.has(name));
+    case 'stallDone':
+      if (arg !== 'a' && arg !== 'b') return need('a stall (a or b)');
+      return edge((c) => c.edges.has(`stallDone:${arg}`));
     case 'died':
       if (arg && room()) return room()!;
       return edge((c) => c.edges.has(arg ? `died:${arg}` : 'died'));
@@ -141,7 +157,14 @@ function makeTok(raw: string): Tok | string {
     case 'nextTarget':
       return state((c) => c.nextTarget === arg);
     case 'targetsLeft':
-      return state((c) => c.targetsLeft);
+      if (arg !== 'a' && arg !== 'b') return need('a stall (a or b)');
+      return state((c) => c.targetsLeft(arg));
+    case 'holdFire':
+      if (num(arg) === null) return need('seconds');
+      return state((c) => c.holdFireS >= Number(arg));
+    case 'still':
+      if (num(arg) === null) return need('seconds');
+      return state((c) => c.stillS >= Number(arg));
     case 'hurt':
       return state((c) => !!c.me && c.me.hp < c.me.maxHp);
     case 'corridor':

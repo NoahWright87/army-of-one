@@ -19,6 +19,7 @@ import type { SessionOverlay } from '../render/phaser/services';
 import { SignpostLayer } from '../render/worldtext/signpost-layer';
 import { SpeechLayer } from '../render/worldtext/speech-layer';
 import type { BasicTraining, BtSay } from './basic-training';
+import { drawGroundPaint } from './ground-paint';
 
 const SARGE = 'sarge';
 /** How big he's drawn, and how see-through. */
@@ -30,8 +31,6 @@ const FOLLOW_OFFSET = { dx: -90, dy: 70 }; // TUNE
 const FOLLOW_SLACK = 70; // TUNE
 
 export const BT_SIGNS: readonly SignDef[] = [
-  { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },
-  { id: 'bt-s-range', x: 420, y: 3820, kind: 'wood', textKey: 'bt.sign.range', size: 44 },
   { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
   { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
   { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
@@ -42,7 +41,7 @@ export const BT_SIGNS: readonly SignDef[] = [
  * The drill sergeant is a ghost outside the timelines: he can't be hurt, nothing collides with
  * him, and he's not in the sim or the tape. The same man between lives: one per page.
  */
-const sarge = { x: 520, y: 4300 };
+const sarge = { x: 520, y: 5500 };
 
 export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let scene: Phaser.Scene;
@@ -59,6 +58,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
   let lastView: WorldView | null = null;
+  let paint: Phaser.GameObjects.GameObject[] = [];
   let world: World;
   let look = cloneWorldText();
   /** The way he's running (around walls, like any soldier), and what it was worked out for. */
@@ -159,6 +159,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       speech = new SpeechLayer(scene, look, display);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
       floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
+      paint = drawGroundPaint(scene);
       body = scene.add
         .image(sarge.x, sarge.y, 'npc_sarge')
         .setScale(SARGE_SIZE / fitPx('npc_sarge'))
@@ -186,6 +187,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       body.destroy();
       tag.destroy();
       floor.destroy();
+      for (const o of paint) o.destroy();
     },
     onStep(view: WorldView) {
       lastView = view;

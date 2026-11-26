@@ -18,6 +18,7 @@ export type ParamKind =
   | 'rule'
   | 'spawn'
   | 'target'
+  | 'stall'
   | 'happened'
   | 'cause'
   | 'hint'
@@ -52,7 +53,9 @@ export const COND_TYPES: readonly CondType[] = [
   T('leave', 'happens', ['you walk out of ', 0], ['zone']),
   T('captured', 'happens', ['you capture ', 0], ['cp']),
   T('gateOpened', 'happens', [0, ' opens'], ['gate']),
-  T('targetsDown', 'happens', ['all the range targets are down']),
+  T('stallDone', 'happens', ['every target in ', 0, ' is down'], ['stall']),
+  T('mgsDown', 'happens', ['the machine guns are down']),
+  T('fired', 'happens', ['you fire a shot']),
   T('minesShot', 'happens', ['you set off a mine']),
   T('died', 'happens', ['you die']),
   T('diedAt', 'happens', ['you die in ', 0], ['room'], {}, 'died'),
@@ -76,6 +79,12 @@ export const COND_TYPES: readonly CondType[] = [
   T('quiet', 'timer', ["Sarge hasn't said anything for ", 0, ' seconds'], ['num'], {
     notLabel: ['Sarge has spoken within ', 0, ' seconds'],
   }),
+  T('holdFire', 'timer', ["you haven't fired for ", 0, ' seconds'], ['num'], {
+    notLabel: ['you fired within ', 0, ' seconds'],
+  }),
+  T('still', 'timer', ["you've stood still for ", 0, ' seconds'], ['num'], {
+    notLabel: ["you haven't stood still for ", 0, ' seconds'],
+  }),
   T('waited', 'timer', ['all of the above is still true after ', 0, ' seconds'], ['num']),
   // Things that are true.
   T('in', 'state', ["you're in ", 0], ['zone'], { notLabel: ["you're not in ", 0] }),
@@ -93,8 +102,11 @@ export const COND_TYPES: readonly CondType[] = [
   }),
   T('role', 'state', ['your class is ', 0], ['role'], { notLabel: ["your class isn't ", 0] }),
   T('hurt', 'state', ["you're wounded"], [], { notLabel: ["you're at full health"] }),
-  T('targetsLeft', 'state', ['range targets are left'], [], {
-    notLabel: ['no range targets are left'],
+  T('targetsLeft', 'state', ['targets are left in ', 0], ['stall'], {
+    notLabel: ['no targets are left in ', 0],
+  }),
+  T('misses>', 'state', ["you've missed more than ", 0, ' shots here'], ['num'], {
+    notLabel: ["you've missed ", 0, ' shots or fewer here'],
   }),
   T('nextTarget', 'state', ['the next target to shoot is ', 0], ['target'], {
     notLabel: ["the next target isn't ", 0],
@@ -141,8 +153,8 @@ export interface CondRow {
 export function rowToToken(row: CondRow): string {
   const { type, args } = row;
   const body =
-    type.name === 'deaths>'
-      ? `deaths>${args[0] ?? '0'}`
+    type.name === 'deaths>' || type.name === 'misses>'
+      ? `${type.name}${args[0] ?? '0'}`
       : [type.name, ...args].join(':').replace(/:+$/, '');
   return `${row.neg ? '!' : ''}${body}`;
 }
@@ -152,8 +164,8 @@ export function tokenToRow(raw: string): CondRow | null {
   let t = raw.trim();
   const neg = t.startsWith('!');
   if (neg) t = t.slice(1).trim();
-  const gt = /^deaths>(\d+)$/.exec(t);
-  if (gt) return { neg, type: COND_TYPES.find((c) => c.name === 'deaths>')!, args: [gt[1]!] };
+  const gt = /^(deaths|misses)>(\d+)$/.exec(t);
+  if (gt) return { neg, type: COND_TYPES.find((c) => c.name === `${gt[1]}>`)!, args: [gt[2]!] };
   const [name, ...args] = t.split(':');
   const matches = COND_TYPES.filter((c) => c.name === name);
   if (!matches.length) return null;
@@ -206,11 +218,11 @@ export interface Option {
   label: string;
 }
 
-const TARGET_NAMES: Record<string, string> = {
-  'bt-t1': 'target 1 (in the open)',
-  'bt-t2': 'target 2 (behind the fence)',
-  'bt-t3': 'target 3 (behind the crate)',
-  'bt-t4': 'target 4 (behind the half wall)',
+/** "open-field target 3", "lane target 5 (far: 3 hits)". */
+const targetName = (id: string): string => {
+  const n = id.slice(-1);
+  if (id.startsWith('bt-a')) return `open-field target ${n}`;
+  return Number(n) >= 4 ? `lane target ${n} (far: 3 hits)` : `lane target ${n} (near)`;
 };
 
 const gateName = (id: string) => `Gate ${id.replace('bt-g', '')}`;
@@ -243,7 +255,12 @@ export function paramOptions(kind: ParamKind, script: SargeScript): Option[] {
         label: strDynamic(s.nameKey),
       }));
     case 'target':
-      return BT_TARGETS.map((t) => ({ value: t, label: TARGET_NAMES[t] ?? t }));
+      return BT_TARGETS.map((t) => ({ value: t, label: targetName(t) }));
+    case 'stall':
+      return [
+        { value: 'a', label: 'the open field' },
+        { value: 'b', label: 'the sandbag lane' },
+      ];
     case 'happened':
       return [
         ...(BASIC_TRAINING.capturePoints ?? []).map((c) => ({
@@ -254,7 +271,9 @@ export function paramOptions(kind: ParamKind, script: SargeScript): Option[] {
           value: `gateOpened:${g.id}`,
           label: `${gateName(g.id)} opened`,
         })),
-        { value: 'targetsDown', label: 'the range targets went down' },
+        { value: 'stallDone:a', label: 'the open field was cleared' },
+        { value: 'stallDone:b', label: 'the sandbag lane was cleared' },
+        { value: 'mgsDown', label: 'the machine guns were silenced' },
         { value: 'minesShot', label: 'you set off a mine' },
         { value: 'nestCleared', label: 'the MG nest was cleared' },
         { value: 'rangeCleared', label: 'the sniper range guns were cleared' },

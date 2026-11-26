@@ -791,6 +791,21 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   editor" back. Your copy is kept in localStorage over the repo default (download it to commit).
   Exception to "all text in strings.ts": Sarge's words live in his script. Open: pacing (speech
   vs. how fast you move) and what he does when you outrun a line; tune these in the editor.
+- **[D161] The range is three stalls; Sarge never names a button** (owner, 2026-11). The old
+  one-room range is replaced by three, zig-zagging up the screen, so there's time to see what's
+  happening and Sarge has room to talk: (1) an open field of seven targets, just to shoot ("LIGHT
+  'EM UP!"; teases you if you hesitate); (2) a sandbag lane: sandbags wall to wall between the
+  path and the targets, near targets and far ones that take three hits and are past the rifle's
+  reach from back on the path, so you must get next to the bags, shoot over them and steady the
+  rifle ("Get to cover, numbnuts!" if you shoot from back); (3) live fire: five machine guns
+  behind a concrete wall (it stops most shots; bushes hide you), the path bending west to the
+  exit; the door opens when they're dead. "Walk it off" plays any time you're hurt (it's a
+  regenerating rule). The three stalls are inserted at the south end; everything north of the
+  flag room is unchanged. Instructions are painted on the ground (WASD, or a thumbstick on a
+  touch screen, plus MOVE / SPRINT / FIRE) instead of signs, and Sarge's lines stay in-universe
+  and device-neutral. At spawn he charges ahead ("Follow me, trainee!") and nags if you stand
+  still; on the first screen he nags if you don't deploy. Tuned by level design with real stats
+  ([D157]); the MG count and their spots are the knobs for how hard stall 3 is.
 - **[D158] How far you can look and aim** (owner, 2026-11): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across

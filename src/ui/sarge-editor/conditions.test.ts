@@ -36,7 +36,7 @@ describe('the Sarge editor’s friendly conditions', () => {
 
   it('puts conditions into words', () => {
     const s = DEFAULT_SARGE_SCRIPT;
-    expect(describeWhen('enter:r1', s)).toBe('you walk into Range room');
+    expect(describeWhen('enter:r1', s)).toBe('you walk into Range: open field');
     expect(describeWhen('!in:bags, alive', s)).toBe("you're not in By the sandbags · you're alive");
     expect(describeWhen('had:captured:bt-a, !gate:bt-g2', s)).toBe(
       'you captured Alpha flag has happened · Gate 2 is shut',

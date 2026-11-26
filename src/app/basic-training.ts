@@ -10,7 +10,9 @@ import { roleDef } from '../content/roles';
 import {
   BASIC_TRAINING,
   BT_CORRIDOR_X,
-  BT_R1_BAGS,
+  BT_BAGS,
+  BT_TARGETS_A,
+  BT_TARGETS_B,
   BT_ROOM_RECTS,
   BT_TARGETS,
   btRoomAt,
@@ -118,6 +120,13 @@ export class BasicTraining {
   private cause: string | null = null;
   /** Zones your soldier is in, and since when (ms). */
   private zones = new Map<string, number>();
+  /** Shots fired in this room, hits on targets among them, and when you last fired / moved. */
+  private shotsHere = 0;
+  private hitsHere = 0;
+  private lastFireMs = 0;
+  private lastMoveMs = 0;
+  private lastPos: { x: number; y: number } | null = null;
+  private readonly targetHp = new Map<string, number>();
   /** When each flag was set (ms; a flag set before this page loaded counts from its first look). */
   private readonly flagSince = new Map<string, number>();
   /** The respawn view: where he's walking, and what it asks of the script. */
@@ -195,6 +204,12 @@ export class BasicTraining {
     this.roomSince = nowMs;
     this.zones.clear();
     this.nowMs = nowMs;
+    this.shotsHere = 0;
+    this.hitsHere = 0;
+    this.lastFireMs = nowMs;
+    this.lastMoveMs = nowMs;
+    this.lastPos = null;
+    this.targetHp.clear();
     this.progress.lives++;
     // You start in whatever zones you stand in: that's an "enter" for each.
     const edges = new Set(['lifeStart']);
@@ -220,6 +235,13 @@ export class BasicTraining {
       if (r !== this.room) {
         this.room = r;
         this.roomSince = nowMs;
+        this.shotsHere = 0;
+        this.hitsHere = 0;
+        this.lastFireMs = nowMs;
+      }
+      if (!this.lastPos || Math.hypot(me.x - this.lastPos.x, me.y - this.lastPos.y) > 6) {
+        this.lastPos = { x: me.x, y: me.y };
+        this.lastMoveMs = nowMs;
       }
       // Zones (the room, and the script's own rectangles): who came in, who went out.
       const now = this.zonesAt(me.x, me.y);
@@ -236,12 +258,25 @@ export class BasicTraining {
         }
       }
     }
+    // A target that lost hit points was hit (so a shot that hit nothing was a miss).
+    for (const o of view.objectives) {
+      if (!o.target) continue;
+      const before = this.targetHp.get(o.id);
+      if (before !== undefined && o.hp < before) this.hitsHere++;
+      this.targetHp.set(o.id, o.hp);
+    }
     this.cause = null;
     for (const e of view.events) {
       switch (e.kind) {
         case 'objectiveDestroyed':
-          if (BT_TARGETS.every((id) => view.objectives.find((o) => o.id === id)?.destroyed)) {
-            edges.add('targetsDown');
+          for (const [stall, ids] of [
+            ['a', BT_TARGETS_A],
+            ['b', BT_TARGETS_B],
+          ] as const) {
+            const down = (id: string) => view.objectives.find((o) => o.id === id)?.destroyed;
+            if ((ids as readonly string[]).includes(e.id) && ids.every(down)) {
+              edges.add(`stallDone:${stall}`);
+            }
           }
           break;
         case 'captureStageChanged':
@@ -258,14 +293,20 @@ export class BasicTraining {
           if (e.id === this.liveId) {
             this.cause = e.cause;
             this.died(me, edges);
-          } else if (nestCleared(view)) edges.add('nestCleared');
+          } else if (mgsCleared(view)) edges.add('mgsDown');
+          else if (nestCleared(view)) edges.add('nestCleared');
           else if (rangeCleared(view)) edges.add('rangeCleared');
           break;
         case 'gateChanged':
           if (e.open) edges.add(`gateOpened:${e.id}`);
           break;
         case 'shotFired':
-          if (e.by === this.liveId && passesNear(e, sarge, 40)) edges.add('shotAtSarge');
+          if (e.by === this.liveId) {
+            edges.add('fired');
+            this.shotsHere++;
+            this.lastFireMs = nowMs;
+            if (passesNear(e, sarge, 40)) edges.add('shotAtSarge');
+          }
           break;
         default:
           break;
@@ -298,7 +339,7 @@ export class BasicTraining {
       }
       case 'nextTarget': {
         const next = this.nextTarget(view);
-        return next ? { at: { x: at.x, y: Math.max(BT_R1_BAGS.y + 40, next.y) }, face } : null;
+        return next ? { at: { x: at.x, y: Math.max(BT_BAGS.y + 40, next.y) }, face } : null;
       }
     }
   }
@@ -401,7 +442,18 @@ export class BasicTraining {
       },
       gateOpen: (id) => view?.gates.find((g) => g.id === id)?.open ?? false,
       nextTarget: view ? (this.nextTarget(view)?.id ?? null) : null,
-      targetsLeft: view ? !!this.nextTarget(view) : false,
+      targetsLeft: (stall) => {
+        const ids = stall === 'a' ? BT_TARGETS_A : stall === 'b' ? BT_TARGETS_B : [];
+        return (
+          !!view &&
+          (ids as readonly string[]).some(
+            (id) => !view.objectives.find((o) => o.id === id)?.destroyed,
+          )
+        );
+      },
+      holdFireS: Math.max(0, (nowMs - Math.max(this.lastFireMs, this.roomSince)) / 1000),
+      stillS: Math.max(0, (nowMs - this.lastMoveMs) / 1000),
+      misses: Math.max(0, this.shotsHere - this.hitsHere),
       inCorridor: !!me && me.x > BT_CORRIDOR_X && btRoomAt(me.x, me.y) === 'r4',
       atSpawn: (id) => {
         const sp = BASIC_TRAINING.spawnPoints.find((x) => x.id === id);
@@ -543,6 +595,14 @@ function nestCleared(view: WorldView): boolean {
     (s) => s.role === 'enemy' && s.x > 1006 && s.y > 2120 && s.y < 2860,
   );
   return nest.length > 0 && nest.every((s) => !s.alive);
+}
+
+/** The three machine guns of the live-fire stall (east of its concrete wall) are all down. */
+function mgsCleared(view: WorldView): boolean {
+  const mgs = view.soldiers.filter(
+    (s) => s.role === 'enemy' && s.x > 1100 && s.y > 3380 && s.y < 4020,
+  );
+  return mgs.length > 0 && mgs.every((s) => !s.alive);
 }
 
 /** The far guns in R7 (east of its fence) are all down. */

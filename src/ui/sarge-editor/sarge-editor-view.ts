@@ -355,6 +355,9 @@ export class SargeEditorView {
       const z = m[1]!;
       if (rooms.includes(z)) return SARGE_ROOM_NAMES[z as keyof typeof SARGE_ROOM_NAMES];
     }
+    if (/stallDone:a/.test(r.when)) return SARGE_ROOM_NAMES.r1;
+    if (/stallDone:b/.test(r.when)) return SARGE_ROOM_NAMES.r1b;
+    if (/mgsDown/.test(r.when)) return SARGE_ROOM_NAMES.r1c;
     if (/captured:bt-a|gate:bt-g2/.test(r.when)) return SARGE_ROOM_NAMES.r2;
     if (/captured:bt-b/.test(r.when)) return SARGE_ROOM_NAMES.r4;
     if (/lifeStart/.test(r.when)) return 'When a life starts';

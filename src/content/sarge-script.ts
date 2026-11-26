@@ -20,7 +20,9 @@
  *     enter:<zone>         you walk into a zone or room        leave:<zone>   … out of it
  *     captured:<flag>      a flag becomes ours (bt-a … bt-d, bt-grad)
  *     gateOpened:<gate>    a gate opens (bt-g1 … bt-g8)
- *     targetsDown          every range target is down
+ *     stallDone:<a|b>      every target of that range stall is down (a: open field, b: sandbags)
+ *     mgsDown              the machine guns of the live-fire stall are dead
+ *     fired                you fired a shot
  *     minesShot            you set off a mine
  *     died                 your soldier died      died:<room>   … in that room
  *     nestCleared          the MG nest and its shotgunner are dead
@@ -35,7 +37,11 @@
  *                          has run (had:r1.bags); had:station: started partway ("start here")
  *     gate:<gate>          the gate is open now
  *     nextTarget:<id>      that's the next range target to shoot
- *     targetsLeft  hurt  corridor  atSpawn:<spawnId>  cause:mine|shot
+ *     targetsLeft:<a|b>    that stall still has targets up
+ *     misses>n             you've fired more than n shots here than hit a target
+ *     still:<seconds>      you haven't moved for that long
+ *     holdFire:<seconds>   you haven't fired for that long (counted from walking into the room)
+ *     hurt  corridor  atSpawn:<spawnId>  cause:mine|shot
  *     inRoom:<seconds>     you've been in this room that long
  *     inFor:<zone>:<s>     you've been in that zone that long
  *     flagFor:<name>:<s>   that flag was set that long ago
@@ -132,12 +138,27 @@ export interface SargeScript {
 }
 
 /** The ten rooms are zones already (the map's own rectangles are in `maps/basic-training.ts`). */
-export const SARGE_ROOMS = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5f', 'r5', 'r6f', 'r6', 'r7'] as const;
+export const SARGE_ROOMS = [
+  'r0',
+  'r1',
+  'r1b',
+  'r1c',
+  'r2',
+  'r3',
+  'r4',
+  'r5f',
+  'r5',
+  'r6f',
+  'r6',
+  'r7',
+] as const;
 
 /** What the editor calls each room. */
 export const SARGE_ROOM_NAMES: Record<(typeof SARGE_ROOMS)[number], string> = {
   r0: 'Start room',
-  r1: 'Range room',
+  r1: 'Range: open field',
+  r1b: 'Range: sandbag lane',
+  r1c: 'Range: live fire',
   r2: 'Flag room',
   r3: 'The chute',
   r4: 'Bravo room',
@@ -172,16 +193,48 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     staleMs: 3500,
     speed: 400,
   },
-  zones: [{ id: 'bags', name: 'By the sandbags', x: 840, y: 3340, w: 104, h: 580 }],
+  zones: [
+    { id: 'bags', name: 'By the sandbags', x: 820, y: 4020, w: 104, h: 540 },
+    { id: 'wall', name: 'By the concrete wall', x: 905, y: 3440, w: 60, h: 540 },
+  ],
   flags: [],
   gateDelays: { 'bt-g2': 6 },
   prefs: [
-    { id: 'door', when: 'in:r0, alive', at: { kind: 'point', x: 600, y: 3940 }, face: -90 },
+    {
+      id: 'lead-start',
+      when: 'in:r0, alive',
+      at: { kind: 'point', x: 600, y: 5150 },
+      face: -90,
+    },
+    {
+      id: 'lead-field',
+      when: 'in:r1, alive, !targetsLeft:a',
+      at: { kind: 'point', x: 600, y: 4620 },
+      face: -90,
+    },
     {
       id: 'bags',
-      when: 'in:r1, alive, targetsLeft',
-      at: { kind: 'nextTarget', x: 850 },
+      when: 'in:r1b, alive, targetsLeft:b',
+      at: { kind: 'nextTarget', x: 830 },
       face: 0,
+    },
+    {
+      id: 'lead-lane',
+      when: 'in:r1b, alive, !targetsLeft:b',
+      at: { kind: 'point', x: 820, y: 4050 },
+      face: -90,
+    },
+    {
+      id: 'live-fire',
+      when: 'in:r1c, alive, !had:mgsDown',
+      at: { kind: 'point', x: 930, y: 3900 },
+      face: -90,
+    },
+    {
+      id: 'lead-exit',
+      when: 'in:r1c, alive, had:mgsDown',
+      at: { kind: 'point', x: 330, y: 3440 },
+      face: -90,
     },
     {
       id: 'flag-a',
@@ -214,21 +267,18 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     rule(
       'intro',
       'lifeStart, firstLife, in:r0',
-      [
-        say('[big][shake]EYES FRONT, MAGGOT!'),
-        say('That door. [p=200][gold]WASD[/] to move.'),
-        say('Move it! [shake]NORTH!'),
-        say('[gold]SHIFT[/] to sprint!'),
-      ],
-      { note: 'The first life, at the very start.' },
+      [say('[big][shake]EYES FRONT, MAGGOT!'), say('[big]FOLLOW ME, TRAINEE!')],
+      { note: 'The first life, at the very start. He runs ahead to the door.' },
     ),
     rule(
       'r0.heckle',
-      'in:r0, alive, waited:11',
+      'in:r0, alive, still:5, waited:5',
       [
         say(
-          'Through the door, Private! [shake]NORTH![/] WASD!',
-          "That door won't walk itself! [shake]MOVE!",
+          "C'mon, follow me maggot!",
+          'Keep up, trainee. Get the lead out of your ass and [shake]MOVE![/]',
+          'You deaf, recruit? I said [shake]GET OVER HERE![/]',
+          'Quit standing around and [shake]MOVE![/]',
         ),
       ],
       { repeat: true },
@@ -249,50 +299,120 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
       ],
       { repeat: true, cooldownS: 15, urgent: true },
     ),
-    // --- R1: the range ----------------------------------------------------------------------
-    rule('r1.enter', 'enter:r1', "Targets! [shake]Light 'em up!"),
+    // --- Hurt (any time you're wounded: you heal out of the fire) ----------------------------
     rule(
-      'r1.bags',
-      'in:r1, alive, targetsLeft, !in:bags, waited:1',
-      'Over here, Private! [gold]Get right up to the sandbags[/]. You shoot [shake]OVER[/] them!',
-    ),
-    rule(
-      'r1.heckle',
-      'in:r1, alive, targetsLeft, !in:bags, had:r1.bags, waited:7',
+      'hurt',
+      'alive, hurt',
       [
         say(
-          'You got dirt in your ears, Private?!? [shake]I said GET OVER HERE!!!',
-          'Over here, [shake]numbnuts[/]! The sandbags! [p=200]THE SANDBAGS!',
-          "Walking round them won't help, maggot! [shake]Get up close!",
+          "Walk it off, recruit, you're fine.",
+          "Don't worry, it's just a scratch.",
+          "You'll recover, trainee! Back on your feet!",
+        ),
+      ],
+      { repeat: true, cooldownS: 25, note: 'You heal when you stay out of the fire.' },
+    ),
+    // --- R1: the open field -----------------------------------------------------------------
+    rule('r1.enter', 'enter:r1', [say("[big][shake]LIGHT 'EM UP!"), say('[big]OPEN FIRE!')], {
+      note: 'Seven targets in the open. Nothing special: can you shoot at all?',
+    }),
+    rule(
+      'r1.hesitate',
+      'in:r1, alive, targetsLeft:a, holdFire:7, waited:5',
+      [
+        say(
+          "Thank God these targets ain't shootin' back.",
+          'My grandma shoots faster than this!',
+          "It's just point and shoot, trainee. Even your dumb ass can do it!",
         ),
       ],
       { repeat: true },
     ),
     rule(
-      'r1.near',
-      'in:r1, alive, targetsLeft, in:bags',
-      "That's it! [gold]Close enough to the bags[/], and your shots clear them.",
+      'r1.aim',
+      'in:r1, alive, targetsLeft:a, misses>8',
+      [
+        say(
+          'Easy, trainee. Breathe. [gold]Aim[/].',
+          'Spraying bullets? That is a waste of good ammo.',
+        ),
+      ],
+      { repeat: true, cooldownS: 15 },
     ),
-    rule('r1.t1', 'in:bags, nextTarget:bt-t1', 'Nothing in the way of that one. [shake]Fire!'),
-    rule('r1.t2', 'in:bags, nextTarget:bt-t2', 'Chain link! [gold]Bullets go right through[/] it.'),
+    rule('r1.done', 'stallDone:a', 'Not bad. [p=200]Follow me, trainee!'),
+    // --- R1B: the sandbag lane --------------------------------------------------------------
+    rule('r1b.enter', 'enter:r1b', 'Sandbags. [p=200]The targets are on the [gold]other side[/].'),
     rule(
-      'r1.t3',
-      'in:bags, nextTarget:bt-t3',
-      'A crate [gold]soaks up shots[/]. Keep the trigger down!',
+      'r1b.back',
+      'fired, in:r1b, !in:bags, targetsLeft:b',
+      [
+        say(
+          'Get to cover, numbnuts!',
+          'Oh sure, shoot the sandbags instead of [gold]standing next to them[/]!',
+          'Get right up [gold]next to[/] those bags, trainee!',
+        ),
+      ],
+      { repeat: true, cooldownS: 6 },
     ),
     rule(
-      'r1.t4',
-      'in:bags, nextTarget:bt-t4',
-      'A half wall soaks up more. [gold]Keep firing[/], it still gives.',
+      'r1b.near',
+      'in:r1b, alive, in:bags, targetsLeft:b',
+      "That's it. Next to cover, you shoot [shake]OVER[/] it.",
     ),
-    rule('r1.done', 'targetsDown', 'Not bad. [p=200][shake]MOVE!'),
+    rule(
+      'r1b.brace',
+      'in:r1b, alive, in:bags, still:1.5, targetsLeft:b',
+      'Now hold still. [gold]Steady the rifle on the bags[/]. The far ones need it.',
+    ),
+    rule(
+      'r1b.aim',
+      'in:r1b, alive, in:bags, targetsLeft:b, misses>6',
+      [
+        say(
+          'Slow down, trainee. [gold]Make every shot count.[/]',
+          'Hold still. Breathe. [gold]Then[/] squeeze.',
+          "They're not going anywhere. [gold]Aim.[/]",
+        ),
+      ],
+      { repeat: true, cooldownS: 12 },
+    ),
+    rule('r1b.done', 'stallDone:b', [
+      say('Good shooting. [p=200]Follow me.'),
+      say(
+        'Next stall is [red]LIVE FIRE[/]. [p=300]Do what I say and you will be [gold]fine[/]. [p=400]Probably.',
+      ),
+    ]),
+    // --- R1C: live fire ---------------------------------------------------------------------
+    rule('r1c.enter', 'enter:r1c', [
+      say('[big][shake]MACHINE GUNS!'),
+      say(
+        '[gold]Concrete[/] stops most of what they throw. [gold]Grass[/] hides you. [p=200]They will miss a lot.',
+      ),
+    ]),
+    rule(
+      'r1c.wall',
+      'in:r1c, alive, in:wall, !had:mgsDown',
+      'Right up against the wall. [p=200]Shoot [shake]OVER[/] it.',
+    ),
+    rule(
+      'r1c.aim',
+      'in:r1c, alive, !had:mgsDown, misses>6',
+      [
+        say(
+          'Slow down. [gold]Make your shots count.[/]',
+          "They're dug in. [gold]Aim[/], don't spray.",
+        ),
+      ],
+      { repeat: true, cooldownS: 12 },
+    ),
+    rule('r1c.done', 'mgsDown', "Guns down! [p=200]Door's open. [shake]Move out!"),
     // --- R2: the flag, then the sprint ------------------------------------------------------
     rule('r2.enter', 'enter:r2', "See that flag? [p=200]Stand on it till it's [gold]ours[/]!"),
     rule('r2.done', 'captured:bt-a', "Flag's ours! [p=200]Die, you come back [gold]here[/]."),
     rule(
       'r2.sprint',
       'in:r2, alive, had:captured:bt-a, !gate:bt-g2',
-      "That gate's about to [gold]OPEN[/]! [p=200]When it does, hold [gold]SHIFT[/] and [shake]RUN like your life depends on it!",
+      "That gate's about to [gold]OPEN[/]! [p=200]When it does, [shake]RUN like your life depends on it!",
       { urgent: true, note: 'The gate opens 6 s after the flag (Gates tab).' },
     ),
     rule('r2.go', 'in:r2, alive, had:captured:bt-a, gate:bt-g2', '[big][shake]GO GO GO!', {
@@ -303,7 +423,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
       'in:r2, alive, had:captured:bt-a, gate:bt-g2, waited:7',
       [
         say(
-          "It's OPEN, maggot! [shake]SHIFT and RUN!",
+          "It's OPEN, maggot! [shake]RUN!",
           'You planning to [wave]stroll[/] through?! [shake]SPRINT!',
         ),
       ],
@@ -391,7 +511,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     }),
     rule(
       'nag',
-      'alive, !in:r0, !in:r1, !in:r7, inRoom:40, quiet:40',
+      'alive, !in:r0, !in:r1, !in:r1b, !in:r1c, !in:r7, inRoom:40, quiet:40',
       [
         say(
           'What are you waiting for, [shake]Christmas?!',
@@ -409,11 +529,7 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
       ),
       say("Now hit [gold]DEPLOY[/], soldier! [p=200]That's the big yellow button."),
     ]),
-    rule(
-      'rs.deploy',
-      'respawnOpen, hint:deploy, had:station',
-      "Now hit [gold]DEPLOY[/], soldier! [p=200]That's the big yellow button.",
-    ),
+    rule('rs.deploy', 'respawnOpen, hint:deploy, had:station', 'Ready when you are, soldier.'),
     rule(
       'rs.explain',
       'respawnOpen, afterDeath, !hint:deploy',
@@ -433,12 +549,30 @@ export const DEFAULT_SARGE_SCRIPT: SargeScript = {
     rule('rs.spawn', 'respawnOpen, hint:spawn', 'Deploy at {place}, your newest flag', {
       repeat: true,
     }),
-    rule('rs.role', 'respawnOpen, hint:spawn, hintRole', 'New class: {role}. Pick it here', {
-      repeat: true,
-    }),
+    rule(
+      'rs.role',
+      'respawnOpen, hint:spawn, hintRole',
+      'New toy: the {role}. [p=200]Try it out!',
+      {
+        repeat: true,
+      },
+    ),
+    rule(
+      'rs.heckle.first',
+      'respawn, hint:deploy, quiet:8',
+      [
+        say(
+          'Any day now, trainee!',
+          "I guess you've decided to be an [gold]Army of None[/]?",
+          'We doing this, or what?',
+          'Hurry up and [gold]DEPLOY[/] so I can yell at you for something else!',
+        ),
+      ],
+      { repeat: true },
+    ),
     rule(
       'rs.heckle',
-      'respawn, quiet:10',
+      'respawn, !hint:deploy, quiet:10',
       [
         say(
           'Over here, [shake]numbnuts[/]!',
