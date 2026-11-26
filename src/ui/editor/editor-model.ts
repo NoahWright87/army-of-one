@@ -18,11 +18,12 @@ import {
 } from '../../gen/block';
 import { blockTotalCost, spendBudget, type SpendResult } from '../../gen/budget';
 
+import { EditHistory } from './edit-history';
+
 export type Tool = 'select' | 'paint' | 'place';
 
 /** Placement and drag snapping, in cells. */
 export const SNAP = 0.5;
-const UNDO_LIMIT = 200;
 
 export const snap = (v: number) => Math.round(v / SNAP) * SNAP;
 
@@ -44,8 +45,7 @@ export class EditorModel {
     seed: number;
     res: SpendResult;
   } | null = null;
-  private undoStack: BlockDef[] = [];
-  private redoStack: BlockDef[] = [];
+  private history = new EditHistory<BlockDef>();
   private gesture: BlockDef | null = null;
   private readonly mistStroke = new Set<number>();
   private listeners: (() => void)[] = [];
@@ -66,8 +66,7 @@ export class EditorModel {
   /** Replaces the block (new / open): clears history and selection. */
   load(block: BlockDef): void {
     this.block = block;
-    this.undoStack = [];
-    this.redoStack = [];
+    this.history = new EditHistory<BlockDef>();
     this.selected = null;
     this.touch();
   }
@@ -75,7 +74,7 @@ export class EditorModel {
   /** Applies an edit. Outside a gesture each edit is one undo step. */
   edit(next: BlockDef): void {
     if (next === this.block) return;
-    if (!this.gesture) this.pushUndo(this.block);
+    if (!this.gesture) this.history.record(this.block);
     this.block = next;
     this.touch();
   }
@@ -86,30 +85,22 @@ export class EditorModel {
   }
 
   endGesture(): void {
-    if (this.gesture && this.gesture !== this.block) this.pushUndo(this.gesture);
+    if (this.gesture && this.gesture !== this.block) this.history.record(this.gesture);
     this.gesture = null;
     this.mistStroke.clear();
   }
 
-  private pushUndo(b: BlockDef): void {
-    this.undoStack.push(b);
-    if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift();
-    this.redoStack = [];
-  }
-
   undo(): void {
-    const prev = this.undoStack.pop();
+    const prev = this.history.undo(this.block);
     if (!prev) return;
-    this.redoStack.push(this.block);
     this.block = prev;
     this.dropStaleSelection();
     this.touch();
   }
 
   redo(): void {
-    const next = this.redoStack.pop();
+    const next = this.history.redo(this.block);
     if (!next) return;
-    this.undoStack.push(this.block);
     this.block = next;
     this.dropStaleSelection();
     this.touch();

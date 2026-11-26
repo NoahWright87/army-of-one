@@ -10,7 +10,10 @@ import {
 import { DEPTH } from '../depth';
 import type { MapDef } from '../../sim/world/map';
 
-export function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['ground']>): void {
+export function drawGround(scene: Phaser.Scene, map: MapDef): void {
+  const ground = map.ground;
+  if (!ground) return;
+  const { width, height } = map;
   if (!scene.textures.exists(TERRAIN_EDGE_ATLAS_KEY)) {
     const images = Object.fromEntries(
       TERRAIN_LAYERS.map((kind) => [kind, scene.textures.get(TERRAIN_ART[kind]).getSourceImage()]),
@@ -22,8 +25,10 @@ export function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['grou
   }
   const { rows, cellSize: cs } = ground;
   // Retain cheap repeating strips for interiors. Only boundaries need additional quads.
-  rows.forEach((row, y) => {
-    for (let x = 0; x < row.length;) {
+  const rowsInMap = rows.slice(0, Math.ceil(height / cs));
+  const colsInMap = Math.ceil(width / cs);
+  rowsInMap.forEach((row, y) => {
+    for (let x = 0; x < Math.min(row.length, colsInMap);) {
       const kind = kindAt(rows, x, y);
       if (!kind) {
         x++;
@@ -32,17 +37,23 @@ export function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['grou
       const start = x;
       while (x < row.length && kindAt(rows, x, y) === kind) x++;
       const tile = scene.add
-        .tileSprite(start * cs, y * cs, (x - start) * cs, cs, TERRAIN_ART[kind])
+        .tileSprite(
+          start * cs,
+          y * cs,
+          Math.min((x - start) * cs, width - start * cs),
+          Math.min(cs, height - y * cs),
+          TERRAIN_ART[kind],
+        )
         .setOrigin(0)
         .setDepth(DEPTH.ground + 0.1);
       tile.tilePositionX = start * cs;
       tile.tilePositionY = y * cs;
     }
   });
-  rows.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++)
+  rowsInMap.forEach((row, y) => {
+    for (let x = 0; x < Math.min(row.length, colsInMap); x++)
       for (const edge of terrainEdges(rows, x, y)) {
-        scene.add
+        const transition = scene.add
           .image(
             x * cs,
             y * cs,
@@ -52,6 +63,15 @@ export function drawGround(scene: Phaser.Scene, ground: NonNullable<MapDef['grou
           .setOrigin(0)
           .setDisplaySize(cs, cs)
           .setDepth(DEPTH.ground + 0.2);
+        const cropW = Math.min(1, (width - x * cs) / cs);
+        const cropH = Math.min(1, (height - y * cs) / cs);
+        if (cropW < 1 || cropH < 1)
+          transition.setCrop(
+            0,
+            0,
+            transition.frame.cutWidth * cropW,
+            transition.frame.cutHeight * cropH,
+          );
       }
   });
 }

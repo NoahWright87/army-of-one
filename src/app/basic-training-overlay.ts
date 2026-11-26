@@ -6,8 +6,13 @@
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
 import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
-import { BT_CHEVRONS, BT_FENCE_X, BT_H, BT_SARGE_X } from '../content/maps/basic-training';
-import type { SignDef } from '../content/sign-styles';
+import {
+  BT_CHEVRONS,
+  BT_FENCE_X,
+  BT_H,
+  BT_SARGE_X,
+  BT_SIGNS,
+} from '../content/maps/basic-training';
 import { str, type StringKey } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
 import type { WorldView } from '../sim/view';
@@ -25,15 +30,6 @@ const SARGE_SIZE = 36;
 const LINE_GAP_MS = 250; // TUNE
 /** A line still waiting this long is stale (you've moved on): dropped. */
 const STALE_MS = 3500; // TUNE
-
-export const BT_SIGNS: readonly SignDef[] = [
-  { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },
-  { id: 'bt-s-range', x: 420, y: 3820, kind: 'wood', textKey: 'bt.sign.range', size: 44 },
-  { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
-  { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
-  { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
-  { id: 'bt-s-sniper', x: 520, y: 450, kind: 'plate', textKey: 'bt.sign.sniper', size: 44 },
-];
 
 /** The drill sergeant stays between lives (he's the same man): one per page. */
 const sarge = { x: BT_SARGE_X, y: 4250 };

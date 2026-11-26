@@ -48,6 +48,7 @@ export interface EditorActions {
   play(): void;
   /** Back to the game's main menu. */
   exit(): void;
+  openScenario(): void;
   /** (13-b) The library: official blocks, the player's own, which is open. */
   library(): {
     official: readonly BlockDef[];
@@ -319,7 +320,10 @@ export class EditorView {
     exit.onclick = () => this.actions.exit();
     exit.style.width = '100%';
     exit.style.marginBottom = '12px';
-    box.append(exit);
+    const scenario = el('button', '', str('scenario.title'));
+    scenario.onclick = () => this.actions.openScenario();
+    scenario.style.width = '100%';
+    box.append(exit, scenario);
     box.append(el('h2', '', str('editor.tools')));
     const tools = el('div', 'col');
     const tool = (t: Tool, key: StringKey) => {

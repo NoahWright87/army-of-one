@@ -33,6 +33,7 @@
  */
 import type { CoverDef, MapDef, Rect } from '../../sim/world/map';
 import { borderWalls } from '../../sim/world/map';
+import type { SignDef } from '../sign-styles';
 import type { Vec2 } from '../../sim/core/vec';
 
 export const BASIC_TRAINING_ID = 'basic-training';
@@ -173,6 +174,15 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
   { from: { x: 600, y: 840 }, to: { x: 600, y: 720 } },
   { from: { x: 560, y: 520 }, to: { x: 380, y: 430 } },
   { from: { x: 380, y: 290 }, to: { x: 700, y: 270 } }, // over the sniper's bags, not through
+];
+
+export const BT_SIGNS: readonly SignDef[] = [
+  { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },
+  { id: 'bt-s-range', x: 420, y: 3820, kind: 'wood', textKey: 'bt.sign.range', size: 44 },
+  { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
+  { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
+  { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
+  { id: 'bt-s-sniper', x: 520, y: 450, kind: 'plate', textKey: 'bt.sign.sniper', size: 44 },
 ];
 
 export const BASIC_TRAINING: MapDef = {

@@ -21,6 +21,7 @@ import type { Vec2 } from '../sim/core/vec';
 import { borderWalls, type MapDef, type SpawnPointDef, type WeatherKind } from '../sim/world/map';
 import {
   addBlockContent,
+  addPaintedBushes,
   addPaintedTrenches,
   paintedMist,
   maskRects,
@@ -464,6 +465,12 @@ export function worldLevelMap(
     }
   }
 
+  if (rows.some((row) => row.includes('U'))) {
+    addPaintedBushes(
+      maskRects(w, h, cs, (x, y) => inside(x, y) && rows[y]?.[x] === 'U'),
+      content.concealment,
+    );
+  }
   if (rows.some((row) => row.includes('T'))) {
     addPaintedTrenches(
       maskRects(w, h, cs, (x, y) => inside(x, y) && rows[y]?.[x] === 'T'),
