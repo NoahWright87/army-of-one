@@ -476,6 +476,10 @@ export class EchoController {
         }
         continue;
       }
+      if (a.kind === 'emote') {
+        emit(world, { kind: 'emote', tick: t, by: s.id, emote: a.emote });
+        continue;
+      }
       const d = Math.hypot(s.x - a.x, s.y - a.y);
       if (d > tol) {
         emit(world, { kind: 'echoDivergence', tick: t, id: s.id, action: a.kind, distance: d });

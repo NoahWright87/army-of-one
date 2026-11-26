@@ -72,7 +72,9 @@ export class Recorder {
     const pose = this.waypoints[this.waypoints.length - 1];
     for (const e of events) {
       if (!pose || e.tick !== pose.t) continue;
-      if (e.kind === 'shotFired' && e.by === this.soldierId) {
+      if (e.kind === 'emote' && e.by === this.soldierId) {
+        this.actions.push({ kind: 'emote', t: e.tick, emote: e.emote });
+      } else if (e.kind === 'shotFired' && e.by === this.soldierId) {
         // (PHASE12-a) The weapon, when it isn't a plain rifle/MG shot: a Sniper fires a pistol
         // or a rifle; each shotgun pellet is its own shot ([D59], [D61]).
         const gun = e.weapon && e.weapon !== 'rifle' && e.weapon !== 'mg' ? e.weapon : undefined;

@@ -1,6 +1,8 @@
 import type { RoleId } from '../contracts/mission';
 import type { CoverMaterial } from '../sim/world/map';
 
+export const EMOTE_COUNTDOWN_BEAT_SECONDS = 1; // TUNE
+
 /**
  * (07-c) A gun's spread ([D39]): every shot goes out at a random angle within ± the current
  * spread (half-angle, radians) = baseSpread + movingSpread × (share of full speed moved) + recoil.
@@ -802,7 +804,7 @@ export const DEFAULT_TUNING: Tuning = {
       gunner: NONE,
       sniper: NONE,
       shield: { front: 0.8, side: 0, rear: 0, frontArc: 135, rearArc: 0 }, // TUNE [D60], [D70]
-      shotgun: all(0.1), // TUNE [D70]
+      shotgun: all(0.2), // TUNE [D70]: bumped from 0.1, it was underpowered
       bazooka: NONE,
       truck: all(0.6), // TUNE [D70]: 50–75 %
       tank: { front: 0.99, side: 0.99, rear: 0.9, frontArc: 180, rearArc: 90 }, // TUNE [D70]

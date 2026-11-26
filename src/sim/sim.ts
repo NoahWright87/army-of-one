@@ -336,6 +336,7 @@ export function step(
       continue;
     }
     const input = inputs.get(s.id) ?? IDLE_INPUT;
+    if (input.emote) emit(world, { kind: 'emote', tick: st.tick, by: s.id, emote: input.emote });
     if (input.interact && !s.interactHeld) interact(world, s);
     s.interactHeld = input.interact;
     soldierAttack(world, s, input);

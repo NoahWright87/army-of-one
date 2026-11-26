@@ -3,7 +3,7 @@ import { DT, type Tick } from '../core/time';
 import { clampLength, type Vec2 } from '../core/vec';
 import { moveCircle } from '../world/collision';
 import type { ConcealmentArea, LadderDef, MapDef, Rect, SpawnPointId } from '../world/map';
-import type { RoleId, StanceId } from '../../contracts/mission';
+import type { EmoteId, RoleId, StanceId } from '../../contracts/mission';
 import type { AiState } from '../ai/brain';
 import { moveInConcealment, type TrenchClimb } from '../world/cover-movement';
 
@@ -19,6 +19,8 @@ export interface SoldierInput {
   aim: number;
   fire: boolean;
   interact: boolean;
+  /** One-shot callout selected this tick. */
+  emote?: EmoteId;
   /**
    * (07-c) Distance from the soldier to the aim point (the cursor). The Grenadier throws this far
    * ([D37]). Absent: a mid-range throw.

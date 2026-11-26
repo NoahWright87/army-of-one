@@ -1,4 +1,4 @@
-import type { ShotWeapon } from '../contracts/mission';
+import type { EmoteId, ShotWeapon } from '../contracts/mission';
 import type { Tick } from './core/time';
 import type { SoldierId } from './entities/soldier';
 import type { CaptureStage } from './world/map';
@@ -8,6 +8,7 @@ import type { CaptureStage } from './world/map';
  * and sounds; later phases turn them into timeline markers. PHASE02-a emits most of these.
  */
 export type SimEvent =
+  | { kind: 'emote'; tick: Tick; by: SoldierId; emote: EmoteId }
   | { kind: 'soldierSpawned'; tick: Tick; id: SoldierId }
   | {
       kind: 'shotFired';

@@ -10,7 +10,7 @@
  *   screen.setResolving(null);                                  // sweep done
  *   screen.destroy();
  */
-import { str } from '../../content/strings';
+import { str, type StringKey } from '../../content/strings';
 import { DEFAULT_ROLE, ROLES, isRoleId, roleDef } from '../../content/roles';
 import type {
   RoleId,
@@ -56,6 +56,8 @@ import {
   type TimelineRow,
 } from './respawn-model';
 import { roleIconG, roleIconSvg } from '../../content/role-icons';
+import { DEFAULT_TUNING } from '../../content/tuning';
+import { createRoleCard } from './role-card-view';
 import { balanceAt, formatMoney, moneyCurve } from '../../timeline/economy';
 import { DEFAULT_RESPAWN_SETTINGS, type RespawnViewSettings } from './respawn-settings';
 import { RESPAWN_CSS } from './respawn-style';
@@ -139,6 +141,12 @@ export class RespawnScreen {
   /** (PHASE12-c) One role button beside DEPLOY; it opens the role menu. */
   private readonly roleBtn = el('button', 'rs-role-btn');
   private readonly roleMenu = el('div', 'rs-role-menu');
+  private readonly roleMoneyEl = el('div');
+  private readonly roleGridEl = el('div', 'rs-rm-grid');
+  /** One card for the menu's lifetime so its bars can slide between roles. */
+  private readonly roleCard = createRoleCard();
+  /** A locked or unaffordable role being looked at (can't be picked). */
+  private previewId: RoleId | null = null;
   private readonly main = el('div', 'rs-main');
   /** (06-b) Revealed map ([D29]). */
   private readonly mapPanel = new MapPanel({
@@ -234,6 +242,7 @@ export class RespawnScreen {
 
   /** (07-c) Picks the role for the next new soldier ([D36]). */
   pickRole(roleId: RoleId): void {
+    this.previewId = null;
     if (roleLocked(this.props, roleId)) return; // (PHASE14) [D120]
     this.props = { ...this.props, roleId };
     this.props.onRole?.(roleId);
@@ -243,7 +252,7 @@ export class RespawnScreen {
   /** Confirms the selected option (same as the Deploy button / Enter). */
   deploy(): void {
     const o = this.selectedOption();
-    if (!o) return;
+    if (!o || this.previewBlock()) return;
     for (const cb of this.deployListeners) cb(o);
   }
 
@@ -324,6 +333,7 @@ export class RespawnScreen {
     dbar.append(this.deployBtn);
 
     main.append(tl, this.mapPanel.root, dbar);
+    this.roleMenu.append(this.roleMoneyEl, this.roleGridEl, this.roleCard.root);
     this.root.append(main, this.roleMenu);
   }
 
@@ -372,9 +382,19 @@ export class RespawnScreen {
     // (07-c) Role picker: click a role, or press its number.
     on(this.roleMenu, 'click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-role]');
-      if (b && !b.disabled && isRoleId(b.dataset.role)) {
-        this.pickRole(b.dataset.role);
-        this.toggleRoleMenu(false);
+      if (b && isRoleId(b.dataset.role)) {
+        const id = b.dataset.role;
+        if (b.classList.contains('off')) {
+          // Locked or too expensive: show what it is, but it can't be picked.
+          this.previewId = id;
+          this.renderOptions();
+          return;
+        }
+        // A new pick keeps the menu open so its card can be read; tapping the picked role closes.
+        const same = id === this.roleFor(this.selectedOption()).roleId && !this.previewId;
+        this.previewId = null;
+        this.pickRole(id);
+        if (same) this.toggleRoleMenu(false);
       }
     });
     // Tapping anywhere else closes the menu.
@@ -673,6 +693,13 @@ export class RespawnScreen {
     const o = this.selectedOption();
     this.renderRoles(o);
     this.deployBtn.disabled = !o;
+    const why = this.previewBlock();
+    if (why) {
+      this.deployBtn.disabled = true;
+      this.deployBtn.innerHTML = `<span class="go">${esc(str(why))}</span>`;
+      this.deployBtn.title = '';
+      return;
+    }
     if (!o) {
       this.deployBtn.innerHTML = `<span class="go">${esc(str('respawn.deploy.pick'))}</span>`;
       return;
@@ -728,21 +755,36 @@ export class RespawnScreen {
       const rm = money.find((x) => x.roleId === r.id);
       const shut = roleLocked(this.props, r.id); // (PHASE14) [D120]
       const off = shut || (!!rm && !rm.affordable);
-      const sel = r.id === roleId;
+      const sel = r.id === (this.previewId ?? roleId);
       const tip = shut ? str('respawn.roleLocked') : str(r.blurbKey);
       return (
-        `<button type="button" class="rs-rm-item${sel ? ' sel' : ''}${off ? ' poor' : ''}" data-role="${esc(r.id)}"` +
-        `${off ? ' disabled' : ''} title="${esc(tip)}">` +
+        `<button type="button" class="rs-rm-item${sel ? ' sel' : ''}${off ? ' poor off' : ''}" data-role="${esc(r.id)}"` +
+        ` title="${esc(tip)}">` +
         roleIconSvg(r.id, 24) +
         `<span class="n">${esc(str(r.nameKey))}</span>` +
         (shut ? `<span class="p">🔒</span>` : rm ? `<span class="p">${esc(rm.price)}</span>` : '') +
         `<span class="k">${i + 1}</span></button>`
       );
     });
-    this.roleMenu.innerHTML =
-      (avail
-        ? `<div class="rs-rm-money${avail.debt ? ' debt' : ''}">${esc(avail.text)}</div>`
-        : '') + `<div class="rs-rm-grid">${items.join('')}</div>`;
+    this.roleMoneyEl.className = `rs-rm-money${avail?.debt ? ' debt' : ''}`;
+    this.roleMoneyEl.textContent = avail ? avail.text : '';
+    this.roleMoneyEl.hidden = !avail;
+    this.roleGridEl.innerHTML = items.join('');
+    const shown = this.previewId ?? roleId;
+    this.roleCard.show(
+      this.props.tuning ?? DEFAULT_TUNING,
+      shown,
+      money.find((x) => x.roleId === shown)?.price,
+    );
+  }
+
+  /** The DEPLOY label while a role that can't be picked is on show (null: deploy as normal). */
+  private previewBlock(): StringKey | null {
+    const id = this.previewId;
+    if (!id || this.roleMenu.hidden) return null;
+    if (roleLocked(this.props, id)) return 'role.card.locked';
+    const rm = roleMoney(this.selectedOption(), this.props).find((x) => x.roleId === id);
+    return rm && !rm.affordable ? 'role.card.tooPricey' : null;
   }
 
   /** Opens/closes the role menu (above the role button). */
@@ -750,7 +792,9 @@ export class RespawnScreen {
     if (on && this.roleBtn.disabled) on = false;
     if (this.roleMenu.hidden === !on) return;
     this.roleMenu.hidden = !on;
+    if (!on) this.previewId = null;
     if (on) this.renderRoles(this.selectedOption());
+    this.renderOptions();
   }
 
   private renderTimeline(): void {
