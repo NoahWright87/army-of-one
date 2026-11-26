@@ -1,1 +1,0 @@
-var e=1/256,t=1/4096,n=t=>Math.round(t/e)*e+0,r=e=>Math.round(e/t)*t+0;export{n as i,e as n,r,t};
