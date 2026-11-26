@@ -285,7 +285,7 @@ export class BattleScene extends Phaser.Scene {
     this.ghostDrawn = false;
     this.input.setDefaultCursor('none');
     this.services.hud.setVisible(true);
-    this.session.overlay?.create(this, this.liveId, this.services.display);
+    this.session.overlay?.create(this, this.liveId, this.services.display, this.session.world);
     this.services.pauseUi?.setAvailable(true);
   }
 
@@ -695,6 +695,7 @@ export class BattleScene extends Phaser.Scene {
     cam.setZoom(this.zoomNow);
     cam.centerOn(this.cam.x, this.cam.y);
     this.worldRenderer.render({ alpha: t - f, nowMs: time, liveId: null, pointer: null });
+    this.session.overlay?.respawnUpdate?.(time, cam.worldView);
   }
 
   /** (06-c) Frame interval readout: EMA plus the worst frame of the last ~second. */

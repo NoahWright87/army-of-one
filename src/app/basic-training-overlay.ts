@@ -6,33 +6,34 @@
 import type Phaser from 'phaser';
 import { fitPx } from '../content/assets';
 import { DRILL_SERGEANT_VOICE } from '../content/caption-voices';
-import {
-  BT_CHEVRONS,
-  BT_FENCE_X,
-  BT_H,
-  BT_SARGE_X,
-  BT_SIGNS,
-} from '../content/maps/basic-training';
-import { str, type StringKey } from '../content/strings';
+import { BT_CHEVRONS, BT_H, BT_SIGNS, BT_W } from '../content/maps/basic-training';
+import { str } from '../content/strings';
 import { cloneWorldText } from '../content/world-text';
+import type { Vec2 } from '../sim/core/vec';
+import type { World } from '../sim/sim';
+import { findPath } from '../sim/world/nav';
 import type { WorldView } from '../sim/view';
 import { DEPTH } from '../render/depth';
 import type { SessionOverlay } from '../render/phaser/services';
 import { SignpostLayer } from '../render/worldtext/signpost-layer';
 import { SpeechLayer } from '../render/worldtext/speech-layer';
-import type { BasicTraining } from './basic-training';
+import type { BasicTraining, BtSay } from './basic-training';
+import { drawGroundPaint } from './ground-paint';
 
 const SARGE = 'sarge';
-/** How fast he walks along the fence (units/s), and how big he's drawn. */
-const SARGE_SPEED = 400; // TUNE: keeps up with a sprint
+/** How big he's drawn, and how see-through. */
 const SARGE_SIZE = 36;
-/** A breath between his lines (ms). */
-const LINE_GAP_MS = 250; // TUNE
-/** A line still waiting this long is stale (you've moved on): dropped. */
-const STALE_MS = 3500; // TUNE
+const GHOST_ALPHA = 0.6; // TUNE
+const GHOST_TINT = 0xbfe3ff;
+/** Tagging along: he stays about here from you (behind-left), and only moves when you leave it. */
+const FOLLOW_OFFSET = { dx: -90, dy: 70 }; // TUNE
+const FOLLOW_SLACK = 70; // TUNE
 
-/** The drill sergeant stays between lives (he's the same man): one per page. */
-const sarge = { x: BT_SARGE_X, y: 4250 };
+/**
+ * The drill sergeant is a ghost outside the timelines: he can't be hurt, nothing collides with
+ * him, and he's not in the sim or the tape. The same man between lives: one per page.
+ */
+const sarge = { x: 520, y: 6100 };
 
 export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let scene: Phaser.Scene;
@@ -43,26 +44,152 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
   let body: Phaser.GameObjects.Image;
   let tag: Phaser.GameObjects.Text;
   let floor: Phaser.GameObjects.Graphics;
-  const queue: { key: StringKey; at: number }[] = [];
+  const queue: (BtSay & { at: number; keep?: boolean })[] = [];
+  const timing = () => director.script.timing;
   let lastFrame = -1;
   let quietUntil = 0;
   let livePos: { x: number; y: number } | null = null;
+  let lastView: WorldView | null = null;
+  let paint: Phaser.GameObjects.GameObject[] = [];
+  let world: World;
+  let look = cloneWorldText();
+  /** The way he's running (around walls, like any soldier), and what it was worked out for. */
+  let route: Vec2[] = [];
+  let routeFor: Vec2 | null = null;
+  let routeAt = -1e9;
+
+  /** Queues lines; an urgent one cuts him off and drops what he hadn't said yet. */
+  const enqueue = (says: BtSay[], keep = false) => {
+    const now = scene.time.now;
+    for (const say of says) {
+      if (say.urgent) {
+        queue.length = 0;
+        speech.clear();
+        quietUntil = 0;
+      }
+      queue.push({ ...say, at: now, ...(keep ? { keep } : {}) });
+    }
+  };
+
+  /** Next point on his way to `goal` (a path round the walls; gates count as walls while shut). */
+  const waypoint = (nowMs: number, goal: Vec2): Vec2 => {
+    const moved = !routeFor || Math.hypot(goal.x - routeFor.x, goal.y - routeFor.y) > 30;
+    if (moved || nowMs - routeAt > 700) {
+      route = findPath(world, { x: sarge.x, y: sarge.y }, goal) ?? [goal];
+      routeFor = { x: goal.x, y: goal.y };
+      routeAt = nowMs;
+    }
+    while (route.length > 1 && Math.hypot(route[0]!.x - sarge.x, route[0]!.y - sarge.y) < 12) {
+      route.shift();
+    }
+    return route[0] ?? goal;
+  };
+
+  /**
+   * Runs him toward `goal` along the map's paths (or just turns to `face`) and draws him. He
+   * moves like a soldier but is a ghost: nothing he does touches the game.
+   */
+  const move = (nowMs: number, dt: number, goal: Vec2 | null, face: number | null) => {
+    if (goal) {
+      const to = waypoint(nowMs, goal);
+      const left = Math.hypot(goal.x - sarge.x, goal.y - sarge.y);
+      const dx = to.x - sarge.x;
+      const dy = to.y - sarge.y;
+      const d = Math.hypot(dx, dy);
+      const step = Math.min(d, timing().speed * dt);
+      if (d > 1) {
+        sarge.x += (dx / d) * step;
+        sarge.y += (dy / d) * step;
+      }
+      // Running: face the way he goes; arrived: face where the lesson says.
+      body.setRotation(left > 6 || face === null ? Math.atan2(dy, dx) : face);
+    } else {
+      route = [];
+      routeFor = null;
+      if (face !== null) body.setRotation(face);
+    }
+    sarge.x = Math.max(60, Math.min(BT_W - 60, sarge.x));
+    sarge.y = Math.max(60, Math.min(BT_H - 60, sarge.y));
+    body.setPosition(sarge.x, sarge.y);
+    tag.setPosition(sarge.x, sarge.y + 28);
+  };
+
+  /** One line at a time. */
+  const talk = (nowMs: number) => {
+    // His pacing is the script's (and the editor changes it live).
+    const t = timing();
+    look.speech.holdMs = t.holdMs;
+    look.speech.holdPerCharMs = t.holdPerCharMs;
+    look.speech.wordMs = t.wordMs;
+    look.speech.wordPerCharMs = t.wordPerCharMs;
+    while (queue.length && !queue[0]!.keep && nowMs - queue[0]!.at > timing().staleMs)
+      queue.shift();
+    if (queue.length || speech.isSpeaking(SARGE)) director.spoke(nowMs);
+    if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
+      const say = queue.shift()!;
+      speech.say(SARGE, say.text, {
+        keepOnScreen: true,
+        color: '#fff3d6',
+        voice: DRILL_SERGEANT_VOICE,
+      });
+      quietUntil = nowMs + timing().lineGapMs;
+    }
+    speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
+  };
+
+  /**
+   * Where Sarge should stand on the respawn view so the card doesn't cover his words (world
+   * units), or null if there's no card. He takes the free side of it (left, then right); if
+   * neither is wide enough for a line of speech, the free band above or below it.
+   */
+  const beside = (view: { x: number; y: number; width: number; height: number }) => {
+    const card = document.querySelector('.aoo-iw .cards .card')?.getBoundingClientRect();
+    if (!card || card.width < 5) return null;
+    const cv = scene.game.canvas.getBoundingClientRect();
+    const bar = document.querySelector('.aoo-iw .bar')?.getBoundingClientRect();
+    const floorY = (bar ? bar.top : cv.bottom) - 12;
+    const need = look.speech.maxWidthPx + 60;
+    const left = card.left - cv.left;
+    const right = cv.right - card.right;
+    const above = card.top - cv.top;
+    const below = floorY - card.bottom;
+    // Beside the card, low enough that his words (drawn above him) clear the top.
+    const midY = Math.max(cv.top + 170, Math.min(card.top + card.height / 2, floorY - 40));
+    let sx: number;
+    let sy: number;
+    if (left >= need) [sx, sy] = [cv.left + left / 2, midY];
+    else if (right >= need) [sx, sy] = [card.right + right / 2, midY];
+    else if (above >= 150) [sx, sy] = [(cv.left + cv.right) / 2, card.top - 30];
+    else if (below >= 70)
+      [sx, sy] = [(cv.left + cv.right) / 2, floorY - 30]; // (words go above him)
+    else return null;
+    return {
+      x: view.x + ((sx - cv.left) / cv.width) * view.width,
+      y: view.y + ((sy - cv.top) / cv.height) * view.height,
+    };
+  };
 
   return {
-    create(s, id, display) {
+    create(s, id, display, w) {
       scene = s;
+      world = w;
+      route = [];
+      routeFor = null;
       liveId = id;
       started = false;
       queue.length = 0;
       lastFrame = -1;
-      const look = cloneWorldText();
+      look = cloneWorldText();
       speech = new SpeechLayer(scene, look, display);
       signs = new SignpostLayer(scene, BT_SIGNS, look);
       floor = scene.add.graphics().setDepth(DEPTH.decals + 1);
+      paint = drawGroundPaint(scene);
       body = scene.add
         .image(sarge.x, sarge.y, 'npc_sarge')
         .setScale(SARGE_SIZE / fitPx('npc_sarge'))
-        .setDepth(DEPTH.static);
+        .setAlpha(GHOST_ALPHA)
+        .setTint(GHOST_TINT)
+        .setDepth(DEPTH.labels - 1);
       tag = scene.add
         .text(sarge.x, sarge.y + 28, str('bt.sarge.name'), {
           fontFamily: 'system-ui, sans-serif',
@@ -73,6 +200,7 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
           strokeThickness: 3,
         })
         .setOrigin(0.5)
+        .setAlpha(GHOST_ALPHA + 0.2)
         .setDepth(DEPTH.labels)
         .setResolution(2);
       scene.events.once('shutdown', () => speech.destroy());
@@ -83,46 +211,62 @@ export function basicTrainingOverlay(director: BasicTraining): SessionOverlay {
       body.destroy();
       tag.destroy();
       floor.destroy();
+      for (const o of paint) o.destroy();
     },
     onStep(view: WorldView) {
+      lastView = view;
       const me = view.soldiers.find((x) => x.id === liveId);
       const now = scene.time.now;
       if (!started && me?.alive) {
         started = true;
-        queue.push(...director.startLife(liveId, view, now).map((key) => ({ key, at: now })));
+        enqueue(director.startLife(liveId, view, now));
       }
-      if (started) queue.push(...director.step(view, now, sarge).map((key) => ({ key, at: now })));
+      if (started) enqueue(director.step(view, now, sarge));
+    },
+    respawnUpdate(nowMs, view) {
+      const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
+      lastFrame = nowMs;
+      enqueue(director.respawnSays(nowMs), true); // nothing to run from: he says it all
+      const g = director.respawnGuide();
+      let goal: { x: number; y: number } | null = null;
+      if (g?.at) {
+        // Never off screen: if where he should be is out of view, he waits at the edge nearest it.
+        const cx = view.x + view.width / 2;
+        const cy = view.y + view.height / 2;
+        const hw = Math.max(40, view.width / 2 - 90);
+        const hh = Math.max(40, view.height / 2 - 90);
+        const dx = g.at.x - cx;
+        const dy = g.at.y - cy;
+        const t = Math.min(1, hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
+        goal = { x: cx + dx * t, y: cy + dy * t };
+      }
+      // The card (class, stats, DEPLOY) sits over the spawn: he stands beside it so he's read.
+      const aside = beside(view);
+      if (aside) goal = aside;
+      move(nowMs, dt, goal, g ? g.face : null);
+      talk(nowMs);
     },
     update(nowMs, live, input) {
       const dt = lastFrame < 0 ? 0 : Math.min(0.1, (nowMs - lastFrame) / 1000);
       lastFrame = nowMs;
       if (live) livePos = live;
-      // Keep level with you, behind the fence.
-      if (livePos) {
-        const want = Math.max(80, Math.min(BT_H - 80, livePos.y));
-        const dy = want - sarge.y;
-        const stepY = Math.sign(dy) * Math.min(Math.abs(dy), SARGE_SPEED * dt);
-        sarge.y += stepY;
-        body.setRotation(
-          Math.abs(stepY) > 0.5
-            ? Math.atan2(stepY, 0)
-            : Math.atan2(livePos.y - sarge.y, livePos.x - BT_SARGE_X),
-        );
+      // Where he wants to be: where the lesson is, else tagging along with you.
+      const guide = lastView ? director.guide(lastView, nowMs) : null;
+      let face: number | null = null;
+      let goal: { x: number; y: number } | null = null;
+      if (guide?.at) {
+        goal = guide.at;
+        face = guide.face;
+      } else if (livePos) {
+        // Near you: stays about here from you, and only moves when you leave it.
+        const off = guide?.player ?? FOLLOW_OFFSET;
+        const want = { x: livePos.x + off.dx, y: livePos.y + off.dy };
+        if (Math.hypot(want.x - sarge.x, want.y - sarge.y) > FOLLOW_SLACK) goal = want;
+        face = guide?.face ?? Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
       }
-      sarge.x = Math.min(BT_SARGE_X, BT_FENCE_X - 40);
-      body.setPosition(sarge.x, sarge.y);
-      tag.setPosition(sarge.x, sarge.y + 28);
-      // One line at a time.
-      while (queue.length && nowMs - queue[0]!.at > STALE_MS) queue.shift();
-      if (queue.length && !speech.isSpeaking(SARGE) && nowMs >= quietUntil) {
-        speech.say(SARGE, str(queue.shift()!.key), {
-          keepOnScreen: true,
-          color: '#fff3d6',
-          voice: DRILL_SERGEANT_VOICE,
-        });
-        quietUntil = nowMs + LINE_GAP_MS;
-      }
-      speech.update(nowMs, (id) => (id === SARGE ? sarge : null));
+      if (face === null && livePos) face = Math.atan2(livePos.y - sarge.y, livePos.x - sarge.x);
+      move(nowMs, dt, goal, face);
+      talk(nowMs);
       signs.update(nowMs, live, input.fire);
       drawChevrons(floor, nowMs);
     },

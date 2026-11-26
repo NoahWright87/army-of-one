@@ -24,10 +24,20 @@ import { GalleryScene } from '../render/phaser/gallery-scene';
 import { ArenaScene } from '../render/phaser/arena-scene';
 import { TextLabScene } from '../render/phaser/textlab-scene';
 import { startHub } from './hub-main';
-import { BasicTraining, BT_DONE_KEY, BT_SENT_KEY, type BtHint } from './basic-training';
+import {
+  BasicTraining,
+  BT_ACTIVE_KEY,
+  BT_COACH_IN_WORLD,
+  BT_DONE_KEY,
+  BT_SENT_KEY,
+  type BtHint,
+} from './basic-training';
 import { basicTrainingOverlay } from './basic-training-overlay';
-import { BASIC_TRAINING_ID } from '../content/maps/basic-training';
+import { BASIC_TRAINING, BASIC_TRAINING_ID } from '../content/maps/basic-training';
+import { applyGateDelays, applyStation, btStation } from '../content/maps/basic-training-stations';
+import { loadScript } from './sarge-script-store';
 import { Coach, firstVisible, type CoachStep } from '../ui/coach/coach';
+import { pulseSteps } from '../ui/coach/pulse';
 import { roleDef } from '../content/roles';
 import { HUB_MAP } from '../content/hub';
 import type { ArenaConfig } from '../gen/arena';
@@ -212,7 +222,13 @@ const scenarioMap =
 if (scenarioMap) registerMap(scenarioMap);
 const MISSION = missionOrDefault(params.get('mission') ?? readStoredMission());
 /** (PHASE18) Basic training ([D155]): its drill sergeant and its progress (unlocks, hints). */
-const training = MISSION.id === BASIC_TRAINING_ID ? new BasicTraining(safeLocalStorage()) : null;
+const loadedScript = MISSION.id === BASIC_TRAINING_ID ? loadScript(safeLocalStorage()) : null;
+const training = loadedScript ? new BasicTraining(safeLocalStorage(), loadedScript.script) : null;
+/** (PHASE18, [D160]) `?station=r3`: the course as it stands at that station (the editor's "start here"). */
+const trainingStation = training ? btStation(params.get('station') ?? '') : undefined;
+if (trainingStation) applyStation(BASIC_TRAINING, trainingStation);
+// (PHASE18, [D160]) How long each gate waits is in Sarge's script, so it's tuned beside his lines.
+if (loadedScript) applyGateDelays(BASIC_TRAINING, loadedScript.script.gateDelays);
 // (PHASE13) Playtests get a way back to the tool they came from.
 const worldPlaytest = parseWorldMissionId(MISSION.id);
 /** (PHASE13-d) A level of the campaign in progress ([D106]): no title screen, back to the map. */
@@ -241,6 +257,11 @@ function campaignProjection(): BattleProjection | null {
 
 /** (PHASE18) Back to the HQ. */
 function openHub(): void {
+  try {
+    window.sessionStorage.removeItem(BT_ACTIVE_KEY); // leaving ends basic training in progress
+  } catch {
+    // fine
+  }
   const url = new URL(window.location.href);
   const dev = url.searchParams.get('dev');
   url.search = '';
@@ -278,6 +299,17 @@ function openWorld(seed?: number): void {
 }
 
 /** (PHASE13-a) The block editor ([D88]): the title screen's link. */
+/** (PHASE18, [D161]) Back to the Sarge editor from a test play. */
+function openSargeEditor(): void {
+  const url = new URL(window.location.href);
+  const dev = url.searchParams.get('dev');
+  url.search = '';
+  url.searchParams.set('scene', 'sarge');
+  if (dev) url.searchParams.set('dev', dev);
+  url.hash = '';
+  window.location.assign(url.toString());
+}
+
 function openEditor(scene: 'editor' | 'scenario' = 'editor'): void {
   const url = new URL(window.location.href);
   url.searchParams.delete('mission');
@@ -753,16 +785,18 @@ async function startGame(): Promise<void> {
       ? 'editor'
       : null;
   const backTo: { label: string; run(): void } | null =
-    fromHub && !scenarioMap
-      ? { label: str('hub.back'), run: () => openHub() }
-      : previewEditor
-        ? { label: str('editor.backToEditor'), run: () => openEditor(previewEditor) }
-        : worldPlaytest
-          ? {
-              label: str(campaignBattle ? 'campaign.back' : 'world.back'),
-              run: campaignBattle ? returnToCampaign : () => openWorld(worldPlaytest.seed),
-            }
-          : null;
+    training && params.get('from') === 'sarge'
+      ? { label: str('sarge.back'), run: openSargeEditor }
+      : fromHub && !scenarioMap
+        ? { label: str('hub.back'), run: () => openHub() }
+        : previewEditor
+          ? { label: str('editor.backToEditor'), run: () => openEditor(previewEditor) }
+          : worldPlaytest
+            ? {
+                label: str(campaignBattle ? 'campaign.back' : 'world.back'),
+                run: campaignBattle ? returnToCampaign : () => openWorld(worldPlaytest.seed),
+              }
+            : null;
 
   if (backTo && scenarioMap) {
     // The layout has no win condition, so the exit must be available during play.
@@ -811,9 +845,20 @@ async function startGame(): Promise<void> {
       // (PHASE18) So does a skirmish picked in the HQ.
       if (campaignBattle || fromHub || training || scenarioMap) {
         // (PHASE18) Basic training from the start (the HQ's "again", or nothing saved yet).
-        const restart = params.get('new') === '1' || !p.canContinue;
+        // Only a reload in the middle of it carries on; loading it any other way starts over.
+        let midway = false;
+        if (training) {
+          try {
+            midway = window.sessionStorage.getItem(BT_ACTIVE_KEY) === '1';
+            window.sessionStorage.setItem(BT_ACTIVE_KEY, '1');
+          } catch {
+            // no storage: always from the start
+          }
+        }
+        const restart = params.get('new') === '1' || !p.canContinue || (!!training && !midway);
         if (training && restart) {
           training.reset();
+          if (trainingStation) training.startAt(trainingStation.had, trainingStation.roles);
           const u = new URL(window.location.href);
           u.searchParams.delete('new');
           window.history.replaceState(null, '', u.toString());
@@ -1102,6 +1147,8 @@ async function startGame(): Promise<void> {
       pointerWorld: () => null,
       destroy: () => {},
     }),
+    // (PHASE18) Basic training's Sarge is there from the first screen (he says what to do).
+    ...(training ? { overlay: basicTrainingOverlay(training) } : {}),
   });
 
   const respawnLook = (on: boolean) => {
@@ -1118,6 +1165,7 @@ async function startGame(): Promise<void> {
     const tuning = props.tuning!;
     let controls: TimeControls | null = null;
     let live = true;
+    let stopPulse: (() => void) | null = null;
     const overlay = new InWorldRespawn(uiRoot, props, {
       // Deploying glides back into the lead-in, then the run takes over in the same scene.
       onDeploy: (o) => {
@@ -1151,8 +1199,12 @@ async function startGame(): Promise<void> {
       touchControls.setVisible(false);
       hud.setVisible(false);
       startRespawnMinimap(controls);
-      // (PHASE18) Basic training: the coach points at what to do here.
-      if (hint) coach.show(inWorldCoachSteps(hint, props));
+      // (PHASE18) Basic training: Sarge walks to where to deploy and says what to do (the dimming
+      // coach is kept in code, off).
+      training?.enterRespawn(hint, died !== null, performance.now());
+      if (hint && BT_COACH_IN_WORLD) coach.show(inWorldCoachSteps(hint, props));
+      // A pulsing outline on the control to use next (the class to pick, the spawn, DEPLOY).
+      if (hint && !BT_COACH_IN_WORLD) stopPulse = pulseSteps(inWorldCoachSteps(hint, props));
     };
     const hint = training?.respawnHint(props.options) ?? null;
     void assetsReady
@@ -1173,12 +1225,14 @@ async function startGame(): Promise<void> {
       update: (u) => overlay.update(u),
       destroy: () => {
         live = false;
+        stopPulse?.();
         overlay.destroy();
         if (inWorld === overlay) inWorld = null;
         notice.show(null);
         respawnLook(false);
+        training?.leaveRespawn();
         if (hint) {
-          coach.hide();
+          if (BT_COACH_IN_WORLD) coach.hide();
           training?.followed(hint);
         }
       },

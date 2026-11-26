@@ -11,7 +11,9 @@ import {
   BT_MINES,
   BT_MINEFIELD,
   BT_R7_GUNS,
-  BT_TARGETS,
+  BT_MG_SQUAD,
+  BT_TARGETS_A,
+  BT_TARGETS_B,
   btRoomAt,
 } from '../../content/maps/basic-training';
 import { secondsToTicks } from '../core/time';
@@ -21,6 +23,7 @@ import type { SoldierInput } from '../entities/soldier';
 import { getSoldier, type World } from '../sim';
 import type { RoleId } from '../../contracts/mission';
 import { validateMap } from '../world/map';
+import { findPath, isSegmentWalkable } from '../world/nav';
 import { idle, run, soldierAt, world } from './helpers';
 
 type P = { x: number; y: number };
@@ -95,12 +98,36 @@ describe('basic training (PHASE18): on rails', () => {
     expect(btRoomAt(720, 1990)).toBe('r4'); // round the baffle: Bravo
   });
 
-  it('R1: from the sandbags, the targets go down and the gate opens', () => {
+  it('R1: nothing is in your face when a door opens: targets sit far from the doors', () => {
     const w = bt();
-    const me = soldierAt(w, { x: 860, y: 3620 });
+    const pos = (id: string) => w.map.objectives!.find((o) => o.id === id)!.position;
+    const near = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y);
+    // The field's targets are well past the first doorway (and out of an auto-aim's reach).
+    for (const t of BT_TARGETS_A) expect(near(pos(t), { x: 600, y: 5680 })).toBeGreaterThan(650);
+    // The lane's targets are well away from where you come in…
+    for (const t of BT_TARGETS_B) expect(near(pos(t), { x: 2040, y: 4980 })).toBeGreaterThan(250);
+    // …the mid-range ones are well out, and the far ones are far past the rifle's reach (520).
+    for (const t of BT_TARGETS_B.slice(0, 3)) {
+      expect(near(pos(t), { x: 1935, y: pos(t).y })).toBeGreaterThan(430);
+    }
+    for (const t of BT_TARGETS_B.slice(3)) {
+      expect(near(pos(t), { x: 1935, y: pos(t).y })).toBeGreaterThan(780);
+    }
+    // The machine guns are well away from the door you walk in by.
+    for (const g of enemiesOf(w, BT_MG_SQUAD)) {
+      expect(near(g, { x: 2040, y: 4080 })).toBeGreaterThan(500);
+    }
+  });
+
+  it('R1: shooting the open field’s seven targets opens the first door', () => {
+    const w = bt();
+    const me = soldierAt(w, { x: 900, y: 5400 });
     const defs = w.map.objectives!;
-    for (const t of BT_TARGETS) {
+    for (const t of BT_TARGETS_A) {
       const i = defs.findIndex((o) => o.id === t);
+      // Walks up to each one (they're spread over a big field) and shoots it.
+      getSoldier(w, me)!.x = defs[i]!.position.x - 250;
+      getSoldier(w, me)!.y = defs[i]!.position.y;
       shootAt(
         w,
         me,
@@ -109,8 +136,138 @@ describe('basic training (PHASE18): on rails', () => {
       );
     }
     run(w, 1);
-    expect(gateOpen(w, 'bt-g1')).toBe(true);
+    expect(BT_TARGETS_A.length).toBe(7);
+    expect(gateOpen(w, 'bt-g1a')).toBe(true);
+    expect(gateOpen(w, 'bt-g1b')).toBe(false); // the lane's door waits for the lane
     expect(w.state.missionComplete).toBeNull(); // practice targets don't win
+  });
+
+  it('R1B: held fire at the far targets mostly misses standing, and stays tight braced on the bags', () => {
+    /** Seconds of held fire to bring down the far target b7 from the bags. */
+    const ttk = (braced: boolean) => {
+      const w = bt();
+      const defs = w.map.objectives!;
+      const far = defs.findIndex((o) => o.id === 'bt-b7');
+      expect(defs[far]!.maxHp).toBe(150);
+      const me = soldierAt(w, { x: 1936, y: 4610 });
+      const aim = (fire: boolean, stance = false): SoldierInput => ({
+        move: { x: 0, y: 0 },
+        aim: Math.PI,
+        aimDistance: 1936 - defs[far]!.position.x,
+        fire,
+        interact: false,
+        autoStance: false, // a player chooses the stance (nothing happens by standing still)
+        ...(stance ? { stance: true } : {}),
+      });
+      if (braced) {
+        run(w, 1, { [me]: aim(false, true) }); // the stance button
+        run(w, 90, { [me]: aim(false) }); // settling takes a moment
+      }
+      let t = 0;
+      for (; t < 60 * 60 && !w.state.objectives[far]!.destroyed; t++) {
+        run(w, 1, { [me]: aim(true) }); // holding the trigger, like auto-fire
+      }
+      return w.state.objectives[far]!.destroyed ? t / 60 : Infinity;
+    };
+    const standing = ttk(false);
+    const braced = ttk(true);
+    expect(braced).toBeLessThan(standing * 0.7); // bracing is clearly worth doing
+    expect(standing).toBeGreaterThan(3); // ...and it isn't over in a heartbeat standing
+  });
+
+  it('R1B: from the bags, every target in the lane goes down and its door opens', () => {
+    const w = bt();
+    const me = soldierAt(w, { x: 1938, y: 4500 });
+    const defs = w.map.objectives!;
+    for (const t of BT_TARGETS_B) {
+      const i = defs.findIndex((o) => o.id === t);
+      getSoldier(w, me)!.x = 1938;
+      getSoldier(w, me)!.y = Math.max(4100, Math.min(4940, defs[i]!.position.y));
+      shootAt(
+        w,
+        me,
+        () => defs[i]!.position,
+        () => w.state.objectives[i]!.destroyed,
+        60 * 30,
+      );
+    }
+    run(w, 1);
+    expect(gateOpen(w, 'bt-g1b')).toBe(true);
+  });
+
+  it('R1C: beside the concrete wall the guns go down; out on the path they hardly do', () => {
+    const guns = (w: World) => enemiesOf(w, BT_MG_SQUAD);
+    /** Works along the wall from gun to gun, standing at `y`, firing at each until it falls. */
+    const fight = (y: number, secs: number) => {
+      const w = bt();
+      const me = soldierAt(w, { x: 700, y });
+      for (const g of guns(w)) {
+        for (let t = 0; t < 60 * secs; t++) {
+          const s = getSoldier(w, me)!;
+          const tgt = getSoldier(w, g.id)!;
+          if (!s.alive || !tgt.alive) break;
+          getSoldier(w, me)!.x = tgt.x;
+          getSoldier(w, me)!.y = y;
+          run(w, 1, { [me]: { ...toward(s, s, { aim: tgt }), fire: t % 6 < 4 } });
+        }
+      }
+      return { w, alive: guns(w).filter((g) => alive(w, g.id)).length, me: getSoldier(w, me)! };
+    };
+    const wall = fight(3872, 12); // next to the wall, in the bushes
+    expect(wall.alive).toBe(0); // fire over the concrete: all down...
+    expect(wall.me.alive).toBe(true); // ...and he lives
+    expect(gateOpen(wall.w, 'bt-g1')).toBe(true); // the way out opens
+    const path = fight(4040, 6); // out on the path: across the wall, not enough
+    expect(path.alive).toBeGreaterThan(0);
+  });
+
+  it('R1B: the sandbag lane has no way round the bags', () => {
+    const w = bt();
+    const me = soldierAt(w, { x: 1990, y: 4500 });
+    // Every row of the lane, north to south: walking west stops at the bags.
+    for (const y of [4100, 4300, 4500, 4700, 4900]) {
+      getSoldier(w, me)!.x = 1990;
+      getSoldier(w, me)!.y = y;
+      run(w, 90, { [me]: toward({ x: 1990, y }, { x: 1400, y }) });
+      expect(getSoldier(w, me)!.x).toBeGreaterThan(1924);
+    }
+  });
+
+  it("Sarge's stations are linked by real paths (he runs round walls like a soldier)", () => {
+    const w = bt();
+    for (const g of ['bt-g1a', 'bt-g1b', 'bt-g1']) {
+      w.state.gates.find((x) => x.id === g)!.open = true; // the stalls are done by then
+    }
+    const stops: P[] = [
+      { x: 600, y: 6040 }, // the start
+      { x: 600, y: 5730 }, // the first door
+      { x: 2040, y: 5010 }, // the field's east door
+      { x: 1960, y: 4600 }, // the sandbags
+      { x: 2040, y: 4110 }, // the lane's north door
+      { x: 1800, y: 3890 }, // the live-fire path
+      { x: 330, y: 3440 }, // the exit, far west
+      { x: 930, y: 3030 }, // Alpha
+      { x: 860, y: 2910 }, // the sprint gate (shut)
+    ];
+    for (let i = 1; i < stops.length; i++) {
+      const path = findPath(w, stops[i - 1]!, stops[i]!);
+      expect(path, `path to stop ${i}`).not.toBeNull();
+      // Every leg is clear of walls and shut gates; the path isn't a straight line through them.
+      for (let j = 1; j < path!.length; j++) {
+        expect(isSegmentWalkable(w, path![j - 1]!, path![j]!)).toBe(true);
+      }
+    }
+    // From the start he goes through the first doorway (x 520–680), not the wall beside it.
+    const through = findPath(w, stops[0]!, stops[2]!)!;
+    let crossedAt: number | null = null;
+    for (let j = 1; j < through.length; j++) {
+      const a = through[j - 1]!;
+      const b = through[j]!;
+      if (a.y >= 5670 && b.y <= 5670) crossedAt = a.x + ((b.x - a.x) * (a.y - 5670)) / (a.y - b.y);
+    }
+    expect(crossedAt).not.toBeNull();
+    expect(crossedAt!).toBeGreaterThan(520);
+    expect(crossedAt!).toBeLessThan(680);
   });
 
   it('R2: taking Alpha is safe from the MG; the chute gate opens a few seconds later', () => {

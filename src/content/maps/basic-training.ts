@@ -25,11 +25,16 @@
  *         │      │┊│████████████████│  >>>  ├─█──────────────────────┤
  *    2860 │      │┊├──────────────────┤g2├────┴──────────────────────────┤
  *         │      │┊│  R2  (A flag, near the gate)                     │
- *    3380 │      │┊├──────────┤g1├──────────────────────────────────────┤
- *         │      │┊│  R1 RANGE          ▮sandbags      ◎ ◎ targets    │
- *    3900 │      │┊├──────────┤  ├──────────────────────────────────────┤
- *         │      │┊│  R0 START  (spawn)                               │
- *    4360 └──────┴─┴──────────────────────────────────────────────────┘
+ *    3380 │      │┊├┤g1├─────────────────────────────────────────────┬──── (solid)
+ *         │      │┊│ R1C LIVE FIRE  ← ← ← west along the concrete wall, MGs beyond  │
+ *    4080 │      │┊├────────────────────────────────────────────────────┤g1b├──┤
+ *         │      │┊│▒▒▒▒▒▒▒▒ (solid) ▒│ R1B SANDBAG LANE ↑ north │bags│ path ↑ │
+ *    4980 │      │┊├──────────────────────────────────────────────────────┤g1a├┤
+ *         │      │┊│ R1 OPEN FIELD  → → → east, seven targets spread far out    │
+ *    5680 │      │┊├──────────┤  ├────────────────────────────────────────────┤
+ *         │      │┊│  R0 START  (spawn)                      │ (solid)           │
+ *    6160 └──────┴─┴──────────────────────────────────────────────────────────┘
+ *   The range zig-zags east, north, west, north: the map is 2200 wide down here, 1400 above.
  */
 import type { CoverDef, MapDef, Rect } from '../../sim/world/map';
 import { borderWalls } from '../../sim/world/map';
@@ -37,8 +42,12 @@ import type { SignDef } from '../sign-styles';
 import type { Vec2 } from '../../sim/core/vec';
 
 export const BASIC_TRAINING_ID = 'basic-training';
-export const BT_W = 1400;
-export const BT_H = 4400;
+export const BT_W = 2200;
+export const BT_H = 6200;
+/** The northern rooms' east edge (the range below them is wider). */
+const BT_NORTH_R = 1360;
+/** The sandbag lane is the east end of its band: west of this is solid. */
+const LANE_X = 1000;
 
 /** The west fence the sergeant walks behind. */
 export const BT_FENCE_X = 230;
@@ -47,8 +56,10 @@ export const BT_SARGE_X = 140;
 
 /** North edge (y) of each room, south to north. */
 export const BT = {
-  r0: 3900,
-  r1: 3380,
+  r0: 5680,
+  r1: 4980,
+  r1b: 4080,
+  r1c: 3380,
   r2: 2860,
   r3: 2120,
   r4: 1520,
@@ -61,6 +72,40 @@ export const BT = {
 
 export type BtRoom = keyof typeof BT;
 
+/**
+ * The rooms as rectangles (for drawing them in the Sarge editor and finding a room's middle).
+ * The chute and the corridor bend `btRoomAt`, so these are the plain bands.
+ */
+export const BT_ROOM_RECTS: Record<BtRoom, Rect> = (() => {
+  const order: BtRoom[] = [
+    'r0',
+    'r1',
+    'r1b',
+    'r1c',
+    'r2',
+    'r3',
+    'r4',
+    'r5f',
+    'r5',
+    'r6f',
+    'r6',
+    'r7',
+  ];
+  const x = BT_FENCE_X + 12;
+  const out = {} as Record<BtRoom, Rect>;
+  order.forEach((r, i) => {
+    const top = BT[r];
+    const bottom = i === 0 ? BT_H - 40 : BT[order[i - 1]!];
+    // The range below the flag room is wide; the start room and everything north are not.
+    const wide = r === 'r1' || r === 'r1b' || r === 'r1c';
+    const right = wide ? BT_W - 40 : BT_NORTH_R;
+    out[r] = { x, y: top, w: right - x, h: bottom - top };
+  });
+  // The sandbag lane is only the east end of its band: the rest is solid.
+  out.r1b = { x: LANE_X, y: BT.r1b, w: BT_W - 40 - LANE_X, h: BT.r1 - BT.r1b };
+  return out;
+})();
+
 /** The corridor east of R3/R4 (round behind the MG nest). */
 export const BT_CORRIDOR_X = 1006;
 
@@ -68,6 +113,8 @@ export const BT_CORRIDOR_X = 1006;
 export function btRoomAt(x: number, y: number): BtRoom {
   if (y >= BT.r0) return 'r0';
   if (y >= BT.r1) return 'r1';
+  if (y >= BT.r1b) return 'r1b';
+  if (y >= BT.r1c) return 'r1c';
   if (y >= BT.r2) return 'r2';
   if (x > BT_CORRIDOR_X && y >= BT.r4) return 'r4';
   if (y >= BT.r3) return 'r3';
@@ -88,7 +135,8 @@ const BT_CHUTE_EXIT_Y = 2000;
 const DOOR_X = 520;
 const DOOR_W = 160;
 const L = BT_FENCE_X + 12; // west edge of the course
-const R = BT_W - 40; // east edge
+const R = BT_NORTH_R; // east edge of the northern rooms
+const RR = BT_W - 40; // east edge of the range
 
 /** A wall across the course at `y` with a doorway at `door` (default x 520–680). */
 function crossWall(y: number, from = L, to = R, door = DOOR_X): Rect[] {
@@ -99,6 +147,12 @@ function crossWall(y: number, from = L, to = R, door = DOOR_X): Rect[] {
 }
 
 const CHUTE_DOOR = 780;
+/** The sandbag lane's north door (lined up with the bags, on the path's side). */
+const LANE_DOOR = 1960;
+/** The open field's exit door (east end), into the sandbag lane. */
+const FIELD_DOOR = 1960;
+/** The live-fire stall's exit, far west: the path runs west to it. */
+const EXIT_DOOR = 252;
 /** South of this, the chute is out of the MG's sight (a wall, not a fence, beside it). */
 export const BT_CHUTE_SAFE_Y = 2560;
 
@@ -118,8 +172,36 @@ const cover = (
   extra: Partial<CoverDef> = {},
 ): CoverDef => ({ id, material, rect, ...extra });
 
-/** Targets on the range (R1). */
-export const BT_TARGETS = ['bt-t1', 'bt-t2', 'bt-t3', 'bt-t4'] as const;
+/**
+ * The sandbag lane's sandbags: wall to wall (the doorways' walls are 20 thick), so you can't walk
+ * round. The path north is the east side, and the door is lined up with them.
+ */
+export const BT_BAGS: Rect = { x: 1900, y: BT.r1b, w: 24, h: BT.r1 - 20 - BT.r1b };
+/** The open field's targets (R1): just shoot. */
+export const BT_TARGETS_A = [
+  'bt-a1',
+  'bt-a2',
+  'bt-a3',
+  'bt-a4',
+  'bt-a5',
+  'bt-a6',
+  'bt-a7',
+] as const;
+/** The sandbag lane's targets (R1B), west of the bags: three mid-range, six far. */
+export const BT_TARGETS_B = [
+  'bt-b1',
+  'bt-b2',
+  'bt-b3',
+  'bt-b4',
+  'bt-b5',
+  'bt-b6',
+  'bt-b7',
+  'bt-b8',
+  'bt-b9',
+] as const;
+export const BT_TARGETS = [...BT_TARGETS_A, ...BT_TARGETS_B] as const;
+/** The live-fire stall's machine gunners (R1C), behind the concrete wall. */
+export const BT_MG_SQUAD = 'bt-mg';
 /**
  * The minefield: staggered rows from halfway up the chute, through its exit, right up to the
  * baffle wall beyond it. No gaps, and you can't sprint through the wall: the last mines get you.
@@ -164,7 +246,12 @@ export const BT_CHUTE_DELAY_S = 6; // TUNE
 
 /** Where to go: chevrons painted on the floor (`sprint`: the big red ones). */
 export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
-  { from: { x: 600, y: 4170 }, to: { x: 600, y: 3930 } },
+  { from: { x: 600, y: 5980 }, to: { x: 600, y: 5720 } },
+  { from: { x: 700, y: 5600 }, to: { x: 1900, y: 5100 } },
+  { from: { x: 2040, y: 5020 }, to: { x: 2040, y: 4930 } },
+  { from: { x: 2040, y: 4900 }, to: { x: 2040, y: 4130 } },
+  { from: { x: 1980, y: 4040 }, to: { x: 620, y: 3960 } },
+  { from: { x: 480, y: 3900 }, to: { x: 330, y: 3420 } },
   { from: { x: 860, y: 3040 }, to: { x: 860, y: 2890 } },
   { from: { x: 860, y: 2820 }, to: { x: 860, y: 2150 }, sprint: true },
   { from: { x: 860, y: 2090 }, to: { x: 720, y: 1990 } },
@@ -177,8 +264,6 @@ export const BT_CHEVRONS: readonly { from: Vec2; to: Vec2; sprint?: true }[] = [
 ];
 
 export const BT_SIGNS: readonly SignDef[] = [
-  { id: 'bt-s-move', x: 420, y: 4140, kind: 'wood', textKey: 'bt.sign.move', size: 44 },
-  { id: 'bt-s-range', x: 420, y: 3820, kind: 'wood', textKey: 'bt.sign.range', size: 44 },
   { id: 'bt-s-flag', x: 420, y: 3300, kind: 'wood', textKey: 'bt.sign.flag', size: 44 },
   { id: 'bt-s-mg', x: 420, y: 1460, kind: 'plate', textKey: 'bt.sign.mg', size: 44 },
   { id: 'bt-s-nade', x: 420, y: 840, kind: 'plate', textKey: 'bt.sign.grenade', size: 44 },
@@ -189,14 +274,23 @@ export const BASIC_TRAINING: MapDef = {
   id: BASIC_TRAINING_ID,
   nameKey: 'map.basic.name',
   // 2: the on-rails layout ([D156]); 3: R5 out of auto-aim range, R7 the sniper range ([D158]);
-  // 4: R7's guns spread out behind a minefield; 5: concealment in R3, R4 and R7.
-  rev: 5,
+  // 4: R7's guns spread out behind a minefield; 5: concealment in R3, R4 and R7;
+  // 6: R1's sandbags run wall to wall, targets behind other cover; 7: three range stalls
+  // (open field, sandbag lane, live fire) south of the flag room; 8: the range zig-zags east,
+  // north, west across a wider map.
+  rev: 8,
   width: BT_W,
   height: BT_H,
   walls: [
     ...borderWalls(BT_W, BT_H, 40),
-    ...crossWall(BT.r0), // R0 → R1: an open doorway
-    ...crossWall(BT.r1), // gate g1
+    // The range is wider than the rooms above and below it: those parts are solid.
+    { x: BT_NORTH_R, y: 40, w: RR - BT_NORTH_R, h: BT.r1c - 40 },
+    { x: BT_NORTH_R, y: BT.r0, w: RR - BT_NORTH_R, h: BT_H - 40 - BT.r0 },
+    { x: L, y: BT.r1b, w: LANE_X - L, h: BT.r1 - BT.r1b },
+    ...crossWall(BT.r0, L, RR), // R0 → R1: an open doorway (west)
+    ...crossWall(BT.r1, L, RR, FIELD_DOOR), // gate g1a (the open field's targets down), east
+    ...crossWall(BT.r1b, L, RR, LANE_DOOR), // gate g1b (the lane's targets down), by the bags
+    ...crossWall(BT.r1c, L, RR, EXIT_DOOR), // gate g1 (the MGs down), far west
     ...crossWall(BT.r2, L, R, CHUTE_DOOR), // gate g2, into the chute
     // R3: solid west of the chute; the exit north is an open doorway.
     { x: L, y: BT.r3, w: CHUTE_X - L, h: BT.r2 - 20 - BT.r3 },
@@ -220,6 +314,8 @@ export const BASIC_TRAINING: MapDef = {
   ],
   water: [],
   concealment: [
+    // R1C: bushes along the concrete wall: you're hard to see, so the guns miss.
+    { id: 'bt-c-bushes', kind: 'bush', rect: { x: 560, y: 3844, w: 1380, h: 80 } },
     { id: 'bt-ambush-bush', kind: 'bush', rect: { x: 1210, y: 1870, w: 100, h: 84 } },
     { id: 'bt-r7-trench', kind: 'trench', rect: { x: 1305, y: 43, w: 53, h: 349 } },
   ],
@@ -227,8 +323,12 @@ export const BASIC_TRAINING: MapDef = {
   cover: [
     // The sergeant's fence: you can see him, you can't get to him.
     cover('bt-fence', 'fence', { x: BT_FENCE_X, y: 40, w: 12, h: BT_H - 80 }),
-    // R1: sandbags between you and the targets: get up to them and fire over.
-    cover('bt-r1-bags', 'sandbags', { x: 880, y: 3480, w: 24, h: 280 }),
+    // R1B: sandbags wall to wall between the path and the targets, so there's no way round: get
+    // up to them and shoot over (and steady the rifle on them for the far ones).
+    cover('bt-r1-bags', 'sandbags', BT_BAGS),
+    // R1C: a long concrete wall between the path and five machine guns. Heavy, but low enough
+    // to shoot over from beside it.
+    cover('bt-c-wall', 'halfWall', { x: 560, y: 3820, w: 1380, h: 24 }, { bullet: 0.9 }),
     // R3: the fence the MG fires through, and the nest's heavy cover.
     cover('bt-r3-fence', 'fence', { x: 1000, y: BT.r3, w: 12, h: BT_CHUTE_SAFE_Y - BT.r3 }),
     cover('bt-mg-nest', 'sandbags', { x: 1060, y: 2380, w: 24, h: 160 }, { bullet: 0.95 }),
@@ -254,7 +354,9 @@ export const BASIC_TRAINING: MapDef = {
     cover('bt-r7-fence', 'fence', { x: 1250, y: 40, w: 12, h: 340 }),
   ],
   gates: [
-    gateAt('bt-g1', BT.r1),
+    gateAt('bt-g1a', BT.r1, FIELD_DOOR),
+    gateAt('bt-g1b', BT.r1b, LANE_DOOR),
+    gateAt('bt-g1', BT.r1c, EXIT_DOOR),
     gateAt('bt-g2', BT.r2, CHUTE_DOOR),
     { id: 'bt-g4', rect: { x: 1000, y: BT.r4 + 180, w: 12, h: 120 }, initiallyOpen: false },
     gateAt('bt-g5', BT.r4),
@@ -265,10 +367,28 @@ export const BASIC_TRAINING: MapDef = {
   ],
   levers: [{ id: 'bt-lever', position: { x: 1300, y: 2640 }, targetId: 'bt-g5' }],
   objectives: [
-    { id: 'bt-t1', position: { x: 1150, y: 3500 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-t2', position: { x: 1270, y: 3600 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-t3', position: { x: 1150, y: 3700 }, radius: 18, maxHp: 50, target: true },
-    { id: 'bt-t4', position: { x: 1270, y: 3800 }, radius: 18, maxHp: 50, target: true },
+    // R1: the open field: seven in the open, spread far out east so none are in your face when
+    // the door opens (no tricks: can you shoot at all?).
+    { id: 'bt-a1', position: { x: 1250, y: 5500 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a2', position: { x: 1450, y: 5150 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a3', position: { x: 1560, y: 5580 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a4', position: { x: 1760, y: 5300 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a5', position: { x: 1900, y: 5600 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a6', position: { x: 2060, y: 5200 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-a7', position: { x: 1660, y: 5060 }, radius: 18, maxHp: 50, target: true },
+    // R1B: west of the bags, in a lane 900 wide. Three mid-range ones (about 450–540 out) go down
+    // at once. Six far ones sit 800–870 out, well past the rifle's 520 (where bullets lose
+    // speed, damage and, on held fire, accuracy): standing, you hose and mostly miss; braced on
+    // the bags, held fire stays tight. Each takes six hits.
+    { id: 'bt-b1', position: { x: 1480, y: 4300 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b2', position: { x: 1400, y: 4550 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b3', position: { x: 1460, y: 4800 }, radius: 18, maxHp: 50, target: true },
+    { id: 'bt-b4', position: { x: 1090, y: 4190 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b5', position: { x: 1130, y: 4330 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b6', position: { x: 1070, y: 4470 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b7', position: { x: 1120, y: 4610 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b8', position: { x: 1080, y: 4750 }, radius: 14, maxHp: 150, target: true },
+    { id: 'bt-b9', position: { x: 1140, y: 4890 }, radius: 14, maxHp: 150, target: true },
   ],
   mines: [...BT_MINEFIELD.map((mine) => ({ ...mine, smoke: true })), ...BT_R7_MINEFIELD],
   capturePoints: [
@@ -288,7 +408,7 @@ export const BASIC_TRAINING: MapDef = {
     {
       id: 'bt-start',
       nameKey: 'spawn.basic.start',
-      position: { x: 600, y: 4250 },
+      position: { x: 600, y: 6040 },
       facing: -Math.PI / 2,
       kind: 'initial',
     },
@@ -357,9 +477,26 @@ export const BASIC_TRAINING: MapDef = {
       members: BT_R7_GUNS.map((g) => ({ ...g, facing: Math.PI })),
       order: { kind: 'guard' },
     },
+    // (Last, so adding it didn't shift the other soldiers' ids: the sim's rolls hash them.)
+    // R1C: five machine guns spread along the far side of the concrete wall: they shoot back (and
+    // hit less than you'd think: the wall and the bushes).
+    {
+      id: BT_MG_SQUAD,
+      hold: true,
+      members: [
+        { role: 'gunner', position: { x: 720, y: 3500 }, facing: Math.PI / 2 },
+        { role: 'gunner', position: { x: 1020, y: 3660 }, facing: Math.PI / 2 },
+        { role: 'gunner', position: { x: 1280, y: 3480 }, facing: Math.PI / 2 },
+        { role: 'gunner', position: { x: 1520, y: 3680 }, facing: Math.PI / 2 },
+        { role: 'gunner', position: { x: 1740, y: 3540 }, facing: Math.PI / 2 },
+      ],
+      order: { kind: 'guard' },
+    },
   ],
   triggers: [
-    { id: 'bt-tr1', when: { destroyed: [...BT_TARGETS] }, openGate: 'bt-g1' },
+    { id: 'bt-tr1a', when: { destroyed: [...BT_TARGETS_A] }, openGate: 'bt-g1a' },
+    { id: 'bt-tr1b', when: { destroyed: [...BT_TARGETS_B] }, openGate: 'bt-g1b' },
+    { id: 'bt-tr1', when: { squadDead: BT_MG_SQUAD }, openGate: 'bt-g1' },
     {
       id: 'bt-tr2',
       when: { captured: 'bt-a' },

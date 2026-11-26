@@ -31,6 +31,10 @@ async function boot(): Promise<void> {
     // (PHASE13-c) World map generator viewer: plain DOM, no Phaser.
     const m = await import('./world-main');
     await m.startWorldViewer(document.getElementById('ui-root') ?? document.body, params);
+  } else if (params.get('scene') === 'sarge') {
+    // (PHASE18) The drill sergeant's script editor: plain DOM, no Phaser.
+    const m = await import('./sarge-editor-main');
+    m.startSargeEditor(document.getElementById('ui-root') ?? document.body, params);
   } else if (params.get('scene') === 'editor') {
     // (PHASE13-a) Block editor: plain DOM, no Phaser.
     const m = await import('./editor-main');

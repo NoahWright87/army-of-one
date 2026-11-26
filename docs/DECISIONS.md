@@ -756,6 +756,60 @@ like one, built from in-world text. Short, glanceable, never in the way of the a
   straighter and stop near where they land; flags take ~25 % less time. The minefield is
   simply dense: staggered rows from halfway up the chute to the wall past its exit, no gaps.
   Money: the map just starts you with $9,999,999 and no income.
+- **[D161] Sarge is a ghost who shows you** (owner, 2026-11). Watching a first-time player
+  (walked round the sandbags, thinking they blocked her shots) showed that yelling isn't
+  enough. The drill sergeant now exists outside the timelines: translucent, can't be hurt,
+  draws no fire, not in the sim or the tape, and he leaves the fence to share the course with
+  you (he tags along behind you). When there's something to show he runs there and waits: in
+  R1 he stands at the sandbags opposite the next target ("get right up to them, you shoot OVER
+  them"). **The battle never pauses for him.** Ignore him and he heckles ("You got dirt in
+  your ears, Private?!? I said GET OVER HERE!!!"). R1's sandbags run wall to wall (no way
+  round) and the targets sit behind different cover (open, fence, crate, half wall), each
+  named by Sarge. He reacts to the moment (a line marked urgent cuts him off mid-sentence) and
+  sets things up ahead: at the start he runs to the door; after Alpha he waits at the gate,
+  says it's about to open and to SPRINT, then runs ahead of you through it. When you die he
+  laughs ("Happens to the best of us, kid"), and on the respawn view he walks to the spawn you
+  should pick (never off screen), says what to do there (the first time: that's respawning, you
+  come back and fix it), and heckles if you don't deploy ("Over here, numbnuts!"). The dimming
+  coach is hidden in the in-world respawn view (`BT_COACH_IN_WORLD`, code kept); the old
+  respawn screen still uses it. Instead the control to use next pulses (`ui/coach/pulse.ts`).
+  Sarge runs the map's paths like a soldier (the sim's `findPath`, shut gates are walls) but
+  touches nothing. Basic training only resumes on a reload mid-way (sessionStorage
+  `aoo:bt:active`); leaving for the HQ or loading it any other way starts over. The first
+  screen has him welcome you, introduce himself and tell you to hit DEPLOY.
+  **The script is data** (`src/content/sarge-script.ts`, run by `src/app/sarge-engine.ts`):
+  RULES (WHEN conditions → DO steps: say, wait, set/clear a flag), ZONES (rectangles; the ten
+  rooms are zones already), FLAGS (yours, plus the game's own events as `had:` conditions),
+  timers (`inFor`, `flagFor`, `firedFor`, `waited`, `quiet`), PREFS (where Sarge likes to
+  stand: a spot, a zone, the sandbags by the next target, or near you) and his timing. Gate
+  delays are in the script too (`gateDelays`, applied when the level loads): the designer times
+  a gate against how long Sarge talks; the game doesn't make doors wait for speech. The editor
+  is a separate page, `?scene=sarge` (`src/app/sarge-editor-main.ts`, `src/ui/sarge-editor/`):
+  the course on a canvas where you draw zones and pin Sarge's spots, lines in a plain form
+  (conditions as sentences; "Type it instead" shows the raw words), ▶ Play from here opens the
+  game at a station (`?station=r3`, `content/maps/basic-training-stations.ts`) with "← Sarge
+  editor" back. Your copy is kept in localStorage over the repo default (download it to commit).
+  Exception to "all text in strings.ts": Sarge's words live in his script. Open: pacing (speech
+  vs. how fast you move) and what he does when you outrun a line; tune these in the editor.
+- **[D162] The range is three big stalls that zig-zag; Sarge never names a button** (owner,
+  2026-11). The one-room range is replaced by three, using lots of space (the map is 2200 wide
+  down there, 1400 above; "levels are way bigger than this"): (1) an open field you cross east,
+  seven targets spread far out so none is in your face when the door opens (auto-fire on a phone
+  would blast them at once); (2) a sandbag lane you walk north, sandbags wall to wall between
+  the path and the targets, three mid-range targets and six far ones 800–870 out (far past the
+  rifle's 520: bullets lose speed and damage, and held fire loses accuracy; 150 HP, six hits), so
+  standing you mostly miss and braced on the bags you don't so you must come up to the bags, brace
+  (a chosen stance now, [D160]; a painted BRACE mark teaches it) and aim; (3) live fire west
+  along a long concrete wall with bushes, five machine guns spread beyond it, then north out of
+  the far west door, which opens when they're dead. Stall doors open from mission rules; gate
+  delays are in Sarge's script. "Walk it off" plays any time you're hurt. Instructions are
+  painted on the ground (WASD, or a thumbstick on a touch screen; MOVE / SPRINT / FIRE / BRACE)
+  instead of signs, and Sarge's lines stay in-universe and device-neutral. He charges ahead at
+  spawn ("Follow me, trainee!") and nags every couple of seconds if you stand still; on the first
+  screen he nags if you don't deploy. He only reacts to being shot at after *sustained* fire
+  through him (six shots within four seconds), with varied lines: a stray shot, or auto-fire
+  sweeping past, is nothing. Real stats ([D157]); the MG count, spots and the far targets'
+  distance are the knobs.
 - **[D158] How far you can look and aim** (owner, 2026-11; PHASE20 [D160] made bracing a chosen stance and dropped the mounted shuffle / scoped walk): every soldier braces on cover (still
   next to it: a tighter cone and a little more reach); standing still looks a bit further;
   the Machine Gunner further (mounted: further still, and its range grows ×1.15 firing across
