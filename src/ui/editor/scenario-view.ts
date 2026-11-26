@@ -2,13 +2,7 @@ import { imageAsset, type ImageKey } from '../../content/assets';
 import { SIGN_KINDS } from '../../content/sign-styles';
 import { TERRAIN_ART } from '../../content/terrain-art';
 import { assetUrl } from '../../render/assets/asset-urls';
-import {
-  buildTerrainAtlas,
-  edgeFrame,
-  loadTerrainImages,
-  type TerrainAtlas,
-} from '../../render/terrain/transition-atlas';
-import { terrainEdges } from '../../render/terrain/transition-rules';
+import { buildTerrainAtlas, loadTerrainImages } from '../../render/terrain/transition-atlas';
 import { drawConcealment, drawTrenchRims } from '../../render/terrain/concealment-art';
 import { canvasConcealmentPainter } from '../../render/terrain/concealment-canvas';
 import { coverArtLayout } from '../../render/cover-art';
@@ -37,6 +31,7 @@ import type { Vec2 } from '../../sim/core/vec';
 import type { ConcealmentArea, CoverMaterial, Rect } from '../../sim/world/map';
 import { el, injectStyle } from '../dom';
 import { EditHistory } from './edit-history';
+import { ScenarioGroundCache } from './scenario-ground-cache';
 import { coverTiles, terrainTiles, tileStamp, wallTile } from './scenario-tiles';
 
 const css = `
@@ -176,12 +171,13 @@ export class ScenarioView {
   private readonly canvasWrap = el('div', 'stage');
   private readonly concealmentPainter = canvasConcealmentPainter(this.ctx);
   private paintedConcealment: { layout: ScenarioLayout; areas: ConcealmentArea[] } | null = null;
-  private terrainAtlas: TerrainAtlas | null = null;
+  private framePending = false;
   private readonly images = new Map<ImageKey, HTMLImageElement>();
   private readonly tools = new Map<HTMLButtonElement, () => boolean>();
   private readonly terrainStamps = new Map(
     GROUND_KINDS.map((kind) => [kind, tileStamp(terrainTiles[kind])]),
   );
+  private readonly groundCache = new ScenarioGroundCache(this.terrainStamps);
   private readonly wallStamp = tileStamp(wallTile);
   private readonly coverStamps = new Map(
     SCENARIO_MATERIALS.map((material) => [material, tileStamp(coverTiles[material])]),
@@ -451,7 +447,7 @@ export class ScenarioView {
     new ResizeObserver(() => this.draw()).observe(stage);
     void loadTerrainImages(assetUrl)
       .then((images) => {
-        this.terrainAtlas = buildTerrainAtlas(images);
+        this.groundCache.setTextures(images, buildTerrainAtlas(images));
         this.draw();
       })
       .catch(() => {
@@ -462,9 +458,11 @@ export class ScenarioView {
       if (event.button === 1) event.preventDefault();
     };
     this.canvas.onpointermove = (event) => {
-      this.hoverCell = event.pointerType === 'touch' ? null : this.cell(event, false);
+      const hover = event.pointerType === 'touch' ? null : this.cell(event, false);
+      const changed = hover?.x !== this.hoverCell?.x || hover?.y !== this.hoverCell?.y;
+      this.hoverCell = hover;
       if (this.stroke) this.moveStroke(event);
-      else if (this.tool === 'paint') this.draw();
+      else if (changed && this.tool === 'paint') this.draw();
     };
     this.canvas.onpointerleave = () => {
       this.hoverCell = null;
@@ -974,6 +972,7 @@ export class ScenarioView {
       stroke.client = { x: event.clientX, y: event.clientY };
     } else if (this.tool === 'paint') {
       const at = this.cell(event, true)!;
+      if (at.x === stroke.last.x && at.y === stroke.last.y) return;
       this.paint(stroke.last, at);
       stroke.last = at;
     } else {
@@ -1120,12 +1119,25 @@ export class ScenarioView {
   }
 
   private draw(): void {
+    if (this.framePending) return;
+    this.framePending = true;
+    requestAnimationFrame(() => {
+      this.framePending = false;
+      this.drawFrame();
+    });
+  }
+
+  private drawFrame(): void {
     const { canvas, ctx } = this;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const dpr = window.devicePixelRatio;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
+    const pixelWidth = Math.round(width * dpr);
+    const pixelHeight = Math.round(height * dpr);
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, pixelWidth, pixelHeight);
     const world = this.worldSize;
     const fit = Math.min((width - 24) / world.x, (height - 24) / world.y);
     const size = Math.max(0.1, fit * this.zoom);
@@ -1143,30 +1155,7 @@ export class ScenarioView {
     const top = Math.max(0, Math.floor(-y / size));
     const right = Math.min(this.cols, Math.ceil((width - x) / size));
     const bottom = Math.min(this.rows, Math.ceil((height - y) / size));
-    for (let row = top; row < bottom; row++) {
-      for (let col = left; col < right; col++) {
-        const kind = this.layout.ground[row]![col] as GroundKind;
-        const image = this.art(TERRAIN_ART[kind]) ?? this.terrainStamps.get(kind)!;
-        if (
-          image instanceof HTMLImageElement &&
-          image.naturalWidth >= 128 &&
-          image.naturalHeight >= 128
-        ) {
-          ctx.drawImage(image, (col & 1) * 64, (row & 1) * 64, 64, 64, col, row, 1, 1);
-        } else ctx.drawImage(image, col, row, 1, 1);
-      }
-    }
-    const atlas = this.terrainAtlas;
-    for (let row = top; row < bottom; row++) {
-      for (let col = left; col < right; col++) {
-        if (atlas)
-          for (const edge of terrainEdges(this.layout.ground, col, row)) {
-            const frame = atlas.frames.get(edgeFrame(edge.kind, edge.style, edge.mask, col, row));
-            if (frame)
-              ctx.drawImage(atlas.canvas, frame.x, frame.y, frame.w, frame.h, col, row, 1, 1);
-          }
-      }
-    }
+    this.groundCache.draw(ctx, this.layout.ground, size * dpr, { left, top, right, bottom });
     const cs = this.cellSize;
     if (this.paintedConcealment?.layout !== this.layout) {
       const areas: ConcealmentArea[] = this.layout.items.flatMap((item, index) =>
