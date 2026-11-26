@@ -43,7 +43,8 @@ export interface HubDeps {
   uiRoot: HTMLElement;
   assetsReady: Promise<void>;
   makeInput(scene: Phaser.Scene, liveId: string): InputSource;
-  hideHud(): void;
+  /** The HUD (and the stance and weapon icons) is shown, except while a sign is open. */
+  setHudVisible(on: boolean): void;
   /** Mission name key for a library entry (null: unknown mission). */
   missionNameKey(missionId: string): string | null;
 }
@@ -91,6 +92,7 @@ export function startHub(deps: HubDeps): void {
   };
   const driver = new HubDriver(deps.tuning, leave, role);
   let signs: SignpostLayer | null = null;
+  let hudShown = true;
 
   const watchButtons = (entries: LibraryEntry[]): SignButton[] =>
     entries.flatMap((e) => {
@@ -280,7 +282,6 @@ export function startHub(deps: HubDeps): void {
       },
       overlay: {
         create: (scene: Phaser.Scene) => {
-          deps.hideHud();
           for (const d of HUB_DECOR) {
             scene.add
               .image(d.x, d.y, d.image)
@@ -317,6 +318,11 @@ export function startHub(deps: HubDeps): void {
         },
         update: (nowMs, live, input) => {
           signs?.update(nowMs, live, input.fire);
+          const hud = !(signs?.anyOpen() ?? false);
+          if (hud !== hudShown) {
+            hudShown = hud;
+            deps.setHudVisible(hud);
+          }
         },
       },
     };

@@ -628,7 +628,7 @@ if (mode === 'hub' && sceneParam === null && !sentToTraining()) {
     assetsReady,
     makeInput: (scene, liveId) =>
       makeControls(scene, HUB_MAP, gameTuning(), liveId, { autoAim: false }),
-    hideHud: () => hud.setVisible(false, true), // the HQ keeps the stance and weapon icons
+    setHudVisible: (on) => hud.setVisible(on),
     missionNameKey: libraryNameKey,
   });
 }
