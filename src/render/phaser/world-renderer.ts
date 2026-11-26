@@ -41,7 +41,11 @@ import type { Vec2 } from '../../sim/core/vec';
 import { rectContains, type MapDef } from '../../sim/world/map';
 import { visibilityFrom } from '../../sim/world/concealment';
 import { fogBanksAt } from '../../sim/world/atmosphere';
-import { hash01 } from '../../sim/core/hash';
+import {
+  drawConcealment,
+  drawTrenchRims,
+  type ConcealmentPainter,
+} from '../terrain/concealment-art';
 import type { VehicleView, WorldView } from '../../sim/view';
 import type { DisplaySettings } from '../../ui/settings/display-settings';
 import { DEPTH } from '../depth';
@@ -327,7 +331,7 @@ export class WorldRenderer {
       .tileSprite(0, 0, map.width, map.height, TERRAIN_ART.G)
       .setOrigin(0)
       .setDepth(DEPTH.ground);
-    if (map.ground) drawGround(scene, map.ground);
+    if (map.ground) drawGround(scene, map);
     for (const spawn of map.spawnPoints) {
       const transport = spawn.transport;
       if (transport?.kind !== 'truck') continue;
@@ -423,31 +427,17 @@ export class WorldRenderer {
       if (!isPaintedRect(map.ground, w, ['W'])) outline.strokeRect(w.x, w.y, w.w, w.h);
     if (map.concealment?.length) {
       const g = scene.add.graphics().setDepth(DEPTH.walls - 0.6);
-      for (const {
-        id,
-        rect: { x, y, w, h },
-        kind,
-        painted,
-      } of map.concealment) {
-        if (painted) {
-          g.fillStyle(0x3f3028, 0.9).fillRect(x, y, w, h);
-        } else if (kind === 'trench') {
-          g.fillStyle(0x7c6348).fillRoundedRect(x - 3, y - 3, w + 6, h + 6, 6);
-          g.fillStyle(0x3f3028).fillRoundedRect(x, y, w, h, 4);
-          g.lineStyle(2, 0x9b7652).strokeRoundedRect(x + 5, y + 5, w - 10, h - 10, 4);
-        } else {
-          g.fillStyle(0x293f28).fillRoundedRect(x, y, w, h, Math.min(12, w / 2, h / 2));
-          const count = Math.ceil((w * h) / 440);
-          for (let i = 0; i < count; i++) {
-            const rx = hash01(`${id}:${i}:x`);
-            const ry = hash01(`${id}:${i}:y`);
-            const color = i % 3 === 0 ? 0x779250 : i % 3 === 1 ? 0x537141 : 0x395a36;
-            g.fillStyle(color, 0.8).fillCircle(x + w * rx, y + h * ry, 7 + (i % 9));
-          }
-        }
-      }
+      const painter = graphicsConcealmentPainter(g);
+      for (const area of map.concealment) drawConcealment(painter, area);
     }
     this.drawPaintedTrenchRims();
+    for (const { image, rect } of map.scenery ?? []) {
+      scene.add
+        .image(rect.x, rect.y, image)
+        .setOrigin(0)
+        .setDisplaySize(rect.w, rect.h)
+        .setDepth(DEPTH.decals);
+    }
 
     // Tiled sections retain material proportions at every authored length/orientation.
     for (const c of map.cover ?? []) {
@@ -996,24 +986,7 @@ export class WorldRenderer {
     const ground = this.map.ground;
     if (!ground || !ground.rows.some((row) => row.includes('T'))) return;
     const g = this.scene.add.graphics().setDepth(DEPTH.walls - 0.55);
-    const { rows, cellSize: size } = ground;
-    const edge = (ax: number, ay: number, bx: number, by: number) => {
-      g.lineStyle(7, 0x7c6348).lineBetween(ax, ay, bx, by);
-      g.lineStyle(2, 0x9b7652).lineBetween(ax, ay, bx, by);
-    };
-    rows.forEach((row, y) => {
-      for (let x = 0; x < row.length; x++) {
-        if (row[x] !== 'T') continue;
-        const left = x * size;
-        const top = y * size;
-        const right = left + size;
-        const bottom = top + size;
-        if (row[x - 1] !== 'T') edge(left, top, left, bottom);
-        if (row[x + 1] !== 'T') edge(right, top, right, bottom);
-        if (rows[y - 1]?.[x] !== 'T') edge(left, top, right, top);
-        if (rows[y + 1]?.[x] !== 'T') edge(left, bottom, right, bottom);
-      }
-    });
+    drawTrenchRims(graphicsConcealmentPainter(g), ground.rows, ground.cellSize);
   }
 
   private createAtmosphere(): void {
@@ -1719,4 +1692,23 @@ function projectilePositions(view: WorldView) {
 export function vehicleSpriteSize(v: Pick<VehicleView, 'w' | 'h' | 'heading'>): [number, number] {
   const vertical = Math.abs(Math.sin(v.heading)) > Math.SQRT1_2;
   return vertical ? [v.h, v.w] : [v.w, v.h];
+}
+
+function graphicsConcealmentPainter(g: Phaser.GameObjects.Graphics): ConcealmentPainter {
+  return {
+    fillRect(x, y, w, h, color, alpha, radius) {
+      g.fillStyle(color, alpha);
+      if (radius) g.fillRoundedRect(x, y, w, h, radius);
+      else g.fillRect(x, y, w, h);
+    },
+    outlineRect(x, y, w, h, color, width, radius) {
+      g.lineStyle(width, color).strokeRoundedRect(x, y, w, h, radius);
+    },
+    circle(x, y, radius, color, alpha) {
+      g.fillStyle(color, alpha).fillCircle(x, y, radius);
+    },
+    line(ax, ay, bx, by, color, width) {
+      g.lineStyle(width, color).lineBetween(ax, ay, bx, by);
+    },
+  };
 }

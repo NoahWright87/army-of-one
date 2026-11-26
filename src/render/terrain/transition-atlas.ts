@@ -35,8 +35,7 @@ export function buildTerrainAtlas(images: TerrainImages): TerrainAtlas {
   const entries: { kind: GroundKind; style: EdgeStyle; mask: number; px: number; py: number }[] =
     [];
   for (const kind of TERRAIN_LAYERS.filter((k) => k !== 'W')) {
-    const styles: EdgeStyle[] = [edgeStyle(kind, 'G')];
-    if (kind === 'G' || kind === 'D' || kind === 'S') styles.push('shore');
+    const styles = new Set<EdgeStyle>([edgeStyle(kind, 'G'), edgeStyle(kind, 'W')]);
     for (const style of styles)
       for (const mask of TRANSITION_MASKS.filter((m) => m !== 0))
         for (let py = 0; py < 2; py++)

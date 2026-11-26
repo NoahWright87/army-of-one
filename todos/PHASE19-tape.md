@@ -96,4 +96,4 @@ the re-sim and missed on the tape. The sim itself is deterministic; no gap to fi
 - `firstDrift` (tests) re-simulates glued to the tape and fails only on what the glue can't fix:
   alive/dead, gates, flags, destroyed objectives, one-frame pose error. HP is not compared.
 - `firstStrictDrift` (`__aoo.checkDrift()`, pure-echo tests) is the exact comparison: a diagnostic.
-- The handoff check in `tape-flow.test.ts` allows an enemy to be nudged ≤ 10 px, nobody else.
+- The handoff check ignores HP too (same reason); `tape-flow.test.ts` allows an enemy to be nudged ≤ 10 px, nobody else. The test no longer pins `nearMissRadius` (PHASE21 senses).

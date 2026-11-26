@@ -62,12 +62,13 @@ describe('near misses and covering fire ([D146])', () => {
     const me = soldierAt(w, { x: 200, y: 500 }, { minHp: 1 });
     const e = getSoldier(w, 'E1')!;
     // A shot just past it (not at it).
-    fireGun(w, me, getSoldier(w, me)!, Math.atan2(50, 700), 'rifle', 'player');
+    fireGun(w, me, getSoldier(w, me)!, Math.atan2(25, 700), 'rifle', 'player');
     let alerted = false;
     let firedBack = false;
     for (let i = 0; i < 150; i++) {
       const ev = run(w, 1, { [me]: idle() });
-      if (e.ai!.lastSeen && Math.abs(e.ai!.lastSeen.x - 200) < 1) alerted = true;
+      // (PHASE20) The guessed spot is off by a bearing error; roughly toward the shooter.
+      if (e.ai!.lastSeen && e.ai!.lastSeen.x < 400) alerted = true;
       if (ev.some((x) => x.kind === 'shotFired' && x.by === 'E1')) firedBack = true;
     }
     expect(alerted).toBe(true);

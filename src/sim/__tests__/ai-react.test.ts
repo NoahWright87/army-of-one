@@ -34,6 +34,7 @@ describe('reacting to being shot', () => {
     run(w, 10);
     expect(getSoldier(w, 'E1')!.ai!.awake).toBe(false);
     hit(w, 'E1');
+    run(w, 5, { S1: idle(0) }); // (PHASE20) it reacts a few ticks after the hit, not on it
     const e1 = getSoldier(w, 'E1')!.ai!;
     expect(e1.awake).toBe(true);
     expect(e1.lastSeen).toMatchObject({ x: 100, y: 500 });

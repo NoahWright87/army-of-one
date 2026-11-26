@@ -217,6 +217,7 @@ export function startEditor(host: HTMLElement, params?: URLSearchParams): void {
     },
     budgetChanged: (budget) => writePlayBudget(budget),
     exit: () => go({}),
+    openScenario: () => go({ scene: 'scenario' }),
     playLevel: () => go({ mission: genMissionId(Math.floor(Math.random() * 1e9)), pool: 'mine' }),
     openGraph: () =>
       openConnectionGraph([...OFFICIAL_BLOCKS, ...lib.blocks], {
