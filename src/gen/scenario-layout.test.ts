@@ -101,3 +101,21 @@ describe('shipped layout templates', () => {
     expect(HUB_MAP.raisedGround?.[0]?.x).toBe(1130);
   });
 });
+
+it('repainting duplicate water removes its collision without dropping exact legacy pieces', () => {
+  const draft: ScenarioLayout = {
+    ...newScenarioLayout(),
+    ground: ['WGG', 'UGG', 'TGG'],
+    items: [
+      { kind: 'water', rect: { x: 0, y: 0, w: 1, h: 1 } },
+      { kind: 'water', rect: { x: 2, y: 0, w: 0.5, h: 1 } },
+    ],
+    spawn: { x: 1, y: 1 },
+  };
+  const imported = parseScenarioLayout(JSON.stringify(draft))!;
+  expect(imported.items).toEqual([draft.items[1]]);
+  imported.ground[0] = 'GGG';
+  const preview = scenarioPreviewMap(imported, 'draft')!;
+  expect(preview.water).toEqual([{ x: 128, y: 0, w: 32, h: 64 }]);
+  expect(preview.concealment?.map((piece) => piece.kind)).toEqual(['bush', 'trench']);
+});

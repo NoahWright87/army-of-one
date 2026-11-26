@@ -9,6 +9,20 @@ interface Tile {
 
 /** Coarse, top-down miniatures. Each mark is one eighth of a map cell. */
 export const terrainTiles: Record<GroundKind, Tile> = {
+  U: {
+    background: '#263f28',
+    ink: '#779250',
+    marks: [
+      '.##.....',
+      '####..#.',
+      '###..###',
+      '..#..###',
+      '......#.',
+      '..###...',
+      '.#####..',
+      '..###...',
+    ],
+  },
   G: {
     background: '#527c3c',
     ink: '#688e47',

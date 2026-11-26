@@ -8,6 +8,7 @@ import {
   SCENARIO_CELL,
   newScenarioLayout,
   scaleScenarioRect,
+  withoutDuplicateWater,
   type LayoutItem,
   type ScenarioLayout,
 } from './scenario-layout';
@@ -121,7 +122,7 @@ export function scenarioTemplate(template: ScenarioTemplate): ScenarioLayout {
         rect: cells(centered(at, 40, 40)),
       })),
     );
-    return layout;
+    return withoutDuplicateWater(layout);
   }
   const layout = geometry(BASIC_TRAINING);
   const cs = layout.cellSize ?? SCENARIO_CELL;

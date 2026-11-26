@@ -2,12 +2,18 @@ import { imageAsset, type ImageKey } from '../../content/assets';
 import { SIGN_KINDS } from '../../content/sign-styles';
 import { TERRAIN_ART } from '../../content/terrain-art';
 import { assetUrl } from '../../render/assets/asset-urls';
+import {
+  buildTerrainAtlas,
+  edgeFrame,
+  loadTerrainImages,
+  type TerrainAtlas,
+} from '../../render/terrain/transition-atlas';
+import { terrainEdges } from '../../render/terrain/transition-rules';
 import { coverArtLayout } from '../../render/cover-art';
 import { scenarioTemplate, type ScenarioTemplate } from '../../gen/scenario-templates';
 import { GROUND, GROUND_KINDS, PAINT_KINDS, type GroundKind } from '../../content/ground';
 import { str, strDynamic, type StringKey } from '../../content/strings';
 import {
-  AREA_KINDS,
   ladderPoint,
   layoutExtent,
   scenarioCellSize,
@@ -30,12 +36,12 @@ import { EditHistory } from './edit-history';
 import { coverTiles, terrainTiles, tileStamp, wallTile } from './scenario-tiles';
 
 const css = `
-.aoo-scenario { position: fixed; inset: 0; display: grid; grid-template-columns: 272px minmax(0,1fr);
+.aoo-scenario { position: fixed; inset: 0; display: grid; grid-template-columns: 316px minmax(0,1fr);
   background: #111418; color: #e7e9ec; font: 13px/1.35 system-ui,sans-serif; }
 .aoo-scenario aside { display: flex; flex-direction: column; min-height: 0; background: #181c21; border-right: 1px solid #343c46; }
 .aoo-scenario .toolbar { display: grid; gap: 4px; padding: 8px; }
 .aoo-scenario .toolbar .navigation { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
-.aoo-scenario .tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 4px; gap: 2px; border-bottom: 1px solid #343c46; }
+.aoo-scenario .tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 4px; gap: 2px; border-bottom: 1px solid #343c46; }
 .aoo-scenario .tabs button { padding-inline: 2px; border-color: transparent; border-radius: 4px 4px 0 0; background: transparent; font-size: 11px; }
 .aoo-scenario .tabs button[aria-selected="true"] { background: #232930; border-bottom: 2px solid #7dc4f6; color: #fff; }
 .aoo-scenario .panels { overflow-y: auto; min-height: 0; padding: 8px; }
@@ -65,7 +71,11 @@ const css = `
 .aoo-scenario .inspector label { margin-bottom: 4px; }
 .aoo-scenario .warning { color: #f0b37e; }
 .aoo-scenario .swatch { display: flex; gap: 5px; align-items: center; text-align: left; }
+.aoo-scenario .swatch > canvas { width: 22px; height: 18px; object-fit: contain; flex: none; }
 .aoo-scenario .thumbnail { width: 22px; height: 18px; display: inline-flex; flex: none; }
+.aoo-scenario .prop-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
+.aoo-scenario .prop-tile { display: grid; justify-items: center; gap: 4px; align-content: start; }
+.aoo-scenario .prop-tile .thumbnail { width: 100%; height: 38px; }
 .aoo-scenario .thumbnail > * { width: 100%; height: 100%; object-fit: contain; }
 @media (max-width: 640px) {
   .aoo-scenario { grid-template: minmax(0, 54%) minmax(0, 1fr) / minmax(0, 1fr); }
@@ -73,7 +83,7 @@ const css = `
   .aoo-scenario aside { grid-row: 2; border-right: 0; border-top: 1px solid #343c46; }
   .aoo-scenario button { min-height: 44px; }
   .aoo-scenario .toolbar { padding: 4px 8px; }
-  .aoo-scenario .tabs button { font-size: 12px; }
+  .aoo-scenario .tabs button { font-size: 11px; }
   .aoo-scenario .palette { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 `;
@@ -91,12 +101,13 @@ type Tool =
   | 'cover'
   | 'spawn'
   | 'erase';
-const TABS = ['terrain', 'structures', 'props', 'logic', 'scenario'] as const;
+const TABS = ['terrain', 'structures', 'props', 'weather', 'logic', 'scenario'] as const;
 type Tab = (typeof TABS)[number];
 
-function itemLayer(item: LayoutItem): 'terrain' | 'structures' | 'props' {
+function itemLayer(item: LayoutItem): 'terrain' | 'structures' | 'props' | 'weather' {
   if (item.kind === 'prop' || item.kind === 'target') return 'props';
-  if (item.kind === 'water' || item.kind === 'mist') return 'terrain';
+  if (item.kind === 'mist') return 'weather';
+  if (item.kind === 'water' || item.kind === 'trench' || item.kind === 'bush') return 'terrain';
   return 'structures';
 }
 
@@ -160,6 +171,7 @@ export class ScenarioView {
   private readonly playButton: HTMLButtonElement;
   private readonly selection = el('div', 'inspector');
   private readonly canvasWrap = el('div', 'stage');
+  private terrainAtlas: TerrainAtlas | null = null;
   private readonly images = new Map<ImageKey, HTMLImageElement>();
   private readonly tools = new Map<HTMLButtonElement, () => boolean>();
   private readonly terrainStamps = new Map(
@@ -250,6 +262,7 @@ export class ScenarioView {
     const terrainPanel = this.tabs.get('terrain')!.panel;
     const structurePanel = this.tabs.get('structures')!.panel;
     const propsPanel = this.tabs.get('props')!.panel;
+    const weatherPanel = this.tabs.get('weather')!.panel;
     const logicPanel = this.tabs.get('logic')!.panel;
     const scenarioPanel = this.tabs.get('scenario')!.panel;
     const templates = el('div', 'row');
@@ -304,7 +317,7 @@ export class ScenarioView {
       swatch.className = 'swatch';
       const icon = tileStamp(terrainTiles[kind]);
       icon.setAttribute('aria-hidden', 'true');
-      swatch.prepend(this.thumbnail(TERRAIN_ART[kind], icon));
+      swatch.prepend(kind === 'U' || kind === 'T' ? icon : this.thumbnail(TERRAIN_ART[kind], icon));
       paint.append(swatch);
       this.tools.set(swatch, () => this.tool === 'paint' && this.terrain === kind);
     }
@@ -343,39 +356,52 @@ export class ScenarioView {
       covers.append(button);
       this.tools.set(button, () => this.tool === 'cover' && this.material === material);
     }
-    const areaPicker = (kinds: readonly AreaKind[]) =>
-      this.toolPicker(
-        'scenario.area',
-        kinds.map((area) => ({ value: area, label: `scenario.area.${area}` as const })),
-        (area) => {
-          this.area = area;
-          this.useTool('area');
-        },
+    const layerTool = (label: StringKey, tool: Tool, activate = () => this.useTool(tool)) => {
+      const button = this.button(label, activate);
+      this.tools.set(
+        button,
+        () =>
+          this.tool === tool &&
+          (tool !== 'area' ||
+            (label === 'scenario.area.mist' ? this.area === 'mist' : this.area === 'raised')),
       );
-    const props = this.toolPicker(
-      'scenario.props',
-      PROP_IMAGES.map(({ image, label }) => ({ value: image, label })),
-      (image) => {
-        this.propImage = image;
-        this.useTool('prop');
-      },
-    );
-    const layerTool = (label: StringKey, tool: Tool) => {
-      const button = this.button(label, () => this.useTool(tool));
-      this.tools.set(button, () => this.tool === tool);
       return button;
     };
-    terrainPanel.append(paint, areaPicker(['water', 'mist']), layerTool('scenario.erase', 'erase'));
+    const propGrid = el('div', 'prop-grid');
+    for (const { image, label } of [
+      ...PROP_IMAGES,
+      { image: 'target_dummy', label: 'scenario.target' },
+    ] as const) {
+      const target = image === 'target_dummy';
+      const button = this.button(label, () => {
+        if (this.stroke) return;
+        this.propImage = image;
+        this.useTool(target ? 'target' : 'prop');
+      });
+      button.className = 'prop-tile';
+      button.prepend(this.thumbnail(image));
+      this.tools.set(button, () =>
+        target ? this.tool === 'target' : this.tool === 'prop' && this.propImage === image,
+      );
+      propGrid.append(button);
+    }
+    terrainPanel.append(paint, layerTool('scenario.erase', 'erase'));
     structurePanel.append(
       objects,
-      areaPicker(AREA_KINDS.filter((kind) => kind !== 'water' && kind !== 'mist')),
+      layerTool('scenario.area.raised', 'area', () => {
+        this.area = 'raised';
+        this.useTool('area');
+      }),
       el('h2', '', str('editor.kind.cover')),
       covers,
       layerTool('scenario.erase', 'erase'),
     );
-    propsPanel.append(
-      props,
-      layerTool('scenario.target', 'target'),
+    propsPanel.append(propGrid, layerTool('scenario.erase', 'erase'));
+    weatherPanel.append(
+      layerTool('scenario.area.mist', 'area', () => {
+        this.area = 'mist';
+        this.useTool('area');
+      }),
       layerTool('scenario.erase', 'erase'),
     );
     logicPanel.append(layerTool('scenario.spawn', 'spawn'), layerTool('scenario.erase', 'erase'));
@@ -414,6 +440,14 @@ export class ScenarioView {
     sidebar.append(this.status);
 
     new ResizeObserver(() => this.draw()).observe(stage);
+    void loadTerrainImages(assetUrl)
+      .then((images) => {
+        this.terrainAtlas = buildTerrainAtlas(images);
+        this.draw();
+      })
+      .catch(() => {
+        // The base textures are still available if a transition texture fails.
+      });
     this.canvas.onpointerdown = (event) => this.startStroke(event);
     this.canvas.onpointermove = (event) => {
       this.hoverCell = event.pointerType === 'touch' ? null : this.cell(event, false);
@@ -469,12 +503,12 @@ export class ScenarioView {
     this.resizeButton.classList.toggle('pending', pending);
   }
 
-  private thumbnail(key: ImageKey, fallback: HTMLCanvasElement): HTMLElement {
+  private thumbnail(key: ImageKey, fallback?: HTMLCanvasElement): HTMLElement {
     const thumb = el('span', 'thumbnail');
     thumb.setAttribute('aria-hidden', 'true');
     const image = el('img');
     image.alt = '';
-    image.onerror = () => image.replaceWith(fallback);
+    if (fallback) image.onerror = () => image.replaceWith(fallback);
     image.src = assetUrl(key);
     thumb.append(image);
     return thumb;
@@ -489,28 +523,6 @@ export class ScenarioView {
       this.images.set(key, image);
     }
     return image.complete && image.naturalWidth ? image : undefined;
-  }
-
-  private toolPicker<T extends string>(
-    label: StringKey,
-    options: readonly { label: StringKey; value: T }[],
-    choose: (value: T) => void,
-  ): HTMLElement {
-    const row = el('div', 'row');
-    const select = el('select');
-    select.setAttribute('aria-label', str(label));
-    for (const entry of options) {
-      const option = el('option', '', str(entry.label));
-      option.value = entry.value;
-      select.append(option);
-    }
-    const activate = () => {
-      const entry = options[select.selectedIndex];
-      if (entry) choose(entry.value);
-    };
-    select.onchange = activate;
-    row.append(select, this.button(label, activate));
-    return row;
   }
 
   private openTemplate(id: ScenarioTemplate): void {
@@ -1106,6 +1118,23 @@ export class ScenarioView {
         ) {
           ctx.drawImage(image, (col & 1) * 64, (row & 1) * 64, 64, 64, col, row, 1, 1);
         } else ctx.drawImage(image, col, row, 1, 1);
+      }
+    }
+    const atlas = this.terrainAtlas;
+    for (let row = top; row < bottom; row++) {
+      for (let col = left; col < right; col++) {
+        if (atlas)
+          for (const edge of terrainEdges(this.layout.ground, col, row)) {
+            const frame = atlas.frames.get(edgeFrame(edge.kind, edge.style, edge.mask, col, row));
+            if (frame)
+              ctx.drawImage(atlas.canvas, frame.x, frame.y, frame.w, frame.h, col, row, 1, 1);
+          }
+        const ground = this.layout.ground[row]?.[col];
+        if (ground === 'U' || ground === 'T') {
+          ctx.globalAlpha = 0.55;
+          ctx.drawImage(this.terrainStamps.get(ground)!, col, row, 1, 1);
+          ctx.globalAlpha = 1;
+        }
       }
     }
     if (size >= 12) {

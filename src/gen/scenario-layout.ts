@@ -3,7 +3,13 @@ import { GROUND, isGroundKind } from '../content/ground';
 import { BLOCK_TUNING } from '../content/tuning';
 import { borderWalls, type CoverMaterial, type MapDef, type Rect } from '../sim/world/map';
 import type { Vec2 } from '../sim/core/vec';
-import { addPaintedTrenches, maskRects, solidRects, waterRects } from './assemble';
+import {
+  addPaintedBushes,
+  addPaintedTrenches,
+  maskRects,
+  solidRects,
+  waterRects,
+} from './assemble';
 
 export const SCENARIO_CELL = BLOCK_TUNING.cellSize;
 export const SCENARIO_MIN_CELLS = 3;
@@ -130,6 +136,25 @@ function validItem(item: LayoutItem, width: number, height: number): boolean {
   }
 }
 
+/** Older drafts and HQ may describe the same water as a tile and an exact rectangle. */
+export function withoutDuplicateWater(layout: ScenarioLayout): ScenarioLayout {
+  const cs = scenarioCellSize(layout);
+  const { width, height } = layoutExtent(layout);
+  const items = layout.items.filter((item) => {
+    if (item.kind !== 'water') return true;
+    const { x, y, w, h } = worldRect(item.rect, cs);
+    const right = x + w;
+    const bottom = y + h;
+    if (x % cs || y % cs || (right !== width && right % cs) || (bottom !== height && bottom % cs))
+      return true;
+    for (let row = y / cs; row < Math.ceil(bottom / cs); row++)
+      for (let col = x / cs; col < Math.ceil(right / cs); col++)
+        if (layout.ground[row]?.[col] !== 'W') return true;
+    return false;
+  });
+  return items.length === layout.items.length ? layout : { ...layout, items };
+}
+
 export function parseScenarioLayout(json: string): ScenarioLayout | null {
   try {
     const layout = JSON.parse(json) as ScenarioLayout;
@@ -179,7 +204,7 @@ export function parseScenarioLayout(json: string): ScenarioLayout | null {
         ))
     )
       return null;
-    return layout;
+    return withoutDuplicateWater(layout);
   } catch {
     return null;
   }
@@ -336,6 +361,15 @@ export function scenarioPreviewMap(layout: ScenarioLayout, id: string): MapDef |
     )
       map.water.push(painted);
   }
+  addPaintedBushes(
+    maskRects(
+      layout.ground[0]!.length,
+      layout.ground.length,
+      cs,
+      (x, y) => layout.ground[y]?.[x] === 'U',
+    ).map(clip),
+    map.concealment,
+  );
   addPaintedTrenches(
     maskRects(
       layout.ground[0]!.length,
