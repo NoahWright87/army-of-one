@@ -9,7 +9,7 @@
  * model calls and draws. Plays the document in the real game via `actions.play`.
  */
 import { imageAsset, type ImageKey } from '../../content/assets';
-import { EDGE_PRESETS, GROUND, GROUND_KINDS, PAINT_KINDS } from '../../content/ground';
+import { BLOCK_CELLS, EDGE_PRESETS, GROUND, GROUND_KINDS, PAINT_KINDS } from '../../content/ground';
 import { ROLES } from '../../content/roles';
 import { SIGN_KINDS } from '../../content/sign-styles';
 import { str, strDynamic, type StringKey } from '../../content/strings';
@@ -954,39 +954,9 @@ export class EditorView {
     if (!scenario) actions.append(this.button('editor.playLevel', () => this.actions.playLevel()));
     box.append(actions);
 
-    // Size: any size; levels need BLOCK_CELLS square blocks (a problem says so).
     box.append(el('h2', '', str('editor.size')));
-    const cols = el('input');
-    const rows = el('input');
-    for (const [i, v] of [
-      [cols, m.cols],
-      [rows, m.rows],
-    ] as const) {
-      i.type = 'number';
-      i.min = String(MIN_CELLS);
-      i.max = String(MAX_CELLS);
-      i.value = String(v);
-    }
-    const size = el('form', 'col');
-    const dims = el('div', 'row');
-    dims.append(field(str('scenario.columns'), cols), field(str('scenario.rows'), rows));
-    const resize = el('button', '', str('scenario.resize'));
-    resize.type = 'submit';
-    const pending = () => {
-      const w = cols.valueAsNumber;
-      const h = rows.valueAsNumber;
-      resize.disabled = !(validSide(w) && validSide(h) && (w !== m.cols || h !== m.rows));
-    };
-    cols.oninput = rows.oninput = pending;
-    pending();
-    size.onsubmit = (e) => {
-      e.preventDefault();
-      if (!m.resize(cols.valueAsNumber, rows.valueAsNumber))
-        this.showStatus('scenario.resizeBlocked');
-      else this.fit();
-    };
-    size.append(dims, resize);
-    box.append(size);
+    if (scenario) box.append(this.tileSize());
+    else box.append(this.blockSize());
 
     if (!scenario) {
       // (PHASE13) Edges are the outer row of tiles; they join any block whose touching tiles
@@ -1058,6 +1028,95 @@ export class EditorView {
       this.button('editor.exit', () => this.actions.exit()),
     );
     box.append(file);
+  }
+
+  /** A scenario: any width and height in tiles. */
+  private tileSize(): HTMLElement {
+    const m = this.model;
+    const cols = el('input');
+    const rows = el('input');
+    for (const [i, v] of [
+      [cols, m.cols],
+      [rows, m.rows],
+    ] as const) {
+      i.type = 'number';
+      i.min = String(MIN_CELLS);
+      i.max = String(MAX_CELLS);
+      i.value = String(v);
+    }
+    const size = el('form', 'col');
+    const dims = el('div', 'row');
+    dims.append(field(str('scenario.columns'), cols), field(str('scenario.rows'), rows));
+    const resize = el('button', '', str('scenario.resize'));
+    resize.type = 'submit';
+    const pending = () => {
+      const w = cols.valueAsNumber;
+      const h = rows.valueAsNumber;
+      resize.disabled = !(validSide(w) && validSide(h) && (w !== m.cols || h !== m.rows));
+    };
+    cols.oninput = rows.oninput = pending;
+    pending();
+    size.onsubmit = (e) => {
+      e.preventDefault();
+      this.resizeTo(cols.valueAsNumber, rows.valueAsNumber);
+    };
+    size.append(dims, resize);
+    return size;
+  }
+
+  /**
+   * A block: a whole number of level slots (BLOCK_CELLS tiles each way), never a tile count.
+   * Random levels only place 1 × 1 blocks so far ([Q72]); the bigger sizes show, greyed out.
+   */
+  private blockSize(): HTMLElement {
+    const m = this.model;
+    const n = BLOCK_CELLS;
+    const box = el('div', 'col');
+    const sizes: [number, number][] = [
+      [1, 1],
+      [2, 1],
+      [1, 2],
+      [2, 2],
+    ];
+    const current = sizes.find(([w, h]) => m.cols === w * n && m.rows === h * n);
+    const pick = el('select');
+    pick.setAttribute('aria-label', str('editor.size'));
+    if (!current) {
+      const odd = el('option', '', str('editor.size.odd', { w: m.cols, h: m.rows }));
+      odd.value = '';
+      odd.disabled = true;
+      pick.append(odd);
+    }
+    for (const [w, h] of sizes) {
+      const supported = w === 1 && h === 1;
+      const o = el(
+        'option',
+        '',
+        str(supported ? 'editor.size.blocks' : 'editor.size.blocksSoon', {
+          w,
+          h,
+          tw: w * n,
+          th: h * n,
+        }),
+      );
+      o.value = `${w}x${h}`;
+      o.disabled = !supported;
+      pick.append(o);
+    }
+    pick.value = current ? `${current[0]}x${current[1]}` : '';
+    pick.onchange = () => {
+      const [w, h] = pick.value.split('x').map(Number);
+      if (w && h) this.resizeTo(w * n, h * n);
+    };
+    box.append(pick, el('div', 'hint', str('editor.size.blocksHint')));
+    return box;
+  }
+
+  private resizeTo(cols: number, rows: number): void {
+    if (!this.model.resize(cols, rows)) {
+      this.showStatus('scenario.resizeBlocked');
+      this.refresh();
+    } else this.fit();
   }
 
   /**

@@ -223,7 +223,8 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
   goes back. "My blocks & scenarios…" is the library (localStorage; official blocks in
   `src/content/blocks/`). Format: `src/gen/block.ts` (v4; old scenario layouts convert via
   `layoutToBlock` in `src/gen/scenario-layout.ts`); budget: `src/gen/budget.ts`. The editor
-  doesn't limit size; random levels only use 15×15 blocks (a problem says so, [Q72]).
+  sizes scenarios in tiles and blocks in whole 15×15 level slots (only 1 × 1 for now; bigger
+  slots show greyed out, [Q72]).
 - Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
   + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
   editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.
