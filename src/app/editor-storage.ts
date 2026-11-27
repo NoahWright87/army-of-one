@@ -1,7 +1,8 @@
 /**
  * (PHASE13-a/b) Where the block editor keeps its work, and how the game gets maps from it.
  *
- * - The library ("My blocks"): the player's saved blocks, in localStorage. Official blocks
+ * - The library ("My blocks & scenarios"): the player's saved blocks and scenarios, in
+ *   localStorage. Official blocks
  *   come from the repo (`src/content/blocks/`). The block being edited is a draft until saved.
  * - Play this block: the game opens `EDITOR_PREVIEW_ID`, built from the open block at the
  *   editor's budget.
@@ -9,7 +10,14 @@
  *   blocks that have no problems.
  */
 import { OFFICIAL_BLOCKS } from '../content/blocks';
-import { newBlock, parseBlock, parseBlockObject, validateBlock, type BlockDef } from '../gen/block';
+import {
+  isScenario,
+  newBlock,
+  parseBlock,
+  parseBlockObject,
+  validateBlock,
+  type BlockDef,
+} from '../gen/block';
 import { generateLevel } from '../gen/level';
 import { weatherForLevel } from '../gen/weather';
 import { parseGenMissionId, parseWorldMissionId, worldMissionId } from '../gen/mission-id';
@@ -133,10 +141,10 @@ export function writePlayBudget(budget: number | null): void {
   }
 }
 
-/** The Play map for the open editor block, or null if there's none. */
+/** The Play map for the open editor block, or null if there's none (or it's a scenario). */
 export function editorPreviewMap(): MapDef | null {
   const block = readEditorBlock();
-  return block
+  return block && !isScenario(block)
     ? blockToPreviewMap(block, {
         id: EDITOR_PREVIEW_ID,
         nameKey: 'map.editorPreview.name',
@@ -145,11 +153,14 @@ export function editorPreviewMap(): MapDef | null {
     : null;
 }
 
-/** Blocks generated levels use: official + the player's own that have no problems. */
+/**
+ * Blocks generated levels use: official + the player's own that have no problems. Scenarios
+ * are never used.
+ */
 export function generationPool(): BlockDef[] {
   const official = new Set(OFFICIAL_BLOCKS.map((b) => b.id));
   const custom = readLibrary().blocks.filter(
-    (b) => !official.has(b.id) && validateBlock(b).length === 0,
+    (b) => !official.has(b.id) && !isScenario(b) && validateBlock(b).length === 0,
   );
   return [...OFFICIAL_BLOCKS, ...custom];
 }

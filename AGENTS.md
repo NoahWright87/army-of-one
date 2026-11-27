@@ -211,13 +211,20 @@ Dev tools (dev builds, or add `?dev=1` to any build, e.g. `vite preview`):
 - Sharing (PHASE12-e, [D79]): `src/app/share.ts` packs a run into `#replay=…` links (the save
   format, deflated); `src/app/replay-library.ts` keeps the last 3 wins per mission for the
   title screen's list. Open any `/#replay=…` link to watch it.
-- Block editor (PHASE13-a, [D80]–[D88]): the title screen's "Block editor" link, or
-  `?scene=editor` (no Phaser; "← Main menu" returns). Paint ground, set edge tags, place things
-  with priority 0–5, squads (rally points + a roster of units, [D92]; they roam between their
-  points, [D93]), Download/Copy/Open JSON, **Play this block** (opens
-  `?mission=editor-preview` in the real game at the budget slider's budget; "← Editor" goes
-  back). "My blocks…" is the library (yours in localStorage; official ones in
-  `src/content/blocks/`, copied to edit). Format: `src/gen/block.ts`; budget: `src/gen/budget.ts`.
+- Map editor (PHASE13-a, [D80]–[D88]; blocks and scenarios merged): the title screen's "Map
+  editor" link, `?scene=editor` or `?scene=scenario` (no Phaser). One editor for **blocks** (pieces
+  of random levels) and **scenarios** (`kind: 'scenario'`: a whole map of any size, starting
+  spawns, no budget, never in the level pool). Mobile-friendly layer tabs: Ground (paint), Build
+  (walls, gates, ladders, raised ground, cover), Props, Weather (mist coats, ground mist), Logic
+  (spawn, capture, objective, lever), Enemies (squads: rally points + roster, [D92]/[D93];
+  turrets, mines), File (type, name, size, edges, budget, problems, save/play, library, HQ /
+  basic training templates). **Play** opens `?mission=editor-preview` (a block, at the budget
+  slider's budget) or `?mission=scenario-preview` (a scenario, `src/gen/scenario.ts`); "← Editor"
+  goes back. "My blocks & scenarios…" is the library (localStorage; official blocks in
+  `src/content/blocks/`). Format: `src/gen/block.ts` (v4; old scenario layouts convert via
+  `layoutToBlock` in `src/gen/scenario-layout.ts`); budget: `src/gen/budget.ts`. The editor
+  sizes scenarios in tiles and blocks in whole 15×15 level slots (only 1 × 1 for now; bigger
+  slots show greyed out, [Q72]).
 - Generated levels (PHASE13-b): `?mission=gen-<seed>` (or `gen-<seed>-<budget>`) stitches official
   + your valid blocks (`src/gen/level.ts`); the title screen's "Random mission" link and the
   editor's "Play a random level" pick a seed. `starter-*` blocks are placeholders.

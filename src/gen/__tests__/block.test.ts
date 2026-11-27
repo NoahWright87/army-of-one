@@ -4,6 +4,7 @@ import { BLOCK_TUNING, DEFAULT_TUNING } from '../../content/tuning';
 import { createWorld, step } from '../../sim/sim';
 import { validateMap } from '../../sim/world/map';
 import {
+  BLOCK_VERSION,
   blockToJson,
   newBlock,
   parseBlock,
@@ -95,7 +96,7 @@ describe('block JSON', () => {
     const res = parseBlock(JSON.stringify(v2));
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.block.v).toBe(3);
+    expect(res.block.v).toBe(BLOCK_VERSION);
     expect('edges' in res.block).toBe(false);
     expect(res.block.ground).toEqual(fort().ground);
   });
@@ -133,7 +134,7 @@ describe('block JSON', () => {
     const res = parseBlock(JSON.stringify(v1));
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.block.v).toBe(3);
+    expect(res.block.v).toBe(BLOCK_VERSION);
     expect(res.block.groups).toEqual([
       {
         id: 'nest',

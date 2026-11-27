@@ -35,17 +35,15 @@ async function boot(): Promise<void> {
     // (PHASE18) The drill sergeant's script editor: plain DOM, no Phaser.
     const m = await import('./sarge-editor-main');
     m.startSargeEditor(document.getElementById('ui-root') ?? document.body, params);
-  } else if (params.get('scene') === 'editor') {
-    // (PHASE13-a) Block editor: plain DOM, no Phaser.
-    const m = await import('./editor-main');
-    await m.startEditor(document.getElementById('ui-root') ?? document.body, params);
   } else if (
+    params.get('scene') === 'editor' ||
     params.get('scene') === 'scenario' ||
     (params.get('mission') === SCENARIO_PREVIEW_ID &&
       !(await import('./scenario-storage')).loadScenarioPreview())
   ) {
-    const m = await import('./scenario-main');
-    m.startScenarioEditor(document.getElementById('ui-root') ?? document.body);
+    // (PHASE13-a) The map editor (blocks and scenarios): plain DOM, no Phaser.
+    const m = await import('./editor-main');
+    await m.startEditor(document.getElementById('ui-root') ?? document.body, params);
   } else if (params.get('screen') === 'respawn') {
     const m = await import('./respawn-dev');
     await m.startRespawnDevPage(params, document.getElementById('ui-root') ?? document.body);

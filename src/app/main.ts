@@ -310,10 +310,10 @@ function openSargeEditor(): void {
   window.location.assign(url.toString());
 }
 
-function openEditor(scene: 'editor' | 'scenario' = 'editor'): void {
+function openEditor(): void {
   const url = new URL(window.location.href);
   url.searchParams.delete('mission');
-  url.searchParams.set('scene', scene);
+  url.searchParams.set('scene', 'editor');
   url.hash = '';
   window.location.assign(url.toString());
 }
@@ -779,18 +779,14 @@ async function startGame(): Promise<void> {
     frame.returnToMap(projection, controller.flushSaves());
   }
 
-  const previewEditor = scenarioMap
-    ? 'scenario'
-    : MISSION.id === EDITOR_PREVIEW_ID
-      ? 'editor'
-      : null;
+  const previewEditor = Boolean(scenarioMap) || MISSION.id === EDITOR_PREVIEW_ID;
   const backTo: { label: string; run(): void } | null =
     training && params.get('from') === 'sarge'
       ? { label: str('sarge.back'), run: openSargeEditor }
       : fromHub && !scenarioMap
         ? { label: str('hub.back'), run: () => openHub() }
         : previewEditor
-          ? { label: str('editor.backToEditor'), run: () => openEditor(previewEditor) }
+          ? { label: str('editor.backToEditor'), run: openEditor }
           : worldPlaytest
             ? {
                 label: str(campaignBattle ? 'campaign.back' : 'world.back'),

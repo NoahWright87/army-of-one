@@ -1031,6 +1031,13 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
 
 _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 
+- **[Q72]** Block sizes. The editor now makes blocks and scenarios of any size, but the level
+  generator (`grow.ts`, `edges.ts`, `transform.ts`, `carve.ts`, `region.ts`) assumes every block
+  is exactly 15×15: a uniform grid, square rotations, 15-tile edges. Non-15×15 blocks are shown a
+  problem and kept out of random levels. Proposed: allow multiples of 15 (15×30, 30×30…), each
+  occupying several grid slots, edges matched per 15-tile segment. Arbitrary sizes would need a
+  different (packing) generator. Which do you want?
+
 - **[Q71] Senses (PHASE21, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
   now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
   raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows
