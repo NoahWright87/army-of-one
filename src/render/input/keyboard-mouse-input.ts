@@ -20,7 +20,11 @@ export class KeyboardMouseInput implements InputSource {
     if (p.leftButtonDown()) this.fireLatch.press();
   };
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    /** (aim test) Canvas px → aim point (the settled camera); absent: the camera as it is now. */
+    private readonly toWorld?: (px: number, py: number) => Vec2 | null,
+  ) {
     const kb = scene.input.keyboard!;
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = kb.addKeys(
@@ -47,9 +51,16 @@ export class KeyboardMouseInput implements InputSource {
 
   pointerWorld(): Vec2 {
     const pointer = this.scene.input.activePointer;
+    const settled = this.toWorld?.(pointer.x, pointer.y);
+    if (settled) return settled;
     const cam = this.scene.cameras.main;
     const p = cam.getWorldPoint(pointer.x, pointer.y);
     return { x: p.x, y: p.y };
+  }
+
+  aimScreen(): Vec2 {
+    const pointer = this.scene.input.activePointer;
+    return { x: pointer.x, y: pointer.y };
   }
 
   read(soldierPos: Vec2): SoldierInput {

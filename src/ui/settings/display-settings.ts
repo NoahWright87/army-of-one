@@ -49,6 +49,16 @@ export interface DisplaySettings {
   cameraLookAhead: string;
   /** (06-a) How far ahead the camera looks, in world units. */
   cameraLookAheadDistance: number;
+  /**
+   * (aim test) 'screen': the camera follows where the cursor / finger is on screen (a still hand
+   * is a still view). 'world': the old way, by the aim's distance in the world (it creeps).
+   */
+  aimLook: string;
+  /**
+   * (aim test, 'screen' look) 'world': the aim point is where the cursor will be once the camera
+   * settles (steady while the view glides). 'cursor': under the cursor as the camera moves.
+   */
+  aimLock: string;
 }
 
 export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
@@ -80,6 +90,8 @@ export const SETTING_IDS: { [K in keyof DisplaySettings]: string } = {
   antialias: 'display.antialias',
   cameraLookAhead: 'display.cameraLookAhead',
   cameraLookAheadDistance: 'display.cameraLookAheadDistance',
+  aimLook: 'aim.look',
+  aimLock: 'aim.lock',
 };
 
 const showOptions = [
@@ -232,6 +244,28 @@ export function displaySettingDefs(): SettingDef[] {
       min: 0,
       max: 400,
       step: 10,
+    },
+    {
+      id: id.aimLook,
+      group: C,
+      label: str('settings.aimLook'),
+      type: 'choice',
+      default: 'screen',
+      options: [
+        { value: 'screen', label: str('settings.aimLook.screen') },
+        { value: 'world', label: str('settings.aimLook.world') },
+      ],
+    },
+    {
+      id: id.aimLock,
+      group: C,
+      label: str('settings.aimLock'),
+      type: 'choice',
+      default: 'world',
+      options: [
+        { value: 'world', label: str('settings.aimLock.world') },
+        { value: 'cursor', label: str('settings.aimLock.cursor') },
+      ],
     },
     {
       id: id.screenShake,

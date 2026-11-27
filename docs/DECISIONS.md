@@ -1031,6 +1031,18 @@ Brief for the artist/image model: `docs/art/`. Data twin: `src/content/miniature
 
 _Add new ones here as `[Q#]` entries (Q1–Q4 became D23–D26)._
 
+- **[Q72] Aiming far: which style (owner 2026-11-27, testing in the range).** The reticle crept
+  with the hand still: the camera panned/zoomed by the aim's world distance, read through the
+  moving camera (a prone Sniper's aim went 887 → 1436 units in 1.2 s with the mouse still). F2
+  options to compare: Camera → "Camera follows the aim by" (`aim.look`: **screen**, the new default,
+  where the cursor/finger is on screen, top-down-shooter style; or **world**, the old way) and
+  "Aim point" (`aim.lock`: **stays put** while the view glides, default; or **under the cursor**,
+  settles in ~0.4 s). Controls → Touch aiming gains **Trackpad** (`input.touchAim: drag`: drag near
+  the reticle, it moves by the finger's movement × `input.dragGain`, finer when slow with
+  `input.dragAccel`; the thumb never covers it). Still to decide after the playtest: the
+  defaults; whether scope zoom should come only from stance / a scope button rather than how far
+  you aim; whether auto-aim should slow the reticle over targets (friction) instead of snapping.
+
 - **[Q71] Senses (PHASE21, owner 2026-11-26, to promote).** Wall muffling of sound: later, not
   now. A distant gunshot wakes dormant soldiers only as the noise builds: more and closer fire
   raises their *heat* (suspicion), which fades over time; sights raise it too. The enemy shows

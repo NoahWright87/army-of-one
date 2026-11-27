@@ -327,6 +327,11 @@ export class AutoAimInput implements InputSource {
     return this.base.pointerWorld();
   }
 
+  /** (aim test) The hand's screen point, unless auto-aim is pointing for you. */
+  aimScreen(): Vec2 | null {
+    return this.target ? null : (this.base.aimScreen?.() ?? null);
+  }
+
   observe(view: WorldView): void {
     if (this.view && this.view.tick !== view.tick) {
       this.prevSoldiers = new Map([
