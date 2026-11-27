@@ -1,0 +1,1 @@
+var e=class{data=new Map;async get(e){return this.data.get(e)}async set(e,t){return this.data.set(e,t),{ok:!0}}async remove(e){this.data.delete(e)}async keys(e){return[...this.data.keys()].filter(t=>t.startsWith(e)).sort()}};export{e as MemoryStore};
