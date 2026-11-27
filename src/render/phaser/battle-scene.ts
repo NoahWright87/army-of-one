@@ -8,11 +8,19 @@ import { getView, step, type World } from '../../sim/sim';
 import type { WorldView } from '../../sim/view';
 import { entityCounts, ema } from '../../ui/hud/debug-model';
 import { buildHudModel } from '../../ui/hud/hud-model';
-import { capLookAhead, lookAheadOffset, lookView, phoneFitZoom } from '../camera-look-ahead';
+import {
+  capLookAhead,
+  lookAheadOffset,
+  lookView,
+  phoneFitZoom,
+  screenAimWorld,
+  screenLookView,
+  type ScreenLookState,
+} from '../camera-look-ahead';
 import { CAMERA, CLASS_LOOK } from '../../content/camera';
 import { roleDef } from '../../content/roles';
 import type { Cue } from '../event-cues';
-import type { InputSource } from '../input/input-source';
+import type { AimHost, InputSource } from '../input/input-source';
 import { lerpAngle, smoothFollow } from '../interp';
 import type { BattleSession, SceneServices } from './services';
 import { SoundBank } from './sound-bank';
@@ -42,7 +50,19 @@ const LOOK_AIM_EASE_MS = 600;
  * Runs one battle: fixed-step sim (60 Hz, [E6]) + interpolated rendering + HUD.
  * Start it with `scene.start('battle', { session })`; see BattleSession in services.ts.
  */
-export class BattleScene extends Phaser.Scene {
+export class BattleScene extends Phaser.Scene implements AimHost {
+  /**
+   * (aim test) With the 'screen' look and the aim locked to the world: the point a screen point
+   * (canvas px) aims at once the camera settles there, so the aim holds still while the view
+   * glides. Null otherwise (the input uses the camera as it is).
+   */
+  aimWorldAt(px: number, py: number): Vec2 | null {
+    const sl = this.screenLook;
+    if (!sl || this.services.display.aimLock !== 'world') return null;
+    const map = this.world.map;
+    return screenAimWorld(sl.pos, sl.state, px, py, map.width, map.height);
+  }
+
   private session!: BattleSession;
   private world!: World;
   private liveId!: string;
@@ -61,6 +81,8 @@ export class BattleScene extends Phaser.Scene {
   private zoomNow = 0;
   /** The last look-ahead offset (held while the session asks, PHASE18). */
   private ahead = { x: 0, y: 0 };
+  /** (aim test) This frame's 'screen' look: where the soldier is and how they look. */
+  private screenLook: { pos: Vec2; state: Omit<ScreenLookState, 'u'> } | null = null;
   /** (06-a) Facing used for the look-ahead before the live soldier appears. */
   private homeFacing = -Math.PI / 2;
   private countdownTicks: number | null = null;
@@ -364,6 +386,7 @@ export class BattleScene extends Phaser.Scene {
       driver?.cameraHome ??
       null;
     const frame = this.session.cameraFrame?.();
+    this.screenLook = null;
     if (frame) {
       this.zoomGoal = Math.min(this.baseZoom, cam.width / frame.width, cam.height / frame.height);
       this.cam = smoothFollow(this.cam, frame, display.cameraSmoothing, deltaMs);
@@ -383,10 +406,14 @@ export class BattleScene extends Phaser.Scene {
         this.lookAim = aim;
       }
       // Pan toward the cursor in proportion to how far out it is (none in a countdown).
+      // (aim test) 'screen' look: by where the hand is on screen, so a still hand is a still view.
+      const screen =
+        !counting && display.aimLook === 'screen' ? (this.source.aimScreen?.() ?? null) : null;
       const goal = this.lookAhead(
         target,
         this.lookAim,
         counting ? undefined : this.lastInput.aimDistance,
+        screen,
       );
       this.cam = smoothFollow(this.cam, goal, display.cameraSmoothing, deltaMs);
     } else {
@@ -715,7 +742,9 @@ export class BattleScene extends Phaser.Scene {
     pos: { x: number; y: number },
     aim: number,
     aimDistance?: number,
+    screen: { x: number; y: number } | null = null,
   ): { x: number; y: number } {
+    this.screenLook = null;
     // (PHASE18) The HQ holds the view still while a sign is open (its buttons mustn't slide).
     if (this.session.holdLookAhead?.()) {
       return { x: pos.x + this.ahead.x, y: pos.y + this.ahead.y };
@@ -732,7 +761,7 @@ export class BattleScene extends Phaser.Scene {
         (live.gun ? t[live.gun]?.range : undefined) ??
         (weapon === 'grenade' ? this.world.tuning.grenade.maxRange : CAMERA.minReach);
       const move = this.lastInput.move;
-      const v = lookView({
+      const state = {
         range,
         look: CLASS_LOOK[live.roleId ?? 'rifleman'],
         still: move.x === 0 && move.y === 0,
@@ -741,11 +770,26 @@ export class BattleScene extends Phaser.Scene {
         setUp: !!live.steady,
         scope: !!live.steady,
         ...(live.braceAim !== undefined ? { braceAim: live.braceAim } : {}),
-        aim,
-        ...(aimDistance !== undefined ? { aimDistance } : {}),
         viewW: cam.width,
         viewH: cam.height,
         baseZoom: this.baseZoom,
+      };
+      if (screen) {
+        // (aim test) The hand's screen point decides the view; the aim point follows from it.
+        const u = {
+          x: (screen.x - cam.width / 2) / (cam.width / 2),
+          y: (screen.y - cam.height / 2) / (cam.height / 2),
+        };
+        const v = screenLookView({ ...state, u });
+        this.zoomGoal = v.zoom;
+        this.ahead = v.offset;
+        this.screenLook = { pos: { x: pos.x, y: pos.y }, state };
+        return { x: pos.x + v.offset.x, y: pos.y + v.offset.y };
+      }
+      const v = lookView({
+        ...state,
+        aim,
+        ...(aimDistance !== undefined ? { aimDistance } : {}),
       });
       this.zoomGoal = v.zoom;
       this.ahead = v.offset;

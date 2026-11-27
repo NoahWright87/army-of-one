@@ -21,6 +21,8 @@ import type { InputSource } from './input-source';
 export const AIM_FIRE = 0.6;
 /** Reticle distance when nothing else says how far (world units). */
 const DEFAULT_AIM_DISTANCE = 220;
+/** (aim test) Drag aim goes no further than this (world units; the camera caps the view). */
+const MAX_DRAG_AIM_DISTANCE = 3000;
 
 export class TouchInput implements InputSource {
   private aim = -Math.PI / 2;
@@ -38,8 +40,19 @@ export class TouchInput implements InputSource {
       tuning: Tuning;
       /** (PHASE12-d) Screen (client px) → world, for tap-to-aim. */
       toWorld?: (clientX: number, clientY: number) => Vec2 | null;
+      /** (aim test) Screen (client px) → canvas px, for `aimScreen`. */
+      toCanvas?: (clientX: number, clientY: number) => Vec2 | null;
+      /** (aim test) World units per client px right now (drag aim). */
+      pxToWorld?: () => number;
     },
   ) {}
+
+  /** (aim test) The finger on the reticle (tap mode, not drag), in canvas px. */
+  aimScreen(): Vec2 | null {
+    const c = this.controls;
+    if (!c.tap || c.dragAim) return null;
+    return this.opts.toCanvas?.(c.tap.x, c.tap.y) ?? null;
+  }
 
   /** (PHASE12-d) Aiming by hand (a finger on the field): auto-aim yields. */
   manualAim(): boolean {
@@ -53,12 +66,29 @@ export class TouchInput implements InputSource {
     const aLen = a ? Math.hypot(a.x, a.y) : 0;
     // (PHASE18) Aiming by finger ([D158]): the reticle is wherever the finger is, like a mouse
     // cursor. The camera pans and zooms toward the aim, so holding near the edge looks further.
-    const under = c.tap ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
+    // (aim test) Drag aim: the reticle moves by the finger's movement, never sits under it.
+    const dragging = c.dragAim && c.tap !== null;
+    const under = c.tap && !c.dragAim ? (this.opts.toWorld?.(c.tap.x, c.tap.y) ?? null) : null;
     // (PHASE18) Letting go: the reticle comes back to its walking distance (same direction), so
-    // the camera comes back to you.
-    if (this.aiming && !c.tap) this.aimDistance = DEFAULT_AIM_DISTANCE;
+    // the camera comes back to you. (Drag aim keeps it where you left it.)
+    if (this.aiming && !c.tap && !c.dragAim) this.aimDistance = DEFAULT_AIM_DISTANCE;
     this.aiming = c.tap !== null;
-    if (under) {
+    if (dragging) {
+      // Start from wherever the reticle was drawn (auto-aim's, if it had one).
+      if (c.dragStart) {
+        const w = c.dragStart;
+        this.aim = Math.atan2(w.y - soldierPos.y, w.x - soldierPos.x);
+        this.aimDistance = Math.max(30, Math.hypot(w.x - soldierPos.x, w.y - soldierPos.y));
+        c.dragStart = null;
+      }
+      const d = c.takeDrag();
+      const k = this.opts.pxToWorld?.() ?? 1;
+      const ax = Math.cos(this.aim) * this.aimDistance + d.x * k;
+      const ay = Math.sin(this.aim) * this.aimDistance + d.y * k;
+      const len = Math.hypot(ax, ay);
+      if (len > 1e-6) this.aim = Math.atan2(ay, ax);
+      this.aimDistance = Math.min(MAX_DRAG_AIM_DISTANCE, Math.max(30, len));
+    } else if (under) {
       this.aim = Math.atan2(under.y - soldierPos.y, under.x - soldierPos.x);
       this.aimDistance = Math.max(30, Math.hypot(under.x - soldierPos.x, under.y - soldierPos.y));
     } else if (aLen > 0.2 && a) {

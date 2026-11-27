@@ -17,6 +17,8 @@ const STICK: StickConfig = { radius: 56, deadZone: 0.15 };
 const SPRINT_RING = 1.45;
 /** (PHASE18) A touch this close to the reticle (client px) grabs it. */
 const GRAB_RADIUS = 64; // TUNE
+/** (aim test) Drag aim: the finger needn't cover the reticle, so it grabs from further away. */
+const DRAG_GRAB_RADIUS = 130; // TUNE
 
 const CSS = `
 .aoo-touch { position: fixed; inset: 0; z-index: 20; pointer-events: none; user-select: none;
@@ -45,6 +47,8 @@ const CSS = `
   background: rgba(120,190,255,0.12); }
 .aoo-touch .tapmark { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px;
   border-radius: 50%; border: 3px solid rgba(255,211,77,0.85); pointer-events: none; }
+/* (aim test) Drag aim: the finger's ring is only a touch marker; the reticle is elsewhere. */
+.aoo-touch.drag .tapmark { border-color: rgba(255,255,255,0.4); border-width: 2px; }
 .aoo-touch .firemark { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px;
   border-radius: 50%; background: rgba(255,90,60,0.35); border: 2px solid rgba(255,120,90,0.9);
   pointer-events: none; }
@@ -84,6 +88,19 @@ export class TouchControls {
   private tapEl: HTMLDivElement | null = null;
   private tapPointer: number | null = null;
   private tapAimOn = false;
+  /**
+   * (aim test) Drag aim (trackpad style): the grabbed reticle moves by how far the finger moves
+   * (× `dragCurve`), instead of sitting under it. `TouchInput` takes the movement each tick.
+   */
+  private dragAimOn = false;
+  /** Gain for a finger moving this fast (client px per ms). Set by the app. */
+  dragCurve: (speed: number) => number = () => 1;
+  /** The reticle's world point (set by the app), so a drag starts from where it's drawn. */
+  reticleWorld: (() => Vec2 | null) | null = null;
+  /** Where the reticle was (world) when it was grabbed; TouchInput starts from there. */
+  dragStart: Vec2 | null = null;
+  private dragDelta: Vec2 = { x: 0, y: 0 };
+  private dragLast: { x: number; y: number; t: number } | null = null;
   /** (PHASE18) Fingers that fire while held (tap mode). */
   private readonly firing = new Map<number, HTMLDivElement>();
   /** The aiming finger also fires (it came down while moving, like the old tap-to-aim). */
@@ -164,12 +181,32 @@ export class TouchControls {
     if (!on) this.endTap();
   }
 
+  /** (aim test) Drag aim on (tap mode must be on too): see `dragAimOn`. */
+  setDragAim(on: boolean): void {
+    this.dragAimOn = on;
+    this.root.classList.toggle('drag', on);
+  }
+
+  get dragAim(): boolean {
+    return this.dragAimOn;
+  }
+
+  /** (aim test) The finger's movement since the last call (client px, gain applied). */
+  takeDrag(): Vec2 {
+    const d = this.dragDelta;
+    this.dragDelta = { x: 0, y: 0 };
+    return d;
+  }
+
   private endTap(): void {
     this.tapEl?.remove();
     this.tapEl = null;
     this.tap = null;
     this.tapPointer = null;
     this.tapFires = false;
+    this.dragStart = null;
+    this.dragLast = null;
+    this.dragDelta = { x: 0, y: 0 };
   }
 
   /** The right-hand aim stick (off while auto-aim aims for you). */
@@ -212,7 +249,8 @@ export class TouchControls {
   private nearReticle(x: number, y: number): Vec2 | null {
     const r = this.reticle?.() ?? null;
     if (!r) return null;
-    return Math.hypot(x - r.x, y - r.y) <= GRAB_RADIUS ? r : null;
+    const radius = this.dragAimOn ? DRAG_GRAB_RADIUS : GRAB_RADIUS;
+    return Math.hypot(x - r.x, y - r.y) <= radius ? r : null;
   }
 
   private bindStick(zone: HTMLDivElement, side: 'left' | 'right'): void {
@@ -231,6 +269,11 @@ export class TouchControls {
           this.tapPointer = e.pointerId;
           this.tapFires = moving || this.aimOnly;
           this.tap = { x: e.clientX, y: e.clientY };
+          if (this.dragAimOn) {
+            this.dragStart = this.reticleWorld?.() ?? null;
+            this.dragLast = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+            this.dragDelta = { x: 0, y: 0 };
+          }
           this.tapEl = el('div', 'tapmark');
           this.root.append(this.tapEl);
           this.placeTap();
@@ -262,6 +305,15 @@ export class TouchControls {
     });
     zone.addEventListener('pointermove', (e) => {
       if (this.tapPointer === e.pointerId) {
+        const last = this.dragLast;
+        if (this.dragAimOn && last) {
+          const dx = e.clientX - last.x;
+          const dy = e.clientY - last.y;
+          const dt = Math.max(1, e.timeStamp - last.t);
+          const k = this.dragCurve(Math.hypot(dx, dy) / dt);
+          this.dragDelta = { x: this.dragDelta.x + dx * k, y: this.dragDelta.y + dy * k };
+          this.dragLast = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+        }
         this.tap = { x: e.clientX, y: e.clientY };
         this.placeTap();
         return;

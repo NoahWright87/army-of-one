@@ -155,6 +155,89 @@ export function lookView(s: LookState): { offset: Vec2; zoom: number; reach: num
   return { offset, zoom: z2, reach };
 }
 
+// ---- (aim test) Look by where the aim point is ON SCREEN --------------------------------------
+//
+// `lookView` is driven by the aim's distance in the world, and that distance comes from the
+// cursor's world point under the *current* camera. The camera moving toward the aim moves the
+// world under a still cursor, which moves the aim further out, which moves the camera again: the
+// reticle creeps with the hand still. Here the camera depends only on where the cursor (or
+// finger) sits on the screen (top-down shooter style: cursor halfway to the edge, camera halfway
+// to its furthest), so a still hand is a still camera and a still aim point.
+
+export interface ScreenLookState extends Omit<LookState, 'aim' | 'aimDistance'> {
+  /** The aim point on screen relative to the centre, each axis −1 (left/top edge) … 1. */
+  u: Vec2;
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** Camera offset from the soldier and zoom for an aim point at `u` on screen. */
+export function screenLookView(s: ScreenLookState): { offset: Vec2; zoom: number; reach: number } {
+  const reach = lookReach(s);
+  const ux = clamp(s.u.x, -1, 1);
+  const uy = clamp(s.u.y, -1, 1);
+  const out = Math.min(1, Math.hypot(ux, uy));
+  const z = clamp((out - CAMERA.zoomFrom) / (1 - CAMERA.zoomFrom), 0, 1);
+  const maxZoom = s.scope === false ? 1 : s.look.maxZoom;
+  const zoom = s.baseZoom * (1 + (maxZoom - 1) * z * z * (3 - 2 * z));
+  const hx = s.viewW / 2 / zoom;
+  const hy = s.viewH / 2 / zoom;
+  // At the screen's edge the aim point reaches the look reach (the camera pans the rest); the
+  // soldier stays on screen unless this class has a scope that may leave them behind.
+  const cap = s.look.keepInView ? Math.min(s.look.maxPan, CAMERA.meOnScreen) : s.look.maxPan;
+  const panX = Math.min(Math.max(0, reach - hx), hx * cap);
+  const panY = Math.min(Math.max(0, reach - hy), hy * cap);
+  const offset = { x: ux * panX, y: uy * panY };
+  if (s.braceAim !== undefined) {
+    const aim = Math.atan2(offset.y + uy * hy, offset.x + ux * hx);
+    const lean = CAMERA.braceShift * Math.max(0, Math.cos(aim - s.braceAim));
+    offset.x += Math.cos(s.braceAim) * lean;
+    offset.y += Math.sin(s.braceAim) * lean;
+  }
+  return { offset, zoom, reach };
+}
+
+/** Where a camera centred on `c` really sits once kept inside the map (Phaser's camera bounds). */
+export function clampCameraCentre(
+  c: Vec2,
+  zoom: number,
+  viewW: number,
+  viewH: number,
+  mapW: number,
+  mapH: number,
+): Vec2 {
+  const axis = (v: number, view: number, size: number) => {
+    const half = view / 2 / zoom;
+    return size <= half * 2 ? size / 2 : clamp(v, half, size - half);
+  };
+  return { x: axis(c.x, viewW, mapW), y: axis(c.y, viewH, mapH) };
+}
+
+/**
+ * The world point a screen point (canvas px) aims at once the camera has settled where that same
+ * screen point sends it. A pure function of the hand and the soldier: it never chases the camera.
+ */
+export function screenAimWorld(
+  pos: Vec2,
+  s: Omit<ScreenLookState, 'u'>,
+  px: number,
+  py: number,
+  mapW: number,
+  mapH: number,
+): Vec2 {
+  const u = { x: (px - s.viewW / 2) / (s.viewW / 2), y: (py - s.viewH / 2) / (s.viewH / 2) };
+  const v = screenLookView({ ...s, u });
+  const c = clampCameraCentre(
+    { x: pos.x + v.offset.x, y: pos.y + v.offset.y },
+    v.zoom,
+    s.viewW,
+    s.viewH,
+    mapW,
+    mapH,
+  );
+  return { x: c.x + (px - s.viewW / 2) / v.zoom, y: c.y + (py - s.viewH / 2) / v.zoom };
+}
+
 /** Phones: the zoom that keeps at least `CAMERA.minHalfView` world units on the short half-screen. */
 export function phoneFitZoom(cssW: number, cssH: number): number {
   return Math.min(1, Math.min(cssW, cssH) / 2 / CAMERA.minHalfView);

@@ -122,13 +122,14 @@ import {
   cycleSpeed,
   GAME_SETTING_IDS,
   gameSettingDefs,
+  dragGainFor,
   INPUT_SETTING_IDS,
   autoAimRoleSetting,
   inputSettingDefs,
   resolvePace,
 } from './game-settings';
 import { AutoAimInput, type AutoFireMode } from '../render/input/auto-aim';
-import type { InputSource } from '../render/input/input-source';
+import type { AimHost, InputSource } from '../render/input/input-source';
 import { TouchInput } from '../render/input/touch-input';
 import { TouchControls } from '../ui/touch/touch-controls';
 import { looksLikeTouch } from '../ui/touch/stick-math';
@@ -485,6 +486,13 @@ settings.subscribe((id) => {
   if (id === INPUT_SETTING_IDS.mode || id === INPUT_SETTING_IDS.autoAim) {
     quickHint.setBig(scheme().touch);
   }
+  // (aim test) Switch touch aiming without redeploying, to compare quickly.
+  if (id === INPUT_SETTING_IDS.touchAim) {
+    const v = settings.getString(INPUT_SETTING_IDS.touchAim);
+    touchControls.setTapAim(v !== 'stick');
+    touchControls.setDragAim(v === 'drag');
+    touchControls.setAimStick(v === 'stick' && !scheme().autoAim);
+  }
 });
 /** (07-b) The live soldier's input: keyboard/mouse or touch, optionally wrapped in auto-aim. */
 function makeControls(
@@ -497,26 +505,50 @@ function makeControls(
   const sc = scheme();
   // (PHASE12-d) Touch aiming: tap-to-aim (touch the field; also overrides auto-aim while held),
   // or the old aim stick when auto-aim is off.
-  const tap = settings.getString(INPUT_SETTING_IDS.touchAim) !== 'stick';
+  const touchAim = settings.getString(INPUT_SETTING_IDS.touchAim);
+  const tap = touchAim !== 'stick';
   touchControls.setTapAim(tap);
+  // (aim test) Trackpad-style drag aim.
+  touchControls.setDragAim(touchAim === 'drag');
+  touchControls.dragCurve = (speed) =>
+    dragGainFor(
+      settings.getNumber(INPUT_SETTING_IDS.dragGain),
+      settings.getBool(INPUT_SETTING_IDS.dragAccel),
+      speed,
+    );
   touchControls.setAimStick(!tap && !sc.autoAim);
   touchControls.setVisible(sc.touch);
-  const toWorld = (cx: number, cy: number) => {
-    const canvas = scene.game.canvas;
-    const r = canvas.getBoundingClientRect();
+  const toCanvas = (cx: number, cy: number) => {
+    const r = scene.game.canvas.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return null;
-    const p = scene.cameras.main.getWorldPoint(
-      ((cx - r.left) * scene.scale.width) / r.width,
-      ((cy - r.top) * scene.scale.height) / r.height,
-    );
+    return {
+      x: ((cx - r.left) * scene.scale.width) / r.width,
+      y: ((cy - r.top) * scene.scale.height) / r.height,
+    };
+  };
+  // (aim test) Canvas px → aim point: the settled camera's, when the scene offers it.
+  const canvasToWorld = (px: number, py: number) => {
+    const settled = (scene as Phaser.Scene & AimHost).aimWorldAt?.(px, py);
+    if (settled) return settled;
+    const p = scene.cameras.main.getWorldPoint(px, py);
     return { x: p.x, y: p.y };
   };
+  const toWorld = (cx: number, cy: number) => {
+    const p = toCanvas(cx, cy);
+    return p ? canvasToWorld(p.x, p.y) : null;
+  };
+  const pxToWorld = () => {
+    const r = scene.game.canvas.getBoundingClientRect();
+    const zoom = scene.cameras.main.zoom || 1;
+    return r.width > 0 ? scene.scale.width / r.width / zoom : 1 / zoom;
+  };
   const base: InputSource = sc.touch
-    ? new TouchInput(touchControls, { tuning, toWorld })
-    : new KeyboardMouseInput(scene);
+    ? new TouchInput(touchControls, { tuning, toWorld, toCanvas, pxToWorld })
+    : new KeyboardMouseInput(scene, canvasToWorld);
   // (PHASE18) The HQ: no auto-aim/auto-fire (it would keep closing the signs you read).
   const source =
     !sc.autoAim || opts.autoAim === false ? base : autoAimed(base, map, tuning, liveId);
+  touchControls.reticleWorld = () => source.pointerWorld();
   // (PHASE18) Tap mode grabs the reticle where it's drawn ([D158]).
   touchControls.reticle = () => {
     const w = source.pointerWorld();

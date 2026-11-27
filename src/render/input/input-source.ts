@@ -22,4 +22,15 @@ export interface InputSource {
   manualAim?(): boolean;
   /** (07-b) Auto-aim: the current target (present only on auto-aim sources). */
   aimTarget?(): Vec2 | null;
+  /**
+   * (aim test) Where the hand is aiming on screen right now (canvas px): the mouse, or a finger
+   * on the reticle. Null when the aim isn't a screen point (auto-aim, aim stick, drag, no finger).
+   */
+  aimScreen?(): Vec2 | null;
+}
+
+/** (aim test) A scene that can map a screen point to its settled aim point (`screenAimWorld`). */
+export interface AimHost {
+  /** Null: use the camera as it is now. */
+  aimWorldAt?(px: number, py: number): Vec2 | null;
 }

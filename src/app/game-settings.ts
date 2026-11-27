@@ -47,7 +47,21 @@ export const INPUT_SETTING_IDS = {
   autoFire: 'input.autoFire',
   /** (PHASE12-d) Touch aiming without auto-aim: 'tap' (touch the field) or 'stick'. */
   touchAim: 'input.touchAim',
+  /** (aim test) Drag aim: reticle px moved per finger px. */
+  dragGain: 'input.dragGain',
+  /** (aim test) Drag aim: slow drags are finer, fast ones go further. */
+  dragAccel: 'input.dragAccel',
 } as const;
+
+/** (aim test) Drag aim gain for a finger moving `speed` client px per ms. */
+export function dragGainFor(gain: number, accel: boolean, speed: number): number {
+  if (!accel) return gain;
+  // ~0.1 px/ms is a careful nudge, ~1 px/ms a flick.
+  return gain * Math.max(DRAG_ACCEL_MIN, Math.min(DRAG_ACCEL_MAX, speed / DRAG_ACCEL_REF));
+}
+const DRAG_ACCEL_REF = 0.5; // TUNE: px/ms at which the gain is exactly `gain`
+const DRAG_ACCEL_MIN = 0.4; // TUNE
+const DRAG_ACCEL_MAX = 2.5; // TUNE
 
 /** (PHASE12-d) Auto-aim per role (on by default for every role). */
 export const autoAimRoleSetting = (roleId: RoleId) => `input.autoAim.${roleId}`;
@@ -98,8 +112,26 @@ export function inputSettingDefs(): SettingDef[] {
       default: 'tap',
       options: [
         { value: 'tap', label: str('settings.input.touchAim.tap') },
+        { value: 'drag', label: str('settings.input.touchAim.drag') },
         { value: 'stick', label: str('settings.input.touchAim.stick') },
       ],
+    },
+    {
+      id: INPUT_SETTING_IDS.dragGain,
+      group: G,
+      label: str('settings.input.dragGain'),
+      type: 'number',
+      default: 1.5,
+      min: 0.25,
+      max: 4,
+      step: 0.25,
+    },
+    {
+      id: INPUT_SETTING_IDS.dragAccel,
+      group: G,
+      label: str('settings.input.dragAccel'),
+      type: 'boolean',
+      default: true,
     },
     // (PHASE12-d) Auto-aim per role: turn it off for, say, the Bazooka and aim by hand.
     ...ROLES.map((r): SettingDef => ({
