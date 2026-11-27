@@ -1,4 +1,4 @@
-import{l as e}from"./index-BujtfXnY.js";import"./assemble-DUemO-HF.js";import{D as t,P as n,S as r,T as i,b as a,d as o,g as s,h as c,n as l,w as u,y as d}from"./editor-storage-hsrvaSAU.js";import{a as f,n as p,t as m}from"./dom-DzN4FIN7.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-NWMqAgOW.js";import{r as b,t as x}from"./indexeddb-store-BKaev86U.js";import{t as S}from"./connection-graph-C-1QSaPQ.js";var C=`army-of-one.world.overlays`,w=`
+import{l as e}from"./index-BdkGnbAb.js";import"./assemble-DUemO-HF.js";import{D as t,P as n,S as r,T as i,b as a,d as o,g as s,h as c,n as l,w as u,y as d}from"./editor-storage-CwyAh4oj.js";import{a as f,n as p,t as m}from"./dom-DzN4FIN7.js";import{a as h,i as g,n as _,r as v,t as y}from"./map-draw-tZnxY6MQ.js";import{r as b,t as x}from"./indexeddb-store-BfuwZTd8.js";import{t as S}from"./connection-graph-BJc8279A.js";var C=`army-of-one.world.overlays`,w=`
 .aoo-wm { position: fixed; inset: 0; display: grid; grid-template-columns: 230px 1fr 400px;
   font: 13px/1.4 system-ui, sans-serif; color: #e7e9ec; background: #111418; }
 .aoo-wm aside { overflow-y: auto; padding: 12px; background: #181c21; }
